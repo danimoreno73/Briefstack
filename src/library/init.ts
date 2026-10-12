@@ -12,12 +12,14 @@ import {
   LOG_INDEX_TEMPLATE,
   toNative,
 } from './layout.js';
-import { prepareAdditionalDirectory, writePreparedDirectory, type AddDirectoryResult } from './settings.js';
+import { prepareAdditionalDirectories, writePreparedDirectories, type AddDirectoryResult } from './settings.js';
 
 export interface InitOptions {
   libraryDir: string;
   projectsDir: string;
-  /** The briefstack repo whose `.claude/settings.local.json` gets `projectsDir`. */
+  /** Where `/new-project` keeps each run's events and working files. */
+  sessionsDir: string;
+  /** The briefstack repo whose `.claude/settings.local.json` gets both folders. */
   repoDir: string;
   pathStyle?: Pick<PathEnv, 'pathApi' | 'caseInsensitive'>;
 }
@@ -30,7 +32,10 @@ export interface InitResult {
   committed: boolean;
   projectsDir: string;
   projectsDirCreated: boolean;
-  settings: AddDirectoryResult;
+  sessionsDir: string;
+  sessionsDirCreated: boolean;
+  /** `projectsDir`, then `sessionsDir`. */
+  settings: AddDirectoryResult[];
   warnings: GitWarning[];
 }
 
@@ -61,15 +66,15 @@ async function ensureFile(file: string, text: string): Promise<boolean> {
 }
 
 /**
- * Creates the personal library, the projects folder and the
- * `additionalDirectories` entry. Idempotent: existing files are never
+ * Creates the personal library, the projects and sessions folders, and their
+ * `additionalDirectories` entries (the flow writes in both). Idempotent: existing files are never
  * touched and a second run changes nothing. The settings file is checked
  * first, so invalid JSON there stops `init` before anything is created.
  */
 export async function initLibrary(options: InitOptions): Promise<InitResult> {
-  const { libraryDir, projectsDir } = options;
+  const { libraryDir, projectsDir, sessionsDir } = options;
   const warnings: GitWarning[] = [];
-  const prepared = await prepareAdditionalDirectory(options.repoDir, projectsDir, options.pathStyle);
+  const prepared = await prepareAdditionalDirectories(options.repoDir, [projectsDir, sessionsDir], options.pathStyle);
 
   const created: string[] = [];
   if (await ensureDir(libraryDir)) created.push('./');
@@ -97,7 +102,8 @@ export async function initLibrary(options: InitOptions): Promise<InitResult> {
   }
 
   const projectsDirCreated = await ensureDir(projectsDir);
-  const settings = await writePreparedDirectory(prepared);
+  const sessionsDirCreated = await ensureDir(sessionsDir);
+  const settings = await writePreparedDirectories(prepared);
 
   return {
     libraryDir,
@@ -106,6 +112,8 @@ export async function initLibrary(options: InitOptions): Promise<InitResult> {
     committed,
     projectsDir,
     projectsDirCreated,
+    sessionsDir,
+    sessionsDirCreated,
     settings,
     warnings,
   };

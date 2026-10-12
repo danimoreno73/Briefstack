@@ -44,19 +44,23 @@ describe('cli: init and library', () => {
 
   const libraryDir = () => path.join(dir, 'home', 'library');
   const projectsDir = () => path.join(dir, 'user', 'briefstack-projects');
+  const sessionsDir = () => path.join(dir, 'home', 'sessions');
 
   it('init reports what it created, then that nothing changed', async () => {
     const first = capture(dir);
     expect(await main(['init'], first.io)).toBe(0);
     expect(first.err).toEqual([]);
     const entry = projectsDir().replace(/\\/g, '/');
+    const sessionsEntry = sessionsDir().replace(/\\/g, '/');
     const settings = path.join(dir, 'repo', '.claude', 'settings.local.json');
     expect(first.out).toEqual([
       `Created the personal library in ${libraryDir()}.`,
       'Initialised a git repository in the library.',
       'Committed the change to the library repository.',
       `Created the projects folder ${projectsDir()}.`,
+      `Created the sessions folder ${sessionsDir()}.`,
       `Added ${entry} to permissions.additionalDirectories in ${settings}.`,
+      `Added ${sessionsEntry} to permissions.additionalDirectories in ${settings}.`,
     ]);
 
     const second = capture(dir);
@@ -64,7 +68,9 @@ describe('cli: init and library', () => {
     expect(second.out).toEqual([
       `The personal library in ${libraryDir()} is already set up; nothing changed.`,
       `Projects folder: ${projectsDir()}.`,
+      `Sessions folder: ${sessionsDir()}.`,
       `${entry} is already in permissions.additionalDirectories in ${settings}.`,
+      `${sessionsEntry} is already in permissions.additionalDirectories in ${settings}.`,
     ]);
   });
 
@@ -188,7 +194,12 @@ describe('cli: paths', () => {
       `Biblioteca personal: ${path.join(dir, 'home', 'library')}`,
       `Carpeta de proyectos: ${path.join(dir, 'user', 'briefstack-projects')}`,
       `Sesiones: ${path.join(dir, 'home', 'sessions')}`,
-      `Carpetas permitidas en .claude/settings.local.json: ${path.join(dir, 'user', 'briefstack-projects').replace(/\\/g, '/')}`,
+      `Carpetas permitidas en .claude/settings.local.json: ${[
+        path.join(dir, 'user', 'briefstack-projects'),
+        path.join(dir, 'home', 'sessions'),
+      ]
+        .map((item) => item.replace(/\\/g, '/'))
+        .join(', ')}`,
     ]);
   });
 

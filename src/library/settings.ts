@@ -93,9 +93,12 @@ export interface AddDirectoryResult {
   added: boolean;
 }
 
-export interface PreparedDirectory {
+export interface PreparedDirectories {
   file: string;
-  merge: SettingsMerge;
+  /** The file content after every merge. */
+  text: string;
+  /** One per requested folder, in order. */
+  entries: { entry: string; added: boolean }[];
 }
 
 const systemStyle = (): PathStyle => ({ pathApi: path, caseInsensitive: process.platform !== 'linux' });
@@ -110,14 +113,21 @@ async function readLocalSettings(repoDir: string): Promise<{ file: string; text:
   }
 }
 
-/** Reads `<repoDir>/.claude/settings.local.json` and computes the merge, writing nothing. */
-export async function prepareAdditionalDirectory(
+/** Reads `<repoDir>/.claude/settings.local.json` and merges each folder in turn, writing nothing. */
+export async function prepareAdditionalDirectories(
   repoDir: string,
-  dir: string,
+  dirs: readonly string[],
   style: PathStyle = systemStyle(),
-): Promise<PreparedDirectory> {
-  const { file, text } = await readLocalSettings(repoDir);
-  return { file, merge: mergeAdditionalDirectory(text, dir, style, file) };
+): Promise<PreparedDirectories> {
+  const { file, text: original } = await readLocalSettings(repoDir);
+  let text = original;
+  const entries: PreparedDirectories['entries'] = [];
+  for (const dir of dirs) {
+    const merge = mergeAdditionalDirectory(text, dir, style, file);
+    if (merge.added) text = merge.text;
+    entries.push({ entry: merge.entry, added: merge.added });
+  }
+  return { file, text: text ?? '', entries };
 }
 
 /** The `additionalDirectories` of `<repoDir>/.claude/settings.local.json`; none when it is missing. */
@@ -135,22 +145,23 @@ export function allowingDirectory(dir: string, entries: readonly string[], style
   return entries.find((entry) => isFullyAbsolute(entry, style.pathApi) && isPathInside(dir, entry, style));
 }
 
-/** Writes a prepared merge when it adds the entry. */
-export async function writePreparedDirectory({ file, merge }: PreparedDirectory): Promise<AddDirectoryResult> {
-  if (merge.added) {
+/** Writes prepared merges, once, when any of them adds an entry. */
+export async function writePreparedDirectories(prepared: PreparedDirectories): Promise<AddDirectoryResult[]> {
+  const { file, text, entries } = prepared;
+  if (entries.some((item) => item.added)) {
     await mkdir(path.dirname(file), { recursive: true });
     const temp = `${file}.${process.pid}.tmp`;
-    await writeFile(temp, merge.text, 'utf8');
+    await writeFile(temp, text, 'utf8');
     await rename(temp, file);
   }
-  return { file, entry: merge.entry, added: merge.added };
+  return entries.map((item) => ({ file, ...item }));
 }
 
 /** Reads, merges and writes the settings file. Invalid JSON leaves the file untouched. */
-export async function addAdditionalDirectory(
+export async function addAdditionalDirectories(
   repoDir: string,
-  dir: string,
+  dirs: readonly string[],
   style: PathStyle = systemStyle(),
-): Promise<AddDirectoryResult> {
-  return writePreparedDirectory(await prepareAdditionalDirectory(repoDir, dir, style));
+): Promise<AddDirectoryResult[]> {
+  return writePreparedDirectories(await prepareAdditionalDirectories(repoDir, dirs, style));
 }

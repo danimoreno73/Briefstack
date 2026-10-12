@@ -38,10 +38,11 @@ describe('personal library', () => {
   let cleanup: () => Promise<void>;
   let libraryDir: string;
   let projectsDir: string;
+  let sessionsDir: string;
   let repoDir: string;
   const now = new Date('2026-10-12T10:00:00Z');
 
-  const init = () => initLibrary({ libraryDir, projectsDir, repoDir });
+  const init = () => initLibrary({ libraryDir, projectsDir, sessionsDir, repoDir });
   const source = async (name: string, text: string): Promise<string> => {
     const file = path.join(dir, 'input', name);
     await writeTree(path.join(dir, 'input'), { [name]: text });
@@ -54,12 +55,13 @@ describe('personal library', () => {
     ({ dir, cleanup } = await tempDir('library'));
     libraryDir = path.join(dir, 'home', 'library');
     projectsDir = path.join(dir, 'projects');
+    sessionsDir = path.join(dir, 'home', 'sessions');
     repoDir = path.join(dir, 'repo');
   });
   afterEach(() => cleanup());
 
   describe('init', () => {
-    it('creates the tree, a git repo with one commit, the projects folder and the settings entry', async () => {
+    it('creates the tree, a git repo with one commit, the projects and sessions folders and their settings entries', async () => {
       const result = await init();
       expect(result.created).toEqual([
         './',
@@ -77,13 +79,19 @@ describe('personal library', () => {
       expect(result.committed).toBe(true);
       expect(result.projectsDirCreated).toBe(true);
       expect((await stat(projectsDir)).isDirectory()).toBe(true);
+      expect(result.sessionsDirCreated).toBe(true);
+      expect((await stat(sessionsDir)).isDirectory()).toBe(true);
       expect(git(libraryDir, ['log', '--format=%s|%an']).trim()).toBe('library: initialise|briefstack');
       expect(git(libraryDir, ['status', '--porcelain']).trim()).toBe('');
 
       const entry = projectsDir.replace(/\\/g, '/');
-      expect(result.settings).toEqual({ file: settingsFile(), entry, added: true });
+      const sessionsEntry = sessionsDir.replace(/\\/g, '/');
+      expect(result.settings).toEqual([
+        { file: settingsFile(), entry, added: true },
+        { file: settingsFile(), entry: sessionsEntry, added: true },
+      ]);
       expect(JSON.parse(await readFile(settingsFile(), 'utf8'))).toEqual({
-        permissions: { additionalDirectories: [entry] },
+        permissions: { additionalDirectories: [entry, sessionsEntry] },
       });
     });
 
@@ -97,7 +105,8 @@ describe('personal library', () => {
       expect(again.gitInitialised).toBe(false);
       expect(again.committed).toBe(false);
       expect(again.projectsDirCreated).toBe(false);
-      expect(again.settings.added).toBe(false);
+      expect(again.sessionsDirCreated).toBe(false);
+      expect(again.settings.map((item) => item.added)).toEqual([false, false]);
       expect(await read('lessons.md')).toBe('# Mine\n');
       expect(await readFile(settingsFile(), 'utf8')).toBe(settingsBefore);
       expect(git(libraryDir, ['rev-list', '--count', 'HEAD']).trim()).toBe('1');
@@ -120,7 +129,10 @@ describe('personal library', () => {
       });
       await init();
       expect(JSON.parse(await readFile(settingsFile(), 'utf8'))).toEqual({
-        permissions: { allow: ['Read'], additionalDirectories: ['/elsewhere', projectsDir.replace(/\\/g, '/')] },
+        permissions: {
+          allow: ['Read'],
+          additionalDirectories: ['/elsewhere', projectsDir.replace(/\\/g, '/'), sessionsDir.replace(/\\/g, '/')],
+        },
         model: 'x',
       });
     });

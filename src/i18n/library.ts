@@ -18,6 +18,8 @@ export const libraryMessages = defineCatalogue({
     committed: 'Committed the change to the library repository.',
     projectsDirCreated: (dir: string) => `Created the projects folder ${dir}.`,
     projectsDirExists: (dir: string) => `Projects folder: ${dir}.`,
+    sessionsDirCreated: (dir: string) => `Created the sessions folder ${dir}.`,
+    sessionsDirExists: (dir: string) => `Sessions folder: ${dir}.`,
     settingsAdded: (entry: string, file: string) =>
       `Added ${entry} to permissions.additionalDirectories in ${file}.`,
     settingsPresent: (entry: string, file: string) =>
@@ -49,6 +51,8 @@ export const libraryMessages = defineCatalogue({
     committed: 'Cambio confirmado en el repositorio de la biblioteca.',
     projectsDirCreated: (dir: string) => `Carpeta de proyectos creada: ${dir}.`,
     projectsDirExists: (dir: string) => `Carpeta de proyectos: ${dir}.`,
+    sessionsDirCreated: (dir: string) => `Carpeta de sesiones creada: ${dir}.`,
+    sessionsDirExists: (dir: string) => `Carpeta de sesiones: ${dir}.`,
     settingsAdded: (entry: string, file: string) =>
       `Añadido ${entry} a permissions.additionalDirectories en ${file}.`,
     settingsPresent: (entry: string, file: string) =>
@@ -131,10 +135,9 @@ export function initSummary(result: InitResult, lang: Lang): string[] {
   if (result.gitInitialised) lines.push(m.gitInitialised);
   if (result.committed) lines.push(m.committed);
   lines.push(result.projectsDirCreated ? m.projectsDirCreated(result.projectsDir) : m.projectsDirExists(result.projectsDir));
-  lines.push(
-    result.settings.added
-      ? m.settingsAdded(result.settings.entry, result.settings.file)
-      : m.settingsPresent(result.settings.entry, result.settings.file),
-  );
+  lines.push(result.sessionsDirCreated ? m.sessionsDirCreated(result.sessionsDir) : m.sessionsDirExists(result.sessionsDir));
+  for (const item of result.settings) {
+    lines.push(item.added ? m.settingsAdded(item.entry, item.file) : m.settingsPresent(item.entry, item.file));
+  }
   return lines;
 }

@@ -409,6 +409,7 @@ async function runInit(args: readonly string[], io: CliIO, lang: Lang): Promise<
   const result = await initLibrary({
     libraryDir: paths.libraryDir,
     projectsDir: paths.projectsDir,
+    sessionsDir: paths.sessionsDir,
     repoDir: io.repoDir ?? PACKAGE_ROOT,
     pathStyle: io.pathEnv,
   });
