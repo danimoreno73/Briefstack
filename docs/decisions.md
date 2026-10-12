@@ -11,6 +11,26 @@ TypeScript 7.0.2 is the npm `latest`, but `typescript-eslint@8.71.1` declares
 `typescript: ">=4.8.4 <6.1.0"` as its peer dependency (`npm view`). TypeScript
 stays on `~6.0.3` until typescript-eslint supports 7.
 
+### Line endings (2026-10-12, user)
+
+`.gitattributes` has `* text=auto eol=lf`: every text file is LF in the repo
+and in the working tree, on every OS. The files committed before it were
+already LF, so nothing was renormalised.
+
+### esbuild install script (2026-10-12)
+
+npm warns that esbuild's postinstall script is not covered by
+`allowScripts`. It was not approved: tsx and vitest work without it (the
+platform binary comes as an optional dependency). Revisit only if a fresh
+install breaks.
+
+### Fake secrets in tests (2026-10-12)
+
+Test strings that look like real tokens (`sk-ant-…`, `ghp_…`) are built by
+concatenation so secret scanners (for example GitHub push protection, if the
+repo is published) do not flag the repo. Private-key headers without a key
+and the AWS documentation example key (`…EXAMPLE`) are left as literals.
+
 ### CI untested (2026-10-12)
 
 `.github/workflows/ci.yml` runs build, lint and test on Windows, macOS and
@@ -551,6 +571,8 @@ Built in a worktree from `075b8bc`; merged as `9014e58`, `7f9fae6`, `cb79e62`.
   (`claude-app`); a `claude-code` project does not show them anywhere yet.
 - **CLI smoke test:** `scaffold` + `validate` from source on the novel and
   software fixtures, against the real home folder: no findings.
+- **Scaffold output:** the "applied usage profile to the generated agents"
+  line is printed only when the project has agents.
 
 ## Personal library (H6, 2026-10-12)
 
