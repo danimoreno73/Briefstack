@@ -33,6 +33,13 @@ export type StepPhase = (typeof STEP_PHASES)[number];
 export const STEP_OUTCOMES = ['ok', 'skipped', 'failed'] as const;
 export type StepOutcome = (typeof STEP_OUTCOMES)[number];
 
+/** Opening and closing a /new-project run. Only `session.started` (or any flow event) creates the session folder. */
+export const SESSION_PHASES = ['started', 'finished'] as const;
+export type SessionPhase = (typeof SESSION_PHASES)[number];
+
+export const SESSION_OUTCOMES = ['completed', 'cancelled', 'failed'] as const;
+export type SessionOutcome = (typeof SESSION_OUTCOMES)[number];
+
 export const HOOK_EVENT_TYPES = [
   'subagent.start',
   'subagent.stop',
@@ -56,6 +63,12 @@ export interface FlowEvent extends EventBase {
   outcome?: StepOutcome;
 }
 
+export interface SessionLifecycleEvent extends EventBase {
+  source: 'flow';
+  type: `session.${SessionPhase}`;
+  outcome?: SessionOutcome;
+}
+
 /** Tool inputs are never recorded: only the tool's name. */
 export interface HookEvent extends EventBase {
   source: 'hook';
@@ -65,7 +78,7 @@ export interface HookEvent extends EventBase {
   tool?: string;
 }
 
-export type SessionEvent = FlowEvent | HookEvent;
+export type SessionEvent = FlowEvent | SessionLifecycleEvent | HookEvent;
 
 /** Claude Code session ids are UUIDs; this also keeps the folder name safe. */
 export const SESSION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -93,6 +106,17 @@ export function flowEvent(
   return event;
 }
 
+export function sessionLifecycleEvent(
+  session: string,
+  phase: SessionPhase,
+  outcome?: SessionOutcome,
+  now: Date = new Date(),
+): SessionLifecycleEvent {
+  const event: SessionLifecycleEvent = { v: EVENT_FORMAT, ts: now.toISOString(), session, source: 'flow', type: `session.${phase}` };
+  if (outcome !== undefined) event.outcome = outcome;
+  return event;
+}
+
 /** Appends one line. `appendFile` opens with O_APPEND, so lines are never rewritten. */
 export async function appendEvent(sessionsDir: string, event: SessionEvent): Promise<string> {
   const file = sessionEventsFile(sessionsDir, event.session);
@@ -112,6 +136,9 @@ function isSessionEvent(value: unknown): value is SessionEvent {
   const event = value as Record<string, unknown>;
   if (event.v !== EVENT_FORMAT || typeof event.ts !== 'string' || typeof event.session !== 'string') return false;
   if (event.source === 'flow') {
+    if (event.type === 'session.started' || event.type === 'session.finished') {
+      return event.outcome === undefined || (SESSION_OUTCOMES as readonly unknown[]).includes(event.outcome);
+    }
     return (
       (event.type === 'step.started' || event.type === 'step.finished') &&
       typeof event.step === 'string' &&
@@ -143,4 +170,58 @@ export async function readEvents(file: string): Promise<ReadEventsResult> {
     }
   });
   return { events, badLines };
+}
+
+export type SessionStatus = 'finished' | 'in-progress' | 'interrupted';
+
+export interface SessionSummary {
+  status: SessionStatus;
+  /** From `session.finished`; absent unless finished. */
+  outcome?: SessionOutcome;
+  startedAt?: string;
+  lastEventAt?: string;
+  /** The last flow step reached and whether it had finished. */
+  lastStep?: { step: FlowStep; phase: StepPhase };
+}
+
+/** Default time without events after which an unfinished session counts as interrupted. */
+export const STALE_AFTER_MINUTES = 120;
+
+/**
+ * Classifies a session from its events. A session with `session.finished`
+ * is finished. Without it, the session is still in progress if its last
+ * event is recent, and interrupted otherwise (Claude Code closed, the user
+ * stopped, the machine slept). Used by the phase 3 panel.
+ */
+export function summarizeSession(
+  events: readonly SessionEvent[],
+  options: { now?: Date; staleAfterMinutes?: number } = {},
+): SessionSummary {
+  const now = options.now ?? new Date();
+  const staleAfterMs = (options.staleAfterMinutes ?? STALE_AFTER_MINUTES) * 60_000;
+  const summary: SessionSummary = { status: 'in-progress' };
+
+  let last = Number.NEGATIVE_INFINITY;
+  let finished: SessionLifecycleEvent | undefined;
+  for (const event of events) {
+    const time = Date.parse(event.ts);
+    if (Number.isFinite(time) && time >= last) {
+      last = time;
+      summary.lastEventAt = event.ts;
+    }
+    if (event.source !== 'flow') continue;
+    if (event.type === 'session.started') summary.startedAt ??= event.ts;
+    else if (event.type === 'session.finished') finished = event;
+    else if ('step' in event) {
+      summary.lastStep = { step: event.step, phase: event.type === 'step.started' ? 'started' : 'finished' };
+    }
+  }
+
+  if (finished !== undefined) {
+    summary.status = 'finished';
+    summary.outcome = finished.outcome ?? 'completed';
+  } else if (!Number.isFinite(last) || now.getTime() - last > staleAfterMs) {
+    summary.status = 'interrupted';
+  }
+  return summary;
 }

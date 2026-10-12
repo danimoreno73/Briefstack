@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -11,6 +11,9 @@ import {
   flowEvent,
   readEvents,
   sessionEventsFile,
+  sessionLifecycleEvent,
+  summarizeSession,
+  type SessionEvent,
 } from '../../src/events/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { briefstackHome as hookHome, isFullyAbsolute as hookIsFullyAbsolute } from '../../scripts/hook-event.mjs';
@@ -96,8 +99,22 @@ describe('hook script', () => {
     ({ dir, cleanup } = await tempDir('hook'));
     env = { BRIEFSTACK_HOME: path.join(dir, 'home') };
     eventsFile = path.join(dir, 'home', 'sessions', SESSION, EVENTS_FILE);
+    // As /new-project does with `briefstack event session started`.
+    await mkdir(path.dirname(eventsFile), { recursive: true });
   });
   afterEach(() => cleanup());
+
+  it('without a session folder writes nothing and exits 0', async () => {
+    const home = path.join(dir, 'other-home');
+    for (const name of ['SubagentStart', 'PreToolUse', 'PostToolUse', 'SubagentStop']) {
+      const result = await runHook(payload({ hook_event_name: name, tool_name: 'Read', agent_type: 'x' }), {
+        BRIEFSTACK_HOME: home,
+      });
+      expect(result).toEqual({ code: 0, stderr: '' });
+    }
+    // Not even the home folder is created.
+    await expect(stat(home)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
 
   const payload = (fields: Record<string, unknown>) =>
     JSON.stringify({ session_id: SESSION, transcript_path: 'x', cwd: dir, ...fields });
@@ -247,5 +264,105 @@ describe('hook script home resolution (pure, writes nothing)', () => {
 describe('hook script syntax', () => {
   it('parses with the current Node', async () => {
     await expect(execFileAsync(process.execPath, ['--check', HOOK_SCRIPT])).resolves.toBeDefined();
+  });
+});
+
+describe('summarizeSession', () => {
+  const at = (minutes: number) => new Date(Date.UTC(2026, 9, 12, 10, minutes));
+  const opened: SessionEvent[] = [
+    sessionLifecycleEvent(SESSION, 'started', undefined, at(0)),
+    flowEvent(SESSION, 'idea', 'started', undefined, at(0)),
+    flowEvent(SESSION, 'idea', 'finished', 'ok', at(1)),
+    flowEvent(SESSION, 'interview', 'started', undefined, at(2)),
+  ];
+
+  it('is finished when the closing event is there', () => {
+    const events = [...opened, sessionLifecycleEvent(SESSION, 'finished', 'cancelled', at(5))];
+    expect(summarizeSession(events, { now: at(59) })).toEqual({
+      status: 'finished',
+      outcome: 'cancelled',
+      startedAt: at(0).toISOString(),
+      lastEventAt: at(5).toISOString(),
+      lastStep: { step: 'interview', phase: 'started' },
+    });
+    expect(summarizeSession([...opened, sessionLifecycleEvent(SESSION, 'finished', undefined, at(5))]).outcome).toBe(
+      'completed',
+    );
+  });
+
+  it('is in progress while events are recent, interrupted once they go stale', () => {
+    expect(summarizeSession(opened, { now: at(30) }).status).toBe('in-progress');
+    expect(summarizeSession(opened, { now: new Date(at(2).getTime() + 121 * 60_000) }).status).toBe('interrupted');
+    expect(summarizeSession(opened, { now: at(30), staleAfterMinutes: 10 }).status).toBe('interrupted');
+  });
+
+  it('counts hook events as activity', () => {
+    const hook: SessionEvent = { v: 1, ts: at(50).toISOString(), session: SESSION, source: 'hook', type: 'tool.pre', tool: 'Read' };
+    const summary = summarizeSession([...opened, hook], { now: at(59), staleAfterMinutes: 10 });
+    expect(summary).toMatchObject({ status: 'in-progress', lastEventAt: at(50).toISOString() });
+  });
+
+  it('treats a session with no events as interrupted', () => {
+    expect(summarizeSession([], { now: at(0) }).status).toBe('interrupted');
+  });
+});
+
+describe('cli event session', () => {
+  let dir: string;
+  let cleanup: () => Promise<void>;
+  beforeEach(async () => {
+    ({ dir, cleanup } = await tempDir('cli-session'));
+  });
+  afterEach(() => cleanup());
+
+  const io = (): CliIO => ({
+    out: () => undefined,
+    err: () => undefined,
+    cwd: dir,
+    repoDir: path.join(dir, 'repo'),
+    pathEnv: {
+      env: { BRIEFSTACK_HOME: path.join(dir, 'home'), BRIEFSTACK_LANG: 'en' },
+      homedir: path.join(dir, 'user'),
+      pathApi: path,
+      caseInsensitive: process.platform !== 'linux',
+    },
+  });
+
+  it('opens the session so hooks record, and closes it', async () => {
+    const env = { BRIEFSTACK_HOME: path.join(dir, 'home') };
+    const file = path.join(dir, 'home', 'sessions', SESSION, EVENTS_FILE);
+    const hookPayload = JSON.stringify({ session_id: SESSION, hook_event_name: 'PreToolUse', tool_name: 'Read' });
+
+    await runHook(hookPayload, env);
+    await expect(stat(file)).rejects.toMatchObject({ code: 'ENOENT' });
+
+    expect(await main(['event', 'session', 'started', '--session', SESSION], io())).toBe(0);
+    await runHook(hookPayload, env);
+    expect(await main(['event', 'session', 'finished', '--session', SESSION, '--outcome', 'completed'], io())).toBe(0);
+
+    const { events } = await readEvents(file);
+    expect(events.map((event) => event.type)).toEqual(['session.started', 'tool.pre', 'session.finished']);
+    expect(summarizeSession(events).status).toBe('finished');
+  });
+
+  it('checks session outcomes separately from step outcomes', async () => {
+    expect(await main(['event', 'session', 'finished', '--session', SESSION, '--outcome', 'skipped'], io())).toBe(2);
+    expect(await main(['event', 'spec', 'finished', '--session', SESSION, '--outcome', 'cancelled'], io())).toBe(2);
+  });
+});
+
+describe('repo hook configuration', () => {
+  it('runs the hook script in exec form (no shell) for the recorded events', async () => {
+    const settings = JSON.parse(await readFile(path.join(PACKAGE_ROOT, '.claude', 'settings.json'), 'utf8')) as {
+      hooks: Record<string, { hooks: { type: string; command: string; args?: string[]; shell?: string }[] }[]>;
+    };
+    expect(Object.keys(settings.hooks).sort()).toEqual(
+      ['PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'SubagentStart', 'SubagentStop'].sort(),
+    );
+    for (const groups of Object.values(settings.hooks)) {
+      expect(groups).toEqual([
+        { hooks: [{ type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/scripts/hook-event.mjs'] }] },
+      ]);
+    }
   });
 });

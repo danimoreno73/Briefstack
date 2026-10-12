@@ -7,11 +7,16 @@ import { configFilePath, readConfig, resolvePaths, updateConfig } from './config
 import { isFullyAbsolute, systemPathEnv, type PathEnv } from './config/paths.js';
 import { isBriefstackError } from './errors.js';
 import {
+  SESSION_OUTCOMES,
   STEP_OUTCOMES,
   STEP_PHASES,
   appendEvent,
   flowEvent,
   isFlowStep,
+  sessionLifecycleEvent,
+  type FlowStep,
+  type SessionOutcome,
+  type SessionPhase,
   type StepOutcome,
   type StepPhase,
 } from './events/index.js';
@@ -261,19 +266,21 @@ async function runEvent(args: readonly string[], io: CliIO, lang: Lang): Promise
   if (positionals.length !== 2 || step === undefined || phase === undefined || session === undefined) {
     throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   }
-  if (!isFlowStep(step)) throw new UsageError(messages.unknownStep(step));
+  const isSession = step === 'session';
+  if (!isSession && !isFlowStep(step)) throw new UsageError(messages.unknownStep(step));
   if (!(STEP_PHASES as readonly string[]).includes(phase)) throw new UsageError(messages.unknownPhase(phase));
   const outcome = values.get('--outcome');
-  if (outcome !== undefined && !(STEP_OUTCOMES as readonly string[]).includes(outcome)) {
-    throw new UsageError(messages.unknownOutcome(outcome));
+  const outcomes: readonly string[] = isSession ? SESSION_OUTCOMES : STEP_OUTCOMES;
+  if (outcome !== undefined && !outcomes.includes(outcome)) {
+    throw new UsageError(messages.unknownOutcome(outcome, outcomes));
   }
 
   const config = await readConfig(configFilePath(io.pathEnv));
   const { sessionsDir } = resolvePaths(config, io.pathEnv);
-  await appendEvent(
-    sessionsDir,
-    flowEvent(session, step, phase as StepPhase, outcome as StepOutcome | undefined),
-  );
+  const event = isSession
+    ? sessionLifecycleEvent(session, phase as SessionPhase, outcome as SessionOutcome | undefined)
+    : flowEvent(session, step as FlowStep, phase as StepPhase, outcome as StepOutcome | undefined);
+  await appendEvent(sessionsDir, event);
   return EXIT_OK;
 }
 
