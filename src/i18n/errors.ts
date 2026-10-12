@@ -98,6 +98,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'library.noteNotFound': (p) => `No note "${p.name}" in ${p.section}.`,
     'library.invalidProjectStatus': (p) =>
       `The project status in ${p.file} is not valid:${bullets(p.issues)}`,
+    'events.invalidSession': (p) =>
+      `"${p.session}" is not a valid session id (letters, digits, ".", "_" and "-" only).`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -159,6 +161,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'library.noteNotFound': (p) => `No hay ninguna nota "${p.name}" en ${p.section}.`,
     'library.invalidProjectStatus': (p) =>
       `El estado del proyecto en ${p.file} no es válido:${bullets(p.issues)}`,
+    'events.invalidSession': (p) =>
+      `"${p.session}" no es un id de sesión válido (solo letras, dígitos, ".", "_" y "-").`,
   },
 });
 

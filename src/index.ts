@@ -15,6 +15,7 @@ export const VERSION: string = packageJson.version;
 
 export * from './config/index.js';
 export * from './errors.js';
+export * from './events/index.js';
 export * from './frontmatter/index.js';
 export * from './library/index.js';
 export { renderLibraryContext } from './i18n/library.js';

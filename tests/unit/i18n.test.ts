@@ -73,6 +73,7 @@ describe('error catalogue', () => {
     'library.secretContent': { file: 'f', lines: [3] },
     'library.noteNotFound': { section: 'profile', name: 'n' },
     'library.invalidProjectStatus': { file: 'f', issues: ['target: x'] },
+    'events.invalidSession': { session: '../x' },
   };
 
   it('has a distinct message for every code in every language', () => {

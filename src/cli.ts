@@ -6,8 +6,18 @@ import { z } from 'zod';
 import { configFilePath, readConfig, resolvePaths, updateConfig } from './config/config.js';
 import { systemPathEnv, type PathEnv } from './config/paths.js';
 import { isBriefstackError } from './errors.js';
+import {
+  STEP_OUTCOMES,
+  STEP_PHASES,
+  appendEvent,
+  flowEvent,
+  isFlowStep,
+  type StepOutcome,
+  type StepPhase,
+} from './events/index.js';
 import { cliMessages } from './i18n/cli.js';
 import { formatError } from './i18n/errors.js';
+import { eventMessages } from './i18n/events.js';
 import { initSummary, libraryMessages, renderLibraryContext } from './i18n/library.js';
 import { resolveLang, systemLocale, type Lang } from './i18n/index.js';
 import { scaffoldMessages } from './i18n/scaffold.js';
@@ -225,6 +235,31 @@ async function runUsage(args: readonly string[], io: CliIO, lang: Lang): Promise
   throw new UsageError(cliMessages[lang].wrongArguments(usageMessages[lang].usage));
 }
 
+/** Records a flow step. Prints nothing on success, to keep the skill's transcript clean. */
+async function runEvent(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = eventMessages[lang];
+  const { positionals, values } = parseArgs(args, [], lang, ['--session', '--outcome'], messages.usage);
+  const [step, phase] = positionals;
+  const session = values.get('--session');
+  if (positionals.length !== 2 || step === undefined || phase === undefined || session === undefined) {
+    throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  }
+  if (!isFlowStep(step)) throw new UsageError(messages.unknownStep(step));
+  if (!(STEP_PHASES as readonly string[]).includes(phase)) throw new UsageError(messages.unknownPhase(phase));
+  const outcome = values.get('--outcome');
+  if (outcome !== undefined && !(STEP_OUTCOMES as readonly string[]).includes(outcome)) {
+    throw new UsageError(messages.unknownOutcome(outcome));
+  }
+
+  const config = await readConfig(configFilePath(io.pathEnv));
+  const { sessionsDir } = resolvePaths(config, io.pathEnv);
+  await appendEvent(
+    sessionsDir,
+    flowEvent(session, step, phase as StepPhase, outcome as StepOutcome | undefined),
+  );
+  return EXIT_OK;
+}
+
 async function runValidate(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
   const messages = validateMessages[lang];
   const { positionals, flags } = parseArgs(args, ['--json'], lang);
@@ -372,6 +407,8 @@ export async function main(argv: readonly string[], io: CliIO = defaultIO()): Pr
       case '--help':
         io.out(cliMessages[lang].usage);
         return EXIT_OK;
+      case 'event':
+        return await runEvent(rest, io, lang);
       case 'init':
         return await runInit(rest, io, lang);
       case 'library':

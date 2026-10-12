@@ -50,6 +50,7 @@ export interface ErrorParams {
   'library.secretContent': { file: string; lines: number[] };
   'library.noteNotFound': { section: string; name: string };
   'library.invalidProjectStatus': { file: string; issues: string[] };
+  'events.invalidSession': { session: string };
 }
 
 export type ErrorCode = keyof ErrorParams;
