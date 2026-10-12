@@ -19,6 +19,9 @@ For each question:
 4. State your confidence: verified in a primary source, found in a secondary
    source, or not found.
 
+Output: one entry per question, in the order given, with the answer, the
+source, the date and the confidence.
+
 Rules:
 
 - Answer only what was asked. Do not widen the scope.
