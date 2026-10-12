@@ -201,11 +201,24 @@ Conclusions:
 - Not tested: the interactive `/add-dir` command itself (a probe cannot type
   it). The docs present it as the in-session form of `--add-dir`; the H9
   rehearsal checks it for real.
-- Design: the skill asks the user to run `/add-dir <output-dir>` before the
-  generator starts. Without it, an interactive session prompts for each write
-  (foreground subagents pass prompts through), which works but is noisy.
-  `briefstack scaffold` runs through Bash, which has its own permission
+- `briefstack scaffold` runs through Bash, which has its own permission
   prompt either way.
+
+Decision (2026-10-12, after the probe): use `settings.local.json`, the row
+that worked for both main session and subagent without a trust step.
+
+- `briefstack init` adds `projectsDir` to `permissions.additionalDirectories`
+  in the briefstack repo's `.claude/settings.local.json` (the repo found from
+  the CLI's own location, not the cwd). It merges: other keys and existing
+  entries stay; an entry already present is not duplicated. The path is
+  written absolute with forward slashes, the form the probe used.
+- `.claude/settings.local.json` is in `.gitignore` (checked with
+  `git check-ignore`).
+- The skill asks for `/add-dir <output-dir>` only when the chosen output
+  folder is not inside a directory already listed there (for example, the
+  user picked a folder outside `projectsDir`).
+- Not yet verified in an interactive session: the H9 rehearsal checks that a
+  generator writing under `projectsDir` gets no permission prompt.
 
 ### 8. Deny rules for secrets
 

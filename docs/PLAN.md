@@ -55,9 +55,11 @@ one concern each.
   `realpath`, case-insensitively on Windows and macOS.
 - An existing non-empty folder is refused unless `--allow-non-empty` is
   passed. The skill passes it only after the user confirms.
-- Before the generator starts, the skill asks the user to run
-  `/add-dir <output-dir>`. Subagents inherit additional directories
-  (`decisions.md` §7, probe); without it every write prompts.
+- `briefstack init` adds `projectsDir` to `permissions.additionalDirectories`
+  in the repo's `.claude/settings.local.json` (gitignored), merging with what
+  is there. Subagents inherit it (`decisions.md` §7, probe).
+- The skill asks the user to run `/add-dir <output-dir>` only when the chosen
+  folder is not already allowed there. The H9 rehearsal verifies both cases.
 
 ### Events
 
@@ -204,7 +206,7 @@ passing.
 | H3 | Usage profiles: data file, user presets, `usage show/set`, `--project` | Usage test: 3 presets + a custom one; `balanced` is a no-op; drift warning; `--project` refuses foreign folders |
 | H4 | Spec schema + `scaffold` (incl. output directory rules) | Unit tests; invalid spec gives a clear error; forbidden and non-empty destinations refused |
 | H5 | `validate` (every rule in BRIEF section 6) | One positive and one negative test per rule |
-| H6 | Library: `init/add/list/show/context`, INDEX, wikilinks, git | Tests in a temp dir + learning test |
+| H6 | Library: `init/add/list/show/context`, INDEX, wikilinks, git; `init` also updates `settings.local.json` | Tests in a temp dir + learning test; merge test for `settings.local.json` |
 | H7 | Base templates, base skills, 3 fixtures | 3 specs × 2 targets scaffold and validate cleanly |
 | H8 | Events: `briefstack event` + hook script | jsonl writer test; manual check that subagent events arrive |
 | H9 | `/new-project` skill + agent body adjustments | Guided rehearsal with the user |
