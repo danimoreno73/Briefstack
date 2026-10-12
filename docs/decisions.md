@@ -19,8 +19,8 @@ local on Windows plus tests that use both `path.win32` and `path.posix`.
 
 ## Claude Code behaviour (H0)
 
-Read on 2026-10-12. Conclusions marked **changes the plan** are pending the
-H0 checkpoint with the user. Main sources:
+Read on 2026-10-12. Conclusions marked **changes the plan** were approved at
+the H0 checkpoint and are reflected in `PLAN.md`. Main sources:
 
 - Subagents: https://code.claude.com/docs/en/sub-agents.md
 - Skills: https://code.claude.com/docs/en/skills.md
@@ -132,6 +132,11 @@ Conclusion: hook command is `node "${CLAUDE_PROJECT_DIR}/scripts/hook-event.mjs"
 (`node` is a real executable on every OS). H8 must check it on Windows both
 with Git Bash and with `shell: "powershell"`.
 
+Decision (H0 checkpoint): the event hooks are declared in the `/new-project`
+`SKILL.md` frontmatter, not in `.claude/settings.json`, so no events are
+recorded while briefstack itself is being developed. They register when the
+skill is invoked and stay for the rest of that session.
+
 ### 6. Skills
 
 Source: skills.
@@ -166,9 +171,41 @@ Source: permissions, sub-agents.
   additional directories is not documented. Foreground subagents pass
   permission prompts through to the user.
 
-Conclusion: the generator writes to `~/briefstack-projects/<slug>` by default,
-which is outside the repo. The skill tells the user to approve the prompt or
-run `/add-dir <dir>` first. Behaviour with a subagent is checked in H9.
+**Probe (2026-10-12, Claude Code 2.1.296, Windows 11).** Throwaway folders in
+a temp directory. `claude -p --model haiku --permission-mode acceptEdits
+--setting-sources project,local --disallowed-tools Bash`, a `writer` subagent
+defined with `--agents` (tools `Write, Read`). `acceptEdits` auto-accepts
+edits only in the working directory and additional directories; anywhere else
+`-p` has nobody to ask, so the write is denied. Each case asked the main
+session to write a file in a target folder outside the working directory, and
+separately asked it to delegate the write to the subagent. The stream-json log
+confirmed the subagent's `Write` ran inside the subagent (`parent_tool_use_id`
+set).
+
+| Target folder granted via | Main session | Subagent |
+|---|---|---|
+| nothing (control) | denied | denied |
+| `--add-dir <dir>` | written | written |
+| `additionalDirectories` in `.claude/settings.json` (folder never trusted) | denied | denied |
+| `additionalDirectories` in `.claude/settings.local.json` | written | written |
+
+Denial text: "Claude requested permissions to write to <path>, but you haven't
+granted it yet."
+
+Conclusions:
+
+- Subagents inherit the session's additional directories. The generator can
+  write outside the repo once the folder is granted.
+- `additionalDirectories` in the committed `settings.json` is ignored until the
+  folder is trusted, as the docs say; `settings.local.json` applies at once.
+- Not tested: the interactive `/add-dir` command itself (a probe cannot type
+  it). The docs present it as the in-session form of `--add-dir`; the H9
+  rehearsal checks it for real.
+- Design: the skill asks the user to run `/add-dir <output-dir>` before the
+  generator starts. Without it, an interactive session prompts for each write
+  (foreground subagents pass prompts through), which works but is noisy.
+  `briefstack scaffold` runs through Bash, which has its own permission
+  prompt either way.
 
 ### 8. Deny rules for secrets
 
@@ -234,10 +271,12 @@ Source: Cowork projects, scheduled tasks, claude.ai projects articles.
   "New task". How a task is tied to a project is not documented. Paid plans
   only. Tasks run remotely unless they need local files.
 
-Conclusion: `claude-app` targets a Cowork project. `NEXT_STEPS.md` gives the
-Cowork steps, the scheduled task text with "from the project or from
-Scheduled → New task", a note that scheduled tasks need a paid plan, and the
-web fallback (create project, paste instructions, upload files).
+Conclusion: `claude-app` targets a project in the Claude desktop app created
+from an existing folder. The help center now calls Cowork simply Claude, so
+`NEXT_STEPS.md` says "the Claude desktop app", never "Cowork". It gives those
+steps, the scheduled task text with "from the project or from Scheduled → New
+task", a note that scheduled tasks need a paid plan, and the web fallback
+(create project, paste instructions, upload files).
 
 ### 12. Unknown frontmatter fields
 
@@ -260,8 +299,9 @@ falls back to your current local `HEAD`." Worktrees live under
 Conclusion: with no remote, parallel batches start from the current `HEAD`, so
 they include H2 and H4 as long as those are committed first (inferred: the
 fallback sentence is written for `--worktree`; the docs say subagents use "the
-same base branch"). To remove the doubt, set `worktree.baseRef: "head"` before
-batch 1, and check the base commit in each worktree.
+same base branch"). To remove the doubt, `.claude/settings.json` sets
+`worktree.baseRef: "head"`, and each worktree agent checks its base commit
+before starting work.
 
 ### Subagents can spawn subagents
 
