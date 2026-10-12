@@ -848,3 +848,53 @@ and `library add` (commits to the library repo). A test pins the rule list.
   in allowed folders ("file editing permissions follow the current
   permission mode", permissions docs); "no prompt" in the rehearsal means
   in the user's usual mode.
+
+### Rehearsal run A (2026-10-12, Claude Code 2.1.296, Windows 11)
+
+`claude-code` target, default folder, temp `BRIEFSTACK_HOME`, session on
+sonnet, permission mode "accept edits".
+
+Verified:
+
+- `init` (item 1): library with git and one commit, projects and sessions
+  folders, both entries in `settings.local.json`, which git ignores.
+- No permission prompt for the CLI or for writes under the projects and
+  sessions folders (item 2); only the researcher's web requests asked.
+- `library add` appended to `lessons.md` under `### 2026-10-12` and
+  committed (item 4).
+- Events (item 5): 246 lines, none bad; the nine steps started and finished
+  in order, `session.finished` `completed` (item 6, first case); every flow
+  agent's start, tool and stop events carry `agentId` and `agentType`.
+  Nothing was recorded for the session building briefstack.
+- `usage show` (item 7): no drift warning, expected session model shown.
+- The skill's agents ran in the background (task notifications); the hooks
+  recorded them the same way.
+
+Found and fixed:
+
+- **The generator built the application** (Python package, 98 tests,
+  18 minutes): the spec listed source and test files and the main session
+  told the generator to write working code. Decision (user): briefstack
+  prepares the project; the work happens later inside it, at most with a
+  first task plan in `docs/`. Spec `files` now accept documents only
+  (`.md`, `.txt`, `.csv`, rule `documentOnly`); `validate` reports source
+  and build files outside `.claude/` and `.briefstack/`
+  (`code.applicationFile`, error); the architect, generator and skill say
+  so. Checked on the run A project: 12 errors, and `spec check` rejects its
+  spec.
+- **Project goals judged as creation criteria**: the reviewer failed the
+  run because `doneWhen` (a real run against Stockfish) was not met.
+  `deliverables` and `doneWhen` now describe the project itself, for the
+  brief (also in the JSON Schema descriptions); the reviewer judges the
+  preparation: complete and coherent with the spec.
+- **Research sources lost**: the main session passed the architect its own
+  summary of the research without URLs and gave the generator nothing, so
+  `docs/UCI.md` cited sources from memory. The report is now saved verbatim
+  to `<session>/research.md` and passed by path to the architect, generator
+  and reviewer; the generator cites only what the report contains, with
+  URLs; the reviewer flags a source without URL as `should fix`.
+- **Anonymous subagent events**: 20 `subagent.stop` events with an empty
+  `agent_type`, no start and no transcript, about every 30 seconds while a
+  subagent ran, two of them after the session closed. They are Claude Code's
+  own background agents (inferred: not documented). The hook script now
+  skips subagent events without an agent type.

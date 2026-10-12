@@ -53,9 +53,13 @@ export function toEvent(payload, now = new Date()) {
   if (type === undefined || typeof session !== 'string' || !SESSION_ID_RE.test(session) || session.includes('..')) {
     return undefined;
   }
+  const agentType = typeof payload.agent_type === 'string' && payload.agent_type !== '' ? payload.agent_type : undefined;
+  // Claude Code's own background agents stop with an empty agent_type and no
+  // start event (rehearsal run A, decisions.md): they are not flow agents.
+  if (type.startsWith('subagent.') && agentType === undefined) return undefined;
   const event = { v: 1, ts: now.toISOString(), session, source: 'hook', type };
   if (typeof payload.agent_id === 'string') event.agentId = payload.agent_id;
-  if (typeof payload.agent_type === 'string') event.agentType = payload.agent_type;
+  if (agentType !== undefined) event.agentType = agentType;
   if (typeof payload.tool_name === 'string') event.tool = payload.tool_name;
   return event;
 }

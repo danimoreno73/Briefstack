@@ -148,6 +148,9 @@ describe('hook script', () => {
     const cases = [
       payload({ hook_event_name: 'UserPromptSubmit', prompt: 'hello' }),
       payload({ hook_event_name: 'PreToolUse', session_id: '../escape', tool_name: 'Read' }),
+      // Claude Code's internal agents: empty agent_type, no start event.
+      payload({ hook_event_name: 'SubagentStop', agent_id: 'internal', agent_type: '' }),
+      payload({ hook_event_name: 'SubagentStart', agent_id: 'internal' }),
       'not json',
       '',
     ];
