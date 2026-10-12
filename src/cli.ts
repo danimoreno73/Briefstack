@@ -121,7 +121,9 @@ async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Prom
   });
 
   io.out(messages.created(result.outDir, result.files.length, result.template));
-  io.out(messages.profileApplied(result.profile));
+  if (result.files.some((file) => file.startsWith('.claude/agents/'))) {
+    io.out(messages.profileApplied(result.profile));
+  }
   if (result.gitInitialised) io.out(messages.gitInitialised);
   for (const warning of result.warnings) io.err(messages.warning(warning));
   return EXIT_OK;
