@@ -5,7 +5,11 @@ export * from './init.js';
 export * from './layout.js';
 export {
   addNote,
+  appendDated,
   appendText,
+  datedEntries,
+  datedEntryHeading,
+  DATED_ENTRY_RE,
   libraryExists,
   listNotes,
   noteRef,

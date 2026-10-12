@@ -125,6 +125,26 @@ export function appendText(existing: string, addition: string): string {
   return base === '' ? withTrailingNewline(addition) : `${base}\n\n${withTrailingNewline(addition.replace(/^\s+/, ''))}`;
 }
 
+/**
+ * Heading that dates each addition to an existing note: the ISO date (UTC)
+ * alone, so old entries can be found and consolidated later.
+ */
+export const DATED_ENTRY_RE = /^### (\d{4}-\d{2}-\d{2})$/gm;
+
+export function datedEntryHeading(now: Date): string {
+  return `### ${today(now)}`;
+}
+
+/** `appendText` with a date heading before the addition. */
+export function appendDated(existing: string, addition: string, now: Date): string {
+  return appendText(existing, `${datedEntryHeading(now)}\n\n${addition.replace(/^\s+/, '')}`);
+}
+
+/** The dates of the dated entries in a note, in file order. */
+export function datedEntries(text: string): string[] {
+  return [...text.matchAll(DATED_ENTRY_RE)].map((match) => match[1] ?? '');
+}
+
 export interface AddNoteOptions {
   libraryDir: string;
   section: string;
@@ -225,13 +245,14 @@ export async function addNote(options: AddNoteOptions): Promise<AddNoteResult> {
     if (existing === undefined) next = writeProjectNote(status, withTrailingNewline(body));
     else {
       const updated = updateProjectNote(existing, status, relative);
-      next = body.trim() === '' ? updated : appendText(updated, body);
+      next = body.trim() === '' ? updated : appendDated(updated, body, now);
     }
   } else if (existing === undefined) {
-    if (ref.section === 'lessons') next = appendText(LESSONS_TEMPLATE, body);
+    // Lessons are always dated, even when lessons.md has to be recreated.
+    if (ref.section === 'lessons') next = appendDated(LESSONS_TEMPLATE, body, now);
     else next = withTrailingNewline(body);
   } else {
-    next = appendText(existing, body);
+    next = appendDated(existing, body, now);
   }
 
   // The index line: given summary, else the note's first line for a new note.
