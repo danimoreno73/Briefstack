@@ -12,6 +12,10 @@ Read [the brief](docs/BRIEF.md) first: goal, scope and "done when" live there.
 - When the brief is ambiguous, ask instead of guessing.
 - Check understanding or results against "Done when"; do not just add material.
 - Keep notes plain markdown, linked with relative links.
+- Keep real secrets (keys, passwords, tokens) out of this folder.
+  `.claude/settings.json` stops Claude's file tools and common read commands
+  from opening secret files, but not a script or a recursive search that
+  reads them, and native Windows has no sandbox. Keep that file as it is.
 - Project content language: `{{language}}`.
 
 ## End of session

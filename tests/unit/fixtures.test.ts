@@ -112,6 +112,8 @@ describe('fixture specs', () => {
         if (target === 'claude-code') {
           const claudeMd = await readFile(path.join(outDir, 'CLAUDE.md'), 'utf8');
           expect(lineCount(claudeMd)).toBeLessThan(CLAUDE_MD_LINE_LIMIT);
+          // Deny rules do not stop scripts or recursive searches (decisions.md, H9).
+          expect(claudeMd).toContain("Keep real secrets (keys, passwords, tokens) out of this folder.");
         } else {
           expect(files).not.toContain('CLAUDE.md');
           const nextSteps = await readFile(path.join(outDir, 'NEXT_STEPS.md'), 'utf8');

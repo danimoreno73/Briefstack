@@ -12,6 +12,10 @@ Read [the brief](docs/BRIEF.md) first: goal, scope and "done when" live there.
 - Check work against "Done when" in the brief.
 - Ideas, open questions and references go in
   [docs/NOTES.md](docs/NOTES.md); settled points move into the brief.
+- Keep real secrets (keys, passwords, tokens) out of this folder.
+  `.claude/settings.json` stops Claude's file tools and common read commands
+  from opening secret files, but not a script or a recursive search that
+  reads them, and native Windows has no sandbox. Keep that file as it is.
 - Project content language: `{{language}}`.
 
 ## End of session

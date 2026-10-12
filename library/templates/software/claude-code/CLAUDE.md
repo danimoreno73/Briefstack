@@ -16,9 +16,10 @@ None yet. Add the build, test and lint commands here as soon as they exist.
 - A task is done when build, tests and lint pass. Run them; do not assume.
 - Record decisions that are hard to reverse in
   [docs/DECISIONS.md](docs/DECISIONS.md).
-- Never write secrets into the repo. `.claude/settings.json` blocks reading
-  common secret files; keep it that way.
-- Project content language: `{{language}}`.
+- Keep real secrets (keys, passwords, tokens) out of this folder.
+  `.claude/settings.json` stops Claude's file tools and common read commands
+  from opening secret files, but not a script or a recursive search that
+  reads them, and native Windows has no sandbox. Keep that file as it is.- Project content language: `{{language}}`.
 
 ## End of session
 
