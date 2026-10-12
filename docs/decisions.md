@@ -573,11 +573,18 @@ Built in a worktree from `075b8bc`; merged in `02a8cd9`.
   `statusFormat`, `slug` and `updated`.
 - **`library add <section> [name] --from <file.md>`:** content only from a
   file (no shell quoting issues on Windows). Appends to an existing note
-  (blank line, no automatic heading), otherwise creates it. Secret-looking
+  (blank line and a date heading, see below), otherwise creates it. Secret-looking
   content is rejected with line numbers only; nothing is written. Each change
   is a commit of just those files; without a git identity the commit uses
   `-c user.name=briefstack -c user.email=briefstack@localhost` for that one
   command. No git → warning, not failure.
+- **Dated additions (user decision, 2026-10-12):** every addition to an
+  existing note starts with a heading that is just the ISO date in UTC
+  (`### 2026-10-12`), written by code, so old entries — lessons above all —
+  can be found and consolidated later. `datedEntries()` reads them back.
+  Lessons are always dated, even when `lessons.md` has to be recreated. The
+  first content of a new note is not dated; its date is in git and, for
+  project notes, in `updated`.
 - **`init`:** idempotent (`wx` writes, commits only what it created).
   Computes the `settings.local.json` merge first, so invalid JSON stops
   `init` with the file untouched. Entry absolute with forward slashes;
