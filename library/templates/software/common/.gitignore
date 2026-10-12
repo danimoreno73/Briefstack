@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+
+# Build output
+dist/
+build/
+out/
+target/
+*.egg-info/
+__pycache__/
+*.pyc
+
+# Test and coverage output
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Logs
+*.log
