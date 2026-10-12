@@ -330,7 +330,7 @@ describe('agent frontmatter', () => {
     expect(check('tools: AgentX, MyTask\n')).toEqual([]);
   });
 
-  it('rejects malformed tools and warns when tools are omitted', () => {
+  it('rejects malformed or omitted tools', () => {
     expect(check('tools: 3\n')).toEqual(['agent.invalidTools']);
     expect(check('tools:\n  - 1\n')).toEqual(['agent.invalidTools']);
     expect(check('')).toEqual(['agent.toolsOmitted']);
@@ -398,4 +398,11 @@ describe('scaffolded projects', () => {
       expect(validation.target).toBe(target);
     });
   }
+});
+
+describe('agent without tools', () => {
+  it('is an error: it would get the Agent tool', () => {
+    const findings = checkAgentFile('---\nname: a\ndescription: d\n---\nbody\n', 'a.md');
+    expect(findings).toEqual([expect.objectContaining({ rule: 'agent.toolsOmitted', severity: 'error' })]);
+  });
 });

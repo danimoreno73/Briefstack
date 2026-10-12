@@ -67,7 +67,7 @@ export const RULE_SEVERITY: { readonly [R in RuleId]: Severity } = {
   'frontmatter.invalid': 'error',
   'frontmatter.missingField': 'error',
   'agent.invalidTools': 'error',
-  'agent.toolsOmitted': 'warning',
+  'agent.toolsOmitted': 'error',
   'agent.spawnTool': 'error',
   'agent.invalidModel': 'error',
   'agent.invalidEffort': 'error',
