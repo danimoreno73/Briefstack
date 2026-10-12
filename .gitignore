@@ -4,3 +4,7 @@ coverage/
 *.log
 .env
 .env.*
+
+# Local Claude Code files
+.claude/settings.local.json
+.claude/worktrees/
