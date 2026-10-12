@@ -61,6 +61,18 @@ describe('error catalogue', () => {
     'usage.invalidProjectProfile': { file: 'f', issues: ['a'] },
     'validate.projectNotFound': { dir: 'd' },
     'validate.notADirectory': { dir: 'd' },
+    'init.settingsInvalidJson': { file: 'f', detail: 'd' },
+    'init.settingsInvalidShape': { file: 'f', field: 'additionalDirectories' },
+    'library.notInitialised': { dir: 'd' },
+    'library.unknownSection': { section: 's', available: ['profile', 'log'] },
+    'library.invalidName': { name: 'N' },
+    'library.nameRequired': { section: 'profile' },
+    'library.nameNotAllowed': { section: 'lessons' },
+    'library.fileNotFound': { file: 'f' },
+    'library.emptyContent': { file: 'f' },
+    'library.secretContent': { file: 'f', lines: [3] },
+    'library.noteNotFound': { section: 'profile', name: 'n' },
+    'library.invalidProjectStatus': { file: 'f', issues: ['target: x'] },
   };
 
   it('has a distinct message for every code in every language', () => {
