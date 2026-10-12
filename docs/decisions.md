@@ -1048,3 +1048,17 @@ killing the process fires it; run D checks that.
   activity after it makes the session `interrupted` at once, with
   `endReason`; activity after it (a resumed session) goes back to the
   inactivity rule, which stays as the fallback for endings no hook reports.
+
+### Rehearsal run C, repeated, and the first `session.end` (2026-10-12)
+
+- Cancelled with the "Cancel" option at the spec: `spec` finished
+  `skipped`, `session.finished` `cancelled`; no project folder; no library
+  commit. Research was `skipped` (nothing to look up). The interview asked
+  the target, `claude-app` recommended. `spec.json` stays in the session
+  folder.
+- The first run C session (abandoned with Esc) got `session.end` with
+  reason `prompt_input_exit` when the user ran `/exit`, and now summarises
+  as `interrupted` with that `endReason`. That session's Claude Code
+  process had started before the `SessionEnd` hook was added, so the hook
+  configuration in `.claude/settings.json` was picked up without a restart
+  (observed, not documented in what was read).
