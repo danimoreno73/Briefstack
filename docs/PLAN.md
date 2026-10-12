@@ -7,6 +7,104 @@ Verified Claude Code behaviour goes in `docs/decisions.md` (created in H0).
 Starting point: tag `phase-1-start`. Work happens on `master` in small commits,
 one concern each.
 
+## 0. Status
+
+Updated 2026-10-12, for a new session. Build, lint and 270 tests pass on
+Windows. Read `CLAUDE.md`, `docs/BRIEF.md`, this file and `docs/decisions.md`
+before continuing.
+
+### Done
+
+| # | What exists now |
+|---|---|
+| H0 | Claude Code behaviour verified and recorded (`decisions.md`, with probes) |
+| H1 | TypeScript 6.0 / Node 24 skeleton, vitest, eslint, CI workflow (never run: no remote), README, `.gitattributes` (LF) |
+| H2 | Config and paths (`BRIEFSTACK_HOME`, `BRIEFSTACK_LIBRARY`, config file), en/es i18n with coded errors, line-preserving frontmatter rewrite |
+| H3 | Usage profiles: `library/usage-profiles.json`, user presets, `usage show`, `usage set [--project]`, drift and env warnings |
+| H4 | Spec schema (zod → `schemas/spec.schema.json`), `scaffold` with output-folder, template and overwrite rules; scaffold applies the profile to generated agents |
+| H5 | `validate [--json]`: every BRIEF §6 rule plus settings and agent checks (omitted `tools` is an error) |
+| H6 | Personal library: `init` (also merges `projectsDir` into `.claude/settings.local.json`), `library add/list/show/context`, INDEX, status block, dated additions, learning test |
+| H7 | Base templates (software, learning-or-management, generic), 3 base skills, 3 fixtures that validate clean for both targets |
+| H8 | Events: `briefstack event <session|step>`, hook script in `.claude/settings.json` (exec form) that records only sessions `/new-project` opened, `summarizeSession` (finished / in-progress / interrupted); real run passed |
+
+### Left
+
+- **H9** — `/new-project` skill and adjustments to the five agent bodies.
+  Inputs already decided, all to be honoured by the skill:
+  - Open the session first: `briefstack event session started --session ${CLAUDE_SESSION_ID}`;
+    emit `step started/finished` for the nine BRIEF §4 steps; close with
+    `session finished --outcome completed|cancelled|failed` on every way out.
+  - Gap analysis input comes from `briefstack library context --idea <file>`.
+  - Only the main session asks the user; never pass `model` or `effort` to
+    the Agent tool; tell the user which session model the active profile
+    expects.
+  - Read the profile's non-model knobs: `research` (`required-only` means the
+    researcher runs only for gaps the interviewer marks factual-blocking) and
+    `reviewRounds` (stop and show findings when the limit is reached).
+  - Output folder: default under `projectsDir`; ask for `/add-dir <dir>` only
+    when the chosen folder is not already in `settings.local.json`;
+    `--allow-non-empty` only after the user confirms.
+  - Generator: fill spec skills from `library/skills/`, adapt the English
+    templates to `spec.language`, never write example machine paths.
+  - Reviewer: `briefstack validate --json` plus its own read-only review.
+  - Learn step: `library add` for the project note (status block), the
+    session log, lessons and explicitly stated preferences.
+- **H10** — real end-to-end run of `/new-project` that the user accepts, and
+  the `/tasks` check. Phase 1 is not done before this.
+
+### To verify in real runs (H9 rehearsal unless noted)
+
+Each of these is covered by unit tests or a `claude -p` probe, but not yet by
+an interactive run in the real repo:
+
+1. `briefstack init` from the real CLI: creates `~/.briefstack/library` as a
+   git repo, creates `projectsDir`, and merges `projectsDir` into this repo's
+   `.claude/settings.local.json` without losing existing entries.
+2. With that entry, the generator subagent writes under `projectsDir` with no
+   permission prompt in an interactive session.
+3. Choosing an output folder outside `projectsDir`: the skill asks for
+   `/add-dir <dir>`, and after it the subagent can write there (interactive
+   `/add-dir` was never probed, only `--add-dir`).
+4. `library add` writes the `### YYYY-MM-DD` heading when appending to an
+   existing note (lessons in particular), and commits to the library repo.
+5. The event hooks record a real creation in the real repo: subagent
+   start/stop and tool events with `agentId`/`agentType` for the five flow
+   agents, and nothing during ordinary work outside `/new-project`.
+6. The closing event: a completed run shows as `finished/completed`; a run
+   the user cancels shows as `finished/cancelled`; a run aborted mid-flow
+   (closing Claude Code) shows as `interrupted` once stale.
+7. `usage show` in the real repo: no drift warning on a clean tree; the
+   expected session model message.
+8. The generated project's deny rules in an interactive session: `.env`
+   denied, `.env.example` readable (probed only with `claude -p`).
+9. (H10) `/tasks` shows each flow agent's model and effort matching the
+   active profile.
+
+### Open points and known limits
+
+- A `claude-code` project does not show its scheduled tasks anywhere (only
+  `NEXT_STEPS.md` for `claude-app` does).
+- The scaffolder does not copy base skills; the generator must.
+- `.env.test` is left readable by the deny rules (decision; revisit if needed).
+- The first content of a new library note is not dated (only additions are).
+- Preset models are checked for form, not against a list of real models.
+- Undocumented: case sensitivity of deny-rule matching on Windows; tolerance
+  of unknown fields in agent frontmatter (briefstack writes none).
+- The CI workflow has never run (no remote).
+- `npm install` warns that esbuild's install script is not approved
+  (`allowScripts`); tests and tsx work anyway.
+- Commit `75f3497` alone has failing hook tests; `281e85c` fixes them.
+- `C:\c` from the H8 incident: the user deletes it by hand.
+
+### Working rules learned in this phase
+
+- No test or probe writes, or deletes, outside the repo or a system temp
+  folder. From Git Bash, pass Windows-form paths (`cygpath -w`) to Windows
+  programs, in arguments and in environment variables.
+- Fake secrets in tests are built by concatenation.
+- Worktree agents get the expected base SHA and stop if `HEAD` differs;
+  eslint ignores `.claude/worktrees/`.
+
 ## 1. Decisions
 
 ### Usage profiles
@@ -167,8 +265,9 @@ the design before continuing.
 **Status (2026-10-12):** done. Results in `docs/decisions.md`; the
 checkpoint approved the changes now reflected in section 1. Item 7 was also
 probed with real `claude -p` runs before H2 (subagents inherit additional
-directories). Still to check in real runs: interactive `/add-dir` (H9),
-`${CLAUDE_PROJECT_DIR}` under PowerShell (H8), `/tasks` model display (H10).
+directories). `${CLAUDE_PROJECT_DIR}` was settled in H8 (exec form, no
+shell; Git Bash and PowerShell forms also work). Still to check in real
+runs: see "0. Status".
 
 ## 3. Repo layout
 
@@ -180,16 +279,20 @@ src/
   i18n/                  # all user-facing strings, en and es
   frontmatter/           # read/rewrite YAML frontmatter, body preserved
   spec/                  # zod schema + JSON Schema export
+  models.ts              # valid model and effort values (usage + validate)
+  packageRoot.ts         # the repo / installed package folder
   scaffold/  validate/  library/  usage/  events/
 library/
   usage-profiles.json
   templates/{software,learning-or-management,generic}/
-  skills/
-schemas/spec.schema.json # generated; read by the architect
-scripts/hook-event.mjs   # hook entry point
-.claude/skills/new-project/SKILL.md   # also declares the event hooks
+  skills/{session-handoff,review-against-brief,decision-log}/
+schemas/spec.schema.json # generated (npm run schema); read by the architect
+scripts/hook-event.mjs   # hook entry point (plain JS) + hook-event.d.mts types
+scripts/generate-schema.ts
+.claude/skills/new-project/SKILL.md   # H9; opens and closes the session
 .claude/agents/*.md      # body edits only; never model/effort by hand
-.claude/settings.json    # worktree.baseRef only; no hooks
+.claude/settings.json    # worktree.baseRef + event hooks (exec form)
+.claude/settings.local.json  # gitignored; init adds projectsDir here
 tests/
   unit/
   fixtures/{software,learning,novel}.spec.json
