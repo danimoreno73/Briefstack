@@ -1,11 +1,12 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { PathEnv } from '../config/paths.js';
+import { isFullyAbsolute, isPathInside, type PathEnv } from '../config/paths.js';
 import { BriefstackError, type SettingsField } from '../errors.js';
 
 /**
  * Adds a folder to `permissions.additionalDirectories` in a Claude Code
- * `settings.local.json`, keeping every other key and entry (decisions §7).
+ * `settings.local.json`, keeping every other key and entry (decisions §7),
+ * and tells whether a folder is already covered by one.
  */
 
 type PathStyle = Pick<PathEnv, 'pathApi' | 'caseInsensitive'>;
@@ -30,18 +31,18 @@ export interface SettingsMerge {
   entry: string;
 }
 
+interface ParsedSettings {
+  raw: Record<string, unknown>;
+  permissions: Record<string, unknown>;
+  directories: string[];
+}
+
 /**
- * Pure merge. `text` is the current file or `undefined` when there is none.
- * Throws `init.settingsInvalidJson` / `init.settingsInvalidShape`; `file` only
+ * Parses a settings file; `text` is `undefined` when there is none. Throws
+ * `init.settingsInvalidJson` / `init.settingsInvalidShape`; `file` only
  * appears in those errors.
  */
-export function mergeAdditionalDirectory(
-  text: string | undefined,
-  dir: string,
-  style: PathStyle,
-  file: string,
-): SettingsMerge {
-  const entry = settingsDirEntry(dir, style);
+function parseSettings(text: string | undefined, file: string): ParsedSettings {
   let raw: unknown = {};
   if (text !== undefined && text.trim() !== '') {
     try {
@@ -66,8 +67,18 @@ export function mergeAdditionalDirectory(
   if (!Array.isArray(current) || current.some((item) => typeof item !== 'string')) {
     return invalid('additionalDirectories');
   }
-  const directories = current as string[];
+  return { raw, permissions, directories: current as string[] };
+}
 
+/** Pure merge. `text` is the current file or `undefined` when there is none. */
+export function mergeAdditionalDirectory(
+  text: string | undefined,
+  dir: string,
+  style: PathStyle,
+  file: string,
+): SettingsMerge {
+  const entry = settingsDirEntry(dir, style);
+  const { raw, permissions, directories } = parseSettings(text, file);
   const wanted = normaliseDirForCompare(entry, style);
   if (directories.some((item) => normaliseDirForCompare(item, style) === wanted)) {
     return { text: text ?? '', added: false, entry };
@@ -89,20 +100,39 @@ export interface PreparedDirectory {
 
 const systemStyle = (): PathStyle => ({ pathApi: path, caseInsensitive: process.platform !== 'linux' });
 
+async function readLocalSettings(repoDir: string): Promise<{ file: string; text: string | undefined }> {
+  const file = path.join(repoDir, '.claude', 'settings.local.json');
+  try {
+    return { file, text: await readFile(file, 'utf8') };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    return { file, text: undefined };
+  }
+}
+
 /** Reads `<repoDir>/.claude/settings.local.json` and computes the merge, writing nothing. */
 export async function prepareAdditionalDirectory(
   repoDir: string,
   dir: string,
   style: PathStyle = systemStyle(),
 ): Promise<PreparedDirectory> {
-  const file = path.join(repoDir, '.claude', 'settings.local.json');
-  let text: string | undefined;
-  try {
-    text = await readFile(file, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
+  const { file, text } = await readLocalSettings(repoDir);
   return { file, merge: mergeAdditionalDirectory(text, dir, style, file) };
+}
+
+/** The `additionalDirectories` of `<repoDir>/.claude/settings.local.json`; none when it is missing. */
+export async function readAdditionalDirectories(repoDir: string): Promise<string[]> {
+  const { file, text } = await readLocalSettings(repoDir);
+  return parseSettings(text, file).directories;
+}
+
+/**
+ * The entry that already lets Claude Code work in `dir` (the entry itself or
+ * a parent of it), or `undefined`. `dir` must be absolute. Entries that are
+ * not fully absolute are skipped: what they resolve against is not documented.
+ */
+export function allowingDirectory(dir: string, entries: readonly string[], style: PathStyle): string | undefined {
+  return entries.find((entry) => isFullyAbsolute(entry, style.pathApi) && isPathInside(dir, entry, style));
 }
 
 /** Writes a prepared merge when it adds the entry. */

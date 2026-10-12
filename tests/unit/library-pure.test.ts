@@ -2,6 +2,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BriefstackError } from '../../src/errors.js';
 import {
+  allowingDirectory,
   INDEX_TEMPLATE,
   LOG_INDEX_TEMPLATE,
   cleanSummary,
@@ -83,6 +84,27 @@ describe('additionalDirectories merge', () => {
       'init.settingsInvalidShape',
       'additionalDirectories',
     ]);
+  });
+});
+
+describe('allowing directory', () => {
+  it('finds the entry that covers a folder or one of its parents, on Windows', () => {
+    const entries = ['D:/data', 'C:/Users/Ana/briefstack-projects'];
+    expect(allowingDirectory('c:\\users\\ana\\briefstack-projects\\novel', entries, win)).toBe(
+      'C:/Users/Ana/briefstack-projects',
+    );
+    expect(allowingDirectory('C:\\Users\\Ana\\briefstack-projects', entries, win)).toBe(
+      'C:/Users/Ana/briefstack-projects',
+    );
+    expect(allowingDirectory('C:\\Users\\Ana\\briefstack-projects-old\\x', entries, win)).toBeUndefined();
+    expect(allowingDirectory('C:\\Users\\Ana\\Documents\\tfg', entries, win)).toBeUndefined();
+  });
+
+  it('follows case rules on POSIX and skips entries that are not fully absolute', () => {
+    expect(allowingDirectory('/home/ana/p/x', ['/home/ana/P'], linux)).toBeUndefined();
+    expect(allowingDirectory('/Users/ana/p/x', ['/Users/ana/P'], mac)).toBe('/Users/ana/P');
+    expect(allowingDirectory('C:\\x\\y', ['/x', 'x', '~/x'], win)).toBeUndefined();
+    expect(allowingDirectory('/home/ana/x', ['x', '/home/ana'], linux)).toBe('/home/ana');
   });
 });
 

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main, type CliIO } from '../../src/cli.js';
@@ -153,5 +153,93 @@ describe('cli: init and library', () => {
     expect(run.err.at(-1)).toBe(`No personal library at ${libraryDir()}. Run "briefstack init" first.`);
     expect(await main(['library', 'list', 'nope'], run.io)).toBe(1);
     expect(run.err.at(-1)).toContain('Unknown library section "nope"');
+  });
+});
+
+describe('cli: paths', () => {
+  let dir: string;
+  let cleanup: () => Promise<void>;
+  beforeEach(async () => {
+    ({ dir, cleanup } = await tempDir('cli-paths'));
+  });
+  afterEach(() => cleanup());
+
+  const json = (run: Captured) => JSON.parse(run.out.join('\n')) as Record<string, unknown>;
+
+  it('reports where things live, before and after init', async () => {
+    const before = capture(dir);
+    expect(await main(['paths', '--json'], before.io)).toBe(0);
+    expect(json(before)).toEqual({
+      home: path.join(dir, 'home'),
+      configFile: path.join(dir, 'home', 'config.json'),
+      libraryDir: path.join(dir, 'home', 'library'),
+      libraryExists: false,
+      projectsDir: path.join(dir, 'user', 'briefstack-projects'),
+      sessionsDir: path.join(dir, 'home', 'sessions'),
+      repoDir: path.join(dir, 'repo'),
+      allowedDirs: [],
+    });
+
+    await main(['init'], capture(dir).io);
+    const after = capture(dir, { BRIEFSTACK_LANG: 'es' });
+    expect(await main(['paths'], after.io)).toBe(0);
+    expect(after.out).toEqual([
+      `Carpeta de briefstack: ${path.join(dir, 'home')}`,
+      `Biblioteca personal: ${path.join(dir, 'home', 'library')}`,
+      `Carpeta de proyectos: ${path.join(dir, 'user', 'briefstack-projects')}`,
+      `Sesiones: ${path.join(dir, 'home', 'sessions')}`,
+      `Carpetas permitidas en .claude/settings.local.json: ${path.join(dir, 'user', 'briefstack-projects').replace(/\\/g, '/')}`,
+    ]);
+  });
+
+  it('checks an output folder: state and whether Claude Code may already write there', async () => {
+    await main(['init'], capture(dir).io);
+    const projects = path.join(dir, 'user', 'briefstack-projects');
+    await writeTree(dir, { 'user/briefstack-projects/full/a.md': 'x', 'elsewhere/file.txt': 'x' });
+    await mkdir(path.join(projects, 'empty'));
+
+    const check = async (target: string) => {
+      const run = capture(dir);
+      expect(await main(['paths', 'check', target, '--json'], run.io)).toBe(0);
+      return json(run);
+    };
+    expect(await check(path.join(projects, 'new'))).toEqual({
+      outDir: path.join(projects, 'new'),
+      status: 'missing',
+      overlaps: null,
+      allowed: true,
+      allowedBy: projects.replace(/\\/g, '/'),
+    });
+    expect(await check(path.join(projects, 'full'))).toMatchObject({ status: 'nonEmpty', allowed: true });
+    expect(await check(path.join(projects, 'empty'))).toMatchObject({ status: 'empty', allowed: true });
+    expect(await check('elsewhere/new')).toMatchObject({
+      outDir: path.join(dir, 'elsewhere', 'new'),
+      status: 'missing',
+      allowed: false,
+      allowedBy: null,
+    });
+    expect(await check('elsewhere/file.txt')).toMatchObject({ status: 'notADirectory' });
+    expect(await check(path.join(dir, 'home', 'library', 'x'))).toMatchObject({
+      status: 'forbidden',
+      overlaps: { root: 'library', path: path.join(dir, 'home', 'library') },
+    });
+
+    const text = capture(dir);
+    expect(await main(['paths', 'check', 'elsewhere/new'], text.io)).toBe(0);
+    expect(text.out).toEqual([
+      `${path.join(dir, 'elsewhere', 'new')} does not exist yet; scaffold will create it.`,
+      `Not allowed yet: run /add-dir ${path.join(dir, 'elsewhere', 'new')} in Claude Code before generating.`,
+    ]);
+    const forbidden = capture(dir);
+    expect(await main(['paths', 'check', path.join(dir, 'home')], forbidden.io)).toBe(0);
+    expect(forbidden.out[0]).toContain('it overlaps the personal library');
+  });
+
+  it('exits 2 on usage errors', async () => {
+    const run = capture(dir);
+    expect(await main(['paths', 'check'], run.io)).toBe(2);
+    expect(await main(['paths', 'list'], run.io)).toBe(2);
+    expect(await main(['paths', 'check', 'a', 'b'], run.io)).toBe(2);
+    expect(await main(['paths', '--yaml'], run.io)).toBe(2);
   });
 });

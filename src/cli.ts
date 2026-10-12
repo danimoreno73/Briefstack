@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { configFilePath, readConfig, resolvePaths, updateConfig } from './config/config.js';
 import { isFullyAbsolute, systemPathEnv, type PathEnv } from './config/paths.js';
-import { isBriefstackError } from './errors.js';
+import { BriefstackError, isBriefstackError } from './errors.js';
 import {
   SESSION_OUTCOMES,
   STEP_OUTCOMES,
@@ -24,6 +24,7 @@ import { cliMessages } from './i18n/cli.js';
 import { formatError } from './i18n/errors.js';
 import { eventMessages } from './i18n/events.js';
 import { initSummary, libraryMessages, renderLibraryContext } from './i18n/library.js';
+import { pathsMessages } from './i18n/paths.js';
 import { resolveLang, systemLocale, type Lang } from './i18n/index.js';
 import { scaffoldMessages } from './i18n/scaffold.js';
 import { usageMessages } from './i18n/usage.js';
@@ -33,15 +34,17 @@ import {
   INDEX_FILE,
   LOG_INDEX_FILE,
   addNote,
+  allowingDirectory,
   buildLibraryContext,
   initLibrary,
   libraryExists,
   listNotes,
   noteLink,
+  readAdditionalDirectories,
   readNote,
 } from './library/index.js';
 import { PACKAGE_ROOT } from './packageRoot.js';
-import { scaffold } from './scaffold/index.js';
+import { inspectOutputDir, scaffold, type ProtectedDir } from './scaffold/index.js';
 import { readSpec } from './spec/index.js';
 import {
   agentSetting,
@@ -139,10 +142,7 @@ async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Prom
   const { paths, profiles } = await loadProfiles(io);
   const spec = await readSpec(specPath);
   const result = await scaffold(spec, outPath, {
-    protectedDirs: [
-      { root: 'repo', path: PACKAGE_ROOT },
-      { root: 'library', path: paths.libraryDir },
-    ],
+    protectedDirs: protectedDirs(paths.libraryDir),
     templateRoots: [
       path.join(paths.libraryDir, 'templates'),
       path.join(PACKAGE_ROOT, 'library', 'templates'),
@@ -157,6 +157,63 @@ async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Prom
   }
   if (result.gitInitialised) io.out(messages.gitInitialised);
   for (const warning of result.warnings) io.err(messages.warning(warning));
+  return EXIT_OK;
+}
+
+/** Folders a generated project must not overlap. */
+const protectedDirs = (libraryDir: string): ProtectedDir[] => [
+  { root: 'repo', path: PACKAGE_ROOT },
+  { root: 'library', path: libraryDir },
+];
+
+/** Where things live, and whether an output folder is usable. Reports; never fails on what it finds. */
+async function runPaths(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = pathsMessages[lang];
+  const { positionals, flags } = parseArgs(args, ['--json'], lang, [], messages.usage);
+  const json = flags.has('--json');
+  const paths = await resolvedPaths(io);
+  const repoDir = io.repoDir ?? PACKAGE_ROOT;
+  const allowedDirs = await readAdditionalDirectories(repoDir);
+
+  if (positionals.length === 0) {
+    const libraryReady = await libraryExists(paths.libraryDir);
+    if (json) {
+      const { home, configFile, libraryDir, projectsDir, sessionsDir } = paths;
+      const report = { home, configFile, libraryDir, libraryExists: libraryReady, projectsDir, sessionsDir, repoDir, allowedDirs };
+      io.out(JSON.stringify(report, null, 2));
+    } else {
+      io.out(messages.home(paths.home));
+      io.out(messages.library(paths.libraryDir, libraryReady));
+      io.out(messages.projects(paths.projectsDir));
+      io.out(messages.sessions(paths.sessionsDir));
+      io.out(messages.allowedDirs(allowedDirs));
+    }
+    return EXIT_OK;
+  }
+
+  const [sub, dirArg] = positionals;
+  if (sub !== 'check' || positionals.length !== 2 || dirArg === undefined) {
+    throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  }
+  const report = await inspectOutputDir(argPath(io, lang, dirArg), protectedDirs(paths.libraryDir));
+  const allowedBy = allowingDirectory(report.outDir, allowedDirs, io.pathEnv) ?? null;
+  if (json) {
+    const overlaps = report.overlaps === undefined ? null : report.overlaps;
+    io.out(JSON.stringify({ outDir: report.outDir, status: report.status, overlaps, allowed: allowedBy !== null, allowedBy }, null, 2));
+    return EXIT_OK;
+  }
+  const { outDir, status } = report;
+  if (status === 'forbidden') {
+    const dir = report.overlaps as ProtectedDir;
+    io.out(formatError(new BriefstackError('scaffold.forbiddenOutput', { outDir, root: dir.root, rootPath: dir.path }), lang));
+    return EXIT_OK;
+  }
+  if (status === 'notADirectory') {
+    io.out(formatError(new BriefstackError('scaffold.notADirectory', { outDir }), lang));
+    return EXIT_OK;
+  }
+  io.out(messages[status](outDir));
+  io.out(allowedBy === null ? messages.notAllowed(outDir) : messages.allowedBy(allowedBy));
   return EXIT_OK;
 }
 
@@ -470,6 +527,8 @@ export async function main(argv: readonly string[], io: CliIO = defaultIO()): Pr
         return await runInit(rest, io, lang);
       case 'library':
         return await runLibrary(rest, io, lang);
+      case 'paths':
+        return await runPaths(rest, io, lang);
       case 'scaffold':
         return await runScaffold(rest, io, lang);
       case 'usage':
