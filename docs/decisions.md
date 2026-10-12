@@ -601,3 +601,97 @@ Built in a worktree from `075b8bc`; merged in `02a8cd9`.
 - **Tests and git:** `useHermeticGit()` points `GIT_CONFIG_GLOBAL` at an empty
   file and sets `GIT_CONFIG_NOSYSTEM=1`, so tests do not depend on the
   developer's git identity or signing setup.
+
+## Events and hooks (H8, 2026-10-12)
+
+### Hook form
+
+The hooks page documents an exec form: `"command": "node"` plus
+`"args": ["${CLAUDE_PROJECT_DIR}/scripts/hook-event.mjs"]`. With `args` set
+there is no shell at all; Claude Code substitutes the placeholder into each
+argument and spawns `node.exe` directly. The docs recommend it for any hook
+that references a path placeholder. It removes the open question about
+`${CLAUDE_PROJECT_DIR}` under PowerShell. `scripts/hook-event.mjs` is plain
+JavaScript (fast start), records only tool names (never inputs or outputs),
+validates the session id, and always exits 0.
+
+### Probe (Claude Code 2.1.296, Windows 11)
+
+Throwaway projects in the session's temp scratchpad, each with a `probe`
+skill that launches an `echo` subagent (tools: Read), run with
+`claude -p "/probe" --model haiku --setting-sources project`.
+
+| Hooks declared in | Form | Main-session tool events | `subagent.start` | Subagent tool events | `subagent.stop` |
+|---|---|---|---|---|---|
+| `SKILL.md` frontmatter | exec | yes | yes | **no** | **no** |
+| `SKILL.md` frontmatter | shell, Git Bash | yes | yes | **no** | **no** |
+| `SKILL.md` frontmatter | shell, PowerShell | yes | yes | **no** | **no** |
+| `.claude/settings.json` | exec | yes | yes | yes (with `agentId`, `agentType`) | yes |
+
+All three forms work on Windows. But hooks declared in a skill's
+frontmatter do not fire for events inside subagents (their tool calls and
+their stop), while the same hooks in `settings.json` do. This contradicts the
+H0 checkpoint decision to put the event hooks in the skill: it would lose
+exactly the subagent activity the phase 3 panel needs. **Pending a user
+decision** (see the H8 report).
+
+### Incident: the probe wrote to `C:\c\...`
+
+What happened: 5 `events.jsonl` files (and their folders) were created under
+`C:\c\Users\<user>\AppData\Local\Temp\claude\...\scratchpad\hook-probe\home-*\sessions\<id>\`,
+outside any temp folder. Nothing else was written there.
+
+Exact cause, step by step:
+
+1. The probe ran `claude -p` from Git Bash with
+   `BRIEFSTACK_HOME="$S/home-<form>"`, where `$S` was a Git Bash path
+   (`/c/Users/<user>/AppData/Local/Temp/...`).
+2. The runs also set `MSYS_NO_PATHCONV=1` (needed because Git Bash had
+   rewritten the `/probe` argument into `C:/Program Files/Git/probe`). That
+   variable also stops Git Bash from converting environment values, so
+   `BRIEFSTACK_HOME` reached `claude.exe`, and from it the hook process,
+   still as `/c/Users/...`. A debug copy of the script confirmed that value
+   and that `${CLAUDE_PROJECT_DIR}` itself was substituted correctly.
+3. The hook process (`node.exe scripts/hook-event.mjs`, spawned by Claude
+   Code) checked the value with `path.isAbsolute`, which on Windows is true
+   for any rooted path, even without a drive letter.
+4. `path.resolve('/c/Users/...')` then prefixed the drive of the current
+   directory (`C:`), giving `C:\c\Users\...`, and `mkdirSync(recursive)`
+   created the whole chain.
+
+So the bug was real, in the product code, not only in the probe: a Windows
+program receiving a rooted path without a drive silently wrote to a folder
+nobody asked for. The CLI had the same flaw in `toAbsolute` (config and
+`BRIEFSTACK_HOME`/`BRIEFSTACK_LIBRARY`) and in every path argument.
+
+Fix:
+
+- `isFullyAbsolute` (`src/config/paths.ts`, mirrored in the hook script): on
+  Windows a path counts as absolute only with a drive (`C:\`, `C:/`) or a UNC
+  share (`\server\share`). `toAbsolute` uses it, so such config values fail
+  with `config.relativePath` (message now mentions the drive letter).
+- The hook script records nothing for such a `BRIEFSTACK_HOME` instead of
+  guessing.
+- The CLI checks every path argument (`scaffold`, `validate`,
+  `usage set --project`, `library add --from`, `library context --idea`)
+  with `argPath` before touching the disk, and exits 2 with a message
+  explaining the drive letter.
+- Tests are pure (inject `path.win32`/`path.posix`), so a regression cannot
+  recreate the folder: `isFullyAbsolute` cases, the hook's home resolution
+  matching the CLI's for twelve kinds of value in both styles, and a CLI test
+  that refuses `/c/...` and `\...` arguments under `path.win32`.
+
+Cleanup: the user deletes `C:\c` by hand after checking it only holds the
+probe's files; Claude does not touch it.
+
+Rule from now on (user, 2026-10-12): no test or probe writes outside the repo
+or a system temp folder. Probes launched from Git Bash pass Windows-form
+paths (`cygpath -w`) in arguments and environment variables.
+
+### Git Bash and `claude -p`
+
+Git Bash rewrites arguments that look like POSIX paths when it starts a
+Windows program: `claude -p "/probe"` arrived as
+`C:/Program Files/Git/probe`. Phase 2 launches `claude -p` from Node with
+`execFile` (no shell), which is not affected; anyone scripting it from Git
+Bash needs `MSYS_NO_PATHCONV=1` and then Windows-form paths.
