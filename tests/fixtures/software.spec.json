@@ -1,0 +1,50 @@
+{
+  "specVersion": 1,
+  "name": "Recipe Scaler",
+  "slug": "recipe-scaler",
+  "summary": "A small command-line tool that scales a recipe to a different number of servings and converts units.",
+  "language": "en",
+  "type": "software",
+  "target": "claude-code",
+  "targetReason": "It is a code project with tests to run, so Claude Code can build and check it directly.",
+  "profile": "balanced",
+  "goal": "Scale any plain-text recipe to N servings with sensible rounding and optional metric or imperial output.",
+  "audience": "Home cooks comfortable running a command in a terminal.",
+  "deliverables": [
+    "A CLI that reads a recipe file and prints the scaled version",
+    "Unit conversion between metric and imperial for common kitchen units",
+    "Tests covering parsing, scaling and rounding",
+    "A README with install and usage instructions"
+  ],
+  "constraints": [
+    "Runs on Windows, macOS and Linux",
+    "No network access at run time",
+    "Keep dependencies to a minimum"
+  ],
+  "doneWhen": [
+    "Scaling the sample recipes gives the expected output in tests",
+    "The README example works as written on a fresh machine",
+    "Build, tests and lint pass"
+  ],
+  "directories": ["src", "tests", "examples"],
+  "files": [
+    { "path": "README.md", "purpose": "What the tool does, how to install it and how to use it." },
+    { "path": "examples/pancakes.txt", "purpose": "A sample recipe used in the README and tests." }
+  ],
+  "skills": [
+    {
+      "name": "release-checklist",
+      "description": "Steps to cut a release: run the checks, update the changelog, tag the version. Use when the user asks to release.",
+      "purpose": "Run build, tests and lint; update the changelog; bump the version; tag the release; summarise what changed."
+    }
+  ],
+  "agents": [
+    {
+      "name": "code-reviewer",
+      "description": "Reviews a change for bugs, missing tests and unclear code. Read-only; reports problems without fixing them.",
+      "tools": ["Read", "Grep", "Glob"],
+      "tier": "standard",
+      "purpose": "Read the diff and the files it touches. List concrete problems with file and line, most important first. Do not edit anything."
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "specVersion": 1,
+  "name": "Spanish to B1",
+  "slug": "spanish-to-b1",
+  "summary": "A six-month self-study plan to reach a B1 level in Spanish, with weekly reviews.",
+  "language": "en",
+  "type": "learning-or-management",
+  "target": "claude-app",
+  "targetReason": "Mostly conversation practice and planning, with scheduled weekly reviews; no code to run.",
+  "profile": "balanced",
+  "goal": "Hold a 15-minute everyday conversation and pass a B1 mock exam within six months.",
+  "audience": "An adult beginner studying about five hours a week.",
+  "deliverables": [
+    "A month-by-month study plan",
+    "A vocabulary list organised by topic",
+    "A weekly review routine with a short progress log"
+  ],
+  "constraints": [
+    "About five hours a week, mostly on weekday evenings",
+    "Free or already-owned materials only"
+  ],
+  "doneWhen": [
+    "A B1 mock exam is passed in all four skills",
+    "A 15-minute conversation on an everyday topic goes without switching language"
+  ],
+  "directories": ["vocabulary"],
+  "files": [
+    { "path": "docs/PLAN.md", "purpose": "Month-by-month study plan with goals for each month." },
+    { "path": "vocabulary/topics.md", "purpose": "Vocabulary grouped by topic, with example sentences." }
+  ],
+  "scheduledTasks": [
+    {
+      "name": "Weekly review",
+      "schedule": "Every Sunday at 18:00",
+      "prompt": "Run the review checklist in docs/PROGRESS.md for this week, then suggest the plan for next week."
+    }
+  ]
+}

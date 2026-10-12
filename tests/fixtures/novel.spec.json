@@ -1,0 +1,31 @@
+{
+  "specVersion": 1,
+  "name": "The Salt Road",
+  "slug": "the-salt-road",
+  "summary": "A first draft of a historical novel about a salt trader crossing the Sahara in the fourteenth century.",
+  "language": "en",
+  "type": "generic",
+  "target": "claude-app",
+  "targetReason": "Writing and discussion with no code to run; the desktop app keeps the outline and notes at hand.",
+  "profile": "balanced",
+  "goal": "Finish a complete first draft of about 80,000 words.",
+  "audience": "Adult readers of literary historical fiction.",
+  "deliverables": [
+    "A chapter-by-chapter outline",
+    "Character sheets for the main cast",
+    "A complete first draft, one file per chapter"
+  ],
+  "constraints": [
+    "The author writes the manuscript; Claude helps with structure, research questions and feedback",
+    "Historical details are flagged for checking, never invented as fact"
+  ],
+  "doneWhen": [
+    "Every chapter in the outline has a draft",
+    "The draft reads end to end without missing scenes"
+  ],
+  "directories": ["chapters", "characters"],
+  "files": [
+    { "path": "docs/OUTLINE.md", "purpose": "Chapter-by-chapter outline: what happens and why it matters." },
+    { "path": "characters/cast.md", "purpose": "One section per main character: wants, fears, arc." }
+  ]
+}
