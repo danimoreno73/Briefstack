@@ -33,6 +33,8 @@ export interface ErrorParams {
   'usage.unknownProfile': { profile: string; available: string[] };
   'usage.notABriefstackProject': { dir: string };
   'usage.invalidProjectProfile': { file: string; issues: string[] };
+  'validate.projectNotFound': { dir: string };
+  'validate.notADirectory': { dir: string };
 }
 
 export type ErrorCode = keyof ErrorParams;

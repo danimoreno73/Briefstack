@@ -11,6 +11,7 @@ import { formatError } from './i18n/errors.js';
 import { resolveLang, systemLocale, type Lang } from './i18n/index.js';
 import { scaffoldMessages } from './i18n/scaffold.js';
 import { usageMessages } from './i18n/usage.js';
+import { formatFinding, validateMessages } from './i18n/validate.js';
 import { VERSION } from './index.js';
 import { PACKAGE_ROOT } from './packageRoot.js';
 import { scaffold } from './scaffold/index.js';
@@ -27,6 +28,7 @@ import {
   usageEnvWarnings,
   type ApplyResult,
 } from './usage/index.js';
+import { validateProject } from './validate/index.js';
 
 /** Argument parsing only; all real work lives in the library. */
 
@@ -207,6 +209,27 @@ async function runUsage(args: readonly string[], io: CliIO, lang: Lang): Promise
   throw new UsageError(cliMessages[lang].wrongArguments(usageMessages[lang].usage));
 }
 
+async function runValidate(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = validateMessages[lang];
+  const { positionals, flags } = parseArgs(args, ['--json'], lang);
+  const [dirArg] = positionals;
+  if (positionals.length !== 1 || dirArg === undefined) {
+    throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  }
+
+  const result = await validateProject(path.resolve(io.cwd, dirArg), { pathEnv: io.pathEnv });
+  if (flags.has('--json')) {
+    const { projectDir, target, errors, warnings, findings } = result;
+    io.out(JSON.stringify({ projectDir, target: target ?? null, errors, warnings, findings }, null, 2));
+  } else if (result.findings.length === 0) {
+    io.out(messages.clean(result.projectDir));
+  } else {
+    for (const item of result.findings) io.out(formatFinding(item, lang));
+    io.out(messages.summary(result.projectDir, result.errors, result.warnings));
+  }
+  return result.errors > 0 ? EXIT_ERROR : EXIT_OK;
+}
+
 async function detectLang(io: CliIO): Promise<Lang> {
   let configLang: string | undefined;
   try {
@@ -235,6 +258,8 @@ export async function main(argv: readonly string[], io: CliIO = defaultIO()): Pr
         return await runScaffold(rest, io, lang);
       case 'usage':
         return await runUsage(rest, io, lang);
+      case 'validate':
+        return await runValidate(rest, io, lang);
       default:
         throw new UsageError(cliMessages[lang].unknownCommand(command));
     }

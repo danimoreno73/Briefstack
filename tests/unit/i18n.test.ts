@@ -59,6 +59,8 @@ describe('error catalogue', () => {
     'usage.unknownProfile': { profile: 'p', available: ['saver', 'balanced'] },
     'usage.notABriefstackProject': { dir: 'd' },
     'usage.invalidProjectProfile': { file: 'f', issues: ['a'] },
+    'validate.projectNotFound': { dir: 'd' },
+    'validate.notADirectory': { dir: 'd' },
   };
 
   it('has a distinct message for every code in every language', () => {

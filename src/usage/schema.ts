@@ -1,16 +1,11 @@
 import { z } from 'zod';
 import { LANGS } from '../i18n/index.js';
+import { EFFORT_LEVELS, isValidModel, type Effort } from '../models.js';
 import { TIERS } from '../spec/index.js';
 
 /** The five agents of the creation flow, in flow order. */
 export const FLOW_AGENTS = ['interviewer', 'researcher', 'architect', 'generator', 'reviewer'] as const;
 export type FlowAgent = (typeof FLOW_AGENTS)[number];
-
-/** Levels accepted by the `effort` frontmatter field (`decisions.md` §2). */
-export const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
-export type Effort = (typeof EFFORT_LEVELS)[number];
-
-export const MODEL_ALIASES = ['haiku', 'sonnet', 'opus', 'fable'] as const;
 
 export const RESEARCH_MODES = ['required-only', 'when-useful'] as const;
 export type ResearchMode = (typeof RESEARCH_MODES)[number];
@@ -19,16 +14,18 @@ export type ResearchMode = (typeof RESEARCH_MODES)[number];
 export const PROFILE_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
- * An alias, `inherit`, or a full model ID. IDs are not checked against a list
- * (new models appear, providers prefix them); they only have to be a single
- * token that is safe as a plain YAML scalar.
+ * Session model: anything `/model` accepts (e.g. `opusplan`, `best`), as a
+ * single token. It is only shown to the user, never written to a file.
  */
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:@/[\]-]*$/;
 export const ModelSchema = z.string().regex(MODEL_RE);
 
+/** Agent and tier models end up in agent frontmatter: same rule as `validate`. */
+export const AgentModelSchema = z.string().refine(isValidModel);
+
 const AgentEntrySchema = z.union([
-  ModelSchema,
-  z.strictObject({ model: ModelSchema, effort: z.enum(EFFORT_LEVELS).optional() }),
+  AgentModelSchema,
+  z.strictObject({ model: AgentModelSchema, effort: z.enum(EFFORT_LEVELS).optional() }),
 ]);
 
 const labelShape = Object.fromEntries(LANGS.map((lang) => [lang, z.string().trim().min(1)])) as Record<
@@ -41,9 +38,9 @@ const agentsShape = Object.fromEntries(FLOW_AGENTS.map((name) => [name, AgentEnt
   typeof AgentEntrySchema
 >;
 
-const tiersShape = Object.fromEntries(TIERS.map((tier) => [tier, ModelSchema])) as Record<
+const tiersShape = Object.fromEntries(TIERS.map((tier) => [tier, AgentModelSchema])) as Record<
   (typeof TIERS)[number],
-  typeof ModelSchema
+  typeof AgentModelSchema
 >;
 
 /**

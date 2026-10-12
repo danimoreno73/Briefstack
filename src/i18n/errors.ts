@@ -65,6 +65,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'usage.notABriefstackProject': (p) =>
       `${p.dir} was not created by briefstack (no .briefstack/profile.json); refusing to change it.`,
     'usage.invalidProjectProfile': (p) => `Project profile ${p.file} is not valid:${bullets(p.issues)}`,
+    'validate.projectNotFound': (p) => `Project folder not found: ${p.dir}`,
+    'validate.notADirectory': (p) => `${p.dir} is not a folder.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -105,6 +107,8 @@ const errors = defineCatalogue<ErrorMessages>({
       `${p.dir} no lo creó briefstack (no tiene .briefstack/profile.json); no se modifica.`,
     'usage.invalidProjectProfile': (p) =>
       `El perfil del proyecto ${p.file} no es válido:${bullets(p.issues)}`,
+    'validate.projectNotFound': (p) => `No se encuentra la carpeta del proyecto: ${p.dir}`,
+    'validate.notADirectory': (p) => `${p.dir} no es una carpeta.`,
   },
 });
 
