@@ -20,4 +20,6 @@ export { DEFAULT_LANG, LANGS, isLang, resolveLang, systemLocale, type Lang } fro
 export { formatError } from './i18n/errors.js';
 export * from './scaffold/index.js';
 export * from './spec/index.js';
+export * from './validate/index.js';
+export { formatFinding, formatFindingMessage } from './i18n/validate.js';
 export { PACKAGE_ROOT } from './packageRoot.js';
