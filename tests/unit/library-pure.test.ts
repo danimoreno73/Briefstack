@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { BriefstackError } from '../../src/errors.js';
 import {
   allowingDirectory,
+  appendDated,
+  logLinks,
   INDEX_TEMPLATE,
   LOG_INDEX_TEMPLATE,
   cleanSummary,
@@ -147,6 +149,28 @@ describe('index entries', () => {
     expect(cleanSummary('  two\nlines [[x]] ')).toBe('two lines x');
     expect(cleanSummary('a'.repeat(200))).toHaveLength(120);
     expect(summaryFromBody('\n# Title here\n\nbody')).toBe('Title here');
+    // A date heading is when, not what (rehearsal: the INDEX line read "2026-10-12").
+    expect(summaryFromBody('### 2026-10-12\n\n- Prefers direct answers.')).toBe('Prefers direct answers.');
+    expect(summaryFromBody('## 2026-10-12 (notes)\nReal summary')).toBe('Real summary');
+  });
+
+  it('dates an addition once, even when it brings its own date heading', () => {
+    const now = new Date('2026-10-12T10:00:00Z');
+    const base = '# Lessons\n';
+    expect(appendDated(base, '- Ask less.\n', now)).toBe('# Lessons\n\n### 2026-10-12\n\n- Ask less.\n');
+    expect(appendDated(base, '\n### 2026-10-12 (fen-check-2)\n\n- Ask less.\n', now)).toBe(
+      '# Lessons\n\n### 2026-10-12\n\n- Ask less.\n',
+    );
+    expect(appendDated(base, '### Context\n\n- Ask less.\n', now)).toBe(
+      '# Lessons\n\n### 2026-10-12\n\n### Context\n\n- Ask less.\n',
+    );
+  });
+});
+
+describe('linked session logs', () => {
+  it('finds log links in a project note, once each, never the log index', () => {
+    const note = 'Session: [[log/2026-10-12-a]], again [[log/2026-10-12-a|alias]], [[log/INDEX]], [[log/../x]], [[projects/b]], [[log/2026-10-13-b#Answers]]';
+    expect(logLinks(note)).toEqual(['2026-10-12-a', '2026-10-13-b']);
   });
 });
 

@@ -6,8 +6,9 @@ import { INDEX_FILE, LESSONS_FILE, toNative } from './layout.js';
 
 /**
  * Gap-analysis input for the interviewer (PLAN "Learning"): the index, every
- * profile note, the lessons and the project notes most similar to the idea.
- * Deterministic: same library and idea, same output.
+ * profile note, the lessons, and the project notes most similar to the idea
+ * with the session logs they link to ([[log/...]]), which hold the questions
+ * asked and the answers given. Deterministic: same library and idea, same output.
  *
  * Similarity: both texts are lower-cased and split into keywords (runs of
  * Unicode letters and digits, at least 3 characters, minus a short English
@@ -50,6 +51,8 @@ export interface SimilarProject extends ContextNote {
   score: number;
   /** Shared keywords, sorted. */
   shared: string[];
+  /** Session logs the note links to, in link order; missing ones are skipped. */
+  logs: ContextNote[];
 }
 
 export interface LibraryContext {
@@ -87,7 +90,7 @@ export function rankProjects(idea: string, notes: readonly ContextNote[], limit:
   return notes
     .map((note) => {
       const shared = keywords(note.text).filter((word) => wanted.has(word)).sort(byCodePoint);
-      return { ...note, score: shared.length, shared };
+      return { ...note, score: shared.length, shared, logs: [] as ContextNote[] };
     })
     .filter((note) => note.score > 0)
     .sort((a, b) => b.score - a.score || byCodePoint(a.file, b.file))
@@ -122,6 +125,33 @@ export async function buildLibraryContext(options: ContextOptions): Promise<Libr
     index,
     profile,
     lessons: await readTextIfExists(path.join(libraryDir, LESSONS_FILE)),
-    similarProjects: rankProjects(idea, projects, options.limit ?? DEFAULT_SIMILAR_LIMIT),
+    similarProjects: await Promise.all(
+      rankProjects(idea, projects, options.limit ?? DEFAULT_SIMILAR_LIMIT).map(async (project) => ({
+        ...project,
+        logs: await linkedLogs(libraryDir, project.text),
+      })),
+    ),
   };
+}
+
+/** `[[log/<name>]]` targets in a note, distinct, in order; not `log/INDEX`. */
+export function logLinks(text: string): string[] {
+  const names = new Set<string>();
+  for (const match of text.matchAll(/\[\[log\/([^\]|#]+)(?:[|#][^\]]*)?\]\]/g)) {
+    const name = (match[1] ?? '').trim();
+    if (name !== '' && name !== 'INDEX' && !name.includes('/') && !name.includes('\\') && !name.startsWith('.')) {
+      names.add(name);
+    }
+  }
+  return [...names];
+}
+
+async function linkedLogs(libraryDir: string, text: string): Promise<ContextNote[]> {
+  const logs: ContextNote[] = [];
+  for (const name of logLinks(text)) {
+    const file = `log/${name}.md`;
+    const content = await readTextIfExists(toNative(libraryDir, file));
+    if (content !== undefined) logs.push({ file, text: content });
+  }
+  return logs;
 }

@@ -351,6 +351,23 @@ describe('personal library', () => {
       expect(text).not.toContain('### projects/novel.md');
     });
 
+    it('learning: answers from a similar project reach the gap analysis through its session log', async () => {
+      await init();
+      const log = '---\nsummary: Creation of chess-check.\n---\n# Log\n\n- Meaning of "legal": syntax only (changed by the user).\n';
+      await addNote({ libraryDir, section: 'log', name: '2026-10-12-chess-check', fromFile: await source('l.md', log), now });
+      const project =
+        '---\ntarget: claude-code\npath: ~/p\nstatus: created\nprofile: balanced\nsummary: Chess FEN checker with Stockfish.\n---\n' +
+        '# chess-check\n\nSession: [[log/2026-10-12-chess-check]], missing: [[log/2026-01-01-gone]]\n';
+      await addNote({ libraryDir, section: 'projects', name: 'chess-check', fromFile: await source('p.md', project), now });
+
+      const idea = await source('idea.md', 'A chess FEN checker that asks Stockfish for the best move.\n');
+      const context = await buildLibraryContext({ libraryDir, ideaFile: idea });
+      expect(context.similarProjects[0]?.logs.map((item) => item.file)).toEqual(['log/2026-10-12-chess-check.md']);
+      const text = renderLibraryContext(context, 'en');
+      expect(text).toContain('#### log/2026-10-12-chess-check.md (session log of this project');
+      expect(text).toContain('Meaning of "legal": syntax only (changed by the user).');
+    });
+
     it('learning: a preference recorded in a first creation reaches the second gap analysis', async () => {
       await init();
       // First creation: the user states a preference and the flow records it.

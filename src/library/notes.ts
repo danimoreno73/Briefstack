@@ -98,11 +98,16 @@ export function secretLines(text: string): number[] {
 /** First meaningful line of a body, without heading or list markers. */
 export function summaryFromBody(body: string): string {
   for (const raw of body.split(/\r?\n/)) {
+    // A heading that starts with a date ("### 2026-10-12") says when, not what.
+    if (DATE_HEADING_RE.test(raw)) continue;
     const line = raw.replace(/^\s*(?:#{1,6}\s+|[-*+]\s+|>\s*)/, '').trim();
     if (line !== '') return cleanSummary(line);
   }
   return '';
 }
+
+/** A markdown heading whose text starts with an ISO date, e.g. `### 2026-10-12 (notes)`. */
+const DATE_HEADING_RE = /^\s*#{1,6}\s+\d{4}-\d{2}-\d{2}\b/;
 
 function today(now: Date): string {
   return now.toISOString().slice(0, 10);
@@ -135,9 +140,14 @@ export function datedEntryHeading(now: Date): string {
   return `### ${today(now)}`;
 }
 
-/** `appendText` with a date heading before the addition. */
+/**
+ * `appendText` with a date heading before the addition. A date heading the
+ * addition already starts with is dropped, so the entry is not dated twice.
+ */
 export function appendDated(existing: string, addition: string, now: Date): string {
-  return appendText(existing, `${datedEntryHeading(now)}\n\n${addition.replace(/^\s+/, '')}`);
+  let body = addition.replace(/^\s+/, '');
+  if (DATE_HEADING_RE.test(body.split(/\r?\n/, 1)[0] ?? '')) body = body.replace(/^[^\n]*\n?/, '').replace(/^\s+/, '');
+  return appendText(existing, `${datedEntryHeading(now)}\n\n${body}`);
 }
 
 /** The dates of the dated entries in a note, in file order. */

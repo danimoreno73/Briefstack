@@ -88,6 +88,7 @@ const contextText = defineCatalogue({
     similar: '## Similar past projects',
     noSimilar: 'No past project shares keywords with this idea.',
     shared: (words: readonly string[]) => `Shared keywords: ${words.join(', ')}`,
+    log: (file: string) => `#### ${file} (session log of this project: questions asked and answers given)`,
   },
   es: {
     title: '# Contexto de la biblioteca',
@@ -102,6 +103,7 @@ const contextText = defineCatalogue({
     similar: '## Proyectos anteriores parecidos',
     noSimilar: 'Ningún proyecto anterior comparte palabras clave con esta idea.',
     shared: (words: readonly string[]) => `Palabras clave en común: ${words.join(', ')}`,
+    log: (file: string) => `#### ${file} (registro de la sesión de este proyecto: preguntas hechas y respuestas dadas)`,
   },
 });
 
@@ -122,6 +124,7 @@ export function renderLibraryContext(context: LibraryContext, lang: Lang): strin
   if (context.similarProjects.length === 0) parts.push(t.noSimilar);
   for (const note of context.similarProjects) {
     parts.push(`### ${note.file}`, t.shared(note.shared), fence(note.text));
+    for (const log of note.logs) parts.push(t.log(log.file), fence(log.text));
   }
   return `${parts.join('\n\n')}\n`;
 }
