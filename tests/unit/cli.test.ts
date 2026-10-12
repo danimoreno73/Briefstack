@@ -241,6 +241,35 @@ describe('cli usage', () => {
     expect(run.err).toEqual([]);
   });
 
+  it('shows the active profile as JSON for the skill', async () => {
+    const run = capture(dir, { CLAUDE_CODE_EFFORT_LEVEL: 'low' });
+    expect(await main(['usage', 'show', '--json'], run.io)).toBe(0);
+    expect(run.err).toEqual([]);
+    const shown = JSON.parse(run.out.join('\n')) as Record<string, unknown>;
+    expect(shown).toMatchObject({
+      profile: 'balanced',
+      fromConfig: false,
+      sessionModel: 'sonnet',
+      research: 'when-useful',
+      reviewRounds: 2,
+      available: ['saver', 'balanced', 'max'],
+      drift: [],
+      envWarnings: [{ field: 'effort', variable: 'CLAUDE_CODE_EFFORT_LEVEL', value: 'low' }],
+    });
+    expect((shown.agents as Record<string, unknown>).architect).toEqual({ model: 'opus', effort: 'medium' });
+
+    const saver = capture(dir);
+    expect(await main(['usage', 'set', 'saver'], saver.io)).toBe(0);
+    const after = capture(dir);
+    expect(await main(['usage', 'show', '--json'], after.io)).toBe(0);
+    expect(JSON.parse(after.out.join('\n'))).toMatchObject({
+      profile: 'saver',
+      fromConfig: true,
+      research: 'required-only',
+      reviewRounds: 1,
+    });
+  });
+
   it('warns about overriding environment variables', async () => {
     const run = capture(dir, { CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1', CLAUDE_CODE_EFFORT_LEVEL: 'low' });
     expect(await main(['usage', 'show'], run.io)).toBe(0);
@@ -329,6 +358,7 @@ describe('cli usage', () => {
     const run = capture(dir);
     expect(await main(['usage'], run.io)).toBe(2);
     expect(await main(['usage', 'show', 'extra'], run.io)).toBe(2);
+    expect(await main(['usage', 'show', '--yaml'], run.io)).toBe(2);
     expect(await main(['usage', 'set'], run.io)).toBe(2);
     expect(await main(['usage', 'set', 'a', 'b'], run.io)).toBe(2);
     expect(await main(['usage', 'set', 'max', '--project'], run.io)).toBe(2);

@@ -172,11 +172,47 @@ async function loadProfiles(io: CliIO) {
 
 const repoAgentsDir = (io: CliIO): string => path.join(io.repoDir ?? PACKAGE_ROOT, '.claude', 'agents');
 
-async function runUsageShow(io: CliIO, lang: Lang): Promise<number> {
+async function runUsageShow(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
   const messages = usageMessages[lang];
+  const { positionals, flags } = parseArgs(args, ['--json'], lang, [], messages.usage);
+  if (positionals.length > 0) throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   const { config, profiles } = await loadProfiles(io);
   const active = resolveActiveProfile(config, profiles);
   const { preset } = active;
+
+  if (flags.has('--json')) {
+    // For /new-project: the knobs it follows and the warnings it relays.
+    const drift = await checkAgentDrift(repoAgentsDir(io));
+    const agents = Object.fromEntries(
+      Object.keys(preset.agents).flatMap((agent) => {
+        const setting = agentSetting(preset, agent);
+        return setting === undefined ? [] : [[agent, setting]];
+      }),
+    );
+    io.out(
+      JSON.stringify(
+        {
+          profile: active.name,
+          label: preset.label[lang],
+          fromConfig: active.fromConfig,
+          sessionModel: preset.sessionModel,
+          agents,
+          tiers: preset.tiers,
+          research: preset.research,
+          reviewRounds: preset.reviewRounds,
+          available: Object.keys(profiles.presets),
+          drift:
+            drift.status === 'checked'
+              ? drift.drift.map((item) => ({ ...item, committed: item.committed ?? null, current: item.current ?? null }))
+              : [],
+          envWarnings: usageEnvWarnings(io.pathEnv.env),
+        },
+        null,
+        2,
+      ),
+    );
+    return EXIT_OK;
+  }
 
   io.out(messages.activeProfile(active.name, preset.label[lang]));
   if (!active.fromConfig) io.out(messages.defaultProfileNote);
@@ -239,7 +275,7 @@ async function runUsageSet(args: readonly string[], io: CliIO, lang: Lang): Prom
 
 async function runUsage(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
   const [sub, ...rest] = args;
-  if (sub === 'show' && rest.length === 0) return runUsageShow(io, lang);
+  if (sub === 'show') return runUsageShow(rest, io, lang);
   if (sub === 'set') return runUsageSet(rest, io, lang);
   throw new UsageError(cliMessages[lang].wrongArguments(usageMessages[lang].usage));
 }

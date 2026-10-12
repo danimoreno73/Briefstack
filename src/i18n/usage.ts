@@ -6,7 +6,7 @@ const valor = (text: string | undefined): string => text ?? '(ninguno)';
 
 export const usageMessages = defineCatalogue({
   en: {
-    usage: 'briefstack usage <show | set <profile> [--project <dir>]>',
+    usage: 'briefstack usage <show [--json] | set <profile> [--project <dir>]>',
     activeProfile: (name: string, label: string) => `Active profile: ${name} (${label})`,
     defaultProfileNote: 'No profile chosen yet; this is the default.',
     sessionModel: (model: string) =>
@@ -43,7 +43,7 @@ export const usageMessages = defineCatalogue({
         : `Project ${dir} moved from profile "${previous}" to "${name}".`,
   },
   es: {
-    usage: 'briefstack usage <show | set <perfil> [--project <carpeta>]>',
+    usage: 'briefstack usage <show [--json] | set <perfil> [--project <carpeta>]>',
     activeProfile: (name: string, label: string) => `Perfil activo: ${name} (${label})`,
     defaultProfileNote: 'Aún no se ha elegido perfil; este es el predeterminado.',
     sessionModel: (model: string) =>
