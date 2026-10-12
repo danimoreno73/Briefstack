@@ -513,3 +513,41 @@ Rules (`src/validate/findings.ts` holds the single severity table):
 - `scaffold` takes the usage presets, refuses an unknown spec profile before
   writing anything, and sets each generated agent's `model`/`effort` from its
   tier with `applyProfileToProject`.
+
+## Base templates and fixtures (H7, 2026-10-12)
+
+Built in a worktree from `075b8bc`; merged as `9014e58`, `7f9fae6`, `cb79e62`.
+
+- **Templates** `software`, `learning-or-management`, `generic`, each with
+  `common/` (`docs/BRIEF.md` plus one extra note: `DECISIONS.md`,
+  `PROGRESS.md` or `NOTES.md`), `claude-code/CLAUDE.md`, and
+  `claude-app/INSTRUCTIONS.md` + `NEXT_STEPS.md`. `software` adds a
+  `.gitignore` for common build and dependency folders.
+- **`CLAUDE.md` exists only for `claude-code`**; `claude-app` gets
+  `INSTRUCTIONS.md`. `CLAUDE.md` renders no spec lists, so it stays short
+  (fixtures: 19–25 lines; a test with 80-item lists stays under 60).
+- **Every brief has a "Current status" section**, so the hand-off and review
+  skills find it the same way in any project.
+- **`NEXT_STEPS.md`** says "Claude desktop app", never "Cowork": create from
+  this folder, paste the instructions, scheduled tasks (paid plan; from the
+  project or Scheduled → New task; skip if none), start, and the claude.ai
+  fallback (upload files, skip `.git` and `.briefstack`). It is copied into
+  each template because templates cannot share files.
+- **`INSTRUCTIONS.md`** names files as plain code text, not links: links mean
+  nothing once pasted into the app.
+- **Empty lists** (e.g. no constraints) leave the heading with nothing under
+  it; not worth a new placeholder.
+- **Templates are English**; adapting content to `spec.language` is the
+  generator agent's job.
+- **Base skills** in `library/skills/`: `session-handoff`,
+  `review-against-brief`, `decision-log`. The scaffolder does not copy them;
+  a spec skill gets only its purpose as body, so the generator fills it from
+  these (H9).
+- **Fixtures** `tests/fixtures/{software,learning,novel}.spec.json`; each
+  scaffolds with the real templates and validates with zero findings for both
+  targets (agents and skills dropped for `claude-app`). Tests also check no
+  `{{` is left and `NEXT_STEPS.md` never says "Cowork".
+- **Open point:** a spec's scheduled tasks only appear in `NEXT_STEPS.md`
+  (`claude-app`); a `claude-code` project does not show them anywhere yet.
+- **CLI smoke test:** `scaffold` + `validate` from source on the novel and
+  software fixtures, against the real home folder: no findings.
