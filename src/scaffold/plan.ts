@@ -6,31 +6,12 @@ import {
   type Tier,
 } from '../spec/index.js';
 import { BriefstackError } from '../errors.js';
+import { DENY_RULES, SECRET_GITIGNORE_LINES } from './secrets.js';
 import { comparePaths, renderTemplate, type Template, type TemplateFile } from './templates.js';
-
-/**
- * Deny rules for common secret locations (`decisions.md` §8). A Read deny
- * also blocks Edit and Write on the same path.
- */
-export const DENY_RULES: readonly string[] = [
-  'Read(.env)',
-  'Read(.env.*)',
-  'Read(**/*.pem)',
-  'Read(**/*.key)',
-  'Read(~/.ssh/**)',
-  'Read(~/.aws/**)',
-  'Read(~/.azure/**)',
-  'Read(~/.config/gcloud/**)',
-  'Read(~/.npmrc)',
-  'Read(~/.netrc)',
-];
 
 const BASE_GITIGNORE: readonly string[] = [
   '# Secrets',
-  '.env',
-  '.env.*',
-  '*.pem',
-  '*.key',
+  ...SECRET_GITIGNORE_LINES,
   '',
   '# OS files',
   '.DS_Store',

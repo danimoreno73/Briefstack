@@ -8,7 +8,8 @@ import { checkOutputDir, existingPaths, type ProtectedDir } from './outputDir.js
 import { buildPlan } from './plan.js';
 import { loadTemplate } from './templates.js';
 
-export { DENY_RULES, buildPlan, templateVars, type ProjectProfile, type ScaffoldPlan } from './plan.js';
+export { buildPlan, templateVars, type ProjectProfile, type ScaffoldPlan } from './plan.js';
+export { DENY_RULES, SECRET_ENV_FILES, isReadDenied, readRuleDenies } from './secrets.js';
 export { checkOutputDir, realpathNearest, type ProtectedDir } from './outputDir.js';
 export { loadTemplate, renderTemplate, type Template, type TemplateFile } from './templates.js';
 
