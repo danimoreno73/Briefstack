@@ -18,3 +18,6 @@ export * from './errors.js';
 export * from './frontmatter/index.js';
 export { DEFAULT_LANG, LANGS, isLang, resolveLang, systemLocale, type Lang } from './i18n/index.js';
 export { formatError } from './i18n/errors.js';
+export * from './scaffold/index.js';
+export * from './spec/index.js';
+export { PACKAGE_ROOT } from './packageRoot.js';
