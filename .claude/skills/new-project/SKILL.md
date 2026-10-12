@@ -66,9 +66,12 @@ The idea, if given: $ARGUMENTS
    the session as `failed` and stop.
 3. `npm run --silent briefstack -- usage show --json`. Tell the user in two
    lines: the active profile and its label, and that it expects the session
-   model `sessionModel` (if they are on another model, `/model <sessionModel>`;
-   you cannot change it yourself). Relay every `envWarnings` and `drift` item
-   in one line each. Keep `profile`, `research` and `reviewRounds`.
+   model `sessionModel`. If they are on another model: run `/model`, select
+   it and press `s` to switch for this session only (typing
+   `/model <sessionModel>` also saves it as their default for new sessions),
+   or restart with `claude --model <sessionModel>`. You cannot change it
+   yourself. Relay every `envWarnings` and `drift` item in one line each.
+   Keep `profile`, `research` and `reviewRounds`.
 
 ## 1. Idea
 
@@ -93,7 +96,8 @@ Step `interview`.
    call, in its order. Each question: its text, the proposed default as the
    first option marked as recommended, and the alternatives it gave; the user
    can always type their own answer. Put the one-line "why" in the option
-   description, not in the question.
+   description, not in the question. When a default comes from a past
+   project, keep the interviewer's mention of it in the option label.
 2. In the first batch, add one question of your own: where to create the
    project. Default: `<projectsDir>/<short-slug>`, with a slug you propose
    from the idea (lowercase, hyphens). If the user already named a folder,
@@ -182,16 +186,20 @@ line each at the hand-off; do not start a round for them.
 Step `learn`. Write each note to `WORK/notes/` with the Write tool, then add
 it with `npm run --silent briefstack -- library add <section> [name] --from "<file>"`.
 Notes are short markdown, link to each other with `[[section/name]]`, and
-never hold secrets, credentials or sensitive personal data.
+never hold secrets, credentials or sensitive personal data. Every note
+starts with YAML frontmatter holding a one-line `summary` (the INDEX line).
+Do not write date headings: `library add` dates each addition itself.
 
 1. **Project note** `projects <slug>`: YAML frontmatter with `target`,
    `path` (the absolute output folder), `status: created`, `profile` and a
    one-line `summary`; then a few lines: what it is for, the target and why,
    and a link to the session log note.
-2. **Session log** `log <YYYY-MM-DD>-<slug>`: frontmatter `summary` (one
-   line); then the idea in one line, the questions asked with the answer
-   given (mark accepted defaults), whether research ran, the number of
-   review rounds and the outcome, and a link to `[[projects/<slug>]]`.
+2. **Session log** `log <YYYY-MM-DD>-<slug>`: the idea in one line, every
+   question asked with the answer given (mark accepted defaults, and
+   defaults taken from a past project), whether research ran, the number of
+   review rounds and the outcome, and a link to `[[projects/<slug>]]`. The
+   next similar idea gets these answers as defaults, so write each one so
+   it can be reused.
 3. **Lessons** `lessons`, only if there is something to learn: each
    question that turned out unnecessary and each correction the user made,
    written as a general rule for next time ("Do not ask X when Y"), not as a
