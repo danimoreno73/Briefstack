@@ -28,9 +28,11 @@ one concern each.
   factual-blocking; only those trigger the researcher.
 - When the review round limit is reached and the project is still not clean,
   the flow stops and shows the findings to the user, who decides.
-- The skill never passes `model` to the Agent tool. `usage show` warns if
-  `CLAUDE_CODE_SUBAGENT_MODEL` (or whatever H0 finds overrides frontmatter)
-  is set.
+- The skill never passes `model` or `effort` to the Agent tool (both would
+  override frontmatter). `usage show` warns if `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`
+  (ignores frontmatter `model`) or `CLAUDE_CODE_EFFORT_LEVEL` (overrides
+  frontmatter `effort`) is set. `CLAUDE_CODE_SUBAGENT_MODEL` ranks below
+  frontmatter and needs no warning. See `decisions.md` §3.
 
 ### Generated projects and their agents
 
@@ -53,13 +55,21 @@ one concern each.
   `realpath`, case-insensitively on Windows and macOS.
 - An existing non-empty folder is refused unless `--allow-non-empty` is
   passed. The skill passes it only after the user confirms.
+- Before the generator starts, the skill asks the user to run
+  `/add-dir <output-dir>`. Subagents inherit additional directories
+  (`decisions.md` §7, probe); without it every write prompts.
 
 ### Events
 
 - Written to `~/.briefstack/sessions/<session_id>/events.jsonl`, append-only.
 - Flow steps (started/finished) are emitted by the skill via
   `briefstack event`. Subagent start/stop and tool use come from hooks that
-  run a cross-platform Node script, never a POSIX shell script.
+  run a cross-platform Node script, never a POSIX shell script:
+  `node "${CLAUDE_PROJECT_DIR}/scripts/hook-event.mjs"`.
+- The hooks are declared in the `/new-project` `SKILL.md` frontmatter, not in
+  `.claude/settings.json`, so nothing is recorded while developing
+  briefstack. They register when the skill runs and stay for that session.
+- Subagent attribution uses `agent_id` and `agent_type` from the hook payload.
 
 ### Learning
 
@@ -73,17 +83,26 @@ one concern each.
 
 ### Targets
 
-- `claude-code`: as in the brief.
+- `claude-code`: as in the brief. The generated `.claude/settings.json`
+  holds deny rules only, never hooks or allow rules: project hooks run even
+  before a folder is trusted (`decisions.md` §8).
 - `claude-app`: context files, `INSTRUCTIONS.md`, `NEXT_STEPS.md`, and an
   initialised git repo; no `.claude/settings.json`. `CLAUDE.md` length rule
-  applies only when the file exists. Scheduled tasks per project are
-  confirmed in H0.
+  applies only when the file exists.
+- `NEXT_STEPS.md` says "the Claude desktop app", never "Cowork". It covers:
+  create a project from this folder, paste the instructions, create any
+  scheduled tasks (with their text; from the project or Scheduled → New task;
+  paid plans only), and the web fallback (create project, paste instructions,
+  upload files). See `decisions.md` §11.
 
 ### Validation details
 
 - Absolute path detection: the real home directory, drive letters (`X:\`),
   `/Users/`, `/home/`. Paths starting with `~` are allowed (needed for deny
-  rules).
+  rules), and so are `//**` deny patterns.
+- Agent files in generated projects must not list `Agent` in `tools`
+  (subagents can spawn subagents by default). A unit test checks the same
+  for the five flow agents in `.claude/agents/`.
 
 ### Language
 
@@ -139,6 +158,12 @@ conclusion.
 **Checkpoint:** after H0, stop and show the user every finding that changes
 the design before continuing.
 
+**Status (2026-10-12):** done. Results in `docs/decisions.md`; the
+checkpoint approved the changes now reflected in section 1. Item 7 was also
+probed with real `claude -p` runs before H2 (subagents inherit additional
+directories). Still to check in real runs: interactive `/add-dir` (H9),
+`${CLAUDE_PROJECT_DIR}` under PowerShell (H8), `/tasks` model display (H10).
+
 ## 3. Repo layout
 
 ```
@@ -156,9 +181,9 @@ library/
   skills/
 schemas/spec.schema.json # generated; read by the architect
 scripts/hook-event.mjs   # hook entry point
-.claude/skills/new-project/SKILL.md
+.claude/skills/new-project/SKILL.md   # also declares the event hooks
 .claude/agents/*.md      # body edits only; never model/effort by hand
-.claude/settings.json    # hooks
+.claude/settings.json    # worktree.baseRef only; no hooks
 tests/
   unit/
   fixtures/{software,learning,novel}.spec.json
@@ -196,5 +221,9 @@ At most two subagents at a time.
 - **After H2 and H4 are committed:** batch 1 = H3 ‖ H5, batch 2 = H6 ‖ H7,
   each in its own worktree. The main session integrates and runs
   build/test/lint after each batch.
+- Worktrees start from the local `HEAD`: `.claude/settings.json` sets
+  `worktree.baseRef: "head"`. The main session passes the expected base SHA
+  in each worktree agent's prompt; the agent's first step is
+  `git rev-parse HEAD`, and it stops and reports if the SHA differs.
 - **Not delegated:** the H0 checkpoint, the skill and flow design (H9),
   integration, and the real run (H10).
