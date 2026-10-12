@@ -466,3 +466,50 @@ Agent worktrees live in `.claude/worktrees/` inside the repo. eslint picked
 them up and typescript-eslint failed with "multiple candidate
 TSConfigRootDirs". `eslint.config.js` now ignores `.claude/worktrees/`
 (already in `.gitignore`).
+
+## Validator (H5, 2026-10-12)
+
+Built in a worktree from `21befa8`; merged in `8cd7c31`.
+
+Rules (`src/validate/findings.ts` holds the single severity table):
+
+| Rule | Severity | Checks |
+|---|---|---|
+| `spec.invalidJson`, `spec.invalid` | error | `.briefstack/spec.json` parses and fits the spec schema. If the raw `target` is still valid, target checks run anyway |
+| `target.unknown` | warning | No target could be read; only files required by both targets are checked |
+| `required.missing`, `required.empty` | error | Required files per target (one table, `REQUIRED_FILES`); `kind: gitRepo` for a missing `.git` |
+| `frontmatter.missing`, `frontmatter.invalid`, `frontmatter.missingField` | error | Agent and skill files have parseable frontmatter with non-empty `name` and `description` |
+| `agent.invalidTools`, `agent.spawnTool` | error | `tools` is a string or list; no `Agent`/`Task` (top-level comma split, so `Bash(a, b)` is one tool) |
+| `agent.toolsOmitted` | warning | No `tools` means every tool, including Agent (not raised if `disallowedTools` has Agent) |
+| `agent.invalidModel`, `agent.invalidEffort` | error | Same rule as usage presets (`src/models.ts`) |
+| `skill.missingFile` | warning | A skill folder without `SKILL.md` |
+| `claudeMd.tooLong` | error | Root `CLAUDE.md` has 60 or more lines, when it exists |
+| `secret.found` | error | High-signal token formats and random-looking credential assignments; params hold the kind, never the value |
+| `path.absolute` | error | Real home dir (native, `/` and JSON-escaped forms), drive letters, `/Users/<name>`, `/home/<name>`; URLs skipped except `file://`; `~` and `//**` allowed |
+| `link.wikilink` | error | `[[name]]`, `[[name\|alias]]`, `[[name#heading]]` resolve by note name, case-insensitively (Obsidian) |
+| `link.relative` | error | Relative markdown links resolve, case-sensitively (a link that only works on Windows or macOS is reported); code spans and fences ignored |
+| `settings.invalidJson`, `settings.noDeny`, `settings.hooks`, `settings.allow` | error | `.claude/settings.json` holds deny rules only (deny list required for `claude-code`) |
+| `settings.missingDenyRule` | warning | A default deny rule is missing |
+
+- Scans text files; skips `.git` and `node_modules` at any depth, a `.git`
+  file, symlinks, binary files (NUL in the first 8000 bytes) and files over
+  2 MiB.
+- Missing spec: `required.missing` on `.briefstack/spec.json` plus
+  `target.unknown`. No `--target` override.
+- `--json` prints `{ projectDir, target, errors, warnings, findings }`.
+  Exit 1 on any error, 0 with only warnings, 2 on usage errors.
+- Secret strings in tests are built by concatenation so scanners do not flag
+  the repo.
+- For H7: base templates must not contain `/home/<name>`, `/Users/<name>` or
+  drive-letter examples, or generated projects fail validation.
+
+### Integration after batch 1
+
+- `MODEL_ALIASES`, `EFFORT_LEVELS`, `isValidModel` and `isValidEffort` live
+  in `src/models.ts`. Preset agent and tier models must pass `isValidModel`,
+  so a preset cannot write a model `validate` rejects. `sessionModel` keeps a
+  broader check: it is only shown to the user, and `/model` accepts more
+  aliases (`opusplan`, `best`).
+- `scaffold` takes the usage presets, refuses an unknown spec profile before
+  writing anything, and sets each generated agent's `model`/`effort` from its
+  tier with `applyProfileToProject`.
