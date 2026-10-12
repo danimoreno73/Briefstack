@@ -58,6 +58,13 @@ const errors = defineCatalogue<ErrorMessages>({
       `Template "${p.template}" not found. Looked in:${bullets(p.searched)}`,
     'scaffold.templateReservedPath': (p) =>
       `Template "${p.template}" contains ${p.path}, which briefstack writes itself.`,
+    'usage.profilesNotFound': (p) => `Usage profiles file not found: ${p.file}`,
+    'usage.invalidProfiles': (p) => `Usage profiles file ${p.file} is not valid:${bullets(p.issues)}`,
+    'usage.unknownProfile': (p) =>
+      `Unknown usage profile "${p.profile}". Available: ${p.available.join(', ')}.`,
+    'usage.notABriefstackProject': (p) =>
+      `${p.dir} was not created by briefstack (no .briefstack/profile.json); refusing to change it.`,
+    'usage.invalidProjectProfile': (p) => `Project profile ${p.file} is not valid:${bullets(p.issues)}`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -89,6 +96,15 @@ const errors = defineCatalogue<ErrorMessages>({
       `No se encuentra la plantilla "${p.template}". Se buscó en:${bullets(p.searched)}`,
     'scaffold.templateReservedPath': (p) =>
       `La plantilla "${p.template}" contiene ${p.path}, que briefstack escribe por su cuenta.`,
+    'usage.profilesNotFound': (p) => `No se encuentra el archivo de perfiles de uso: ${p.file}`,
+    'usage.invalidProfiles': (p) =>
+      `El archivo de perfiles de uso ${p.file} no es válido:${bullets(p.issues)}`,
+    'usage.unknownProfile': (p) =>
+      `Perfil de uso desconocido "${p.profile}". Disponibles: ${p.available.join(', ')}.`,
+    'usage.notABriefstackProject': (p) =>
+      `${p.dir} no lo creó briefstack (no tiene .briefstack/profile.json); no se modifica.`,
+    'usage.invalidProjectProfile': (p) =>
+      `El perfil del proyecto ${p.file} no es válido:${bullets(p.issues)}`,
   },
 });
 

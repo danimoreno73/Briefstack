@@ -1,0 +1,71 @@
+{
+  "default": "balanced",
+  "profiles": {
+    "saver": {
+      "label": {
+        "en": "Saver: lightest use, shorter checks",
+        "es": "Ahorro: el menor consumo, revisiones más cortas"
+      },
+      "sessionModel": "sonnet",
+      "effort": "low",
+      "agents": {
+        "interviewer": "haiku",
+        "researcher": "haiku",
+        "architect": "sonnet",
+        "generator": "sonnet",
+        "reviewer": "haiku"
+      },
+      "tiers": {
+        "light": "haiku",
+        "standard": "haiku",
+        "heavy": "sonnet"
+      },
+      "research": "required-only",
+      "reviewRounds": 1
+    },
+    "balanced": {
+      "label": {
+        "en": "Balanced: moderate use, good results",
+        "es": "Equilibrado: consumo moderado, buenos resultados"
+      },
+      "sessionModel": "sonnet",
+      "effort": "medium",
+      "agents": {
+        "interviewer": "sonnet",
+        "researcher": "haiku",
+        "architect": "opus",
+        "generator": "sonnet",
+        "reviewer": "sonnet"
+      },
+      "tiers": {
+        "light": "haiku",
+        "standard": "sonnet",
+        "heavy": "opus"
+      },
+      "research": "when-useful",
+      "reviewRounds": 2
+    },
+    "max": {
+      "label": {
+        "en": "Max: heaviest use, most thorough",
+        "es": "Máximo: el mayor consumo, lo más exhaustivo"
+      },
+      "sessionModel": "opus",
+      "effort": "high",
+      "agents": {
+        "interviewer": "opus",
+        "researcher": "sonnet",
+        "architect": "opus",
+        "generator": "opus",
+        "reviewer": "opus"
+      },
+      "tiers": {
+        "light": "sonnet",
+        "standard": "opus",
+        "heavy": "opus"
+      },
+      "research": "when-useful",
+      "reviewRounds": 3
+    }
+  }
+}

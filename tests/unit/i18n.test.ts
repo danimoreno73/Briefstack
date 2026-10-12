@@ -54,6 +54,11 @@ describe('error catalogue', () => {
     'scaffold.wouldOverwrite': { outDir: 'o', paths: ['a', 'b'] },
     'scaffold.templateNotFound': { template: 't', searched: ['x'] },
     'scaffold.templateReservedPath': { template: 't', path: '.git/config' },
+    'usage.profilesNotFound': { file: 'f' },
+    'usage.invalidProfiles': { file: 'f', issues: ['a', 'b'] },
+    'usage.unknownProfile': { profile: 'p', available: ['saver', 'balanced'] },
+    'usage.notABriefstackProject': { dir: 'd' },
+    'usage.invalidProjectProfile': { file: 'f', issues: ['a'] },
   };
 
   it('has a distinct message for every code in every language', () => {
