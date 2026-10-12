@@ -3,17 +3,30 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { configFilePath, readConfig, resolvePaths } from './config/config.js';
+import { configFilePath, readConfig, resolvePaths, updateConfig } from './config/config.js';
 import { systemPathEnv, type PathEnv } from './config/paths.js';
 import { isBriefstackError } from './errors.js';
 import { cliMessages } from './i18n/cli.js';
 import { formatError } from './i18n/errors.js';
 import { resolveLang, systemLocale, type Lang } from './i18n/index.js';
 import { scaffoldMessages } from './i18n/scaffold.js';
+import { usageMessages } from './i18n/usage.js';
 import { VERSION } from './index.js';
 import { PACKAGE_ROOT } from './packageRoot.js';
 import { scaffold } from './scaffold/index.js';
 import { readSpec } from './spec/index.js';
+import {
+  agentSetting,
+  applyProfileToAgents,
+  applyProfileToProject,
+  baseProfilesFile,
+  checkAgentDrift,
+  getPreset,
+  loadUsageProfiles,
+  resolveActiveProfile,
+  usageEnvWarnings,
+  type ApplyResult,
+} from './usage/index.js';
 
 /** Argument parsing only; all real work lives in the library. */
 
@@ -22,6 +35,11 @@ export interface CliIO {
   err: (line: string) => void;
   cwd: string;
   pathEnv: PathEnv;
+  /**
+   * Folder whose `.claude/agents/` `usage set` rewrites and `usage show`
+   * checks for drift. Defaults to the briefstack package (the repo).
+   */
+  repoDir?: string;
 }
 
 const defaultIO = (): CliIO => ({
@@ -40,20 +58,41 @@ class UsageError extends Error {}
 interface ParsedArgs {
   positionals: string[];
   flags: Set<string>;
+  /** Options that take a value: `--name value` or `--name=value`. */
+  values: Map<string, string>;
 }
 
-function parseArgs(args: readonly string[], allowedFlags: readonly string[], lang: Lang): ParsedArgs {
+function parseArgs(
+  args: readonly string[],
+  allowedFlags: readonly string[],
+  lang: Lang,
+  valueOptions: readonly string[] = [],
+  usage = '',
+): ParsedArgs {
   const positionals: string[] = [];
   const flags = new Set<string>();
-  for (const arg of args) {
-    if (arg.startsWith('--')) {
-      if (!allowedFlags.includes(arg)) throw new UsageError(cliMessages[lang].unknownOption(arg));
+  const values = new Map<string, string>();
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] as string;
+    if (!arg.startsWith('--')) {
+      positionals.push(arg);
+      continue;
+    }
+    const eq = arg.indexOf('=');
+    const name = eq === -1 ? arg : arg.slice(0, eq);
+    if (valueOptions.includes(name)) {
+      const value = eq === -1 ? args[++i] : arg.slice(eq + 1);
+      if (value === undefined || value === '' || values.has(name)) {
+        throw new UsageError(cliMessages[lang].wrongArguments(usage));
+      }
+      values.set(name, value);
+    } else if (allowedFlags.includes(arg)) {
       flags.add(arg);
     } else {
-      positionals.push(arg);
+      throw new UsageError(cliMessages[lang].unknownOption(arg));
     }
   }
-  return { positionals, flags };
+  return { positionals, flags, values };
 }
 
 async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
@@ -85,6 +124,89 @@ async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Prom
   return EXIT_OK;
 }
 
+async function loadProfiles(io: CliIO) {
+  const config = await readConfig(configFilePath(io.pathEnv));
+  const paths = resolvePaths(config, io.pathEnv);
+  const profiles = await loadUsageProfiles({
+    baseFile: baseProfilesFile(),
+    userFile: paths.userProfilesFile,
+  });
+  return { config, paths, profiles };
+}
+
+const repoAgentsDir = (io: CliIO): string => path.join(io.repoDir ?? PACKAGE_ROOT, '.claude', 'agents');
+
+async function runUsageShow(io: CliIO, lang: Lang): Promise<number> {
+  const messages = usageMessages[lang];
+  const { config, profiles } = await loadProfiles(io);
+  const active = resolveActiveProfile(config, profiles);
+  const { preset } = active;
+
+  io.out(messages.activeProfile(active.name, preset.label[lang]));
+  if (!active.fromConfig) io.out(messages.defaultProfileNote);
+  io.out(messages.sessionModel(preset.sessionModel));
+  io.out(messages.agentsHeader);
+  for (const agent of Object.keys(preset.agents)) {
+    const setting = agentSetting(preset, agent);
+    if (setting !== undefined) io.out(messages.agentLine(agent, setting.model, setting.effort));
+  }
+  io.out(messages.projectTiers(preset.tiers.light, preset.tiers.standard, preset.tiers.heavy));
+  io.out(messages.research(preset.research));
+  io.out(messages.reviewRounds(preset.reviewRounds));
+  io.out(messages.available(Object.keys(profiles.presets)));
+
+  const drift = await checkAgentDrift(repoAgentsDir(io));
+  if (drift.status === 'checked' && drift.drift.length > 0) {
+    io.err(messages.driftHeader);
+    for (const item of drift.drift) io.err(messages.driftLine(item));
+  }
+  for (const warning of usageEnvWarnings(io.pathEnv.env)) io.err(messages.envWarning(warning));
+  io.out(messages.consumption);
+  return EXIT_OK;
+}
+
+function reportApply(result: ApplyResult, io: CliIO, lang: Lang): void {
+  const messages = usageMessages[lang];
+  io.out(result.changed.length > 0 ? messages.changedFiles(result.changed) : messages.noChanges);
+  if (result.notInProfile.length > 0) io.out(messages.notInProfile(result.notInProfile));
+}
+
+async function runUsageSet(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = usageMessages[lang];
+  const { positionals, values } = parseArgs(args, [], lang, ['--project'], messages.usage);
+  const [name] = positionals;
+  if (positionals.length !== 1 || name === undefined) {
+    throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  }
+  const { paths, profiles } = await loadProfiles(io);
+  const preset = getPreset(profiles, name);
+
+  const project = values.get('--project');
+  if (project !== undefined) {
+    const result = await applyProfileToProject(path.resolve(io.cwd, project), name, profiles);
+    io.out(messages.projectApplied(result.projectDir, name, result.previousProfile));
+    reportApply(result, io, lang);
+    if (result.missingAgents.length > 0) io.err(messages.missingAgents(result.missingAgents));
+    return EXIT_OK;
+  }
+
+  const result = await applyProfileToAgents(repoAgentsDir(io), preset);
+  await updateConfig(paths.configFile, { activeProfile: name });
+  io.out(messages.applied(name));
+  reportApply(result, io, lang);
+  io.out(messages.savedActive(name));
+  io.out(messages.sessionModel(preset.sessionModel));
+  if (result.changed.length > 0) io.out(messages.doNotCommit);
+  return EXIT_OK;
+}
+
+async function runUsage(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const [sub, ...rest] = args;
+  if (sub === 'show' && rest.length === 0) return runUsageShow(io, lang);
+  if (sub === 'set') return runUsageSet(rest, io, lang);
+  throw new UsageError(cliMessages[lang].wrongArguments(usageMessages[lang].usage));
+}
+
 async function detectLang(io: CliIO): Promise<Lang> {
   let configLang: string | undefined;
   try {
@@ -111,6 +233,8 @@ export async function main(argv: readonly string[], io: CliIO = defaultIO()): Pr
         return EXIT_OK;
       case 'scaffold':
         return await runScaffold(rest, io, lang);
+      case 'usage':
+        return await runUsage(rest, io, lang);
       default:
         throw new UsageError(cliMessages[lang].unknownCommand(command));
     }

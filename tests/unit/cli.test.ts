@@ -1,8 +1,8 @@
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { cp, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main, type CliIO } from '../../src/cli.js';
-import { VERSION } from '../../src/index.js';
+import { PACKAGE_ROOT, VERSION } from '../../src/index.js';
 import { specInput, tempDir, writeTree } from '../helpers.js';
 
 interface Captured {
@@ -21,6 +21,8 @@ function capture(dir: string, env: Record<string, string> = {}): Captured {
       out: (line) => out.push(line),
       err: (line) => err.push(line),
       cwd: dir,
+      // Never the real repo: `usage set` rewrites <repoDir>/.claude/agents.
+      repoDir: path.join(dir, 'repo'),
       pathEnv: {
         env: { BRIEFSTACK_HOME: path.join(dir, 'home'), BRIEFSTACK_LANG: 'en', ...env },
         homedir: path.join(dir, 'user'),
@@ -101,5 +103,138 @@ describe('cli', () => {
     const run = capture(dir, { BRIEFSTACK_LIBRARY: library });
     expect(await main(['scaffold', 'spec.json', path.join(library, 'x')], run.io)).toBe(1);
     expect(run.err.join('\n')).toContain('personal library');
+  });
+});
+
+describe('cli usage', () => {
+  let dir: string;
+  let cleanup: () => Promise<void>;
+  const realAgents = path.join(PACKAGE_ROOT, '.claude', 'agents');
+  const readAll = async (agentsDir: string) => {
+    const files: Record<string, string> = {};
+    for (const file of (await readdir(agentsDir)).sort()) {
+      files[file] = await readFile(path.join(agentsDir, file), 'utf8');
+    }
+    return files;
+  };
+  let realBefore: Record<string, string>;
+
+  beforeEach(async () => {
+    ({ dir, cleanup } = await tempDir('cli-usage'));
+    await cp(realAgents, path.join(dir, 'repo', '.claude', 'agents'), { recursive: true });
+    realBefore = await readAll(realAgents);
+  });
+  afterEach(async () => {
+    // The real repo agent files must never change.
+    expect(await readAll(realAgents)).toEqual(realBefore);
+    await cleanup();
+  });
+
+  it('shows the default profile', async () => {
+    const run = capture(dir);
+    expect(await main(['usage', 'show'], run.io)).toBe(0);
+    const out = run.out.join('\n');
+    expect(out).toContain('Active profile: balanced (Balanced');
+    expect(out).toContain('this is the default');
+    expect(out).toContain('/model sonnet');
+    expect(out).toMatch(/architect\s+opus\s+effort medium/);
+    expect(out).toContain('Review rounds: at most 2');
+    expect(out).toContain('Available profiles: saver, balanced, max');
+    expect(out).toContain('/usage');
+    expect(run.err).toEqual([]);
+  });
+
+  it('warns about overriding environment variables', async () => {
+    const run = capture(dir, { CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1', CLAUDE_CODE_EFFORT_LEVEL: 'low' });
+    expect(await main(['usage', 'show'], run.io)).toBe(0);
+    expect(run.err).toEqual([
+      expect.stringContaining('CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1'),
+      expect.stringContaining('CLAUDE_CODE_EFFORT_LEVEL=low'),
+    ]);
+  });
+
+  it('sets a profile on the repo agents and saves it as active', async () => {
+    const run = capture(dir);
+    expect(await main(['usage', 'set', 'max'], run.io)).toBe(0);
+    expect(run.out).toEqual([
+      'Applied profile "max".',
+      'Changed: architect.md, generator.md, interviewer.md, researcher.md, reviewer.md',
+      'Saved "max" as the active profile.',
+      expect.stringContaining('/model opus'),
+      expect.stringContaining('Do not commit'),
+    ]);
+    const reviewer = await readFile(path.join(dir, 'repo', '.claude', 'agents', 'reviewer.md'), 'utf8');
+    expect(reviewer).toContain('model: opus\neffort: high\n');
+    const config = JSON.parse(await readFile(path.join(dir, 'home', 'config.json'), 'utf8')) as unknown;
+    expect(config).toEqual({ activeProfile: 'max' });
+
+    const show = capture(dir, { BRIEFSTACK_LANG: 'es' });
+    expect(await main(['usage', 'show'], show.io)).toBe(0);
+    expect(show.out[0]).toBe('Perfil activo: max (Máximo: el mayor consumo, lo más exhaustivo)');
+  });
+
+  it('uses a custom user preset', async () => {
+    const custom = {
+      label: { en: 'Mine', es: 'Mío' },
+      sessionModel: 'inherit',
+      effort: 'low',
+      agents: { interviewer: 'haiku', researcher: 'haiku', architect: 'haiku', generator: 'haiku', reviewer: 'haiku' },
+      tiers: { light: 'haiku', standard: 'haiku', heavy: 'haiku' },
+      research: 'required-only',
+      reviewRounds: 1,
+    };
+    await writeTree(path.join(dir, 'home'), {
+      'usage-profiles.json': JSON.stringify({ profiles: { mine: custom } }),
+    });
+    const run = capture(dir);
+    expect(await main(['usage', 'set', 'mine'], run.io)).toBe(0);
+    const architect = await readFile(path.join(dir, 'repo', '.claude', 'agents', 'architect.md'), 'utf8');
+    expect(architect).toContain('model: haiku\neffort: low\n');
+  });
+
+  it('rejects an unknown profile without changing anything', async () => {
+    const run = capture(dir);
+    expect(await main(['usage', 'set', 'turbo'], run.io)).toBe(1);
+    expect(run.err).toEqual(['Unknown usage profile "turbo". Available: saver, balanced, max.']);
+    await expect(stat(path.join(dir, 'home', 'config.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('applies a profile to a generated project only', async () => {
+    const spec = specInput({
+      agents: [{ name: 'checker', description: 'Checks things', tools: ['Read'], tier: 'heavy' }],
+    });
+    await writeFile(path.join(dir, 'spec.json'), JSON.stringify(spec), 'utf8');
+    const library = path.join(dir, 'library');
+    await writeTree(path.join(library, 'templates'), { 'generic/common/CLAUDE.md': '# {{name}}\n' });
+    const made = capture(dir, { BRIEFSTACK_LIBRARY: library });
+    expect(await main(['scaffold', 'spec.json', 'proj'], made.io)).toBe(0);
+
+    const run = capture(dir);
+    expect(await main(['usage', 'set', 'saver', '--project', 'proj'], run.io)).toBe(0);
+    expect(run.out[0]).toContain('moved from profile "balanced" to "saver"');
+    const checker = await readFile(path.join(dir, 'proj', '.claude', 'agents', 'checker.md'), 'utf8');
+    expect(checker).toContain('model: sonnet\neffort: low\n');
+    await expect(stat(path.join(dir, 'home', 'config.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(await readFile(path.join(dir, 'repo', '.claude', 'agents', 'reviewer.md'), 'utf8')).toBe(
+      realBefore['reviewer.md'],
+    );
+  });
+
+  it('refuses --project on a folder briefstack did not create', async () => {
+    await writeTree(path.join(dir, 'foreign'), { 'README.md': 'x' });
+    const run = capture(dir);
+    expect(await main(['usage', 'set', 'max', '--project=foreign'], run.io)).toBe(1);
+    expect(run.err.join('\n')).toContain('was not created by briefstack');
+  });
+
+  it('exits 2 on usage errors', async () => {
+    const run = capture(dir);
+    expect(await main(['usage'], run.io)).toBe(2);
+    expect(await main(['usage', 'show', 'extra'], run.io)).toBe(2);
+    expect(await main(['usage', 'set'], run.io)).toBe(2);
+    expect(await main(['usage', 'set', 'a', 'b'], run.io)).toBe(2);
+    expect(await main(['usage', 'set', 'max', '--project'], run.io)).toBe(2);
+    expect(await main(['usage', 'set', 'max', '--force'], run.io)).toBe(2);
+    expect(run.err.at(-1)).toBe('Unknown option: --force');
   });
 });
