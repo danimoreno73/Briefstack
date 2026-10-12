@@ -1,5 +1,5 @@
 export * from './context.js';
-export { FALLBACK_IDENTITY, gitCommit, gitInit, isGitRepo, type GitWarning } from './git.js';
+export { FALLBACK_IDENTITY, gitCommit, gitHasChanges, gitInit, isGitRepo, type GitWarning } from './git.js';
 export * from './indexFile.js';
 export * from './init.js';
 export * from './layout.js';

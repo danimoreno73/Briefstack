@@ -1,8 +1,12 @@
-import { mkdir, readFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main, type CliIO } from '../../src/cli.js';
-import { tempDir, useHermeticGit, writeTree } from '../helpers.js';
+import { specInput, tempDir, useHermeticGit, writeTree } from '../helpers.js';
+
+const execFileAsync = promisify(execFile);
 
 useHermeticGit();
 
@@ -252,5 +256,47 @@ describe('cli: paths', () => {
     expect(await main(['paths', 'list'], run.io)).toBe(2);
     expect(await main(['paths', 'check', 'a', 'b'], run.io)).toBe(2);
     expect(await main(['paths', '--yaml'], run.io)).toBe(2);
+  });
+});
+
+describe('cli: commit', () => {
+  let dir: string;
+  let cleanup: () => Promise<void>;
+  beforeEach(async () => {
+    ({ dir, cleanup } = await tempDir('cli-commit'));
+  });
+  afterEach(() => cleanup());
+
+  const git = async (cwd: string, args: string[]) => (await execFileAsync('git', args, { cwd })).stdout.trim();
+
+  it('commits the prepared project once, respecting its .gitignore', async () => {
+    await writeFile(path.join(dir, 'spec.json'), JSON.stringify(specInput()), 'utf8');
+    expect(await main(['scaffold', 'spec.json', 'proj'], capture(dir).io)).toBe(0);
+    const project = path.join(dir, 'proj');
+    await writeFile(path.join(project, '.env'), 'TOKEN=dummy\n', 'utf8');
+
+    const run = capture(dir);
+    expect(await main(['commit', 'proj'], run.io)).toBe(0);
+    expect(run.err).toEqual([]);
+    expect(run.out).toEqual([`Committed the prepared project in ${project}.`]);
+    expect(await git(project, ['log', '--format=%s|%an'])).toBe('Prepare the project with briefstack|briefstack');
+    expect(await git(project, ['status', '--porcelain'])).toBe('');
+    const tracked = (await git(project, ['ls-files'])).split('\n');
+    expect(tracked).toContain('docs/BRIEF.md');
+    expect(tracked).toContain('.briefstack/spec.json');
+    expect(tracked).not.toContain('.env');
+
+    const again = capture(dir, { BRIEFSTACK_LANG: 'es' });
+    expect(await main(['commit', 'proj'], again.io)).toBe(0);
+    expect(again.out).toEqual([`No hay nada que confirmar en ${project}.`]);
+    expect(await git(project, ['rev-list', '--count', 'HEAD'])).toBe('1');
+  });
+
+  it('refuses a folder briefstack did not create', async () => {
+    await writeTree(path.join(dir, 'foreign'), { 'README.md': 'x' });
+    const run = capture(dir);
+    expect(await main(['commit', 'foreign'], run.io)).toBe(1);
+    expect(run.err.join('\n')).toContain('was not created by briefstack');
+    expect(await main(['commit'], run.io)).toBe(2);
   });
 });

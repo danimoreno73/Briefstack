@@ -62,6 +62,15 @@ async function hasConfig(dir: string, key: string): Promise<boolean> {
   }
 }
 
+/** Whether `git status` shows anything to commit (untracked files included). */
+export async function gitHasChanges(dir: string): Promise<{ changes: boolean; warning?: GitWarning }> {
+  try {
+    return { changes: (await git(dir, ['status', '--porcelain'])).trim() !== '' };
+  } catch (error) {
+    return { changes: false, warning: toWarning(error) };
+  }
+}
+
 /**
  * Commits exactly `files` (relative to `dir`, with `/`). Without a configured
  * identity it passes the fallback with `-c` for this command only.

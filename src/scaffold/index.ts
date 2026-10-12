@@ -10,6 +10,7 @@ import { checkOutputDir, existingPaths, type ProtectedDir } from './outputDir.js
 import { buildPlan } from './plan.js';
 import { loadTemplate } from './templates.js';
 
+export { PROJECT_COMMIT_MESSAGE, commitProject, type ProjectCommitResult } from './commit.js';
 export { buildPlan, templateVars, type ProjectProfile, type ScaffoldPlan } from './plan.js';
 export { DENY_RULES, SECRET_ENV_FILES, isReadDenied, readRuleDenies } from './secrets.js';
 export {

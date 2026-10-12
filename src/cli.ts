@@ -45,7 +45,7 @@ import {
   readNote,
 } from './library/index.js';
 import { PACKAGE_ROOT } from './packageRoot.js';
-import { inspectOutputDir, loadTemplate, scaffold, type ProtectedDir } from './scaffold/index.js';
+import { commitProject, inspectOutputDir, loadTemplate, scaffold, type ProtectedDir } from './scaffold/index.js';
 import { readSpec } from './spec/index.js';
 import {
   agentSetting,
@@ -239,6 +239,21 @@ const templateRoots = (libraryDir: string): string[] => [
   path.join(libraryDir, 'templates'),
   path.join(PACKAGE_ROOT, 'library', 'templates'),
 ];
+/** Commits a prepared project, so the user starts from a clean tree. */
+async function runCommit(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = scaffoldMessages[lang];
+  const { positionals } = parseArgs(args, [], lang, [], messages.commitUsage);
+  const [dirArg] = positionals;
+  if (positionals.length !== 1 || dirArg === undefined) {
+    throw new UsageError(cliMessages[lang].wrongArguments(messages.commitUsage));
+  }
+  const result = await commitProject(argPath(io, lang, dirArg));
+  if (result.committed) io.out(messages.committed(result.projectDir));
+  if (result.nothingToCommit) io.out(messages.nothingToCommit(result.projectDir));
+  if (result.warning !== undefined) io.err(libraryMessages[lang].warning(result.warning));
+  return EXIT_OK;
+}
+
 async function loadProfiles(io: CliIO) {
   const config = await readConfig(configFilePath(io.pathEnv));
   const paths = resolvePaths(config, io.pathEnv);
@@ -544,6 +559,8 @@ export async function main(argv: readonly string[], io: CliIO = defaultIO()): Pr
       case '--help':
         io.out(cliMessages[lang].usage);
         return EXIT_OK;
+      case 'commit':
+        return await runCommit(rest, io, lang);
       case 'event':
         return await runEvent(rest, io, lang);
       case 'init':
