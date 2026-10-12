@@ -237,11 +237,10 @@ Source: permissions.
 Not documented: case sensitivity of matching on Windows. The specific secret
 list below is built from the syntax, not copied from the docs.
 
-Conclusion: generated `.claude/settings.json` denies `Read(.env)`,
-`Read(.env.*)`, `Read(**/*.pem)`, `Read(**/*.key)`, `Read(~/.ssh/**)`,
-`Read(~/.aws/**)`, `Read(~/.config/gcloud/**)`, `Read(~/.azure/**)`,
-`Read(~/.npmrc)`, `Read(~/.netrc)`. The validator allows `~/` and `//**`
-patterns and keeps rejecting machine paths.
+Conclusion: generated `.claude/settings.json` holds the deny rules in
+`src/scaffold/secrets.ts` (see "Secret env files" below for the `.env`
+part). The validator allows `~/` and `//**` patterns and keeps rejecting
+machine paths.
 
 ### Settings precedence and workspace trust
 
@@ -366,7 +365,48 @@ flow agents.
   never overwritten. The output folder is refused if it overlaps the repo or
   the library in either direction, compared after `realpath` (junctions and
   symlinks followed) and case-insensitively on Windows and macOS.
-- **Deny rule side effect.** `Read(.env.*)` also blocks files such as
-  `.env.example`. Accepted for now; revisit if generated projects need one.
+- **Deny rules:** see "Secret env files" below.
 - **Sorting** uses code-point order, never `localeCompare`, so output does
   not depend on the machine's locale.
+
+## Secret env files (2026-10-12)
+
+Decision (user): `.env.example` and `.env.sample` document variables without
+real values and Claude must be able to read them. A deny rule always wins over
+an allow rule, so the catch-all `Read(.env.*)` is replaced by narrow patterns
+for files that hold real values:
+
+`.env`, `.env.local`, `.env.*.local`, `.env.development`, `.env.production`,
+`.env.staging`.
+
+`.env.test` is left readable: frameworks often commit it with dummy values.
+Add it to `SECRET_ENV_FILES` in `src/scaffold/secrets.ts` if that proves
+wrong. The same list feeds the generated `.gitignore`, so `.env.example` stays
+tracked by git.
+
+Tests (`tests/unit/secrets.test.ts`): a matcher that models the documented
+syntax keeps `.env.example`, `.env.sample` and `.env.template` readable, and
+denies `.env` (also nested), `.env.local`, `.env.production.local`,
+`.env.development`, `.pem` and `.key` files. The generated `.gitignore` is
+checked against the same lists with real `git check-ignore`.
+
+**Probe (Claude Code 2.1.296, Windows 11).** A temp folder whose
+`.claude/settings.json` was written from `DENY_RULES`; `claude -p --model
+haiku --setting-sources project --disallowed-tools Bash Grep Glob`, asked to
+Read each file:
+
+| File | Result |
+|---|---|
+| `.env` | denied |
+| `.env.example` | read |
+| `.env.sample` | read |
+| `.env.production.local` | denied |
+| `.env.development` | denied |
+| `config/.env.example` | read |
+| `config/.env` | denied |
+
+Denial text: "File is in a directory that is denied by your permission
+settings." Claude Code agrees with the unit-test model on every case, and deny
+rules in a project `settings.json` apply in a folder that was never trusted,
+as the docs say. Deny rules cover Claude's file tools and the Bash commands
+Claude Code recognises; a script that opens files itself is not blocked (§8).
