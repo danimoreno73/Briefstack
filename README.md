@@ -1,0 +1,36 @@
+# briefstack
+
+Turn a rough idea into a ready-to-use Claude project, and get better at it with
+every project created.
+
+You run `/new-project` inside Claude Code, answer a short interview, approve a
+spec, and get a generated project folder for Claude Code or the Claude desktop
+app. Each run is recorded in a personal library so the next interview asks less.
+
+> Status: phase 1 in progress. Scope: [docs/BRIEF.md](docs/BRIEF.md).
+> Plan: [docs/PLAN.md](docs/PLAN.md).
+
+## Requirements
+
+- Node.js 24 LTS or later
+- Claude Code (talks to Claude only through your own Claude Code; no API key)
+- git (optional, recommended: the personal library is kept as a git repo)
+
+Works on native Windows, macOS and Linux.
+
+## Development
+
+```sh
+npm install
+npm run build            # type-check and build
+npm test                 # run vitest
+npm run lint             # lint
+npm run briefstack -- <command>   # run the CLI from source
+```
+
+## Usage profiles
+
+`briefstack usage set <profile>` rewrites the `model` and `effort` fields of the
+agent files in `.claude/agents/`. The repo ships them on `balanced`. Do not
+commit profile changes; `briefstack usage show` warns when the files differ from
+the committed version.
