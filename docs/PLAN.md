@@ -9,9 +9,9 @@ one concern each.
 
 ## 0. Status
 
-Updated 2026-10-12, for a new session. Build, lint and 270 tests pass on
-Windows. Read `CLAUDE.md`, `docs/BRIEF.md`, this file and `docs/decisions.md`
-before continuing.
+Updated 2026-10-12. Build, lint and 282 tests pass on Windows. Read
+`CLAUDE.md`, `docs/BRIEF.md`, this file and `docs/decisions.md` before
+continuing.
 
 ### Done
 
@@ -20,35 +20,30 @@ before continuing.
 | H0 | Claude Code behaviour verified and recorded (`decisions.md`, with probes) |
 | H1 | TypeScript 6.0 / Node 24 skeleton, vitest, eslint, CI workflow (never run: no remote), README, `.gitattributes` (LF) |
 | H2 | Config and paths (`BRIEFSTACK_HOME`, `BRIEFSTACK_LIBRARY`, config file), en/es i18n with coded errors, line-preserving frontmatter rewrite |
-| H3 | Usage profiles: `library/usage-profiles.json`, user presets, `usage show`, `usage set [--project]`, drift and env warnings |
-| H4 | Spec schema (zod → `schemas/spec.schema.json`), `scaffold` with output-folder, template and overwrite rules; scaffold applies the profile to generated agents |
+| H3 | Usage profiles: `library/usage-profiles.json`, user presets, `usage show [--json]`, `usage set [--project]`, drift and env warnings |
+| H4 | Spec schema (zod → `schemas/spec.schema.json`), `scaffold` with output-folder, template and overwrite rules; scaffold applies the profile to generated agents; `spec check` |
 | H5 | `validate [--json]`: every BRIEF §6 rule plus settings and agent checks (omitted `tools` is an error) |
-| H6 | Personal library: `init` (also merges `projectsDir` into `.claude/settings.local.json`), `library add/list/show/context`, INDEX, status block, dated additions, learning test |
+| H6 | Personal library: `init` (also creates the sessions folder and merges `projectsDir` and `sessionsDir` into `.claude/settings.local.json`), `library add/list/show/context`, INDEX, status block, dated additions, learning test; `paths [check]` |
 | H7 | Base templates (software, learning-or-management, generic), 3 base skills, 3 fixtures that validate clean for both targets |
 | H8 | Events: `briefstack event <session|step>`, hook script in `.claude/settings.json` (exec form) that records only sessions `/new-project` opened, `summarizeSession` (finished / in-progress / interrupted); real run passed |
 
 ### Left
 
-- **H9** — `/new-project` skill and adjustments to the five agent bodies.
-  Inputs already decided, all to be honoured by the skill:
-  - Open the session first: `briefstack event session started --session ${CLAUDE_SESSION_ID}`;
-    emit `step started/finished` for the nine BRIEF §4 steps; close with
-    `session finished --outcome completed|cancelled|failed` on every way out.
-  - Gap analysis input comes from `briefstack library context --idea <file>`.
-  - Only the main session asks the user; never pass `model` or `effort` to
-    the Agent tool; tell the user which session model the active profile
-    expects.
-  - Read the profile's non-model knobs: `research` (`required-only` means the
-    researcher runs only for gaps the interviewer marks factual-blocking) and
-    `reviewRounds` (stop and show findings when the limit is reached).
-  - Output folder: default under `projectsDir`; ask for `/add-dir <dir>` only
-    when the chosen folder is not already in `settings.local.json`;
-    `--allow-non-empty` only after the user confirms.
-  - Generator: fill spec skills from `library/skills/`, adapt the English
-    templates to `spec.language`, never write example machine paths.
-  - Reviewer: `briefstack validate --json` plus its own read-only review.
-  - Learn step: `library add` for the project note (status block), the
-    session log, lessons and explicitly stated preferences.
+- **H9** — built: `.claude/skills/new-project/SKILL.md`, the five agent
+  bodies, the allow rule for the CLI (`decisions.md`, "/new-project (H9)").
+  Left: the guided rehearsal with the user, below.
+
+  Rehearsal setup: a terminal with `BRIEFSTACK_HOME` pointing to a temp
+  folder (`<temp>/briefstack-rehearsal/home`, whose `config.json` puts
+  `projectsDir` in the same temp folder), `npm run briefstack -- init`, then
+  a new Claude Code session in the repo on the profile's session model. The
+  main session (another terminal) inspects after each run. Runs:
+  A — `claude-code`, default folder, a chess FEN/Stockfish CLI idea, with one
+  explicit preference; B — `claude-app`, a folder outside `projectsDir`
+  (`/add-dir`), an idea about reviewing thesis chapters, checking the
+  preference from A is not asked again; C — cancel at the spec; D — close
+  Claude Code mid-interview. Afterwards remove the temp entries from
+  `.claude/settings.local.json`.
 - **H10** — real end-to-end run of `/new-project` that the user accepts, and
   the `/tasks` check. Phase 1 is not done before this.
 
@@ -58,7 +53,8 @@ Each of these is covered by unit tests or a `claude -p` probe, but not yet by
 an interactive run in the real repo:
 
 1. `briefstack init` from the real CLI: creates `~/.briefstack/library` as a
-   git repo, creates `projectsDir`, and merges `projectsDir` into this repo's
+   git repo, creates `projectsDir` and the sessions folder, and merges
+   both into this repo's
    `.claude/settings.local.json` without losing existing entries.
 2. With that entry, the generator subagent writes under `projectsDir` with no
    permission prompt in an interactive session.

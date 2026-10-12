@@ -814,3 +814,37 @@ What the rule does allow: any briefstack subcommand with any arguments.
 That covers `scaffold` (which refuses the repo, the library and non-empty
 folders by itself), `usage set` (rewrites agent `model`/`effort`, its job)
 and `library add` (commits to the library repo). A test pins the rule list.
+
+### Flow design (2026-10-12)
+
+- **CLI pieces the skill needs**, all deterministic and tested:
+  `usage show --json` (profile, session model, `research`, `reviewRounds`,
+  drift and env warnings), `paths [--json]` (home, library and whether it
+  exists, projects and sessions folders, allowed folders) and
+  `paths check <dir> [--json]` (`missing` / `empty` / `nonEmpty` /
+  `notADirectory` / `forbidden`, and the `settings.local.json` entry that
+  already allows it, if any), and `spec check <spec.json>` (spec, profile and
+  template checked as `scaffold` will, without writing), so a bad spec is
+  caught before the user approves it.
+- **Working files in the session folder.** The idea, `spec.json` and the
+  note drafts for `library add --from` go in `<home>/sessions/<id>/`, next to
+  `events.jsonl` (BRIEF §7). The architect has no Write tool, so the main
+  session writes the spec there. `init` now also creates the sessions folder
+  and adds it to `additionalDirectories`, so those writes need no extra
+  grant. Neither folder applies to a session that was already running: after
+  `init`, restart Claude Code.
+- **The library is not read by agents.** It lives outside the allowed
+  folders; the interviewer and architect get `library context` output
+  instead, which is also what makes the learning test meaningful.
+- **Output folder** is asked in the first interview batch, with a default
+  of `<projectsDir>/<slug proposed from the idea>`, and checked with
+  `paths check`. Not allowed yet → the user runs `/add-dir`; if the folder
+  does not exist, the user creates it first (the docs do not say whether
+  `/add-dir` accepts a missing folder; the rehearsal checks it).
+- **Review rounds** count every round, the first included. Clean means no
+  validator errors and reviewer verdict `pass` (only `minor` findings).
+- **Cancel** writes nothing to the library.
+- Edits to files still need approval in the default permission mode, even
+  in allowed folders ("file editing permissions follow the current
+  permission mode", permissions docs); "no prompt" in the rehearsal means
+  in the user's usual mode.
