@@ -58,6 +58,8 @@ const errors = defineCatalogue<ErrorMessages>({
       `Template "${p.template}" not found. Looked in:${bullets(p.searched)}`,
     'scaffold.templateReservedPath': (p) =>
       `Template "${p.template}" contains ${p.path}, which briefstack writes itself.`,
+    'validate.projectNotFound': (p) => `Project folder not found: ${p.dir}`,
+    'validate.notADirectory': (p) => `${p.dir} is not a folder.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -89,6 +91,8 @@ const errors = defineCatalogue<ErrorMessages>({
       `No se encuentra la plantilla "${p.template}". Se buscó en:${bullets(p.searched)}`,
     'scaffold.templateReservedPath': (p) =>
       `La plantilla "${p.template}" contiene ${p.path}, que briefstack escribe por su cuenta.`,
+    'validate.projectNotFound': (p) => `No se encuentra la carpeta del proyecto: ${p.dir}`,
+    'validate.notADirectory': (p) => `${p.dir} no es una carpeta.`,
   },
 });
 

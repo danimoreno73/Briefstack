@@ -28,6 +28,8 @@ export interface ErrorParams {
   'scaffold.wouldOverwrite': { outDir: string; paths: string[] };
   'scaffold.templateNotFound': { template: string; searched: string[] };
   'scaffold.templateReservedPath': { template: string; path: string };
+  'validate.projectNotFound': { dir: string };
+  'validate.notADirectory': { dir: string };
 }
 
 export type ErrorCode = keyof ErrorParams;

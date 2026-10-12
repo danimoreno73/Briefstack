@@ -54,6 +54,8 @@ describe('error catalogue', () => {
     'scaffold.wouldOverwrite': { outDir: 'o', paths: ['a', 'b'] },
     'scaffold.templateNotFound': { template: 't', searched: ['x'] },
     'scaffold.templateReservedPath': { template: 't', path: '.git/config' },
+    'validate.projectNotFound': { dir: 'd' },
+    'validate.notADirectory': { dir: 'd' },
   };
 
   it('has a distinct message for every code in every language', () => {
