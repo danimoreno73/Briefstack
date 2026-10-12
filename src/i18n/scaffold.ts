@@ -6,6 +6,7 @@ export const scaffoldMessages = defineCatalogue({
     usage: 'briefstack scaffold <spec.json> <out-dir> [--allow-non-empty]',
     created: (outDir: string, count: number, template: string) =>
       `Created ${count} files in ${outDir} (template: ${template}).`,
+    profileApplied: (profile: string) => `Applied usage profile "${profile}" to the generated agents.`,
     gitInitialised: 'Initialised a git repository.',
     warning: (warning: ScaffoldWarning): string =>
       warning.code === 'gitUnavailable'
@@ -16,6 +17,7 @@ export const scaffoldMessages = defineCatalogue({
     usage: 'briefstack scaffold <spec.json> <carpeta> [--allow-non-empty]',
     created: (outDir: string, count: number, template: string) =>
       `Creados ${count} archivos en ${outDir} (plantilla: ${template}).`,
+    profileApplied: (profile: string) => `Aplicado el perfil de uso "${profile}" a los agentes generados.`,
     gitInitialised: 'Repositorio git inicializado.',
     warning: (warning: ScaffoldWarning): string =>
       warning.code === 'gitUnavailable'

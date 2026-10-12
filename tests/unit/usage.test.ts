@@ -22,7 +22,7 @@ import {
   type UsagePresetInput,
   type UsageProfiles,
 } from '../../src/usage/index.js';
-import { specInput, tempDir, writeTree } from '../helpers.js';
+import { baseProfiles, specInput, tempDir, writeTree } from '../helpers.js';
 
 const execFileAsync = promisify(execFile);
 const REPO_AGENTS = path.join(PACKAGE_ROOT, '.claude', 'agents');
@@ -336,6 +336,7 @@ describe('applyProfileToProject', () => {
     await scaffold(spec, outDir, {
       protectedDirs: [{ root: 'repo', path: path.join(dir, 'repo') }],
       templateRoots: [path.join(dir, 'templates')],
+      profiles: await baseProfiles(),
       gitInit: false,
     });
     return outDir;
@@ -365,7 +366,8 @@ describe('applyProfileToProject', () => {
     const preset = getPreset(profiles, name);
     const result = await applyProfileToProject(outDir, name, profiles);
 
-    expect(result.changed).toEqual(['checker.md', 'planner.md', 'writer.md']);
+    // scaffold already applied the spec's profile (balanced) when it created the project.
+    expect(result.changed).toEqual(name === 'balanced' ? [] : ['checker.md', 'planner.md', 'writer.md']);
     expect(result.previousProfile).toBe('balanced');
     expect(result.profileFileChanged).toBe(name !== 'balanced');
     const agents = await readAgents(path.join(outDir, '.claude', 'agents'));

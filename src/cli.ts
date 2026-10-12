@@ -105,8 +105,7 @@ async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Prom
     throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   }
 
-  const config = await readConfig(configFilePath(io.pathEnv));
-  const paths = resolvePaths(config, io.pathEnv);
+  const { paths, profiles } = await loadProfiles(io);
   const spec = await readSpec(path.resolve(io.cwd, specArg));
   const result = await scaffold(spec, path.resolve(io.cwd, outArg), {
     protectedDirs: [
@@ -117,10 +116,12 @@ async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Prom
       path.join(paths.libraryDir, 'templates'),
       path.join(PACKAGE_ROOT, 'library', 'templates'),
     ],
+    profiles,
     allowNonEmpty: flags.has('--allow-non-empty'),
   });
 
   io.out(messages.created(result.outDir, result.files.length, result.template));
+  io.out(messages.profileApplied(result.profile));
   if (result.gitInitialised) io.out(messages.gitInitialised);
   for (const warning of result.warnings) io.err(messages.warning(warning));
   return EXIT_OK;

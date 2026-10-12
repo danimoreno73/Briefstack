@@ -10,10 +10,11 @@ import {
   renderTemplate,
   scaffold,
   type ProtectedDir,
+  type ScaffoldOptions,
   type Template,
 } from '../../src/scaffold/index.js';
 import { parseSpec, type SpecInput } from '../../src/spec/index.js';
-import { specInput, tempDir, writeTree } from '../helpers.js';
+import { baseProfiles, specInput, tempDir, writeTree } from '../helpers.js';
 
 const spec = (overrides: Partial<SpecInput> = {}) => parseSpec(specInput(overrides), 'spec.json');
 
@@ -226,13 +227,14 @@ describe('checkOutputDir', () => {
 describe('scaffold', () => {
   let dir: string;
   let cleanup: () => Promise<void>;
-  let options: { protectedDirs: ProtectedDir[]; templateRoots: string[] };
+  let options: ScaffoldOptions;
   beforeEach(async () => {
     ({ dir, cleanup } = await tempDir('scaffold'));
     await writeTree(path.join(dir, 'templates'), TEMPLATE_TREE);
     options = {
       protectedDirs: [{ root: 'repo', path: path.join(dir, 'repo') }],
       templateRoots: [path.join(dir, 'templates')],
+      profiles: await baseProfiles(),
     };
   });
   afterEach(() => cleanup());
@@ -296,5 +298,40 @@ describe('scaffold', () => {
     await expect(scaffold(spec(), path.join(dir, 'repo', 'x'), options)).rejects.toMatchObject({
       code: 'scaffold.forbiddenOutput',
     });
+  });
+
+  it('applies the spec profile to generated agents by tier', async () => {
+    const outDir = path.join(dir, 'tiers');
+    const result = await scaffold(
+      spec({
+        profile: 'max',
+        agents: [
+          { name: 'scout', description: 'Looks around', tools: ['Read'], tier: 'light' },
+          { name: 'writer', description: 'Writes', tools: ['Read', 'Write'], tier: 'heavy' },
+        ],
+      }),
+      outDir,
+      { ...options, gitInit: false },
+    );
+    expect(result.profile).toBe('max');
+    const max = options.profiles.presets.max;
+    for (const [name, tier] of [['scout', 'light'], ['writer', 'heavy']] as const) {
+      const text = await readFile(path.join(outDir, '.claude', 'agents', `${name}.md`), 'utf8');
+      expect(parseFrontmatter(text, name).data).toMatchObject({
+        name,
+        model: max?.tiers[tier],
+        effort: max?.effort,
+      });
+    }
+    const profile = JSON.parse(await readFile(path.join(outDir, '.briefstack', 'profile.json'), 'utf8'));
+    expect(profile).toEqual({ profile: 'max', agents: { scout: 'light', writer: 'heavy' } });
+  });
+
+  it('refuses an unknown profile before writing anything', async () => {
+    const outDir = path.join(dir, 'unknown-profile');
+    await expect(scaffold(spec({ profile: 'turbo' }), outDir, options)).rejects.toMatchObject({
+      code: 'usage.unknownProfile',
+    });
+    await expect(stat(outDir)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });

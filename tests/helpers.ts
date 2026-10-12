@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { SpecInput } from '../src/spec/index.js';
+import { baseProfilesFile, loadUsageProfiles, type UsageProfiles } from '../src/usage/profiles.js';
 
 /** A minimal valid spec; override fields per test. */
 export function specInput(overrides: Partial<SpecInput> = {}): SpecInput {
@@ -35,4 +36,9 @@ export async function writeTree(root: string, files: Readonly<Record<string, str
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, content, 'utf8');
   }
+}
+
+/** The base usage presets shipped in `library/usage-profiles.json`. */
+export function baseProfiles(): Promise<UsageProfiles> {
+  return loadUsageProfiles({ baseFile: baseProfilesFile() });
 }

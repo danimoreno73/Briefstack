@@ -13,7 +13,7 @@ import {
   validateProject,
   type Finding,
 } from '../../src/validate/index.js';
-import { specInput, tempDir, writeTree } from '../helpers.js';
+import { baseProfiles, specInput, tempDir, writeTree } from '../helpers.js';
 
 const fakeEnv: PathEnv = {
   env: {},
@@ -386,7 +386,7 @@ describe('scaffolded projects', () => {
           : { scheduledTasks: [{ name: 'Weekly', schedule: 'every Monday', prompt: 'Review the week.' }] };
       const spec = parseSpec(specInput({ target, ...extra, files: [{ path: 'notes/ideas.md', purpose: 'Ideas.' }] }), 'spec.json');
       const outDir = path.join(dir, 'out');
-      const result = await scaffold(spec, outDir, { protectedDirs: [], templateRoots: [templates] });
+      const result = await scaffold(spec, outDir, { protectedDirs: [], templateRoots: [templates], profiles: await baseProfiles() });
 
       const validation = await validateProject(outDir, { pathEnv: fakeEnv });
       if (!result.gitInitialised) {
