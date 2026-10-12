@@ -933,3 +933,51 @@ Found and fixed:
   which saves the default; `s` in the picker switches "for this session
   only"; `--model` "appl[ies] only to the session you launch"). `usage show`
   and the skill now say so.
+
+### Verification 8: deny rules in a generated project (2026-10-12)
+
+Interactive session in `fen-check-2` (folder trusted at the prompt), with a
+dummy `.env` and `.env.example`: the Read tool on `.env` was denied ("File
+is in a directory that is denied by your permission settings"),
+`.env.example` was read, and git ignored `.env`. Claude refused to run
+`cat .env` on its own judgement, so the shell case was checked separately.
+
+Docs (permissions, read 2026-10-12): "Read and Edit deny rules apply to
+Claude's built-in file tools, to file commands Claude Code recognizes in
+Bash, such as `cat`, `head`, `tail`, `sed`, and `tee`, and to the targets
+of Bash redirections … They don't apply to a command that reads files
+without naming them, such as `grep -r pattern .` …, or to arbitrary
+subprocesses that read or write files indirectly, like a Python or Node
+script that opens files itself." Sandboxing (read 2026-10-12): "On native
+Windows, Claude Code runs commands unsandboxed." The docs say nothing about
+PowerShell file commands.
+
+**Probe (Claude Code 2.1.296, Windows 11).** Throwaway folder with the
+generated deny rules, a `.env` holding a marker value, and allow rules for
+each command (so a denial can only come from the deny rules).
+`claude -p --model haiku --setting-sources project,local`.
+
+| Command | Result |
+|---|---|
+| Bash `cat .env` | denied |
+| Bash `head -n 1 .env` | denied |
+| PowerShell `Get-Content .env` | denied |
+| PowerShell `type .env` | denied (seen as `get-content`) |
+| PowerShell `Select-String -Path .env ...` | denied |
+| Bash `grep -r PROBE_VALUE .` | **read the value** |
+| Bash `node show.js .env` (script opens the file) | **read the value** |
+
+Conclusion: the deny rules cover Claude's file tools and the shell
+commands that name the file, in Bash and in PowerShell, but not a recursive
+search or a script, and native Windows has no sandbox to back them. The
+generated `CLAUDE.md` (all three templates) now says to keep real secrets
+out of the project folder; a fixture test pins the line.
+
+### Initial commit (user decision, 2026-10-12)
+
+Every generated project gets one commit at the end of the flow, so the
+user starts from a clean tree. `briefstack commit <project-dir>` (refuses
+folders without `.briefstack/profile.json`; `git add` respects the
+project's `.gitignore`; the fallback identity is used only when none is
+configured; git problems are warnings), run by the skill at the start of
+the hand-off, after review. Message: "Prepare the project with briefstack".

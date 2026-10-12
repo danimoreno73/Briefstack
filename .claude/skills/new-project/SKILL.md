@@ -209,7 +209,10 @@ Do not write date headings: `library add` dates each addition itself.
 
 ## 9. Hand-off
 
-Step `handoff`. Tell the user, briefly:
+Step `handoff`. First commit the prepared project, so the user starts from a
+clean tree: `npm run --silent briefstack -- commit "<dir>"`. If it prints a
+warning (for example git is missing or commit signing failed), tell the user in
+one line and go on. Then tell the user, briefly:
 
 - where the project is, its target and the profile it was created with;
 - the exact next steps:
