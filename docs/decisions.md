@@ -551,3 +551,46 @@ Built in a worktree from `075b8bc`; merged as `9014e58`, `7f9fae6`, `cb79e62`.
   (`claude-app`); a `claude-code` project does not show them anywhere yet.
 - **CLI smoke test:** `scaffold` + `validate` from source on the novel and
   software fixtures, against the real home folder: no findings.
+
+## Personal library (H6, 2026-10-12)
+
+Built in a worktree from `075b8bc`; merged in `02a8cd9`.
+
+- **Layout:** `INDEX.md`, `profile/`, `templates/`, `skills/`, `projects/`,
+  `log/` (with `log/INDEX.md`), `lessons.md`. `templates/` is created by
+  `init` but is not a section for `add`/`list`/`show`.
+- **INDEX line:** `- [[<section>/<name>]] — <one-line summary>` under fixed
+  English headings (`## Profile`, `## Projects`, `## Skills`, `## Log`,
+  `## Lessons`), which stay English because the file is parsed. Links include
+  the folder so equal names in different sections never clash. Sessions are
+  listed only in `log/INDEX.md` (newest first); the main INDEX links
+  `[[log/INDEX]]` to stay short.
+- **Project status block** = the note's YAML frontmatter (Obsidian shows it
+  as properties): `statusFormat: 1`, `slug`, `target`, `path`, `status`
+  (`created|active|paused|done|abandoned`), `profile`, `updated` (UTC date),
+  `summary`. zod schema plus typed writer/reader. `library add projects`
+  takes it from the `--from` file's frontmatter; briefstack sets
+  `statusFormat`, `slug` and `updated`.
+- **`library add <section> [name] --from <file.md>`:** content only from a
+  file (no shell quoting issues on Windows). Appends to an existing note
+  (blank line, no automatic heading), otherwise creates it. Secret-looking
+  content is rejected with line numbers only; nothing is written. Each change
+  is a commit of just those files; without a git identity the commit uses
+  `-c user.name=briefstack -c user.email=briefstack@localhost` for that one
+  command. No git → warning, not failure.
+- **`init`:** idempotent (`wx` writes, commits only what it created).
+  Computes the `settings.local.json` merge first, so invalid JSON stops
+  `init` with the file untouched. Entry absolute with forward slashes;
+  duplicates detected after normalising separators and trailing slashes,
+  case-insensitively on Windows and macOS. The real write into this repo is
+  checked in the H9 rehearsal.
+- **`library context --idea <file>`:** `INDEX.md`, `profile/`, `lessons.md`
+  and up to `--limit` (default 3) similar project notes. Similarity: count of
+  distinct shared keywords (lowercased runs of Unicode letters and digits, at
+  least 3 characters, minus a short en/es stop-word list); ties by path in
+  code-point order; score 0 excluded. Missing library → message, exit 0.
+- **Learning test:** after `library add profile ...`, the context for a
+  second idea contains the preference.
+- **Tests and git:** `useHermeticGit()` points `GIT_CONFIG_GLOBAL` at an empty
+  file and sets `GIT_CONFIG_NOSYSTEM=1`, so tests do not depend on the
+  developer's git identity or signing setup.
