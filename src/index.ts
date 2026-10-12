@@ -12,3 +12,9 @@ const packageJson = JSON.parse(
 ) as PackageJson;
 
 export const VERSION: string = packageJson.version;
+
+export * from './config/index.js';
+export * from './errors.js';
+export * from './frontmatter/index.js';
+export { DEFAULT_LANG, LANGS, isLang, resolveLang, systemLocale, type Lang } from './i18n/index.js';
+export { formatError } from './i18n/errors.js';
