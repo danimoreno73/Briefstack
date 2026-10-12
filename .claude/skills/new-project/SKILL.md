@@ -108,10 +108,13 @@ Step `interview`.
    - `nonEmpty`: say so and ask whether to create the project inside it
      anyway (existing files are never overwritten). Only if they confirm,
      remember to pass `--allow-non-empty` to the generator.
-   - `allowed: false`: Claude Code cannot write there yet. Ask the user to
-     run `/add-dir <dir>` themselves; if `status` is `missing`, first to
-     create the folder (for example `! mkdir "<dir>"`). Wait until they say
-     it is done.
+   - `allowed: false`: the folder is not in `settings.local.json`. Ask the
+     user to run `/add-dir <dir>` themselves; if `status` is `missing`, to
+     create the folder first (`/add-dir` refuses a missing folder), for
+     example with `! mkdir "<dir>"`. Wait until they say it is done, then
+     treat the folder as allowed: `/add-dir` lasts for this session only and
+     `paths check` cannot see it, so do not check `allowed` again (check
+     `status` again only if they created the folder).
 4. Pass all answers to `interviewer` again. Repeat until it reports `ready`,
    or after two rounds, whichever comes first. Do not ask the same thing
    twice.
@@ -162,7 +165,9 @@ Step `generate`. Launch `generator` with: `WORK/spec.json`, the output
 folder, whether to pass `--allow-non-empty`, the spec language, and the path
 `WORK/research.md` if research ran. It runs `scaffold`, fills the files and
 runs `validate`. If it reports something it
-could not build, tell the user and decide with them whether to continue.
+could not build, tell the user and decide with them whether to continue. If
+it reports that a write was denied, ask the user to run `/add-dir <dir>` and
+launch it again.
 
 ## 7. Validate and review
 

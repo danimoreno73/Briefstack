@@ -243,7 +243,7 @@ describe('cli: paths', () => {
     expect(await main(['paths', 'check', 'elsewhere/new'], text.io)).toBe(0);
     expect(text.out).toEqual([
       `${path.join(dir, 'elsewhere', 'new')} does not exist yet; scaffold will create it.`,
-      `Not allowed yet: run /add-dir ${path.join(dir, 'elsewhere', 'new')} in Claude Code before generating.`,
+      `Not in .claude/settings.local.json: run /add-dir ${path.join(dir, 'elsewhere', 'new')} in Claude Code before generating (folders added with /add-dir last for the session and are not visible here).`,
     ]);
     const forbidden = capture(dir);
     expect(await main(['paths', 'check', path.join(dir, 'home')], forbidden.io)).toBe(0);

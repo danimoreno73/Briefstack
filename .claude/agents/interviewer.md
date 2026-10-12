@@ -54,6 +54,9 @@ Rules:
   unless the idea suggests another.
 - Prefer a sensible default plus one confirmation over an open question.
 - Do not ask where to create the project; the main session handles that.
+- Target: known only when the user stated it or only one target fits. When
+  both `claude-code` and `claude-app` would work, ask, with the one you
+  recommend as the default and the reason in one line.
 - Do not invent facts about the user. If the context does not say it, it is
   not known.
 - Do not ask for passwords, keys or other secrets.

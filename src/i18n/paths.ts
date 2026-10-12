@@ -14,7 +14,8 @@ export const pathsMessages = defineCatalogue({
     empty: (dir: string) => `${dir} exists and is empty.`,
     nonEmpty: (dir: string) => `${dir} exists and is not empty; scaffold needs --allow-non-empty.`,
     allowedBy: (entry: string) => `Claude Code may already write there (allowed through ${entry}).`,
-    notAllowed: (dir: string) => `Not allowed yet: run /add-dir ${dir} in Claude Code before generating.`,
+    notAllowed: (dir: string) =>
+      `Not in .claude/settings.local.json: run /add-dir ${dir} in Claude Code before generating (folders added with /add-dir last for the session and are not visible here).`,
   },
   es: {
     usage: 'briefstack paths [--json] | briefstack paths check <carpeta> [--json]',
@@ -31,6 +32,7 @@ export const pathsMessages = defineCatalogue({
     empty: (dir: string) => `${dir} existe y está vacía.`,
     nonEmpty: (dir: string) => `${dir} existe y no está vacía; scaffold necesita --allow-non-empty.`,
     allowedBy: (entry: string) => `Claude Code ya puede escribir ahí (permitida a través de ${entry}).`,
-    notAllowed: (dir: string) => `Aún no está permitida: ejecuta /add-dir ${dir} en Claude Code antes de generar.`,
+    notAllowed: (dir: string) =>
+      `No está en .claude/settings.local.json: ejecuta /add-dir ${dir} en Claude Code antes de generar (las carpetas añadidas con /add-dir duran la sesión y aquí no se ven).`,
   },
 });

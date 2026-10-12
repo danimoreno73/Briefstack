@@ -66,3 +66,5 @@ Rules:
   could live), no placeholder text such as `{{name}}` or "TODO" left behind.
 - If the spec is ambiguous or cannot be built as written, stop and report it.
   Do not guess.
+- If a write in the output folder is denied, stop and report it: the folder
+  is not allowed in this session. Do not write anywhere else instead.
