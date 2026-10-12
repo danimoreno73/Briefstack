@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { expandHome, isPathInside, toAbsolute } from '../../src/config/paths.js';
+import { expandHome, isFullyAbsolute, isPathInside, toAbsolute } from '../../src/config/paths.js';
 
 const styles = [
   { name: 'win32', pathApi: path.win32, home: 'C:\\Users\\someone', root: 'C:\\' },
@@ -40,6 +40,25 @@ describe.each(styles)('paths ($name)', ({ pathApi, home, root }) => {
     // path.win32 already compares case-insensitively, as Windows does.
     expect(inside(join(root, 'Work', 'Repo', 'x'), repo)).toBe(pathApi === path.win32);
     expect(inside(join(root, 'Work', 'Repo', 'x'), repo, true)).toBe(true);
+  });
+});
+
+describe('isFullyAbsolute', () => {
+  it('needs a drive or a UNC share on Windows', () => {
+    for (const ok of ['C:\\Users\\someone', 'C:/Users/someone', 'd:\\x', '\\\\server\\share\\x', '//server/share/x']) {
+      expect(isFullyAbsolute(ok, path.win32), ok).toBe(true);
+    }
+    // `/c/Users/...` is a Git Bash path that reached Windows unconverted:
+    // Node would resolve it to `<current drive>:\c\Users\...` (decisions.md, H8).
+    for (const bad of ['/c/Users/someone', '\\data', '/', 'C:relative', 'relative', '\\\\server']) {
+      expect(isFullyAbsolute(bad, path.win32), bad).toBe(false);
+    }
+    expect(toAbsolute('/c/Users/someone/.briefstack', { homedir: 'C:\\Users\\someone', pathApi: path.win32 })).toBeUndefined();
+  });
+
+  it('accepts any rooted path on POSIX', () => {
+    expect(isFullyAbsolute('/c/Users/someone', path.posix)).toBe(true);
+    expect(isFullyAbsolute('relative', path.posix)).toBe(false);
   });
 });
 

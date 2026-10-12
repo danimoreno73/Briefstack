@@ -49,7 +49,7 @@ const errors = defineCatalogue<ErrorMessages>({
     'config.invalidField': (p) =>
       `Config file ${p.file}: "${p.field}" must be ${expectationEn[p.expected]}.`,
     'config.relativePath': (p) =>
-      `${p.source} must be an absolute path or start with ~ (got "${p.value}").`,
+      `${p.source} must be a full absolute path (on Windows, with a drive letter such as C:/) or start with ~ (got "${p.value}").`,
     'frontmatter.unclosed': (p) => `${p.file}: frontmatter starts with --- but is never closed.`,
     'frontmatter.invalidYaml': (p) => `${p.file}: frontmatter is not valid YAML: ${p.detail}`,
     'frontmatter.notAMapping': (p) => `${p.file}: frontmatter must be a set of key: value fields.`,
@@ -109,7 +109,7 @@ const errors = defineCatalogue<ErrorMessages>({
     'config.invalidField': (p) =>
       `Archivo de configuración ${p.file}: "${p.field}" debe ser ${expectationEs[p.expected]}.`,
     'config.relativePath': (p) =>
-      `${p.source} debe ser una ruta absoluta o empezar por ~ (se recibió "${p.value}").`,
+      `${p.source} debe ser una ruta absoluta completa (en Windows, con letra de unidad como C:/) o empezar por ~ (se recibió "${p.value}").`,
     'frontmatter.unclosed': (p) => `${p.file}: el frontmatter empieza con --- pero no se cierra.`,
     'frontmatter.invalidYaml': (p) => `${p.file}: el frontmatter no es YAML válido: ${p.detail}`,
     'frontmatter.notAMapping': (p) =>

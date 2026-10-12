@@ -32,15 +32,28 @@ export function expandHome(value: string, pathEnv: Pick<PathEnv, 'homedir' | 'pa
 }
 
 /**
+ * Whether `value` is a complete absolute path. On Windows that means a drive
+ * (`C:\`, `C:/`) or a UNC share (`\\server\share`). A rooted path without a
+ * drive, such as `\data` or a Git Bash `/c/Users/...` that reached a Windows
+ * program unconverted, is refused: Node would resolve it against the current
+ * drive (`C:\c\Users\...`), a folder nobody asked for (`decisions.md`, H8).
+ */
+export function isFullyAbsolute(value: string, pathApi: PathEnv['pathApi']): boolean {
+  if (!pathApi.isAbsolute(value)) return false;
+  if (pathApi.sep !== '\\') return true;
+  return /^[A-Za-z]:[\\/]/.test(value) || /^[\\/]{2}[^\\/]+[\\/]+[^\\/]/.test(value);
+}
+
+/**
  * Expands `~` and normalises. Returns `undefined` when the result is not
- * absolute, so callers can reject relative paths with their own error.
+ * fully absolute, so callers can reject it with their own error.
  */
 export function toAbsolute(
   value: string,
   pathEnv: Pick<PathEnv, 'homedir' | 'pathApi'>,
 ): string | undefined {
   const expanded = expandHome(value.trim(), pathEnv);
-  if (!pathEnv.pathApi.isAbsolute(expanded)) return undefined;
+  if (!isFullyAbsolute(expanded, pathEnv.pathApi)) return undefined;
   return pathEnv.pathApi.resolve(expanded);
 }
 

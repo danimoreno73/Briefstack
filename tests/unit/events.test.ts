@@ -13,6 +13,7 @@ import {
   sessionEventsFile,
 } from '../../src/events/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
+import { briefstackHome as hookHome, isFullyAbsolute as hookIsFullyAbsolute } from '../../scripts/hook-event.mjs';
 import { tempDir } from '../helpers.js';
 
 const execFileAsync = promisify(execFile);
@@ -200,6 +201,46 @@ describe('cli event', () => {
     expect(await main(['event', 'spec', 'started', '--session', '../x'], run.io)).toBe(1);
     expect(run.err[0]).toContain('Paso del flujo desconocido "coding"');
     expect(run.err.at(-1)).toContain('no es un id de sesión válido');
+  });
+});
+
+describe('hook script home resolution (pure, writes nothing)', () => {
+  const styles = [
+    { name: 'win32', pathApi: path.win32, home: 'C:\\Users\\someone' },
+    { name: 'posix', pathApi: path.posix, home: '/home/someone' },
+  ] as const;
+
+  it.each(styles)('matches the CLI for every kind of value ($name)', ({ pathApi, home }) => {
+    const values = [
+      undefined,
+      '',
+      '~',
+      '~/bs',
+      '~\\bs',
+      'relative',
+      '/c/Users/someone/bs',
+      '\\data\\bs',
+      'C:\\data\\bs',
+      'D:/data/bs',
+      '\\\\server\\share\\bs',
+      '/srv/bs',
+    ];
+    for (const value of values) {
+      const env = value === undefined ? {} : { BRIEFSTACK_HOME: value };
+      let cli: string | undefined;
+      try {
+        cli = resolveHome({ env, homedir: home, pathApi, caseInsensitive: false });
+      } catch {
+        cli = undefined;
+      }
+      expect(hookHome(env, home, pathApi), String(value)).toBe(cli);
+    }
+  });
+
+  it('refuses a Git Bash /c/... path on Windows instead of using C:\\c\\...', () => {
+    expect(hookHome({ BRIEFSTACK_HOME: '/c/Users/someone/bs' }, 'C:\\Users\\someone', path.win32)).toBeUndefined();
+    expect(hookIsFullyAbsolute('/c/Users/someone/bs', path.win32)).toBe(false);
+    expect(hookHome({ BRIEFSTACK_HOME: '/c/Users/someone/bs' }, '/home/someone', path.posix)).toBe('/c/Users/someone/bs');
   });
 });
 

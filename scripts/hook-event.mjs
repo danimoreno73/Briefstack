@@ -22,14 +22,26 @@ const TYPES = {
 // Same rule as SESSION_ID_RE in src/events/index.ts.
 const SESSION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
-/** Same rule as resolveHome in src/config/config.ts: BRIEFSTACK_HOME or ~/.briefstack. */
-function briefstackHome(env) {
+/** Same rule as isFullyAbsolute in src/config/paths.ts: on Windows, a drive or UNC share. */
+export function isFullyAbsolute(value, pathApi = path) {
+  if (!pathApi.isAbsolute(value)) return false;
+  if (pathApi.sep !== '\\') return true;
+  return /^[A-Za-z]:[\\/]/.test(value) || /^[\\/]{2}[^\\/]+[\\/]+[^\\/]/.test(value);
+}
+
+/**
+ * Same rule as resolveHome in src/config/config.ts: BRIEFSTACK_HOME or
+ * ~/.briefstack. Returns undefined (record nothing) for a value that is not
+ * fully absolute, e.g. a Git Bash `/c/Users/...` that would otherwise land
+ * in `C:\c\Users\...`.
+ */
+export function briefstackHome(env, homedir = os.homedir(), pathApi = path) {
   const value = (env.BRIEFSTACK_HOME ?? '').trim();
-  if (value === '') return path.join(os.homedir(), '.briefstack');
+  if (value === '') return pathApi.join(homedir, '.briefstack');
   let expanded = value;
-  if (value === '~') expanded = os.homedir();
-  else if (value.startsWith('~/') || value.startsWith('~\\')) expanded = path.join(os.homedir(), value.slice(2));
-  return path.isAbsolute(expanded) ? path.resolve(expanded) : undefined;
+  if (value === '~') expanded = homedir;
+  else if (value.startsWith('~/') || value.startsWith('~\\')) expanded = pathApi.join(homedir, value.slice(2));
+  return isFullyAbsolute(expanded, pathApi) ? pathApi.resolve(expanded) : undefined;
 }
 
 export function toEvent(payload, now = new Date()) {
