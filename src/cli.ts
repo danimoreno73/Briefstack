@@ -8,11 +8,23 @@ import { systemPathEnv, type PathEnv } from './config/paths.js';
 import { isBriefstackError } from './errors.js';
 import { cliMessages } from './i18n/cli.js';
 import { formatError } from './i18n/errors.js';
+import { initSummary, libraryMessages, renderLibraryContext } from './i18n/library.js';
 import { resolveLang, systemLocale, type Lang } from './i18n/index.js';
 import { scaffoldMessages } from './i18n/scaffold.js';
 import { usageMessages } from './i18n/usage.js';
 import { formatFinding, validateMessages } from './i18n/validate.js';
 import { VERSION } from './index.js';
+import {
+  INDEX_FILE,
+  LOG_INDEX_FILE,
+  addNote,
+  buildLibraryContext,
+  initLibrary,
+  libraryExists,
+  listNotes,
+  noteLink,
+  readNote,
+} from './library/index.js';
 import { PACKAGE_ROOT } from './packageRoot.js';
 import { scaffold } from './scaffold/index.js';
 import { readSpec } from './spec/index.js';
@@ -39,7 +51,8 @@ export interface CliIO {
   pathEnv: PathEnv;
   /**
    * Folder whose `.claude/agents/` `usage set` rewrites and `usage show`
-   * checks for drift. Defaults to the briefstack package (the repo).
+   * checks for drift, and whose `.claude/settings.local.json` `init`
+   * updates. Defaults to the briefstack package (the repo).
    */
   repoDir?: string;
 }
@@ -231,6 +244,108 @@ async function runValidate(args: readonly string[], io: CliIO, lang: Lang): Prom
   return result.errors > 0 ? EXIT_ERROR : EXIT_OK;
 }
 
+async function resolvedPaths(io: CliIO) {
+  return resolvePaths(await readConfig(configFilePath(io.pathEnv)), io.pathEnv);
+}
+
+async function runInit(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = libraryMessages[lang];
+  if (args.length > 0) throw new UsageError(cliMessages[lang].wrongArguments(messages.initUsage));
+  const paths = await resolvedPaths(io);
+  const result = await initLibrary({
+    libraryDir: paths.libraryDir,
+    projectsDir: paths.projectsDir,
+    repoDir: io.repoDir ?? PACKAGE_ROOT,
+    pathStyle: io.pathEnv,
+  });
+  for (const line of initSummary(result, lang)) io.out(line);
+  for (const warning of result.warnings) io.err(messages.warning(warning));
+  return EXIT_OK;
+}
+
+async function runLibraryAdd(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = libraryMessages[lang];
+  const { positionals, values } = parseArgs(args, [], lang, ['--from'], messages.usage);
+  const [section, name] = positionals;
+  const from = values.get('--from');
+  if (section === undefined || positionals.length > 2 || from === undefined) {
+    throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  }
+  const paths = await resolvedPaths(io);
+  const result = await addNote({
+    libraryDir: paths.libraryDir,
+    section,
+    name,
+    fromFile: path.resolve(io.cwd, from),
+  });
+  const link = noteLink(result.section, result.name);
+  io.out(result.action === 'created' ? messages.noteCreated(link, result.file) : messages.noteAppended(link, result.file));
+  if (result.status !== undefined) {
+    io.out(messages.statusLine(result.status.status, result.status.target, result.status.profile));
+  }
+  if (result.indexUpdated) io.out(messages.indexUpdated(result.section === 'log' ? LOG_INDEX_FILE : INDEX_FILE));
+  if (result.committed) io.out(messages.committed);
+  for (const warning of result.warnings) io.err(messages.warning(warning));
+  return EXIT_OK;
+}
+
+async function runLibraryList(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = libraryMessages[lang];
+  const { positionals } = parseArgs(args, [], lang);
+  if (positionals.length > 1) throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  const paths = await resolvedPaths(io);
+  const notes = await listNotes(paths.libraryDir, positionals[0]);
+  if (!(await libraryExists(paths.libraryDir))) io.out(messages.noLibrary(paths.libraryDir));
+  else if (notes.length === 0) io.out(messages.listEmpty);
+  for (const note of notes) io.out(messages.listLine(note));
+  return EXIT_OK;
+}
+
+async function runLibraryShow(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = libraryMessages[lang];
+  const { positionals } = parseArgs(args, [], lang);
+  const [section, name] = positionals;
+  if (section === undefined || positionals.length > 2) {
+    throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  }
+  const paths = await resolvedPaths(io);
+  const note = await readNote(paths.libraryDir, section, name);
+  io.out(note.text.replace(/\s+$/, ''));
+  return EXIT_OK;
+}
+
+async function runLibraryContext(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = libraryMessages[lang];
+  const { positionals, values } = parseArgs(args, [], lang, ['--idea', '--limit'], messages.usage);
+  const idea = values.get('--idea');
+  const limitText = values.get('--limit');
+  const limit = limitText === undefined ? undefined : Number(limitText);
+  if (
+    positionals.length > 0 ||
+    idea === undefined ||
+    (limit !== undefined && (!Number.isInteger(limit) || limit < 0))
+  ) {
+    throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  }
+  const paths = await resolvedPaths(io);
+  const context = await buildLibraryContext({
+    libraryDir: paths.libraryDir,
+    ideaFile: path.resolve(io.cwd, idea),
+    ...(limit !== undefined ? { limit } : {}),
+  });
+  io.out(renderLibraryContext(context, lang).replace(/\n$/, ''));
+  return EXIT_OK;
+}
+
+async function runLibrary(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const [sub, ...rest] = args;
+  if (sub === 'add') return runLibraryAdd(rest, io, lang);
+  if (sub === 'list') return runLibraryList(rest, io, lang);
+  if (sub === 'show') return runLibraryShow(rest, io, lang);
+  if (sub === 'context') return runLibraryContext(rest, io, lang);
+  throw new UsageError(cliMessages[lang].wrongArguments(libraryMessages[lang].usage));
+}
+
 async function detectLang(io: CliIO): Promise<Lang> {
   let configLang: string | undefined;
   try {
@@ -255,6 +370,10 @@ export async function main(argv: readonly string[], io: CliIO = defaultIO()): Pr
       case '--help':
         io.out(cliMessages[lang].usage);
         return EXIT_OK;
+      case 'init':
+        return await runInit(rest, io, lang);
+      case 'library':
+        return await runLibrary(rest, io, lang);
       case 'scaffold':
         return await runScaffold(rest, io, lang);
       case 'usage':
