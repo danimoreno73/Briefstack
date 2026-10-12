@@ -133,7 +133,9 @@ describe('cli: init and library', () => {
 
   it('rejects secrets in Spanish and writes nothing', async () => {
     await main(['init'], capture(dir).io);
-    await writeTree(dir, { 's.md': 'token: "ghp_abcdefghijklmnopqrstuvwxyz0123456789AB"\n' });
+    // Built by concatenation so secret scanners do not flag the repo.
+    const fakeToken = 'ghp' + '_abcdefghijklmnopqrstuvwxyz0123456789AB';
+    await writeTree(dir, { 's.md': `token: "${fakeToken}"\n` });
     const run = capture(dir, { BRIEFSTACK_LANG: 'es' });
     expect(await main(['library', 'add', 'profile', 'keys', '--from', 's.md'], run.io)).toBe(1);
     expect(run.err.join('\n')).toContain('parece contener un secreto (línea 1)');
