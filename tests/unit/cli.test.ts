@@ -108,6 +108,30 @@ describe('cli', () => {
     expect((await stat(path.join(dir, 'out', '.git'))).isDirectory()).toBe(true);
   });
 
+  it('checks a spec without writing anything', async () => {
+    await writeFile(path.join(dir, 'spec.json'), JSON.stringify(specInput()), 'utf8');
+    const ok = capture(dir);
+    expect(await main(['spec', 'check', 'spec.json'], ok.io)).toBe(0);
+    expect(ok.out).toEqual(['Valid spec: Garden planner (garden-planner), template generic, target claude-code, profile balanced.']);
+    expect(await readdir(dir)).toEqual(['spec.json']);
+
+    const failures: [Record<string, unknown>, string][] = [
+      [{ slug: 'Bad Slug' }, 'is not valid'],
+      [{ profile: 'turbo' }, 'Unknown usage profile "turbo"'],
+      [{ template: 'no-such-template' }, 'no-such-template'],
+    ];
+    for (const [override, text] of failures) {
+      await writeFile(path.join(dir, 'bad.json'), JSON.stringify(specInput(override)), 'utf8');
+      const run = capture(dir);
+      expect(await main(['spec', 'check', 'bad.json'], run.io), text).toBe(1);
+      expect(run.err.join('\n')).toContain(text);
+    }
+
+    const usage = capture(dir);
+    expect(await main(['spec', 'check'], usage.io)).toBe(2);
+    expect(await main(['spec', 'validate', 'spec.json'], usage.io)).toBe(2);
+  });
+
   it('explains an invalid spec in Spanish', async () => {
     await writeFile(path.join(dir, 'spec.json'), JSON.stringify(specInput({ slug: 'Bad Slug' })), 'utf8');
     const run = capture(dir, { BRIEFSTACK_LANG: 'es' });

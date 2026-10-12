@@ -27,6 +27,7 @@ import { initSummary, libraryMessages, renderLibraryContext } from './i18n/libra
 import { pathsMessages } from './i18n/paths.js';
 import { resolveLang, systemLocale, type Lang } from './i18n/index.js';
 import { scaffoldMessages } from './i18n/scaffold.js';
+import { specMessages } from './i18n/spec.js';
 import { usageMessages } from './i18n/usage.js';
 import { formatFinding, validateMessages } from './i18n/validate.js';
 import { VERSION } from './index.js';
@@ -44,7 +45,7 @@ import {
   readNote,
 } from './library/index.js';
 import { PACKAGE_ROOT } from './packageRoot.js';
-import { inspectOutputDir, scaffold, type ProtectedDir } from './scaffold/index.js';
+import { inspectOutputDir, loadTemplate, scaffold, type ProtectedDir } from './scaffold/index.js';
 import { readSpec } from './spec/index.js';
 import {
   agentSetting,
@@ -143,10 +144,8 @@ async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Prom
   const spec = await readSpec(specPath);
   const result = await scaffold(spec, outPath, {
     protectedDirs: protectedDirs(paths.libraryDir),
-    templateRoots: [
-      path.join(paths.libraryDir, 'templates'),
-      path.join(PACKAGE_ROOT, 'library', 'templates'),
-    ],
+    templateRoots: templateRoots(paths.libraryDir),
+
     profiles,
     allowNonEmpty: flags.has('--allow-non-empty'),
   });
@@ -217,6 +216,29 @@ async function runPaths(args: readonly string[], io: CliIO, lang: Lang): Promise
   return EXIT_OK;
 }
 
+/** Checks a spec the way `scaffold` will, without writing anything. */
+async function runSpec(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = specMessages[lang];
+  const { positionals } = parseArgs(args, [], lang, [], messages.usage);
+  const [sub, specArg] = positionals;
+  if (sub !== 'check' || positionals.length !== 2 || specArg === undefined) {
+    throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  }
+  const specPath = argPath(io, lang, specArg);
+  const { paths, profiles } = await loadProfiles(io);
+  const spec = await readSpec(specPath);
+  getPreset(profiles, spec.profile);
+  const template = spec.template ?? spec.type;
+  await loadTemplate(template, spec.target, templateRoots(paths.libraryDir));
+  io.out(messages.valid(spec.name, spec.slug, template, spec.target, spec.profile));
+  return EXIT_OK;
+}
+
+/** Personal templates first, then the base ones. */
+const templateRoots = (libraryDir: string): string[] => [
+  path.join(libraryDir, 'templates'),
+  path.join(PACKAGE_ROOT, 'library', 'templates'),
+];
 async function loadProfiles(io: CliIO) {
   const config = await readConfig(configFilePath(io.pathEnv));
   const paths = resolvePaths(config, io.pathEnv);
@@ -530,6 +552,8 @@ export async function main(argv: readonly string[], io: CliIO = defaultIO()): Pr
         return await runLibrary(rest, io, lang);
       case 'paths':
         return await runPaths(rest, io, lang);
+      case 'spec':
+        return await runSpec(rest, io, lang);
       case 'scaffold':
         return await runScaffold(rest, io, lang);
       case 'usage':

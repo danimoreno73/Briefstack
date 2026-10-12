@@ -31,3 +31,16 @@ export function formatSpecIssue(issue: SpecIssue, lang: Lang): string {
   const what = issue.rule === undefined ? issue.message : rules[lang][issue.rule];
   return `${where}: ${what}`;
 }
+
+export const specMessages = defineCatalogue({
+  en: {
+    usage: 'briefstack spec check <spec.json>',
+    valid: (name: string, slug: string, template: string, target: string, profile: string) =>
+      `Valid spec: ${name} (${slug}), template ${template}, target ${target}, profile ${profile}.`,
+  },
+  es: {
+    usage: 'briefstack spec check <spec.json>',
+    valid: (name: string, slug: string, template: string, target: string, profile: string) =>
+      `Spec válida: ${name} (${slug}), plantilla ${template}, destino ${target}, perfil ${profile}.`,
+  },
+});
