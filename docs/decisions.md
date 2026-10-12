@@ -768,3 +768,49 @@ Windows program: `claude -p "/probe"` arrived as
 `C:/Program Files/Git/probe`. Phase 2 launches `claude -p` from Node with
 `execFile` (no shell), which is not affected; anyone scripting it from Git
 Bash needs `MSYS_NO_PATHCONV=1` and then Windows-form paths.
+
+## `/new-project` (H9, 2026-10-12)
+
+### Allow rule for the CLI (user decision, after a docs check and a probe)
+
+The skill and the generator run the CLI as `npm run --silent briefstack -- …`
+(from source: never stale against a build, nothing installed globally). The
+repo's `.claude/settings.json` allows exactly that prefix, for Bash and for
+PowerShell, so a run does not prompt for every CLI call. Generated projects
+still get deny rules only.
+
+Docs (permissions, "Compound commands", read 2026-10-12): "a rule like
+`Bash(safe-cmd *)` won't give it permission to run the command
+`safe-cmd && other-cmd`. The recognized command separators are `&&`, `||`,
+`;`, `|`, `|&`, `&`, and newlines. A rule must match each subcommand
+independently." PowerShell rules split on `|`, `;` and (PowerShell 7+) `&&`
+and `||` the same way. The docs do not say how allow rules treat `$(…)` or
+backticks.
+
+**Probe (Claude Code 2.1.296, Windows 11).** Throwaway folder in the
+session's temp scratchpad: a `package.json` whose `briefstack` script prints
+a line, a `mark.js` that writes a marker file, and the allow rule in
+`.claude/settings.local.json`. `claude -p --model haiku --setting-sources
+project,local`, Bash only, asked to run each command verbatim.
+
+| Command | Result |
+|---|---|
+| `npm run --silent briefstack -- --version` | ran, no prompt |
+| `node mark.js` (control) | denied |
+| `… -- --version && node mark.js` | denied ("multiple operations") |
+| `… ; node mark.js` | denied |
+| `… \| node mark.js` | denied |
+| `…` then newline, `node mark.js` | denied |
+| `… -- $(node mark.js)` | denied ("nested command … can't be checked") |
+| `` … -- `node mark.js` `` | denied (same) |
+| `… -- --version > file` | denied (redirect target needs approval) |
+
+No marker file was ever written. The same rule in a project `settings.json`
+of a folder that was never trusted did not apply at all (even the plain
+command was denied), as the docs say for `permissions.allow`; the briefstack
+repo is a trusted folder, so the rule applies there.
+
+What the rule does allow: any briefstack subcommand with any arguments.
+That covers `scaffold` (which refuses the repo, the library and non-empty
+folders by itself), `usage set` (rewrites agent `model`/`effort`, its job)
+and `library add` (commits to the library repo). A test pins the rule list.

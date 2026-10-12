@@ -2,6 +2,12 @@
   "worktree": {
     "baseRef": "head"
   },
+  "permissions": {
+    "allow": [
+      "Bash(npm run --silent briefstack *)",
+      "PowerShell(npm run --silent briefstack *)"
+    ]
+  },
   "hooks": {
     "SubagentStart": [
       {
