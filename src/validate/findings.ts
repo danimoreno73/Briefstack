@@ -1,4 +1,4 @@
-import type { SpecIssue } from '../spec/index.js';
+import type { ApplicationFileKind, SpecIssue } from '../spec/index.js';
 
 /** Kinds of secret-looking strings `validate` recognises. */
 export const SECRET_KINDS = [
@@ -42,6 +42,7 @@ export interface FindingParams {
   'agent.invalidEffort': { value: string };
   'skill.missingFile': NoParams;
   'claudeMd.tooLong': { lines: number; limit: number };
+  'code.applicationFile': { kind: ApplicationFileKind };
   'secret.found': { kind: SecretKind };
   'path.absolute': { kind: AbsolutePathKind; match: string };
   'link.wikilink': { target: string };
@@ -73,6 +74,7 @@ export const RULE_SEVERITY: { readonly [R in RuleId]: Severity } = {
   'agent.invalidEffort': 'error',
   'skill.missingFile': 'warning',
   'claudeMd.tooLong': 'error',
+  'code.applicationFile': 'error',
   'secret.found': 'error',
   'path.absolute': 'error',
   'link.wikilink': 'error',

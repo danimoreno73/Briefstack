@@ -67,7 +67,21 @@ describe('parseSpec', () => {
       expect.objectContaining({ path: 'directories.1', rule: 'safePath' }),
       expect.objectContaining({ path: 'files.0.path', rule: 'safePath' }),
       expect.objectContaining({ path: 'files.1.path', rule: 'reservedPath' }),
+      expect.objectContaining({ path: 'files.1.path', rule: 'documentOnly' }),
       expect.objectContaining({ path: 'files.2.path', rule: 'safePath' }),
+    ]);
+  });
+
+  it('accepts documents only in files: no application code, tests or build files', () => {
+    const files = (paths: string[]) => specInput({ files: paths.map((path) => ({ path, purpose: 'x' })) });
+    expect(issuesOf(files(['docs/PLAN.md', 'notes/ideas.txt', 'data/tracker.csv', 'README.MD']))).toEqual([]);
+    const issues = issuesOf(files(['src/app.py', 'tests/test_app.py', 'pyproject.toml', 'requirements.txt', 'Makefile']));
+    expect(issues.map((issue) => [issue.path, issue.rule])).toEqual([
+      ['files.0.path', 'documentOnly'],
+      ['files.1.path', 'documentOnly'],
+      ['files.2.path', 'documentOnly'],
+      ['files.3.path', 'documentOnly'],
+      ['files.4.path', 'documentOnly'],
     ]);
   });
 

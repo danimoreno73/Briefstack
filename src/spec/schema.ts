@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isDocumentPath } from './preparation.js';
 
 /**
  * The project spec: written by the architect, approved by the user, read by
@@ -22,6 +23,7 @@ export const SPEC_RULES = [
   'noAgentTool',
   'duplicate',
   'claudeCodeOnly',
+  'documentOnly',
 ] as const;
 export type SpecRule = (typeof SPEC_RULES)[number];
 
@@ -104,8 +106,9 @@ export const ScheduledTaskSpecSchema = z.strictObject({
   prompt: text,
 });
 
+/** briefstack writes documents only; the project's code is written later, inside the project. */
 export const FileSpecSchema = z.strictObject({
-  path: relativePath,
+  path: relativePath.refine(isDocumentPath, rule('documentOnly')),
   purpose: text,
 });
 
@@ -143,11 +146,26 @@ export const SpecSchema = z
     profile: text,
     goal: text,
     audience: text,
-    deliverables: z.array(text).min(1),
+    deliverables: z
+      .array(text)
+      .min(1)
+      .describe(
+        'What the project will produce over its life. Written into the brief; briefstack does not build them.',
+      ),
     constraints: z.array(text).default([]),
-    doneWhen: z.array(text).min(1),
-    directories: z.array(relativePath).default([]),
-    files: z.array(FileSpecSchema).default([]),
+    doneWhen: z
+      .array(text)
+      .min(1)
+      .describe(
+        'When the project itself is finished. Written into the brief; not a check of the folder briefstack prepares.',
+      ),
+    directories: z.array(relativePath).default([]).describe('Empty folders that give the project its structure.'),
+    files: z
+      .array(FileSpecSchema)
+      .default([])
+      .describe(
+        'Documents briefstack writes to prepare the project (.md, .txt, .csv): context, notes, at most a first task plan. Never application code, tests or build files.',
+      ),
     skills: z.array(SkillSpecSchema).default([]),
     agents: z.array(AgentSpecSchema).default([]),
     scheduledTasks: z.array(ScheduledTaskSpecSchema).default([]),

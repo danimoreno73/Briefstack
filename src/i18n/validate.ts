@@ -84,6 +84,8 @@ const rules = defineCatalogue<RuleMessages>({
     'agent.invalidEffort': (p) => `"effort: ${p.value}" is not valid. Use low, medium, high, xhigh or max.`,
     'skill.missingFile': () => 'Skill folder without SKILL.md; Claude Code will not load it.',
     'claudeMd.tooLong': (p) => `CLAUDE.md has ${p.lines} lines; keep it under ${p.limit}.`,
+    'code.applicationFile': (p) =>
+      `Application ${p.kind === 'source' ? 'source code' : 'build file'}: briefstack prepares the project; the project's own work is done later, inside it.`,
     'secret.found': (p) => `Looks like ${secretEn[p.kind]}. Remove it and keep secrets out of the project.`,
     'path.absolute': (p) =>
       `Absolute path from a real machine (${pathEn[p.kind]}): ${p.match}. Use a relative path or one starting with ~.`,
@@ -121,6 +123,8 @@ const rules = defineCatalogue<RuleMessages>({
     'agent.invalidEffort': (p) => `"effort: ${p.value}" no es válido. Usa low, medium, high, xhigh o max.`,
     'skill.missingFile': () => 'Carpeta de skill sin SKILL.md; Claude Code no la cargará.',
     'claudeMd.tooLong': (p) => `CLAUDE.md tiene ${p.lines} líneas; mantenlo por debajo de ${p.limit}.`,
+    'code.applicationFile': (p) =>
+      `${p.kind === 'source' ? 'Código fuente' : 'Archivo de build'} de la aplicación: briefstack prepara el proyecto; el trabajo del proyecto se hace después, dentro de él.`,
     'secret.found': (p) =>
       `Parece ${secretEs[p.kind]}. Elimínala y mantén los secretos fuera del proyecto.`,
     'path.absolute': (p) =>

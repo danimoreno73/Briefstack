@@ -66,7 +66,8 @@
       "items": {
         "type": "string",
         "minLength": 1
-      }
+      },
+      "description": "What the project will produce over its life. Written into the brief; briefstack does not build them."
     },
     "constraints": {
       "default": [],
@@ -82,10 +83,12 @@
       "items": {
         "type": "string",
         "minLength": 1
-      }
+      },
+      "description": "When the project itself is finished. Written into the brief; not a check of the folder briefstack prepares."
     },
     "directories": {
       "default": [],
+      "description": "Empty folders that give the project its structure.",
       "type": "array",
       "items": {
         "type": "string"
@@ -93,6 +96,7 @@
     },
     "files": {
       "default": [],
+      "description": "Documents briefstack writes to prepare the project (.md, .txt, .csv): context, notes, at most a first task plan. Never application code, tests or build files.",
       "type": "array",
       "items": {
         "type": "object",

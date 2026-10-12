@@ -12,6 +12,8 @@ const rules = defineCatalogue<Record<SpecRule, string>>({
     noAgentTool: 'generated agents may not launch other agents',
     duplicate: 'duplicate (names and paths are compared ignoring case)',
     claudeCodeOnly: 'only allowed when target is claude-code',
+    documentOnly:
+      'briefstack writes documents only (.md, .txt, .csv); application code, tests and build files are written later, in the project',
   },
   es: {
     slug: 'usa minúsculas, dígitos y guiones simples (p. ej. mi-proyecto)',
@@ -23,6 +25,8 @@ const rules = defineCatalogue<Record<SpecRule, string>>({
     noAgentTool: 'los agentes generados no pueden lanzar otros agentes',
     duplicate: 'duplicado (los nombres y rutas se comparan sin distinguir mayúsculas)',
     claudeCodeOnly: 'solo se permite cuando target es claude-code',
+    documentOnly:
+      'briefstack solo escribe documentos (.md, .txt, .csv); el código de la aplicación, los tests y los archivos de build se escriben después, en el proyecto',
   },
 });
 

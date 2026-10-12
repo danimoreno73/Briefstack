@@ -3,7 +3,7 @@ import path from 'node:path';
 import { systemPathEnv, type PathEnv } from '../config/paths.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
 import { DENY_RULES } from '../scaffold/secrets.js';
-import { TARGETS, parseSpec, type Target } from '../spec/index.js';
+import { TARGETS, applicationFileKind, parseSpec, type Target } from '../spec/index.js';
 import { checkAgentFile, checkSkillFile } from './agents.js';
 import { compareFindings, finding, type Finding } from './findings.js';
 import { extractLinks, resolvesRelative, resolvesWikilink, type ProjectPaths } from './links.js';
@@ -198,6 +198,9 @@ function scanText(text: string, file: string, paths: ProjectPaths, pathEnv: Path
   return findings;
 }
 
+/** The project's own Claude configuration and briefstack's records: never application code. */
+const PREPARATION_DIRS: readonly string[] = ['.claude/', '.briefstack/'];
+
 const AGENT_FILE_RE = /^\.claude\/agents\/[^/]+\.md$/;
 const SKILL_FILE_RE = /^\.claude\/skills\/[^/]+\/SKILL\.md$/;
 const SKILL_DIR_RE = /^\.claude\/skills\/[^/]+$/;
@@ -272,6 +275,13 @@ export async function validateProject(projectDir: string, options: ValidateOptio
     if (lines >= CLAUDE_MD_LINE_LIMIT) {
       findings.push(finding('claudeMd.tooLong', { lines, limit: CLAUDE_MD_LINE_LIMIT }, { file: 'CLAUDE.md' }));
     }
+  }
+
+  // No application code: briefstack prepares the project, it does not build it.
+  for (const file of tree.files) {
+    if (PREPARATION_DIRS.some((dir) => file.startsWith(dir))) continue;
+    const kind = applicationFileKind(file);
+    if (kind !== undefined) findings.push(finding('code.applicationFile', { kind }, { file }));
   }
 
   // Settings: deny rules only. Checked whenever the file exists.

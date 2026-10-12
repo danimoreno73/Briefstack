@@ -186,6 +186,25 @@ describe('validateProject', () => {
     });
   });
 
+  describe('application code', () => {
+    it('reports source code and build files outside .claude and .briefstack', async () => {
+      const result = await run(
+        await project('claude-code', {
+          'src/fen_check/uci.py': 'print(1)\n',
+          'tests/test_uci.py': 'def test(): pass\n',
+          'pyproject.toml': '[project]\n',
+          'docs/PLAN.md': '# Plan\n',
+          '.claude/skills/notes/scripts/helper.sh': 'echo hi\n',
+        }),
+      );
+      expect(result.findings).toEqual([
+        { rule: 'code.applicationFile', severity: 'error', file: 'pyproject.toml', params: { kind: 'buildFile' } },
+        { rule: 'code.applicationFile', severity: 'error', file: 'src/fen_check/uci.py', params: { kind: 'source' } },
+        { rule: 'code.applicationFile', severity: 'error', file: 'tests/test_uci.py', params: { kind: 'source' } },
+      ]);
+    });
+  });
+
   describe('CLAUDE.md length', () => {
     it('accepts 59 lines and rejects 60', async () => {
       const lines = (count: number) => `${Array.from({ length: count }, (_, i) => `line ${i}`).join('\n')}\n`;

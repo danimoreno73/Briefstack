@@ -3,6 +3,7 @@ import { toJSONSchema, type core } from 'zod';
 import { BriefstackError } from '../errors.js';
 import { SLUG_RE, SPEC_RULES, SpecSchema, type Spec, type SpecRule } from './schema.js';
 
+export * from './preparation.js';
 export * from './schema.js';
 
 /** One problem in a spec. `rule` is set for briefstack's own rules. */
