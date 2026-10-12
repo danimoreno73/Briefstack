@@ -223,6 +223,8 @@ At most two subagents at a time.
 - **After H2 and H4 are committed:** batch 1 = H3 ‖ H5, batch 2 = H6 ‖ H7,
   each in its own worktree. The main session integrates and runs
   build/test/lint after each batch.
+- Integration after batch 1: `scaffold` applies the spec's profile to the
+  generated agents through the H3 code (`usage set --project` logic).
 - Worktrees start from the local `HEAD`: `.claude/settings.json` sets
   `worktree.baseRef: "head"`. The main session passes the expected base SHA
   in each worktree agent's prompt; the agent's first step is

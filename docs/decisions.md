@@ -326,3 +326,47 @@ Conclusion — **changes the plan**: the assumption "subagents cannot spawn
 subagents" is false. None of the five flow agents has the `Agent` tool in its
 `tools` list, so they cannot spawn; the validator should keep it that way for
 flow agents.
+
+## Spec and scaffold (H4, 2026-10-12)
+
+- **Errors are codes, not text.** The library throws `BriefstackError` with a
+  code and parameters; `src/i18n/` renders them. zod's built-in messages use
+  zod's own `en`/`es` locales, which the CLI selects at startup; briefstack's
+  own spec rules carry a rule name and have their own catalogue entries.
+- **Spec shape.** `schemas/spec.schema.json` is generated from the zod schema
+  (`npm run schema`) and a test fails if it drifts. Required: name, slug,
+  summary, language, type, target, profile, goal, audience, deliverables,
+  doneWhen. Optional: template (defaults to type), targetReason, constraints,
+  directories, files, skills, agents, scheduledTasks. Unknown fields are
+  errors, so architect typos surface.
+- **Skills and agents only for `claude-code`.** A desktop app project has no
+  `.claude/` folder to put them in.
+- **Generated agents cannot list `Agent` or `Task`** (enforced in the spec;
+  H5 repeats it in `validate`).
+- **Portable paths.** Spec paths use `/`, no `..`, and nothing Windows
+  rejects (`<>:"|?*`, `CON`, `NUL`, trailing dot or space). Duplicates are
+  compared ignoring case. Paths briefstack writes itself (`.git`,
+  `.briefstack`, `.gitignore`, `.claude/settings*.json`, `.claude/agents`,
+  `.claude/skills`) are reserved.
+- **Templates.** `<root>/<name>/common/` plus `<root>/<name>/<target>/`; the
+  target folder wins on the same path. Personal library templates shadow base
+  ones. `{{key}}` placeholders are filled from the spec; unknown ones are
+  left for the generator. A template `.gitignore` is appended to the base
+  one; other reserved paths in a template are an error.
+- **What the scaffolder writes itself.** `.gitignore`,
+  `.briefstack/profile.json` (profile name and agent tiers),
+  `.briefstack/spec.json`, and for `claude-code`: `.claude/settings.json`
+  (deny rules only), agent files and skill files with frontmatter and the
+  purpose as body. Files listed in the spec but not provided by the template
+  get a heading (`.md`) or are empty.
+- **Agent `model`/`effort`** are not written by `scaffold`; they come from
+  `usage set --project` (H3), which the scaffold will call once H3 is merged.
+- **Safety.** Every check (spec, output folder, template, clashes) runs
+  before the first write; files are opened with `wx`, so an existing file is
+  never overwritten. The output folder is refused if it overlaps the repo or
+  the library in either direction, compared after `realpath` (junctions and
+  symlinks followed) and case-insensitively on Windows and macOS.
+- **Deny rule side effect.** `Read(.env.*)` also blocks files such as
+  `.env.example`. Accepted for now; revisit if generated projects need one.
+- **Sorting** uses code-point order, never `localeCompare`, so output does
+  not depend on the machine's locale.
