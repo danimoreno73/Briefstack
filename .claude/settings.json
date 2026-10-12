@@ -61,6 +61,19 @@
         ]
       }
     ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/scripts/hook-event.mjs"
+            ]
+          }
+        ]
+      }
+    ],
     "PostToolUseFailure": [
       {
         "hooks": [

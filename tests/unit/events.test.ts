@@ -127,6 +127,8 @@ describe('hook script', () => {
       payload({ hook_event_name: 'PostToolUse', agent_id: 'a1', agent_type: 'interviewer', tool_name: 'Read', tool_response: secret }),
       payload({ hook_event_name: 'PostToolUseFailure', tool_name: 'Bash' }),
       payload({ hook_event_name: 'SubagentStop', agent_id: 'a1', agent_type: 'interviewer', last_assistant_message: secret }),
+      payload({ hook_event_name: 'SessionEnd', reason: 'clear' }),
+      payload({ hook_event_name: 'SessionEnd', reason: 'Not a reason!' }),
     ];
     for (const item of payloads) expect((await runHook(item, env)).code).toBe(0);
 
@@ -140,7 +142,10 @@ describe('hook script', () => {
       ['tool.post', 'Read'],
       ['tool.failure', 'Bash'],
       ['subagent.stop', undefined],
+      ['session.end', undefined],
+      ['session.end', undefined],
     ]);
+    expect(events.slice(-2).map((event) => ('reason' in event ? event.reason : undefined))).toEqual(['clear', undefined]);
     expect(events[0]).toMatchObject({ source: 'hook', session: SESSION, agentId: 'a1', agentType: 'interviewer' });
   });
 
@@ -308,6 +313,46 @@ describe('summarizeSession', () => {
   it('treats a session with no events as interrupted', () => {
     expect(summarizeSession([], { now: at(0) }).status).toBe('interrupted');
   });
+
+  const end = (minutes: number, reason?: string): SessionEvent => ({
+    v: 1,
+    ts: at(minutes).toISOString(),
+    session: SESSION,
+    source: 'hook',
+    type: 'session.end',
+    ...(reason === undefined ? {} : { reason }),
+  });
+
+  it('is interrupted at once when Claude Code ends with the flow open', () => {
+    expect(summarizeSession([...opened, end(3, 'clear')], { now: at(4) })).toMatchObject({
+      status: 'interrupted',
+      endReason: 'clear',
+      lastStep: { step: 'interview', phase: 'started' },
+    });
+    expect(summarizeSession([...opened, end(3)], { now: at(4) }).endReason).toBe('other');
+  });
+
+  it('never changes a finished session, whatever ends after it', () => {
+    const cancelled = [...opened, sessionLifecycleEvent(SESSION, 'finished', 'cancelled', at(5)), end(6, 'prompt_input_exit')];
+    const summary = summarizeSession(cancelled, { now: at(7) });
+    expect(summary).toMatchObject({ status: 'finished', outcome: 'cancelled' });
+    expect(summary.endReason).toBeUndefined();
+  });
+
+  it('goes back to the activity rules when the session continues after an end (resumed)', () => {
+    const resumed = [...opened, end(3, 'resume'), flowEvent(SESSION, 'interview', 'finished', 'ok', at(40))];
+    expect(summarizeSession(resumed, { now: at(45) })).toMatchObject({ status: 'in-progress' });
+    expect(summarizeSession(resumed, { now: at(45) }).endReason).toBeUndefined();
+    expect(summarizeSession(resumed, { now: new Date(at(40).getTime() + 121 * 60_000) }).status).toBe('interrupted');
+  });
+
+  it('keeps the inactivity fallback when no end was recorded (window closed)', () => {
+    expect(summarizeSession(opened, { now: at(30) }).status).toBe('in-progress');
+    expect(summarizeSession(opened, { now: new Date(at(2).getTime() + 121 * 60_000) })).toMatchObject({
+      status: 'interrupted',
+    });
+    expect(summarizeSession(opened, { now: new Date(at(2).getTime() + 121 * 60_000) }).endReason).toBeUndefined();
+  });
 });
 
 describe('cli event session', () => {
@@ -360,7 +405,7 @@ describe('repo hook configuration', () => {
       hooks: Record<string, { hooks: { type: string; command: string; args?: string[]; shell?: string }[] }[]>;
     };
     expect(Object.keys(settings.hooks).sort()).toEqual(
-      ['PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'SubagentStart', 'SubagentStop'].sort(),
+      ['PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'SessionEnd', 'SubagentStart', 'SubagentStop'].sort(),
     );
     for (const groups of Object.values(settings.hooks)) {
       expect(groups).toEqual([

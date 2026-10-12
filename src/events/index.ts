@@ -46,6 +46,8 @@ export const HOOK_EVENT_TYPES = [
   'tool.pre',
   'tool.post',
   'tool.failure',
+  /** The Claude Code session ended (`SessionEnd` hook): exit, /clear, logout... */
+  'session.end',
 ] as const;
 export type HookEventType = (typeof HOOK_EVENT_TYPES)[number];
 
@@ -76,6 +78,8 @@ export interface HookEvent extends EventBase {
   agentId?: string;
   agentType?: string;
   tool?: string;
+  /** `session.end` only: Claude Code's reason, e.g. `clear`, `prompt_input_exit`, `other`. */
+  reason?: string;
 }
 
 export type SessionEvent = FlowEvent | SessionLifecycleEvent | HookEvent;
@@ -182,16 +186,24 @@ export interface SessionSummary {
   lastEventAt?: string;
   /** The last flow step reached and whether it had finished. */
   lastStep?: { step: FlowStep; phase: StepPhase };
+  /** Set when the Claude Code session ended with the flow still open (`session.end`). */
+  endReason?: string;
 }
 
 /** Default time without events after which an unfinished session counts as interrupted. */
 export const STALE_AFTER_MINUTES = 120;
 
 /**
- * Classifies a session from its events. A session with `session.finished`
- * is finished. Without it, the session is still in progress if its last
- * event is recent, and interrupted otherwise (Claude Code closed, the user
- * stopped, the machine slept). Used by the phase 3 panel.
+ * Classifies a session from its events. Used by the phase 3 panel.
+ *
+ * 1. With `session.finished` it is finished, with that outcome, whatever
+ *    comes after (a later `session.end` does not change it).
+ * 2. Otherwise, a `session.end` with no activity after it (Claude Code exited
+ *    or was cleared mid-flow) makes it interrupted at once. Activity after
+ *    it (the session was resumed) puts it back under rule 3.
+ * 3. Otherwise it is in progress if its last event is recent, and
+ *    interrupted after `staleAfterMinutes` without events: the fallback for
+ *    endings no hook reports (window closed, process killed, machine slept).
  */
 export function summarizeSession(
   events: readonly SessionEvent[],
@@ -203,12 +215,19 @@ export function summarizeSession(
 
   let last = Number.NEGATIVE_INFINITY;
   let finished: SessionLifecycleEvent | undefined;
+  // The latest `session.end` that nothing but other ends followed, in file order.
+  let openEnd: HookEvent | undefined;
   for (const event of events) {
     const time = Date.parse(event.ts);
     if (Number.isFinite(time) && time >= last) {
       last = time;
       summary.lastEventAt = event.ts;
     }
+    if (event.source === 'hook' && event.type === 'session.end') {
+      openEnd = event;
+      continue;
+    }
+    openEnd = undefined;
     if (event.source !== 'flow') continue;
     if (event.type === 'session.started') summary.startedAt ??= event.ts;
     else if (event.type === 'session.finished') finished = event;
@@ -220,6 +239,9 @@ export function summarizeSession(
   if (finished !== undefined) {
     summary.status = 'finished';
     summary.outcome = finished.outcome ?? 'completed';
+  } else if (openEnd !== undefined) {
+    summary.status = 'interrupted';
+    summary.endReason = openEnd.reason ?? 'other';
   } else if (!Number.isFinite(last) || now.getTime() - last > staleAfterMs) {
     summary.status = 'interrupted';
   }

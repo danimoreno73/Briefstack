@@ -20,7 +20,11 @@ const TYPES = {
   PreToolUse: 'tool.pre',
   PostToolUse: 'tool.post',
   PostToolUseFailure: 'tool.failure',
+  SessionEnd: 'session.end',
 };
+
+// Claude Code's SessionEnd reasons are short snake_case words; anything else is not recorded.
+const REASON_RE = /^[a-z_]{1,32}$/;
 
 // Same rule as SESSION_ID_RE in src/events/index.ts.
 const SESSION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -61,6 +65,9 @@ export function toEvent(payload, now = new Date()) {
   if (typeof payload.agent_id === 'string') event.agentId = payload.agent_id;
   if (agentType !== undefined) event.agentType = agentType;
   if (typeof payload.tool_name === 'string') event.tool = payload.tool_name;
+  if (type === 'session.end' && typeof payload.reason === 'string' && REASON_RE.test(payload.reason)) {
+    event.reason = payload.reason;
+  }
   return event;
 }
 
