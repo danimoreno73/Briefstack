@@ -3,9 +3,12 @@
 // it starts fast on every tool call. Run in exec form, without a shell:
 //   { "type": "command", "command": "node",
 //     "args": ["${CLAUDE_PROJECT_DIR}/scripts/hook-event.mjs"] }
-// It never fails the hook: any problem is swallowed and it exits 0.
+// It records only sessions whose folder already exists (created by
+// `briefstack event session started` in /new-project), so ordinary work in
+// the repo is not logged. It never fails the hook: any problem is swallowed
+// and it exits 0.
 
-import { appendFileSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
+import { appendFileSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -63,8 +66,10 @@ function main() {
     const event = toEvent(payload);
     const home = briefstackHome(process.env);
     if (event === undefined || home === undefined) return;
+    // Only sessions that /new-project opened (briefstack event session started)
+    // are recorded; the hook never creates the folder itself.
     const dir = path.join(home, 'sessions', event.session);
-    mkdirSync(dir, { recursive: true });
+    if (!statSync(dir, { throwIfNoEntry: false })?.isDirectory()) return;
     appendFileSync(path.join(dir, 'events.jsonl'), `${JSON.stringify(event)}\n`, 'utf8');
   } catch {
     // Recording events must never disturb the session.
