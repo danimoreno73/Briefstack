@@ -12,7 +12,14 @@ import { loadTemplate } from './templates.js';
 
 export { buildPlan, templateVars, type ProjectProfile, type ScaffoldPlan } from './plan.js';
 export { DENY_RULES, SECRET_ENV_FILES, isReadDenied, readRuleDenies } from './secrets.js';
-export { checkOutputDir, realpathNearest, type ProtectedDir } from './outputDir.js';
+export {
+  checkOutputDir,
+  inspectOutputDir,
+  realpathNearest,
+  type OutputDirReport,
+  type OutputDirStatus,
+  type ProtectedDir,
+} from './outputDir.js';
 export { loadTemplate, renderTemplate, type Template, type TemplateFile } from './templates.js';
 
 const execFileAsync = promisify(execFile);

@@ -31,16 +31,25 @@ export interface OutputDirState {
   existed: boolean;
 }
 
+/** What `scaffold` would find in an output directory. */
+export type OutputDirStatus = 'missing' | 'empty' | 'nonEmpty' | 'notADirectory' | 'forbidden';
+
+export interface OutputDirReport {
+  /** Absolute output directory as given (not resolved through symlinks). */
+  outDir: string;
+  status: OutputDirStatus;
+  /** The protected folder it overlaps, when `status` is `forbidden`. */
+  overlaps?: ProtectedDir;
+}
+
 /**
- * Refuses an output directory that overlaps a protected folder (either way
- * round, compared after `realpath`), that is a file, or that is a non-empty
- * folder unless `allowNonEmpty` is set.
+ * Inspects an output directory without changing anything. Overlap with a
+ * protected folder is checked either way round, after `realpath`.
  */
-export async function checkOutputDir(
+export async function inspectOutputDir(
   outDir: string,
   protectedDirs: readonly ProtectedDir[],
-  allowNonEmpty: boolean,
-): Promise<OutputDirState> {
+): Promise<OutputDirReport> {
   const absolute = path.resolve(outDir);
   const realOut = await realpathNearest(absolute);
   const pathEnv = systemPathEnv();
@@ -48,11 +57,7 @@ export async function checkOutputDir(
   for (const dir of protectedDirs) {
     const realRoot = await realpathNearest(dir.path);
     if (isPathInside(realOut, realRoot, pathEnv) || isPathInside(realRoot, realOut, pathEnv)) {
-      throw new BriefstackError('scaffold.forbiddenOutput', {
-        outDir: absolute,
-        root: dir.root,
-        rootPath: dir.path,
-      });
+      return { outDir: absolute, status: 'forbidden', overlaps: dir };
     }
   }
 
@@ -60,14 +65,39 @@ export async function checkOutputDir(
   try {
     isDirectory = (await stat(absolute)).isDirectory();
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { outDir: absolute, existed: false };
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { outDir: absolute, status: 'missing' };
     throw error;
   }
-  if (!isDirectory) throw new BriefstackError('scaffold.notADirectory', { outDir: absolute });
-  if (!allowNonEmpty && (await readdir(absolute)).length > 0) {
-    throw new BriefstackError('scaffold.nonEmptyOutput', { outDir: absolute });
+  if (!isDirectory) return { outDir: absolute, status: 'notADirectory' };
+  return { outDir: absolute, status: (await readdir(absolute)).length > 0 ? 'nonEmpty' : 'empty' };
+}
+
+/**
+ * Refuses an output directory that overlaps a protected folder, that is a
+ * file, or that is a non-empty folder unless `allowNonEmpty` is set.
+ */
+export async function checkOutputDir(
+  outDir: string,
+  protectedDirs: readonly ProtectedDir[],
+  allowNonEmpty: boolean,
+): Promise<OutputDirState> {
+  const report = await inspectOutputDir(outDir, protectedDirs);
+  const absolute = report.outDir;
+  switch (report.status) {
+    case 'forbidden': {
+      const dir = report.overlaps as ProtectedDir;
+      throw new BriefstackError('scaffold.forbiddenOutput', { outDir: absolute, root: dir.root, rootPath: dir.path });
+    }
+    case 'notADirectory':
+      throw new BriefstackError('scaffold.notADirectory', { outDir: absolute });
+    case 'nonEmpty':
+      if (!allowNonEmpty) throw new BriefstackError('scaffold.nonEmptyOutput', { outDir: absolute });
+      return { outDir: absolute, existed: true };
+    case 'empty':
+      return { outDir: absolute, existed: true };
+    case 'missing':
+      return { outDir: absolute, existed: false };
   }
-  return { outDir: absolute, existed: true };
 }
 
 /** Relative paths (with `/`) from `paths` that already exist under `outDir`. */
