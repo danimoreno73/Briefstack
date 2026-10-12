@@ -1027,3 +1027,24 @@ Found and fixed:
   when both targets would work, with a recommended default and the reason
   (BRIEF §5 still holds: the architect recommends when the user leaves the
   default).
+
+### Session end from Claude Code (user decision, 2026-10-12)
+
+Rehearsal run C showed a gap: the user rejected the first question with
+Esc, which interrupts the turn, so the skill never ran again and could not
+close the session. Only the inactivity rule would ever mark it.
+
+Hooks docs (read 2026-10-12): `SessionEnd` fires "when a session
+terminates", with `reason` `clear`, `resume`, `logout`,
+`prompt_input_exit` or `other`; `SessionEnd` hooks share a 1.5-second
+budget. The docs read do not say whether closing the terminal window or
+killing the process fires it; run D checks that.
+
+- `.claude/settings.json` also runs the hook script on `SessionEnd`; it
+  records `session.end` with the reason (only if it looks like one), in
+  sessions `/new-project` opened, like every other hook event.
+- `summarizeSession`: a `session.finished` always wins, so a completed or
+  cancelled session never changes; otherwise a `session.end` with no
+  activity after it makes the session `interrupted` at once, with
+  `endReason`; activity after it (a resumed session) goes back to the
+  inactivity rule, which stays as the fallback for endings no hook reports.
