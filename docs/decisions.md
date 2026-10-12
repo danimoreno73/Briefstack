@@ -410,3 +410,59 @@ settings." Claude Code agrees with the unit-test model on every case, and deny
 rules in a project `settings.json` apply in a folder that was never trusted,
 as the docs say. Deny rules cover Claude's file tools and the Bash commands
 Claude Code recognises; a script that opens files itself is not blocked (§8).
+
+## Usage profiles (H3, 2026-10-12)
+
+Built in a worktree from `21befa8`; merged as `ef8715e`, `8eb5824`.
+
+| | saver | balanced (default) | max |
+|---|---|---|---|
+| interviewer | haiku | sonnet | opus |
+| researcher | haiku | haiku | sonnet |
+| architect | sonnet | opus | opus |
+| generator | sonnet | sonnet | opus |
+| reviewer | haiku | sonnet | opus |
+| effort | low | medium | high |
+| expected session model | sonnet | sonnet | opus |
+| tiers light / standard / heavy | haiku / haiku / sonnet | haiku / sonnet / opus | sonnet / opus / opus |
+| research | required-only | when-useful | when-useful |
+| review rounds | 1 | 2 | 3 |
+
+- **Data file:** `{ "default"?, "profiles": { name: preset } }`. `default`
+  names the profile used when the config has no `activeProfile`; a user file
+  may set it and wins; `balanced` is the fallback. Labels are qualitative,
+  in en and es, with no numbers.
+- **Per-agent effort:** an `agents` entry is a model string or
+  `{ model, effort? }`. The five flow agents are required; extra names are
+  allowed.
+- **Validation:** profile names are slugs; a model is any single safe token
+  (alias, `inherit` or full ID), not checked against a list; `reviewRounds`
+  is 1–10.
+- **Which agent a file is:** frontmatter `name`, else the file name. Files a
+  profile does not name are left alone and reported. A file that does not
+  parse stops the run before anything is written.
+- **Generated projects:** each agent gets `tiers[tier]` and the preset's
+  global effort; other fields of `profile.json` are kept; agents listed with
+  no file are reported. A `claude-app` project only gets `profile.json`
+  updated.
+- **Drift check:** `git rev-parse --verify --quiet HEAD`, then
+  `git show HEAD:./<file>` from the agents folder, via `execFile` (no shell).
+  Skipped without git, outside a repo, or with no commits. A file not in
+  `HEAD` is "uncommitted", not drift. `usage show` compares with `HEAD` only,
+  not with the active profile.
+- **Env warnings** fire for any non-empty value of
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` or `CLAUDE_CODE_EFFORT_LEVEL`.
+- **Output:** warnings on stderr. `usage set` (repo) checks the profile
+  exists, rewrites the agents, then saves `activeProfile`; an unknown profile
+  changes nothing. The "do not commit" reminder appears only when files
+  changed. Base presets are always read from the package's `library/`.
+- **Tests never touch the real agent files:** the CLI's agents folder is
+  injectable (`CliIO.repoDir`), and the CLI usage tests assert the real files
+  are byte-identical after each test.
+
+### Lint and worktrees
+
+Agent worktrees live in `.claude/worktrees/` inside the repo. eslint picked
+them up and typescript-eslint failed with "multiple candidate
+TSConfigRootDirs". `eslint.config.js` now ignores `.claude/worktrees/`
+(already in `.gitignore`).
