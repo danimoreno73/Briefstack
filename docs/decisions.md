@@ -898,3 +898,38 @@ Found and fixed:
   subagent ran, two of them after the session closed. They are Claude Code's
   own background agents (inferred: not documented). The hook script now
   skips subagent events without an agent type.
+
+### Rehearsal run A, repeated (2026-10-12)
+
+Same idea, folder `fen-check-2`, after the fixes above.
+
+- The spec listed documents only; `src/` and `tests/` were created empty.
+  The generator took about a minute, the reviewer passed in the first
+  round, the validator had no findings. `research.md` was written and
+  `docs/UCI.md` cites its sources with URLs and confidence levels.
+- The user asked for spec changes; they were applied and checked again.
+- Events: 223 lines, nine steps in order, `completed`, no anonymous
+  subagent events; after the close only the closing command's `tool.post`.
+- Library: project note, session log, lessons and the stated preference
+  were written, each committed.
+
+Found and fixed:
+
+- **A past answer was asked again with a different default**: `library
+  context` gave the interviewer the similar project's note but not its
+  session log, where the answers are. The context now includes the session
+  logs each similar project note links to, and the interviewer proposes a
+  past answer as the default, naming the project. The skill writes each
+  answer in the log so it can be reused.
+- **Double date heading**: the lessons draft brought its own
+  `### 2026-10-12 (…)` heading and `library add` added another, leaving an
+  empty one. An addition's leading date heading is now dropped; the skill
+  no longer writes date headings.
+- **INDEX summary "2026-10-12"** for the preferences note, taken from its
+  first line. Date headings are skipped when a summary is derived, and the
+  skill gives every note a `summary`.
+- **`/model <name>` saves the default for new sessions** (model-config,
+  read 2026-10-12: "Typing `/model <name>` directly behaves like `Enter`",
+  which saves the default; `s` in the picker switches "for this session
+  only"; `--model` "appl[ies] only to the session you launch"). `usage show`
+  and the skill now say so.
