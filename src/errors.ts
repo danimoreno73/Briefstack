@@ -6,6 +6,9 @@ export type FieldExpectation = 'text' | 'lang';
 /** Folders an output directory must stay out of. */
 export type ProtectedRoot = 'repo' | 'library';
 
+/** The part of `settings.local.json` that has the wrong shape. */
+export type SettingsField = 'root' | 'permissions' | 'additionalDirectories';
+
 /**
  * Errors raised by the library. They carry a code and parameters, never
  * user-facing text: callers turn them into messages with `formatError`.
@@ -35,6 +38,18 @@ export interface ErrorParams {
   'usage.invalidProjectProfile': { file: string; issues: string[] };
   'validate.projectNotFound': { dir: string };
   'validate.notADirectory': { dir: string };
+  'init.settingsInvalidJson': { file: string; detail: string };
+  'init.settingsInvalidShape': { file: string; field: SettingsField };
+  'library.notInitialised': { dir: string };
+  'library.unknownSection': { section: string; available: string[] };
+  'library.invalidName': { name: string };
+  'library.nameRequired': { section: string };
+  'library.nameNotAllowed': { section: string };
+  'library.fileNotFound': { file: string };
+  'library.emptyContent': { file: string };
+  'library.secretContent': { file: string; lines: number[] };
+  'library.noteNotFound': { section: string; name: string };
+  'library.invalidProjectStatus': { file: string; issues: string[] };
 }
 
 export type ErrorCode = keyof ErrorParams;

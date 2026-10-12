@@ -4,6 +4,7 @@ import type {
   ErrorParams,
   FieldExpectation,
   ProtectedRoot,
+  SettingsField,
 } from '../errors.js';
 import { defineCatalogue, type Lang } from './index.js';
 import { formatSpecIssue } from './spec.js';
@@ -24,6 +25,17 @@ const rootEn: Record<ProtectedRoot, string> = {
 const rootEs: Record<ProtectedRoot, string> = {
   repo: 'el repo de briefstack',
   library: 'la biblioteca personal',
+};
+
+const settingsFieldEn: Record<SettingsField, string> = {
+  root: 'the file must contain a JSON object',
+  permissions: '"permissions" must be an object',
+  additionalDirectories: '"permissions.additionalDirectories" must be a list of paths',
+};
+const settingsFieldEs: Record<SettingsField, string> = {
+  root: 'el archivo debe contener un objeto JSON',
+  permissions: '"permissions" debe ser un objeto',
+  additionalDirectories: '"permissions.additionalDirectories" debe ser una lista de rutas',
 };
 
 const bullets = (lines: readonly string[]): string => lines.map((line) => `\n  - ${line}`).join('');
@@ -67,6 +79,25 @@ const errors = defineCatalogue<ErrorMessages>({
     'usage.invalidProjectProfile': (p) => `Project profile ${p.file} is not valid:${bullets(p.issues)}`,
     'validate.projectNotFound': (p) => `Project folder not found: ${p.dir}`,
     'validate.notADirectory': (p) => `${p.dir} is not a folder.`,
+    'init.settingsInvalidJson': (p) =>
+      `${p.file} is not valid JSON, so it was left untouched: ${p.detail}`,
+    'init.settingsInvalidShape': (p) =>
+      `${p.file} was left untouched: ${settingsFieldEn[p.field]}.`,
+    'library.notInitialised': (p) =>
+      `No personal library at ${p.dir}. Run "briefstack init" first.`,
+    'library.unknownSection': (p) =>
+      `Unknown library section "${p.section}". Available: ${p.available.join(', ')}.`,
+    'library.invalidName': (p) =>
+      `"${p.name}" is not a valid note name: use lowercase letters, digits and single hyphens.`,
+    'library.nameRequired': (p) => `Section "${p.section}" needs a note name.`,
+    'library.nameNotAllowed': (p) => `Section "${p.section}" is a single note; leave out the name.`,
+    'library.fileNotFound': (p) => `File not found: ${p.file}`,
+    'library.emptyContent': (p) => `${p.file} has no content to add.`,
+    'library.secretContent': (p) =>
+      `${p.file} looks like it contains a secret (line ${p.lines.join(', ')}). Nothing was written; remove it and try again.`,
+    'library.noteNotFound': (p) => `No note "${p.name}" in ${p.section}.`,
+    'library.invalidProjectStatus': (p) =>
+      `The project status in ${p.file} is not valid:${bullets(p.issues)}`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -109,6 +140,25 @@ const errors = defineCatalogue<ErrorMessages>({
       `El perfil del proyecto ${p.file} no es válido:${bullets(p.issues)}`,
     'validate.projectNotFound': (p) => `No se encuentra la carpeta del proyecto: ${p.dir}`,
     'validate.notADirectory': (p) => `${p.dir} no es una carpeta.`,
+    'init.settingsInvalidJson': (p) =>
+      `${p.file} no es JSON válido, así que no se ha tocado: ${p.detail}`,
+    'init.settingsInvalidShape': (p) =>
+      `${p.file} no se ha tocado: ${settingsFieldEs[p.field]}.`,
+    'library.notInitialised': (p) =>
+      `No hay biblioteca personal en ${p.dir}. Ejecuta antes "briefstack init".`,
+    'library.unknownSection': (p) =>
+      `Sección de la biblioteca desconocida "${p.section}". Disponibles: ${p.available.join(', ')}.`,
+    'library.invalidName': (p) =>
+      `"${p.name}" no es un nombre de nota válido: usa minúsculas, dígitos y guiones simples.`,
+    'library.nameRequired': (p) => `La sección "${p.section}" necesita un nombre de nota.`,
+    'library.nameNotAllowed': (p) => `La sección "${p.section}" es una sola nota; no indiques nombre.`,
+    'library.fileNotFound': (p) => `No se encuentra el archivo: ${p.file}`,
+    'library.emptyContent': (p) => `${p.file} no tiene contenido que añadir.`,
+    'library.secretContent': (p) =>
+      `${p.file} parece contener un secreto (línea ${p.lines.join(', ')}). No se ha escrito nada; quítalo y vuelve a intentarlo.`,
+    'library.noteNotFound': (p) => `No hay ninguna nota "${p.name}" en ${p.section}.`,
+    'library.invalidProjectStatus': (p) =>
+      `El estado del proyecto en ${p.file} no es válido:${bullets(p.issues)}`,
   },
 });
 
