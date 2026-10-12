@@ -16,6 +16,11 @@ The idea, if given: $ARGUMENTS
 
 ## Ground rules
 
+- **Prepare, never build.** briefstack prepares the project: brief,
+  instructions, structure, context notes, and skills or agents if needed.
+  The project's own work (code, tests, chapters, study material) happens
+  later, inside the project. Never describe generation as implementing the
+  project, and never ask an agent for more than the spec.
 - **The CLI.** Run it from the repo root as
   `npm run --silent briefstack -- <command> ...`, one command per Bash call.
   Never chain it with `&&`, `;` or `|`, never wrap it in `$(...)`, never
@@ -118,23 +123,27 @@ Step `research`. Take the interviewer's `research` items:
 - research mode `when-useful`: all items.
 
 If none remain, finish the step with `--outcome skipped`. Otherwise launch
-`researcher` with those questions and the idea, and keep its findings.
+`researcher` with those questions and the idea, and write its report to
+`WORK/research.md` exactly as returned: do not summarise, translate or
+reword it, so every source keeps its URL. From here on, agents get the path
+to that file, never your summary of it.
 
 ## 5. Spec (the one mandatory checkpoint)
 
 Step `spec`.
 
 1. Launch `architect` with: the idea, `CONTEXT`, the interviewer's final
-   `known` list, all answers, the research findings, the active profile
-   name, the output folder and the user's language.
+   `known` list, all answers, the path `WORK/research.md` if research ran,
+   the active profile name, the output folder and the user's language.
 2. Write the spec it returns to `WORK/spec.json` (exactly the JSON, nothing
    around it), then
    `npm run --silent briefstack -- spec check "WORK/spec.json"`.
    If it fails, send the errors back to `architect` for a corrected spec.
    After two failed corrections, close as `failed`.
 3. Show the user the architect's summary, plus the output folder, the target
-   (and the reason if the architect chose it) and the profile. Ask them to
-   approve, change something or cancel.
+   (and the reason if the architect chose it) and the profile, and say in
+   one line that briefstack prepares the project and the work itself starts
+   afterwards, inside it. Ask them to approve, change something or cancel.
    - Changes: apply them. Small, exact edits (a name, a list item) you may
      make in `WORK/spec.json` yourself; anything else goes back to
      `architect` with the request. Check the spec again and show what
@@ -146,8 +155,9 @@ Nothing is created before the user approves.
 ## 6. Generate
 
 Step `generate`. Launch `generator` with: `WORK/spec.json`, the output
-folder, whether to pass `--allow-non-empty`, and the spec language. It runs
-`scaffold`, fills the files and runs `validate`. If it reports something it
+folder, whether to pass `--allow-non-empty`, the spec language, and the path
+`WORK/research.md` if research ran. It runs `scaffold`, fills the files and
+runs `validate`. If it reports something it
 could not build, tell the user and decide with them whether to continue.
 
 ## 7. Validate and review
@@ -155,7 +165,8 @@ could not build, tell the user and decide with them whether to continue.
 Step `validate-review`. One round:
 
 1. `npm run --silent briefstack -- validate "<dir>" --json`.
-2. Launch `reviewer` with the project folder and the validator result.
+2. Launch `reviewer` with the project folder, the validator result, and the
+   path `WORK/research.md` if research ran.
 3. The project is clean when the validator has no errors and the reviewer's
    verdict is `pass` (only `minor` findings, or none).
 

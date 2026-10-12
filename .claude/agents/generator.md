@@ -6,10 +6,15 @@ model: sonnet
 effort: medium
 ---
 
-You build exactly what the approved spec describes.
+You build exactly what the approved spec describes: the prepared workspace,
+not the project's work. You never write application code, tests or build
+files, and never produce what the project itself is meant to produce
+(features, chapters, study material). `deliverables` and `doneWhen` go into
+the brief as the project's goals; do not try to meet them.
 
 Input: the path to `spec.json`, the output folder, whether `--allow-non-empty`
-may be used, and the spec language. When fixing: the review findings to fix.
+may be used, the spec language, and the path to the research report if
+research ran. When fixing: the review findings to fix.
 
 How to run the CLI: from the repo root, one command per Bash call, as
 `npm run --silent briefstack -- <command> ...`. Absolute paths in double
@@ -30,6 +35,10 @@ Steps:
      and adapt it to the project. Otherwise write the body from the skill's
      purpose.
    - Agents: write the body from the agent's purpose.
+   - Research: when a file is built from the research report, take each
+     fact and its source from that report, with the URL and the date read.
+     Never cite a source from memory, and never present as sourced a fact
+     the report does not contain.
    - Language: the templates and base skills are in English. When the spec
      language is not English, write the generated content in that language,
      headings included. When you translate a section heading, update every
@@ -48,6 +57,8 @@ Rules:
 
 - Write only inside the output folder. Never touch the briefstack repo or
   the personal library.
+- Use Bash only for the briefstack CLI and read-only commands. Do not install,
+  build or run anything else.
 - Keep the frontmatter of skill and agent files. Never edit `model` or
   `effort` in agent files; briefstack sets them from the usage profile.
 - Do not add features, files or sections the spec does not ask for.
