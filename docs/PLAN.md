@@ -31,16 +31,36 @@ continuing.
 ### Left
 
 - **H10** — real end-to-end run of `/new-project` that the user accepts, and
-  the `/tasks` check. Phase 1 is not done before this. Differences from the
-  rehearsal:
-  - The real home: no `BRIEFSTACK_HOME`, so `init` creates
-    `~/.briefstack/library` and `~/briefstack-projects` and recreates
-    `.claude/settings.local.json` (deleted after the rehearsal; it only held
-    the temp entries). Restart Claude Code after `init`.
-  - Start Claude Code with `claude --model <session model>` (or `/model`,
-    `s`), so the user's default model is not changed.
-  - While a flow agent runs, `/tasks` must show its model and effort as in
-    the active profile (item 9 below).
+  the `/tasks` check. Phase 1 is not done before this. The user runs it in
+  a terminal; a main session in another terminal inspects after each step.
+  Steps and what to check:
+  1. **New PowerShell, real home.** `cd` to the repo; `$env:BRIEFSTACK_HOME`
+     must be empty (no rehearsal value). Check: `npm run briefstack -- paths`
+     shows `~/.briefstack` and `~/briefstack-projects`, library missing.
+  2. **`npm run briefstack -- init`.** Check: `~/.briefstack/library` is a git
+     repo with one commit; `~/briefstack-projects` and
+     `~/.briefstack/sessions` exist; `.claude/settings.local.json` is
+     recreated with exactly those two folders and is git-ignored.
+  3. **`claude --model sonnet`** in the repo (session only; `/model sonnet`
+     would change the default), then Shift+Tab to "accept edits". Check:
+     `! npm run --silent briefstack -- usage show` says `balanced`, session
+     model sonnet, no drift or env warning.
+  4. **`/new-project <a real idea>`**, answering the interview and approving
+     the spec. Check during the run: no permission prompt except web
+     requests; the session folder gets `idea.md`, `spec.json` (and
+     `research.md` if research runs); the spec lists documents only.
+  5. **`/tasks` while a flow agent runs** (item 9). Check: each agent's row
+     shows the model and effort of `balanced` (interviewer sonnet,
+     researcher haiku, architect opus, generator sonnet, reviewer sonnet,
+     all medium). Record what it shows in `decisions.md`.
+  6. **After the hand-off.** Check: validator clean; reviewer pass or only
+     minor findings; one commit in the project and a clean tree; library
+     notes (project, log, lessons, preferences) committed; `events.jsonl`
+     with the nine steps and `session.finished` `completed`.
+  7. **Acceptance.** The user opens the project (`claude` in the folder, or
+     `NEXT_STEPS.md` for `claude-app`) and says whether they would work
+     with it. Phase 1 is done only when they accept it; then update this
+     Status.
 
 ### Verified in real runs (H9 rehearsal, `decisions.md` has the detail)
 
@@ -85,7 +105,6 @@ continuing.
   (`allowScripts`); tests and tsx work anyway.
 - Commit `75f3497` alone has failing hook tests; `281e85c` fixes them.
 - `C:\c` from the H8 incident: the user deletes it by hand.
-- The rehearsal data stays in `<temp>/briefstack-rehearsal` (temp folder).
 
 ### Working rules learned in this phase
 
