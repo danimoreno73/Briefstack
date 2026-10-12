@@ -64,13 +64,17 @@ one concern each.
 ### Events
 
 - Written to `~/.briefstack/sessions/<session_id>/events.jsonl`, append-only.
-- Flow steps (started/finished) are emitted by the skill via
+- Flow steps (started/finished) and the session itself
+  (`session started|finished`) are emitted by the skill via
   `briefstack event`. Subagent start/stop and tool use come from hooks that
-  run a cross-platform Node script, never a POSIX shell script:
-  `node "${CLAUDE_PROJECT_DIR}/scripts/hook-event.mjs"`.
-- The hooks are declared in the `/new-project` `SKILL.md` frontmatter, not in
-  `.claude/settings.json`, so nothing is recorded while developing
-  briefstack. They register when the skill runs and stay for that session.
+  run a cross-platform Node script in exec form (no shell):
+  `node` + `${CLAUDE_PROJECT_DIR}/scripts/hook-event.mjs`.
+- The hooks are in `.claude/settings.json` (H8 decision, replacing the H0
+  one: skill hooks miss subagent activity). The script records only sessions
+  whose folder exists, and only `briefstack event` creates it, so nothing is
+  recorded while developing briefstack.
+- A session without `session finished` and without recent activity is
+  "interrupted" (`summarizeSession`), for the phase 3 panel.
 - Subagent attribution uses `agent_id` and `agent_type` from the hook payload.
 
 ### Learning
@@ -209,7 +213,7 @@ passing.
 | H6 | Library: `init/add/list/show/context`, INDEX, wikilinks, git; `init` also updates `settings.local.json` | Tests in a temp dir + learning test; merge test for `settings.local.json` |
 | H7 | Base templates, base skills, 3 fixtures | 3 specs × 2 targets scaffold and validate cleanly |
 | H8 | Events: `briefstack event` + hook script | jsonl writer test; manual check that subagent events arrive |
-| H9 | `/new-project` skill + agent body adjustments | Guided rehearsal with the user |
+| H9 | `/new-project` skill + agent body adjustments; the skill opens the session first (`event session started --session ${CLAUDE_SESSION_ID}`) and closes it on every way out (completed, cancelled, failed) | Guided rehearsal with the user, including a cancelled run that shows as finished/cancelled and an aborted one that shows as interrupted |
 | H10 | Real end-to-end run + `/tasks` check | User accepts the generated project. Phase 1 is not done before this |
 
 ## 5. Parallel work
