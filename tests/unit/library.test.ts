@@ -1,0 +1,335 @@
+import { execFileSync } from 'node:child_process';
+import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  addNote,
+  buildLibraryContext,
+  initLibrary,
+  listNotes,
+  readNote,
+  readProjectStatus,
+} from '../../src/library/index.js';
+import { renderLibraryContext } from '../../src/i18n/library.js';
+import { resolvesWikilink } from '../../src/validate/links.js';
+import { BriefstackError } from '../../src/errors.js';
+import { tempDir, useHermeticGit, writeTree } from '../helpers.js';
+
+useHermeticGit();
+
+function git(cwd: string, args: string[]): string {
+  return execFileSync('git', args, { cwd, encoding: 'utf8' });
+}
+
+async function allFiles(root: string, relative = ''): Promise<string[]> {
+  const files: string[] = [];
+  for (const entry of await readdir(path.join(root, relative), { withFileTypes: true })) {
+    if (entry.name === '.git') continue;
+    const child = relative === '' ? entry.name : `${relative}/${entry.name}`;
+    if (entry.isDirectory()) files.push(...(await allFiles(root, child)));
+    else files.push(child);
+  }
+  return files.sort();
+}
+
+describe('personal library', () => {
+  let dir: string;
+  let cleanup: () => Promise<void>;
+  let libraryDir: string;
+  let projectsDir: string;
+  let repoDir: string;
+  const now = new Date('2026-10-12T10:00:00Z');
+
+  const init = () => initLibrary({ libraryDir, projectsDir, repoDir });
+  const source = async (name: string, text: string): Promise<string> => {
+    const file = path.join(dir, 'input', name);
+    await writeTree(path.join(dir, 'input'), { [name]: text });
+    return file;
+  };
+  const read = (relative: string) => readFile(path.join(libraryDir, ...relative.split('/')), 'utf8');
+  const settingsFile = () => path.join(repoDir, '.claude', 'settings.local.json');
+
+  beforeEach(async () => {
+    ({ dir, cleanup } = await tempDir('library'));
+    libraryDir = path.join(dir, 'home', 'library');
+    projectsDir = path.join(dir, 'projects');
+    repoDir = path.join(dir, 'repo');
+  });
+  afterEach(() => cleanup());
+
+  describe('init', () => {
+    it('creates the tree, a git repo with one commit, the projects folder and the settings entry', async () => {
+      const result = await init();
+      expect(result.created).toEqual([
+        './',
+        'profile/',
+        'templates/',
+        'skills/',
+        'projects/',
+        'log/',
+        'INDEX.md',
+        'lessons.md',
+        'log/INDEX.md',
+      ]);
+      expect(result.warnings).toEqual([]);
+      expect(result.gitInitialised).toBe(true);
+      expect(result.committed).toBe(true);
+      expect(result.projectsDirCreated).toBe(true);
+      expect((await stat(projectsDir)).isDirectory()).toBe(true);
+      expect(git(libraryDir, ['log', '--format=%s|%an']).trim()).toBe('library: initialise|briefstack');
+      expect(git(libraryDir, ['status', '--porcelain']).trim()).toBe('');
+
+      const entry = projectsDir.replace(/\\/g, '/');
+      expect(result.settings).toEqual({ file: settingsFile(), entry, added: true });
+      expect(JSON.parse(await readFile(settingsFile(), 'utf8'))).toEqual({
+        permissions: { additionalDirectories: [entry] },
+      });
+    });
+
+    it('changes nothing on a second run and never overwrites files', async () => {
+      await init();
+      await writeFile(path.join(libraryDir, 'lessons.md'), '# Mine\n', 'utf8');
+      const settingsBefore = await readFile(settingsFile(), 'utf8');
+
+      const again = await init();
+      expect(again.created).toEqual([]);
+      expect(again.gitInitialised).toBe(false);
+      expect(again.committed).toBe(false);
+      expect(again.projectsDirCreated).toBe(false);
+      expect(again.settings.added).toBe(false);
+      expect(await read('lessons.md')).toBe('# Mine\n');
+      expect(await readFile(settingsFile(), 'utf8')).toBe(settingsBefore);
+      expect(git(libraryDir, ['rev-list', '--count', 'HEAD']).trim()).toBe('1');
+    });
+
+    it('fills in missing files of an existing library', async () => {
+      await writeTree(libraryDir, { 'INDEX.md': '# My index\n' });
+      const result = await init();
+      expect(result.created).not.toContain('./');
+      expect(result.created).not.toContain('INDEX.md');
+      expect(await read('INDEX.md')).toBe('# My index\n');
+    });
+
+    it('merges with an existing settings.local.json', async () => {
+      await writeTree(repoDir, {
+        '.claude/settings.local.json': JSON.stringify({
+          permissions: { allow: ['Read'], additionalDirectories: ['/elsewhere'] },
+          model: 'x',
+        }),
+      });
+      await init();
+      expect(JSON.parse(await readFile(settingsFile(), 'utf8'))).toEqual({
+        permissions: { allow: ['Read'], additionalDirectories: ['/elsewhere', projectsDir.replace(/\\/g, '/')] },
+        model: 'x',
+      });
+    });
+
+    it('stops before creating anything when settings.local.json is invalid', async () => {
+      await writeTree(repoDir, { '.claude/settings.local.json': '{ broken' });
+      await expect(init()).rejects.toMatchObject({ code: 'init.settingsInvalidJson' });
+      expect(await readFile(settingsFile(), 'utf8')).toBe('{ broken');
+      await expect(stat(libraryDir)).rejects.toThrow();
+    });
+  });
+
+  describe('add', () => {
+    beforeEach(async () => {
+      await init();
+    });
+
+    it('creates a note, indexes it and commits', async () => {
+      const from = await source('style.md', '---\nsummary: Prefers short answers.\n---\n# Style\n\nShort answers, no fluff.\n');
+      const result = await addNote({ libraryDir, section: 'profile', name: 'style', fromFile: from, now });
+      expect(result).toMatchObject({ action: 'created', file: 'profile/style.md', indexUpdated: true, committed: true });
+      expect(await read('profile/style.md')).toBe('# Style\n\nShort answers, no fluff.\n');
+      expect(await read('INDEX.md')).toContain('## Profile\n\n- [[profile/style]] — Prefers short answers.\n');
+      expect(git(libraryDir, ['log', '-1', '--format=%s']).trim()).toBe('library: add profile/style');
+      expect(git(libraryDir, ['status', '--porcelain']).trim()).toBe('');
+    });
+
+    it('appends to an existing note and commits again', async () => {
+      const first = await source('a.md', '# Tools\n\nUses VS Code.\n');
+      const second = await source('b.md', 'Prefers pnpm.\n');
+      await addNote({ libraryDir, section: 'profile', name: 'tools', fromFile: first, now });
+      const result = await addNote({ libraryDir, section: 'profile', name: 'tools', fromFile: second, now });
+      expect(result.action).toBe('appended');
+      expect(result.indexUpdated).toBe(false);
+      expect(await read('profile/tools.md')).toBe('# Tools\n\nUses VS Code.\n\nPrefers pnpm.\n');
+      expect(await read('INDEX.md')).toContain('- [[profile/tools]] — Tools\n');
+      expect(git(libraryDir, ['log', '--format=%s']).trim().split('\n')).toEqual([
+        'library: update profile/tools',
+        'library: add profile/tools',
+        'library: initialise',
+      ]);
+    });
+
+    it('uses the configured git identity when there is one', async () => {
+      git(libraryDir, ['config', 'user.name', 'Ana']);
+      git(libraryDir, ['config', 'user.email', 'ana@example.org']);
+      await addNote({ libraryDir, section: 'skills', name: 'review', fromFile: await source('s.md', 'Review steps.\n'), now });
+      expect(git(libraryDir, ['log', '-1', '--format=%an']).trim()).toBe('Ana');
+    });
+
+    it('appends lessons to lessons.md without a name', async () => {
+      const from = await source('l.md', '- Do not ask for the language twice.\n');
+      const result = await addNote({ libraryDir, section: 'lessons', fromFile: from, now });
+      expect(result).toMatchObject({ action: 'appended', file: 'lessons.md', committed: true });
+      expect(await read('lessons.md')).toMatch(/at the end\.\n\n- Do not ask for the language twice\.\n$/);
+    });
+
+    it('keeps a log index, newest first', async () => {
+      await addNote({ libraryDir, section: 'log', name: '2026-10-01-garden', fromFile: await source('1.md', '# Garden session\n'), now });
+      await addNote({ libraryDir, section: 'log', name: '2026-10-12-novel', fromFile: await source('2.md', '# Novel session\n'), now });
+      const logIndex = await read('log/INDEX.md');
+      expect(logIndex.indexOf('[[log/2026-10-12-novel]]')).toBeLessThan(logIndex.indexOf('[[log/2026-10-01-garden]]'));
+      expect(await read('INDEX.md')).not.toContain('2026-10-01-garden');
+      const notes = await listNotes(libraryDir, 'log');
+      expect(notes.map((note) => note.name)).toEqual(['2026-10-01-garden', '2026-10-12-novel']);
+    });
+
+    it('writes and updates the project status block', async () => {
+      const created = await source(
+        'p.md',
+        '---\ntarget: claude-app\npath: ~/briefstack-projects/garden\nstatus: created\nprofile: saver\nsummary: Garden planner for a small plot.\n---\n# Garden\n',
+      );
+      const result = await addNote({ libraryDir, section: 'projects', name: 'garden', fromFile: created, now });
+      expect(result.status).toEqual({
+        statusFormat: 1,
+        slug: 'garden',
+        target: 'claude-app',
+        path: '~/briefstack-projects/garden',
+        status: 'created',
+        profile: 'saver',
+        updated: '2026-10-12',
+        summary: 'Garden planner for a small plot.',
+      });
+      expect(await read('INDEX.md')).toContain('- [[projects/garden]] — Garden planner for a small plot.');
+
+      const later = new Date('2026-11-02T00:00:00Z');
+      await addNote({ libraryDir, section: 'projects', name: 'garden', fromFile: await source('q.md', '---\nstatus: active\n---\nFirst harvest.\n'), now: later });
+      const text = await read('projects/garden.md');
+      expect(readProjectStatus(text, 'garden.md')).toEqual({
+        ok: true,
+        status: { ...result.status, status: 'active', updated: '2026-11-02' },
+      });
+      expect(text).toMatch(/# Garden\n\nFirst harvest\.\n$/);
+    });
+
+    it('refuses a project note without the required status fields', async () => {
+      const from = await source('p.md', '---\ntarget: claude-code\n---\n# X\n');
+      await expect(addNote({ libraryDir, section: 'projects', name: 'x', fromFile: from, now })).rejects.toMatchObject({
+        code: 'library.invalidProjectStatus',
+      });
+      await expect(stat(path.join(libraryDir, 'projects', 'x.md'))).rejects.toThrow();
+    });
+
+    it('rejects secrets and writes nothing', async () => {
+      const before = await allFiles(libraryDir);
+      const indexBefore = await read('INDEX.md');
+      const from = await source('s.md', '# Keys\n\nANTHROPIC_API_KEY=sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789\n');
+      const error = await addNote({ libraryDir, section: 'profile', name: 'keys', fromFile: from, now }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(BriefstackError);
+      expect(error).toMatchObject({ code: 'library.secretContent', params: { lines: [3] } });
+      expect(await allFiles(libraryDir)).toEqual(before);
+      expect(await read('INDEX.md')).toBe(indexBefore);
+      expect(git(libraryDir, ['rev-list', '--count', 'HEAD']).trim()).toBe('1');
+    });
+
+    it('rejects bad sections, names and missing files', async () => {
+      const from = await source('a.md', 'x\n');
+      await expect(addNote({ libraryDir, section: 'nope', name: 'a', fromFile: from })).rejects.toMatchObject({ code: 'library.unknownSection' });
+      await expect(addNote({ libraryDir, section: 'profile', name: 'Bad Name', fromFile: from })).rejects.toMatchObject({ code: 'library.invalidName' });
+      await expect(addNote({ libraryDir, section: 'profile', name: '../x', fromFile: from })).rejects.toMatchObject({ code: 'library.invalidName' });
+      await expect(addNote({ libraryDir, section: 'profile', fromFile: from })).rejects.toMatchObject({ code: 'library.nameRequired' });
+      await expect(addNote({ libraryDir, section: 'lessons', name: 'x', fromFile: from })).rejects.toMatchObject({ code: 'library.nameNotAllowed' });
+      await expect(addNote({ libraryDir, section: 'profile', name: 'a', fromFile: path.join(dir, 'none.md') })).rejects.toMatchObject({ code: 'library.fileNotFound' });
+      await expect(addNote({ libraryDir, section: 'profile', name: 'a', fromFile: await source('e.md', '---\nsummary: x\n---\n\n') })).rejects.toMatchObject({ code: 'library.emptyContent' });
+    });
+
+    it('needs an initialised library', async () => {
+      const from = await source('a.md', 'x\n');
+      await expect(addNote({ libraryDir: path.join(dir, 'other'), section: 'profile', name: 'a', fromFile: from })).rejects.toMatchObject({ code: 'library.notInitialised' });
+    });
+
+    it('keeps every wikilink in the index resolvable', async () => {
+      await addNote({ libraryDir, section: 'profile', name: 'style', fromFile: await source('a.md', 'Short.\n'), now });
+      await addNote({ libraryDir, section: 'skills', name: 'triage', fromFile: await source('b.md', 'Triage.\n'), now });
+      await addNote({ libraryDir, section: 'log', name: '2026-10-12-a', fromFile: await source('c.md', 'Session.\n'), now });
+      const files = await allFiles(libraryDir);
+      const paths = { files, directories: [] };
+      const links = [...(await read('INDEX.md')).matchAll(/\[\[([^\]]+)\]\]/g), ...(await read('log/INDEX.md')).matchAll(/\[\[([^\]]+)\]\]/g)].map((m) => m[1] ?? '');
+      expect(links.length).toBeGreaterThanOrEqual(5);
+      for (const link of links) expect(resolvesWikilink(link, paths), link).toBe(true);
+    });
+  });
+
+  describe('list and show', () => {
+    it('lists notes with their index summary and shows one', async () => {
+      await init();
+      await addNote({ libraryDir, section: 'profile', name: 'style', fromFile: await source('a.md', '---\nsummary: Short.\n---\nShort answers.\n'), now });
+      const all = await listNotes(libraryDir);
+      expect(all.map((note) => [note.file, note.summary])).toEqual([
+        ['profile/style.md', 'Short.'],
+        ['lessons.md', 'What was over-asked and what the user corrected.'],
+      ]);
+      expect((await readNote(libraryDir, 'profile', 'style')).text).toBe('Short answers.\n');
+      expect((await readNote(libraryDir, 'lessons')).file).toBe('lessons.md');
+      await expect(readNote(libraryDir, 'profile', 'none')).rejects.toMatchObject({ code: 'library.noteNotFound' });
+    });
+
+    it('lists nothing for a missing library', async () => {
+      expect(await listNotes(libraryDir)).toEqual([]);
+    });
+  });
+
+  describe('context', () => {
+    it('works on a missing library', async () => {
+      const idea = await source('idea.md', 'A garden planner.\n');
+      const context = await buildLibraryContext({ libraryDir, ideaFile: idea });
+      expect(context.exists).toBe(false);
+      expect(renderLibraryContext(context, 'en')).toContain('No personal library at');
+      expect(renderLibraryContext(context, 'es')).toContain('Aún no hay biblioteca personal');
+    });
+
+    it('works on an empty library', async () => {
+      await init();
+      const context = await buildLibraryContext({ libraryDir, ideaFile: await source('idea.md', 'A garden planner.\n') });
+      const text = renderLibraryContext(context, 'en');
+      expect(text).toContain('## Library index (INDEX.md)');
+      expect(text).toContain('No profile notes yet.');
+      expect(text).toContain('No past project shares keywords with this idea.');
+    });
+
+    it('ranks the similar project note first', async () => {
+      await init();
+      const project = (summary: string) =>
+        `---\ntarget: claude-code\npath: ~/p\nstatus: created\nprofile: balanced\nsummary: ${summary}\n---\n`;
+      await addNote({ libraryDir, section: 'projects', name: 'novel', fromFile: await source('n.md', `${project('Mystery novel set in Seville.')}# Novel\n`), now });
+      await addNote({ libraryDir, section: 'projects', name: 'garden', fromFile: await source('g.md', `${project('Vegetable garden planner with watering calendar.')}# Garden\n`), now });
+      await addNote({ libraryDir, section: 'projects', name: 'budget', fromFile: await source('b.md', `${project('Household budget tracker.')}# Budget\n`), now });
+
+      const idea = await source('idea.md', 'I want a planner for my vegetable garden: what to plant, a watering schedule and a harvest tracker.\n');
+      const context = await buildLibraryContext({ libraryDir, ideaFile: idea, limit: 2 });
+      expect(context.similarProjects.map((note) => note.file)).toEqual(['projects/garden.md', 'projects/budget.md']);
+      expect(context.similarProjects[0]?.shared).toEqual(['garden', 'planner', 'vegetable', 'watering']);
+      const text = renderLibraryContext(context, 'en');
+      expect(text).toContain('### projects/garden.md');
+      expect(text).not.toContain('### projects/novel.md');
+    });
+
+    it('learning: a preference recorded in a first creation reaches the second gap analysis', async () => {
+      await init();
+      // First creation: the user states a preference and the flow records it.
+      const preference = 'Always write project docs in British English and keep CLAUDE.md under 30 lines.';
+      await addNote({ libraryDir, section: 'profile', name: 'preferences', fromFile: await source('pref.md', `# Preferences\n\n- ${preference}\n`), now });
+      await addNote({ libraryDir, section: 'lessons', fromFile: await source('lesson.md', '- Do not ask which editor the user uses.\n'), now });
+
+      // Second creation: the gap analysis input for a new idea already has it.
+      const idea = await source('idea2.md', 'A reading tracker for the books I borrow.\n');
+      const text = renderLibraryContext(await buildLibraryContext({ libraryDir, ideaFile: idea }), 'en');
+      expect(text).toContain(preference);
+      expect(text).toContain('### profile/preferences.md');
+      expect(text).toContain('Do not ask which editor the user uses.');
+    });
+  });
+});

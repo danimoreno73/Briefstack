@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { afterAll, beforeAll } from 'vitest';
 import type { SpecInput } from '../src/spec/index.js';
 import { baseProfilesFile, loadUsageProfiles, type UsageProfiles } from '../src/usage/profiles.js';
 
@@ -41,4 +42,31 @@ export async function writeTree(root: string, files: Readonly<Record<string, str
 /** The base usage presets shipped in `library/usage-profiles.json`. */
 export function baseProfiles(): Promise<UsageProfiles> {
   return loadUsageProfiles({ baseFile: baseProfilesFile() });
+}
+
+/**
+ * Runs git without global or system config for the current test file: no
+ * user identity, no signing, nothing from the developer's machine.
+ */
+export function useHermeticGit(): void {
+  const saved = { global: process.env.GIT_CONFIG_GLOBAL, nosystem: process.env.GIT_CONFIG_NOSYSTEM };
+  let cleanup: (() => Promise<void>) | undefined;
+  beforeAll(async () => {
+    const temp = await tempDir('gitconfig');
+    cleanup = temp.cleanup;
+    const empty = path.join(temp.dir, 'gitconfig');
+    await writeFile(empty, '', 'utf8');
+    process.env.GIT_CONFIG_GLOBAL = empty;
+    process.env.GIT_CONFIG_NOSYSTEM = '1';
+  });
+  afterAll(async () => {
+    for (const [key, value] of [
+      ['GIT_CONFIG_GLOBAL', saved.global],
+      ['GIT_CONFIG_NOSYSTEM', saved.nosystem],
+    ] as const) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    await cleanup?.();
+  });
 }
