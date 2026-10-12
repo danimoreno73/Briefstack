@@ -981,3 +981,11 @@ folders without `.briefstack/profile.json`; `git add` respects the
 project's `.gitignore`; the fallback identity is used only when none is
 configured; git problems are warnings), run by the skill at the start of
 the hand-off, after review. Message: "Prepare the project with briefstack".
+
+### `/add-dir` with a missing folder (rehearsal run B, 2026-10-12)
+
+Interactive `/add-dir` on a folder that does not exist yet is refused:
+"Path <dir> was not found." After creating it, the same command answered
+"Added <dir> as a working directory for this session · /permissions to
+manage" (session only, nothing written to `settings.local.json`). So the
+skill is right to ask the user to create the folder first.
