@@ -132,10 +132,10 @@ Conclusion: hook command is `node "${CLAUDE_PROJECT_DIR}/scripts/hook-event.mjs"
 (`node` is a real executable on every OS). H8 must check it on Windows both
 with Git Bash and with `shell: "powershell"`.
 
-Decision (H0 checkpoint): the event hooks are declared in the `/new-project`
-`SKILL.md` frontmatter, not in `.claude/settings.json`, so no events are
-recorded while briefstack itself is being developed. They register when the
-skill is invoked and stay for the rest of that session.
+~~Decision (H0 checkpoint): the event hooks are declared in the
+`/new-project` `SKILL.md` frontmatter.~~ **Superseded in H8** (see "Events
+and hooks"): skill hooks do not see subagent activity, so the hooks live in
+`.claude/settings.json` and only record sessions `/new-project` opened.
 
 ### 6. Skills
 
@@ -632,8 +632,59 @@ All three forms work on Windows. But hooks declared in a skill's
 frontmatter do not fire for events inside subagents (their tool calls and
 their stop), while the same hooks in `settings.json` do. This contradicts the
 H0 checkpoint decision to put the event hooks in the skill: it would lose
-exactly the subagent activity the phase 3 panel needs. **Pending a user
-decision** (see the H8 report).
+exactly the subagent activity the phase 3 panel needs.
+
+### Decision: hooks in settings, gated by the session folder (user, 2026-10-12)
+
+**This replaces the H0 checkpoint decision** to declare the event hooks in
+the `/new-project` `SKILL.md` frontmatter. That decision aimed to record
+nothing while briefstack itself is developed; the probe above showed it would
+also miss every event inside subagents (their tool calls and their stop),
+which is most of what the phase 3 panel has to show.
+
+- The hooks are in the repo's `.claude/settings.json`, exec form (`node` +
+  `args`, no shell), for `SubagentStart`, `SubagentStop`, `PreToolUse`,
+  `PostToolUse`, `PostToolUseFailure`. A test pins that configuration.
+- The goal of the old decision is kept another way: the hook script writes
+  only if `<home>/sessions/<session id>/` already exists and never creates
+  it. Only `briefstack event` creates it, and `/new-project` opens every run
+  with `briefstack event session started --session ${CLAUDE_SESSION_ID}`.
+  Ordinary work in the repo spawns the script (tens of milliseconds per tool
+  call) but records nothing. Test: without the folder the hook writes
+  nothing, does not even create the home folder, and exits 0.
+- Hooks in a project `settings.json` run before the folder is trusted
+  (§8). The script only appends to an existing folder under the briefstack
+  home and never reads tool inputs, so that exposure is acceptable.
+
+### Session start and end (user, 2026-10-12)
+
+- `briefstack event session started|finished --session <id>
+  [--outcome completed|cancelled|failed]` (default outcome `completed`).
+  `/new-project` must emit `session finished` on every way out: success,
+  user cancel, unrecoverable error (H9).
+- `summarizeSession(events, { now, staleAfterMinutes = 120 })` classifies a
+  session: `finished` (closing event present), `in-progress` (no closing
+  event, last event recent) or `interrupted` (no closing event and no
+  activity for longer than the threshold, or no events). Hook events count
+  as activity. The phase 3 panel uses it. Tests cover all three.
+
+### Real run of option A (Claude Code 2.1.296, Windows 11)
+
+A throwaway project in the session's temp scratchpad with the repo's real
+`.claude/settings.json` and hook script, and a `probe` skill that opens the
+session, launches an `echo` subagent and closes the session. All paths, in
+arguments and environment, in Windows form (`cygpath -w`).
+
+- Control (subagent launched, no session opened): nothing written; the
+  briefstack home folder was not even created.
+- Probe: `session.started`, `tool.post Bash` (the `tool.pre` of that same
+  command ran before the folder existed, so it is correctly absent), `Agent`
+  pre/post, `subagent.start echo`, `tool.pre`/`tool.post Read` with
+  `agentId` and `agentType: echo`, `subagent.stop echo`, `session.finished`
+  (`completed`), then the closing Bash's `tool.post`. No bad lines.
+  `summarizeSession` → `finished`; the same events without the closing one,
+  three hours later → `interrupted`.
+- Nothing was written outside the temp folder (`C:\c` unchanged).
 
 ### Incident: the probe wrote to `C:\c\...`
 
