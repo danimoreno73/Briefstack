@@ -1,0 +1,52 @@
+import { describe, expect, it } from 'vitest';
+import { BriefstackError, type ErrorCode, type ErrorParams } from '../../src/errors.js';
+import { formatError } from '../../src/i18n/errors.js';
+import { LANGS, langFromLocale, resolveLang } from '../../src/i18n/index.js';
+
+describe('resolveLang', () => {
+  it('follows BRIEFSTACK_LANG > config > OS locale > en', () => {
+    expect(resolveLang({ env: { BRIEFSTACK_LANG: 'ES' }, configLang: 'en' })).toBe('es');
+    expect(resolveLang({ env: {}, configLang: 'es', osLocale: 'en-US' })).toBe('es');
+    expect(resolveLang({ env: { LANG: 'es_ES.UTF-8' } })).toBe('es');
+    expect(resolveLang({ env: {}, osLocale: 'es-MX' })).toBe('es');
+    expect(resolveLang({ env: {} })).toBe('en');
+  });
+
+  it('skips unsupported values', () => {
+    expect(resolveLang({ env: { BRIEFSTACK_LANG: 'fr' }, configLang: 'es' })).toBe('es');
+    expect(resolveLang({ env: { LANG: 'C.UTF-8' }, osLocale: 'es-ES' })).toBe('es');
+    expect(resolveLang({ env: {}, osLocale: 'de-DE' })).toBe('en');
+  });
+
+  it('prefers LC_ALL over LANG', () => {
+    expect(resolveLang({ env: { LC_ALL: 'en_GB', LANG: 'es_ES' } })).toBe('en');
+  });
+
+  it('parses locales', () => {
+    expect(langFromLocale('es')).toBe('es');
+    expect(langFromLocale('en_US@euro')).toBe('en');
+    expect(langFromLocale(undefined)).toBeUndefined();
+  });
+});
+
+describe('error catalogue', () => {
+  const samples: { [C in ErrorCode]: ErrorParams[C] } = {
+    'config.invalidJson': { file: 'f', detail: 'd' },
+    'config.notAnObject': { file: 'f' },
+    'config.invalidField': { file: 'f', field: 'lang', expected: 'lang' },
+    'config.relativePath': { source: 's', value: 'v' },
+    'frontmatter.unclosed': { file: 'f' },
+    'frontmatter.invalidYaml': { file: 'f', detail: 'd' },
+    'frontmatter.notAMapping': { file: 'f' },
+    'frontmatter.blockValue': { file: 'f', field: 'model' },
+  };
+
+  it('has a distinct message for every code in every language', () => {
+    for (const code of Object.keys(samples) as ErrorCode[]) {
+      const error = new BriefstackError(code, samples[code]);
+      const messages = LANGS.map((lang) => formatError(error, lang));
+      for (const message of messages) expect(message.trim()).not.toBe('');
+      expect(new Set(messages).size).toBe(LANGS.length);
+    }
+  });
+});
