@@ -1062,3 +1062,23 @@ killing the process fires it; run D checks that.
   process had started before the `SessionEnd` hook was added, so the hook
   configuration in `.claude/settings.json` was picked up without a restart
   (observed, not documented in what was read).
+
+### Rehearsal run D: window closed mid-interview (2026-10-12)
+
+The user closed the terminal window (X) at the first question. Claude Code
+fired `SessionEnd` with reason `other` about three seconds after the last
+event, so the session summarises as `interrupted` (`endReason: other`) at
+once. With the `session.end` removed, the same events stay `in-progress` at
+119 minutes and become `interrupted` at 121: the inactivity fallback still
+works on real data. The repeated run C session also got a `session.end`
+(`prompt_input_exit`) after its `session.finished` and stays
+`finished`/`cancelled`.
+
+Not covered: a killed process or a machine that sleeps or loses power;
+the inactivity rule is what handles those.
+
+### H9 closed (2026-10-12)
+
+The guided rehearsal covered runs A (twice), B, C (an Esc interruption,
+then a cancel at the spec) and D, and every item of PLAN "To verify in
+real runs" except `/tasks`, which is H10.
