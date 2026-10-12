@@ -39,6 +39,21 @@ describe('error catalogue', () => {
     'frontmatter.invalidYaml': { file: 'f', detail: 'd' },
     'frontmatter.notAMapping': { file: 'f' },
     'frontmatter.blockValue': { file: 'f', field: 'model' },
+    'spec.notFound': { file: 'f' },
+    'spec.invalidJson': { file: 'f', detail: 'd' },
+    'spec.invalid': {
+      file: 'f',
+      issues: [
+        { path: 'slug', rule: 'slug', message: 'm' },
+        { path: '', message: 'zod message' },
+      ],
+    },
+    'scaffold.forbiddenOutput': { outDir: 'o', root: 'library', rootPath: 'r' },
+    'scaffold.notADirectory': { outDir: 'o' },
+    'scaffold.nonEmptyOutput': { outDir: 'o' },
+    'scaffold.wouldOverwrite': { outDir: 'o', paths: ['a', 'b'] },
+    'scaffold.templateNotFound': { template: 't', searched: ['x'] },
+    'scaffold.templateReservedPath': { template: 't', path: '.git/config' },
   };
 
   it('has a distinct message for every code in every language', () => {

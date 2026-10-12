@@ -1,10 +1,15 @@
+import type { SpecIssue } from './spec/index.js';
+
+/** What a config field should have been; rendered by the i18n catalogue. */
+export type FieldExpectation = 'text' | 'lang';
+
+/** Folders an output directory must stay out of. */
+export type ProtectedRoot = 'repo' | 'library';
+
 /**
  * Errors raised by the library. They carry a code and parameters, never
  * user-facing text: callers turn them into messages with `formatError`.
  */
-/** What a config field should have been; rendered by the i18n catalogue. */
-export type FieldExpectation = 'text' | 'lang';
-
 export interface ErrorParams {
   'config.invalidJson': { file: string; detail: string };
   'config.notAnObject': { file: string };
@@ -14,6 +19,15 @@ export interface ErrorParams {
   'frontmatter.invalidYaml': { file: string; detail: string };
   'frontmatter.notAMapping': { file: string };
   'frontmatter.blockValue': { file: string; field: string };
+  'spec.notFound': { file: string };
+  'spec.invalidJson': { file: string; detail: string };
+  'spec.invalid': { file: string; issues: SpecIssue[] };
+  'scaffold.forbiddenOutput': { outDir: string; root: ProtectedRoot; rootPath: string };
+  'scaffold.notADirectory': { outDir: string };
+  'scaffold.nonEmptyOutput': { outDir: string };
+  'scaffold.wouldOverwrite': { outDir: string; paths: string[] };
+  'scaffold.templateNotFound': { template: string; searched: string[] };
+  'scaffold.templateReservedPath': { template: string; path: string };
 }
 
 export type ErrorCode = keyof ErrorParams;
