@@ -480,7 +480,7 @@ Rules (`src/validate/findings.ts` holds the single severity table):
 | `required.missing`, `required.empty` | error | Required files per target (one table, `REQUIRED_FILES`); `kind: gitRepo` for a missing `.git` |
 | `frontmatter.missing`, `frontmatter.invalid`, `frontmatter.missingField` | error | Agent and skill files have parseable frontmatter with non-empty `name` and `description` |
 | `agent.invalidTools`, `agent.spawnTool` | error | `tools` is a string or list; no `Agent`/`Task` (top-level comma split, so `Bash(a, b)` is one tool) |
-| `agent.toolsOmitted` | warning | No `tools` means every tool, including Agent (not raised if `disallowedTools` has Agent) |
+| `agent.toolsOmitted` | error | No `tools` means every tool, including Agent, which bypasses the no-spawn rule (user decision, 2026-10-12; was a warning). Not raised if `disallowedTools` has Agent |
 | `agent.invalidModel`, `agent.invalidEffort` | error | Same rule as usage presets (`src/models.ts`) |
 | `skill.missingFile` | warning | A skill folder without `SKILL.md` |
 | `claudeMd.tooLong` | error | Root `CLAUDE.md` has 60 or more lines, when it exists |
