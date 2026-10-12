@@ -73,6 +73,12 @@ function scalar(value: string): string {
   return stringify(value, { lineWidth: 0 }).replace(/\r?\n$/, '');
 }
 
+/** A new markdown file with the given string fields as frontmatter. */
+export function buildFrontmatter(fields: Readonly<Record<string, string>>, body: string): string {
+  const lines = Object.entries(fields).map(([key, value]) => `${key}: ${scalar(value)}\n`);
+  return `---\n${lines.join('')}---\n${body}`;
+}
+
 /**
  * Sets top-level string fields, touching only their own lines. A field that
  * already has the requested value is left byte-for-byte as it was; a missing
