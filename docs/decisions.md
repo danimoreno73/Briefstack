@@ -989,3 +989,41 @@ Interactive `/add-dir` on a folder that does not exist yet is refused:
 "Added <dir> as a working directory for this session · /permissions to
 manage" (session only, nothing written to `settings.local.json`). So the
 skill is right to ask the user to create the folder first.
+
+### Rehearsal run B (2026-10-12)
+
+`claude-app` target, output folder outside `projectsDir`
+(`<temp>/fuera/revision-memoria`), same temp home, "accept edits".
+
+Verified:
+
+- `/add-dir` (item 3): refused while the folder was missing, accepted after
+  it was created, for the session only. The generator then wrote there
+  with no permission prompt and no tool failure.
+- The stated preference (direct answers, Spanish) was not asked again; the
+  language was not asked either.
+- Research sources reached the project: every URL in `docs/PLATAFORMA.md`
+  is in `research.md`, which separates verified from unverified points.
+- `NEXT_STEPS.md` could be followed without help (user). Validator clean,
+  reviewer pass in one round, one commit under the user's git identity and
+  a clean tree, events complete (201 lines, nine steps, `completed`, no
+  failures), library notes and an appended lesson, dated once.
+
+Found and fixed:
+
+- **`paths check` kept saying `allowed: false` after `/add-dir`**: it only
+  reads `settings.local.json`, and `/add-dir` lasts for the session. The
+  user had to tell the flow to go on. A write probe was proposed instead,
+  but it cannot answer the question: a write by the CLI is an ordinary
+  process that Claude Code permissions do not govern (and native Windows
+  has no sandbox), so it always succeeds; a probe with the Write tool in a
+  folder that is not allowed raises a permission prompt rather than
+  failing, and approving it grants that write, not the folder. Only Claude
+  Code knows its session folders. Now the skill trusts the user's
+  confirmation after `/add-dir` and does not check `allowed` again, the
+  generator stops and reports a denied write, and `paths check` says it
+  only sees `settings.local.json`.
+- **The target was not asked**; the user set it. The interviewer now asks
+  when both targets would work, with a recommended default and the reason
+  (BRIEF §5 still holds: the architect recommends when the user leaves the
+  default).
