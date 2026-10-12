@@ -85,6 +85,8 @@ describe('cli', () => {
     expect(await main(['scaffold', 'spec.json', 'out'], run.io)).toBe(0);
     expect(run.err).toEqual([]);
     expect(run.out[0]).toMatch(/^Created \d+ files in .*out \(template: generic\)\.$/);
+    // No agents in this spec, so no profile line.
+    expect(run.out.some((line) => line.startsWith('Applied usage profile'))).toBe(false);
     expect(await readFile(path.join(dir, 'out', 'CLAUDE.md'), 'utf8')).toBe('# Garden planner\n');
     expect((await stat(path.join(dir, 'out', '.git'))).isDirectory()).toBe(true);
   });
@@ -286,6 +288,7 @@ describe('cli usage', () => {
     await writeTree(path.join(library, 'templates'), { 'generic/common/CLAUDE.md': '# {{name}}\n' });
     const made = capture(dir, { BRIEFSTACK_LIBRARY: library });
     expect(await main(['scaffold', 'spec.json', 'proj'], made.io)).toBe(0);
+    expect(made.out).toContain('Applied usage profile "balanced" to the generated agents.');
 
     const run = capture(dir);
     expect(await main(['usage', 'set', 'saver', '--project', 'proj'], run.io)).toBe(0);
