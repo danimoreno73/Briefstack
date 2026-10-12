@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { configFilePath, readConfig, resolvePaths, updateConfig } from './config/config.js';
-import { systemPathEnv, type PathEnv } from './config/paths.js';
+import { isFullyAbsolute, systemPathEnv, type PathEnv } from './config/paths.js';
 import { isBriefstackError } from './errors.js';
 import {
   STEP_OUTCOMES,
@@ -128,9 +128,12 @@ async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Prom
     throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   }
 
+  // Check every path argument before anything touches the disk.
+  const specPath = argPath(io, lang, specArg);
+  const outPath = argPath(io, lang, outArg);
   const { paths, profiles } = await loadProfiles(io);
-  const spec = await readSpec(path.resolve(io.cwd, specArg));
-  const result = await scaffold(spec, path.resolve(io.cwd, outArg), {
+  const spec = await readSpec(specPath);
+  const result = await scaffold(spec, outPath, {
     protectedDirs: [
       { root: 'repo', path: PACKAGE_ROOT },
       { root: 'library', path: paths.libraryDir },
@@ -206,12 +209,13 @@ async function runUsageSet(args: readonly string[], io: CliIO, lang: Lang): Prom
   if (positionals.length !== 1 || name === undefined) {
     throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   }
+  const project = values.get('--project');
+  const projectPath = project === undefined ? undefined : argPath(io, lang, project);
   const { paths, profiles } = await loadProfiles(io);
   const preset = getPreset(profiles, name);
 
-  const project = values.get('--project');
-  if (project !== undefined) {
-    const result = await applyProfileToProject(path.resolve(io.cwd, project), name, profiles);
+  if (projectPath !== undefined) {
+    const result = await applyProfileToProject(projectPath, name, profiles);
     io.out(messages.projectApplied(result.projectDir, name, result.previousProfile));
     reportApply(result, io, lang);
     if (result.missingAgents.length > 0) io.err(messages.missingAgents(result.missingAgents));
@@ -233,6 +237,19 @@ async function runUsage(args: readonly string[], io: CliIO, lang: Lang): Promise
   if (sub === 'show' && rest.length === 0) return runUsageShow(io, lang);
   if (sub === 'set') return runUsageSet(rest, io, lang);
   throw new UsageError(cliMessages[lang].wrongArguments(usageMessages[lang].usage));
+}
+
+/**
+ * Resolves a path argument against the cwd. On Windows a rooted path without
+ * a drive (e.g. a Git Bash `/c/Users/...` passed unconverted) is refused:
+ * it would resolve to `<current drive>:\c\Users\...` (decisions.md, H8).
+ */
+function argPath(io: CliIO, lang: Lang, value: string): string {
+  const { pathApi } = io.pathEnv;
+  if (pathApi.isAbsolute(value) && !isFullyAbsolute(value, pathApi)) {
+    throw new UsageError(cliMessages[lang].drivelessPath(value));
+  }
+  return pathApi.resolve(io.cwd, value);
 }
 
 /** Records a flow step. Prints nothing on success, to keep the skill's transcript clean. */
@@ -268,7 +285,7 @@ async function runValidate(args: readonly string[], io: CliIO, lang: Lang): Prom
     throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   }
 
-  const result = await validateProject(path.resolve(io.cwd, dirArg), { pathEnv: io.pathEnv });
+  const result = await validateProject(argPath(io, lang, dirArg), { pathEnv: io.pathEnv });
   if (flags.has('--json')) {
     const { projectDir, target, errors, warnings, findings } = result;
     io.out(JSON.stringify({ projectDir, target: target ?? null, errors, warnings, findings }, null, 2));
@@ -308,13 +325,9 @@ async function runLibraryAdd(args: readonly string[], io: CliIO, lang: Lang): Pr
   if (section === undefined || positionals.length > 2 || from === undefined) {
     throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   }
+  const fromFile = argPath(io, lang, from);
   const paths = await resolvedPaths(io);
-  const result = await addNote({
-    libraryDir: paths.libraryDir,
-    section,
-    name,
-    fromFile: path.resolve(io.cwd, from),
-  });
+  const result = await addNote({ libraryDir: paths.libraryDir, section, name, fromFile });
   const link = noteLink(result.section, result.name);
   io.out(result.action === 'created' ? messages.noteCreated(link, result.file) : messages.noteAppended(link, result.file));
   if (result.status !== undefined) {
@@ -364,10 +377,11 @@ async function runLibraryContext(args: readonly string[], io: CliIO, lang: Lang)
   ) {
     throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   }
+  const ideaFile = argPath(io, lang, idea);
   const paths = await resolvedPaths(io);
   const context = await buildLibraryContext({
     libraryDir: paths.libraryDir,
-    ideaFile: path.resolve(io.cwd, idea),
+    ideaFile,
     ...(limit !== undefined ? { limit } : {}),
   });
   io.out(renderLibraryContext(context, lang).replace(/\n$/, ''));

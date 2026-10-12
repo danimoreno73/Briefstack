@@ -62,6 +62,23 @@ describe('cli', () => {
     expect(es.out.join('\n')).toContain('Uso: briefstack');
   });
 
+  it('refuses Windows path arguments without a drive before touching the disk', async () => {
+    // Injects path.win32 so this also covers Windows on a POSIX machine.
+    const run = capture(dir);
+    run.io.pathEnv = { ...run.io.pathEnv, pathApi: path.win32 };
+    run.io.cwd = 'C:\\work';
+    for (const args of [
+      ['validate', '/c/Users/someone/project'],
+      ['scaffold', 'spec.json', '/c/Users/someone/out'],
+      ['scaffold', '\\spec.json', 'C:\\out'],
+      ['usage', 'set', 'max', '--project', '/c/x'],
+    ]) {
+      expect(await main(args, run.io), args.join(' ')).toBe(2);
+    }
+    expect(run.err).toHaveLength(4);
+    expect(run.err.every((line) => line.includes('has no drive letter'))).toBe(true);
+  });
+
   it('exits 2 on usage errors', async () => {
     const run = capture(dir);
     expect(await main(['nope'], run.io)).toBe(2);

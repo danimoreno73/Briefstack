@@ -25,6 +25,8 @@ export const cliMessages = defineCatalogue({
     unknownOption: (option: string) => `Unknown option: ${option}`,
     wrongArguments: (usage: string) => `Wrong arguments. Usage: ${usage}`,
     unexpected: (detail: string) => `Unexpected error: ${detail}`,
+    drivelessPath: (value: string) =>
+      `"${value}" has no drive letter. Use a full path such as C:/... (a Git Bash /c/... path is not understood here).`,
   },
   es: {
     usage: [
@@ -50,5 +52,7 @@ export const cliMessages = defineCatalogue({
     unknownOption: (option: string) => `Opción desconocida: ${option}`,
     wrongArguments: (usage: string) => `Argumentos incorrectos. Uso: ${usage}`,
     unexpected: (detail: string) => `Error inesperado: ${detail}`,
+    drivelessPath: (value: string) =>
+      `"${value}" no tiene letra de unidad. Usa una ruta completa como C:/... (aquí no se entiende una ruta /c/... de Git Bash).`,
   },
 });
