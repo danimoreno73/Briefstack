@@ -43,6 +43,9 @@ Check:
 9. No application code, tests or build files (the validator reports them
    too), no secrets, no absolute paths, no leftover placeholders, nothing
    about another user or project.
+10. The documents never mention how they were made: no briefstack flow
+    steps and no agent roles ("the researcher"). Outside `.briefstack/` and
+    the brief's usage-profile line, each mention is a `minor` finding.
 
 Output:
 

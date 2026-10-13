@@ -62,6 +62,12 @@ Rules:
 - Keep the frontmatter of skill and agent files. Never edit `model` or
   `effort` in agent files; briefstack sets them from the usage profile.
 - Do not add features, files or sections the spec does not ask for.
+- Write the project's documents for the people and sessions that will work
+  on the project. Never mention how they were made: no briefstack flow
+  steps and no agent roles ("the researcher", "the architect"). Credit the
+  cited sources instead, for example "own wording based on the sources
+  cited". `.briefstack/` and the brief's line about the usage profile are
+  the only places that name briefstack.
 - No secrets, no absolute paths (not even as examples of where something
   could live), no placeholder text such as `{{name}}` or "TODO" left behind.
 - If the spec is ambiguous or cannot be built as written, stop and report it.
