@@ -127,6 +127,13 @@ export function buildPlan(spec: Spec, template: Template): ScaffoldPlan {
     if (!files.has(file.path)) files.set(file.path, placeholderFile(file.path, file.purpose));
   }
 
+  // Git does not keep empty folders, so each one gets a `.gitkeep`.
+  const holds = (directory: string, child: string) => child.startsWith(`${directory}/`);
+  for (const directory of spec.directories) {
+    const empty = ![...files.keys(), ...spec.directories].some((child) => holds(directory, child));
+    if (empty) files.set(`${directory}/.gitkeep`, '');
+  }
+
   return {
     directories: [...spec.directories],
     files: [...files.entries()]

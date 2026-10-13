@@ -138,6 +138,20 @@ describe('buildPlan', () => {
     expect(skill.body).toBe('\nSteps here.\n');
   });
 
+  it('adds a .gitkeep only to folders that would stay empty', () => {
+    const plan = buildPlan(
+      spec({
+        directories: ['src', 'src/providers', 'tests', 'tests/fixtures', 'data', 'srcs'],
+        files: [{ path: 'data/list.csv', purpose: 'A list.' }],
+      }),
+      template,
+    );
+    const keeps = plan.files.filter((file) => file.path.endsWith('/.gitkeep'));
+
+    expect(keeps.map((file) => file.path)).toEqual(['src/providers/.gitkeep', 'srcs/.gitkeep', 'tests/fixtures/.gitkeep']);
+    expect(keeps.every((file) => file.content === '')).toBe(true);
+  });
+
   it('leaves Claude Code files out for claude-app', () => {
     const plan = buildPlan(spec({ target: 'claude-app' }), template);
     expect(plan.files.some((file) => file.path.startsWith('.claude/'))).toBe(false);
@@ -249,6 +263,7 @@ describe('scaffold', () => {
     expect(result.warnings).toEqual([]);
     expect((await stat(path.join(outDir, '.git'))).isDirectory()).toBe(true);
     expect((await stat(path.join(outDir, 'logs'))).isDirectory()).toBe(true);
+    expect(await readFile(path.join(outDir, 'logs', '.gitkeep'), 'utf8')).toBe('');
 
     const claude = await readFile(path.join(outDir, 'CLAUDE.md'), 'utf8');
     expect(claude).toContain('# Garden planner');
