@@ -32,10 +32,31 @@ continuing.
 
 ### Left
 
-Nothing for phase 1. Phase 2 has not started; BRIEF section 8 stays out
-of scope until it is planned and approved. H10 kept the two-terminal method
-(the user runs, a second session inspects) and is recorded in
-`decisions.md`.
+Nothing for phase 1: it is closed, tag `phase-1-done`. Phase 2 has not
+started; BRIEF section 8 stays out of scope until it is planned and
+approved. H10 kept the two-terminal method (the user runs, a second
+session inspects) and is recorded in `decisions.md`.
+
+Still open after phase 1 (detail below):
+
+- Verification 9 is half done: `/tasks` was seen for generator and
+  reviewer only; interviewer, researcher and architect still need a
+  capture during a run.
+- The two H10 fixes (`.gitkeep`, no process wording in generated
+  documents) have not run in a real flow.
+- The known limits in "Open points and known limits".
+
+### Next session
+
+Development sessions on briefstack start with `claude --model opus`
+(BRIEF §9; separate from the usage profiles). The user picks one of:
+
+1. Use briefstack on real projects for a few days and collect findings
+   (a chance to finish verification 9 and see the H10 fixes run).
+2. Push the repo to a private GitHub repository (first CI run).
+3. Plan phase 2: plan first, approval before any code.
+
+Do not start any of them before the user chooses.
 
 ### Verified in real runs (H9 rehearsal and H10, `decisions.md` has the detail)
 
