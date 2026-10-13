@@ -1082,3 +1082,57 @@ the inactivity rule is what handles those.
 The guided rehearsal covered runs A (twice), B, C (an Esc interruption,
 then a cancel at the spec) and D, and every item of PLAN "To verify in
 real runs" except `/tasks`, which is H10.
+
+## Real run (H10, 2026-10-13, Claude Code 2.1.296, Windows 11)
+
+Real home (`BRIEFSTACK_HOME` empty), `init` from the CLI, `claude --model
+sonnet`, "accept edits", profile `balanced` (default, never set).
+
+- `paths`, `init` and `usage show` as expected: library git repo with one
+  commit, projects and sessions folders, both and nothing else in
+  `settings.local.json`; no drift or env warning.
+- Idea: an HTTP API that turns a supermarket receipt into product lines.
+  Two interviewer rounds, research (one researcher), the architect twice:
+  the user changed the spec before approving it (local OCR first, Claude
+  vision as a second implementation of the same interface, only with an
+  API key). The spec listed documents only and passed `spec check`.
+- No permission prompt except the researcher's web requests.
+- Generated `claude-code` project: validator clean, reviewer `pass` in one
+  round with one `minor` finding, one commit, clean tree. Library: project
+  note with status block, session log, two lessons from the correction,
+  no preference (none stated), three commits. `events.jsonl`: the nine
+  steps `ok`, the five flow agents, `session.finished` `completed`.
+- Acceptance: the user opened a new session in the project; from
+  `CLAUDE.md`, the brief and the plan alone it understood the project, the
+  decisions taken and open, and the first task, and raised on its own the
+  conflict between an OCR engine that needs temp files and the rule of
+  never writing images to disk. The user accepted the project.
+
+### Verification 9: `/tasks` (partly verified)
+
+`/tasks` names the resolved model, not the alias, and the effort:
+`Generate the project folder — running · Sonnet 5.5 (medium)` and
+`Review the generated project — running · Sonnet 5.5 (medium)`, matching
+`balanced` for generator and reviewer. Interviewer, researcher and
+architect were not captured during their runs: not verified from
+`/tasks`. Indirect evidence only: their `model`/`effort` frontmatter
+matched the profile, the skill passes neither per invocation, and
+`usage show` reported no override variable, so by the resolution order
+(section 3) the frontmatter decides.
+
+### Fixes from the run
+
+- Git does not keep empty folders, so the spec's `src/` and `tests/`
+  structure was lost on a clone. `scaffold` now writes an empty `.gitkeep`
+  in each spec folder that would otherwise stay empty (user request).
+- The reviewer's finding: two documents said "redacción del investigador",
+  a briefstack role the project's readers do not know. The generator now
+  writes nothing about how the documents were made and credits the cited
+  sources; the reviewer checks it (`minor`). A prompt rule, not a validator
+  rule: a word list in two languages would give false positives.
+- Both fixed in the accepted project by hand, in two commits of its own.
+
+### Phase 1 closed (2026-10-13)
+
+The user accepted the project of a real `/new-project` run. Build, lint
+and tests pass.

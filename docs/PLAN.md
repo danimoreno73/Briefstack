@@ -9,7 +9,8 @@ one concern each.
 
 ## 0. Status
 
-Updated 2026-10-12, H9 closed. Build, lint and 293 tests pass on Windows.
+Updated 2026-10-13: **phase 1 done.** H10 closed, the user accepted the
+project of a real run. Build, lint and 294 tests pass on Windows.
 Read `CLAUDE.md`, `docs/BRIEF.md`, this file and `docs/decisions.md` before
 continuing.
 
@@ -27,42 +28,16 @@ continuing.
 | H7 | Base templates (software, learning-or-management, generic; `CLAUDE.md` warns to keep real secrets out), 3 base skills, 3 fixtures that validate clean for both targets |
 | H8 | Events: `briefstack event <session|step>`, hook script in `.claude/settings.json` (exec form) for subagent, tool and `SessionEnd` events, only in sessions `/new-project` opened; `summarizeSession` (finished / in-progress / interrupted, at once on `session.end`, else after 120 minutes) |
 | H9 | `/new-project` skill, the five agent bodies, allow rule for the CLI only; guided rehearsal: runs A (twice), B, C, D, every finding fixed (`decisions.md`, "/new-project (H9)" onwards) |
+| H10 | Real run with the real home: a `claude-code` project the user accepted; `/tasks` checked for generator and reviewer; scaffold writes `.gitkeep` in empty folders; generated documents never mention how they were made (`decisions.md`, "Real run (H10)") |
 
 ### Left
 
-- **H10** — real end-to-end run of `/new-project` that the user accepts, and
-  the `/tasks` check. Phase 1 is not done before this. The user runs it in
-  a terminal; a main session in another terminal inspects after each step.
-  Steps and what to check:
-  1. **New PowerShell, real home.** `cd` to the repo; `$env:BRIEFSTACK_HOME`
-     must be empty (no rehearsal value). Check: `npm run briefstack -- paths`
-     shows `~/.briefstack` and `~/briefstack-projects`, library missing.
-  2. **`npm run briefstack -- init`.** Check: `~/.briefstack/library` is a git
-     repo with one commit; `~/briefstack-projects` and
-     `~/.briefstack/sessions` exist; `.claude/settings.local.json` is
-     recreated with exactly those two folders and is git-ignored.
-  3. **`claude --model sonnet`** in the repo (session only; `/model sonnet`
-     would change the default), then Shift+Tab to "accept edits". Check:
-     `! npm run --silent briefstack -- usage show` says `balanced`, session
-     model sonnet, no drift or env warning.
-  4. **`/new-project <a real idea>`**, answering the interview and approving
-     the spec. Check during the run: no permission prompt except web
-     requests; the session folder gets `idea.md`, `spec.json` (and
-     `research.md` if research runs); the spec lists documents only.
-  5. **`/tasks` while a flow agent runs** (item 9). Check: each agent's row
-     shows the model and effort of `balanced` (interviewer sonnet,
-     researcher haiku, architect opus, generator sonnet, reviewer sonnet,
-     all medium). Record what it shows in `decisions.md`.
-  6. **After the hand-off.** Check: validator clean; reviewer pass or only
-     minor findings; one commit in the project and a clean tree; library
-     notes (project, log, lessons, preferences) committed; `events.jsonl`
-     with the nine steps and `session.finished` `completed`.
-  7. **Acceptance.** The user opens the project (`claude` in the folder, or
-     `NEXT_STEPS.md` for `claude-app`) and says whether they would work
-     with it. Phase 1 is done only when they accept it; then update this
-     Status.
+Nothing for phase 1. Phase 2 has not started; BRIEF section 8 stays out
+of scope until it is planned and approved. H10 kept the two-terminal method
+(the user runs, a second session inspects) and is recorded in
+`decisions.md`.
 
-### Verified in real runs (H9 rehearsal, `decisions.md` has the detail)
+### Verified in real runs (H9 rehearsal and H10, `decisions.md` has the detail)
 
 1. `init` from the real CLI (temp home): library git repo, projects and
    sessions folders, both entries in `settings.local.json`, git-ignored.
@@ -80,7 +55,9 @@ continuing.
 8. Generated deny rules: `.env` denied, `.env.example` read, `.env` ignored
    by git; shell reads probed separately (scripts and `grep -r` are not
    covered).
-9. (H10) `/tasks` shows each flow agent's model and effort.
+9. (H10) `/tasks` shows the resolved model and the effort: generator and
+   reviewer `Sonnet 5.5 (medium)`. Interviewer, researcher and architect
+   were not captured (not verified from `/tasks`).
 
 ### Open points and known limits
 
@@ -100,6 +77,8 @@ continuing.
 - Undocumented: case sensitivity of deny-rule matching on Windows; tolerance
   of unknown fields in agent frontmatter (briefstack writes none); whether
   `SessionEnd` fires when the process is killed.
+- The H10 fixes have not run in a real flow yet: `.gitkeep` is covered by
+  tests; the generator rule on process wording is a prompt rule only.
 - The CI workflow has never run (no remote).
 - `npm install` warns that esbuild's install script is not approved
   (`allowScripts`); tests and tsx work anyway.
