@@ -31,6 +31,8 @@ A task is not done until build, tests and lint pass. Run them; do not assume.
 - Cross-platform: native Windows, macOS, Linux. Use `node:path` and `node:os`;
   never build paths by string concatenation; no POSIX-only shell commands in code.
 - No absolute paths from this machine in code, tests, templates or docs.
+  In versioned documents, write this machine's paths with `<home>` or
+  `<user>`, also when recording incidents.
 - The personal library lives outside the repo. Never commit it, never read a
   user's real one in tests; use a temp directory.
 - No secrets anywhere. No Anthropic API key, no `--bare`.

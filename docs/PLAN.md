@@ -103,7 +103,7 @@ Do not start any of them before the user chooses.
 - The CI workflow has never run (no remote).
 - `npm install` warns that esbuild's install script is not approved
   (`allowScripts`); tests and tsx work anyway.
-- Commit `75f3497` alone has failing hook tests; `281e85c` fixes them.
+- Commit `ddc2312` alone has failing hook tests; `fdf9425` fixes them.
 - `C:\c` from the H8 incident: the user deletes it by hand.
 
 ### Working rules learned in this phase
