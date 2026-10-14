@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   parseConfig,
+  permissionPolicyOf,
   readConfig,
   resolveHome,
   resolvePaths,
@@ -11,6 +12,7 @@ import {
 } from '../../src/config/config.js';
 import type { PathEnv } from '../../src/config/paths.js';
 import { BriefstackError } from '../../src/errors.js';
+import { formatError } from '../../src/i18n/errors.js';
 
 const styles = [
   { name: 'win32', pathApi: path.win32, home: 'C:\\Users\\someone', other: 'D:\\vault' },
@@ -94,6 +96,24 @@ describe('parseConfig', () => {
     expect(errorCode(() => parseConfig('{"activeProfile":3}', 'c.json'))).toBe(
       'config.invalidField',
     );
+  });
+
+  it('reads the permission policy, ask by default', () => {
+    expect(parseConfig('{"permissionPolicy":"unattended"}', 'c.json')).toEqual({ permissionPolicy: 'unattended' });
+    expect(permissionPolicyOf(parseConfig('{"permissionPolicy":"ask"}', 'c.json'))).toBe('ask');
+    expect(permissionPolicyOf(parseConfig('{}', 'c.json'))).toBe('ask');
+    let caught: unknown;
+    try {
+      parseConfig('{"permissionPolicy":"always"}', 'c.json');
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toMatchObject({
+      code: 'config.invalidField',
+      params: { field: 'permissionPolicy', expected: 'permissionPolicy' },
+    });
+    expect(formatError(caught as BriefstackError, 'en')).toContain('one of: ask, unattended');
+    expect(formatError(caught as BriefstackError, 'es')).toContain('uno de: ask, unattended');
   });
 });
 

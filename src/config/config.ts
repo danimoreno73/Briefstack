@@ -4,12 +4,31 @@ import { BriefstackError, type FieldExpectation } from '../errors.js';
 import { isLang, type Lang } from '../i18n/index.js';
 import { toAbsolute, type PathEnv } from './paths.js';
 
+/**
+ * What a web creation does with a permission request: ask the user in the
+ * browser, or deny it and record the denial (unattended runs).
+ */
+export const PERMISSION_POLICIES = ['ask', 'unattended'] as const;
+export type PermissionPolicy = (typeof PERMISSION_POLICIES)[number];
+export const DEFAULT_PERMISSION_POLICY: PermissionPolicy = 'ask';
+
+export function isPermissionPolicy(value: unknown): value is PermissionPolicy {
+  return typeof value === 'string' && (PERMISSION_POLICIES as readonly string[]).includes(value);
+}
+
 /** Contents of `<briefstack home>/config.json`. Every field is optional. */
 export interface BriefstackConfig {
   activeProfile?: string;
   libraryDir?: string;
   projectsDir?: string;
   lang?: Lang;
+  /** Absent means `ask`. */
+  permissionPolicy?: PermissionPolicy;
+}
+
+/** The config's permission policy, `ask` when it sets none. */
+export function permissionPolicyOf(config: BriefstackConfig): PermissionPolicy {
+  return config.permissionPolicy ?? DEFAULT_PERMISSION_POLICY;
 }
 
 export interface ResolvedPaths {
@@ -115,6 +134,10 @@ export function parseConfig(text: string, file: string): BriefstackConfig {
   if (raw.lang !== undefined) {
     if (!isLang(raw.lang)) invalid('lang', 'lang');
     config.lang = raw.lang as Lang;
+  }
+  if (raw.permissionPolicy !== undefined) {
+    if (!isPermissionPolicy(raw.permissionPolicy)) invalid('permissionPolicy', 'permissionPolicy');
+    config.permissionPolicy = raw.permissionPolicy as PermissionPolicy;
   }
   return config;
 }

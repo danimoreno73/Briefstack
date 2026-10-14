@@ -12,10 +12,12 @@ import { formatSpecIssue } from './spec.js';
 const expectationEn: Record<FieldExpectation, string> = {
   text: 'a non-empty text',
   lang: 'one of: en, es',
+  permissionPolicy: 'one of: ask, unattended',
 };
 const expectationEs: Record<FieldExpectation, string> = {
   text: 'un texto no vacío',
   lang: 'uno de: en, es',
+  permissionPolicy: 'uno de: ask, unattended',
 };
 
 const rootEn: Record<ProtectedRoot, string> = {
