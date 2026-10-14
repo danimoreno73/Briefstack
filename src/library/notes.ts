@@ -156,16 +156,29 @@ export function datedEntries(text: string): string[] {
   return [...text.matchAll(DATED_ENTRY_RE)].map((match) => match[1] ?? '');
 }
 
-export interface AddNoteOptions {
+interface AddNoteBase {
   libraryDir: string;
   section: string;
   name?: string | undefined;
-  /** Markdown file with the content. Its frontmatter is read, not copied. */
-  fromFile: string;
   /** `projects` only: the creation session id, recorded in the status block. */
   session?: string | undefined;
   now?: Date;
 }
+
+/** The content comes from exactly one of `fromFile` and `text`. */
+export type AddNoteOptions = AddNoteBase &
+  (
+    | {
+        /** Markdown file with the content. Its frontmatter is read, not copied. */
+        fromFile: string;
+        text?: never;
+      }
+    | {
+        /** The content itself, read like a `fromFile` file. */
+        text: string;
+        fromFile?: never;
+      }
+  );
 
 export interface AddNoteResult {
   section: LibrarySection;
@@ -220,52 +233,47 @@ function projectStatusFor(
   return result.data;
 }
 
+function previousStatus(existing: string | undefined, relative: string): ProjectStatus | undefined {
+  if (existing === undefined) return undefined;
+  const read = readProjectStatus(existing, relative);
+  return read.ok ? read.status : undefined;
+}
+
+/** A note's new text, before anything is written. */
+interface NoteChange {
+  ref: NoteRef;
+  /** Relative path with `/`. */
+  relative: string;
+  existing: string | undefined;
+  next: string;
+  status?: ProjectStatus | undefined;
+  /** The index line, or `undefined` to keep the current one. */
+  summary: string | undefined;
+  /** Whether the content gave a `summary` (lessons only get an index update then). */
+  summaryGiven: boolean;
+}
+
 /**
- * Adds content from a markdown file to a note. Everything is checked before
- * anything is written: a secret, an invalid name or an invalid project
- * status leaves the library untouched.
- *
- * - The `--from` file's frontmatter is not copied. `summary` (any section)
- *   sets the note's line in the index; for `projects`, `target`, `path`,
- *   `status`, `profile` and `summary` set the status block.
- * - An existing note gets the body appended after a blank line; a new note
- *   is created with it.
+ * The `library add` change: `body` appended to the note with a date heading,
+ * or a new note made of it. `data` is the content's frontmatter.
  */
-export async function addNote(options: AddNoteOptions): Promise<AddNoteResult> {
-  const { libraryDir } = options;
-  const ref = noteRef(options.section, options.name);
-  await assertLibrary(libraryDir);
-  const now = options.now ?? new Date();
-  if (options.session !== undefined && !isSessionId(options.session)) {
-    throw new BriefstackError('events.invalidSession', { session: options.session });
-  }
-
-  const source = await readTextIfExists(options.fromFile);
-  if (source === undefined) throw new BriefstackError('library.fileNotFound', { file: options.fromFile });
-  const leaked = secretLines(source);
-  if (leaked.length > 0) throw new BriefstackError('library.secretContent', { file: options.fromFile, lines: leaked });
-  const { data, body: rawBody } = parseFrontmatter(source, options.fromFile);
-  const body = rawBody.replace(/^\s*\n/, '');
-  if (body.trim() === '' && ref.section !== 'projects') {
-    throw new BriefstackError('library.emptyContent', { file: options.fromFile });
-  }
-
-  const relative = noteRelativePath(ref.section, ref.name);
-  const file = toNative(libraryDir, relative);
-  const existing = await readTextIfExists(file);
+function appendChange(
+  ref: NoteRef,
+  relative: string,
+  existing: string | undefined,
+  data: Record<string, unknown>,
+  body: string,
+  now: Date,
+  label: string,
+  session: string | undefined,
+): NoteChange {
   const givenSummary = stringField(data, 'summary');
-
   let next: string;
   let status: ProjectStatus | undefined;
   if (ref.section === 'projects') {
-    let previous: ProjectStatus | undefined;
-    if (existing !== undefined) {
-      const read = readProjectStatus(existing, relative);
-      if (read.ok) previous = read.status;
-    }
-    status = projectStatusFor(data, previous, ref.name ?? '', body, now, options.fromFile, {
+    status = projectStatusFor(data, previousStatus(existing, relative), ref.name ?? '', body, now, label, {
       isNew: existing === undefined,
-      session: options.session,
+      session,
     });
     if (existing === undefined) next = writeProjectNote(status, withTrailingNewline(body));
     else {
@@ -284,11 +292,19 @@ export async function addNote(options: AddNoteOptions): Promise<AddNoteResult> {
   const summary =
     status?.summary ??
     (givenSummary !== undefined ? cleanSummary(givenSummary) : existing === undefined ? summaryFromBody(body) : undefined);
+  return { ref, relative, existing, next, status, summary, summaryGiven: givenSummary !== undefined };
+}
 
+/** Writes the note and its index line, then commits both in one commit. */
+async function applyChange(
+  libraryDir: string,
+  change: NoteChange,
+): Promise<{ indexUpdated: boolean; committed: boolean; warnings: GitWarning[] }> {
+  const { ref, relative, existing, next, summary } = change;
   const changed: string[] = [];
   let indexUpdated = false;
   if (next !== existing) {
-    await writeAtomic(file, next);
+    await writeAtomic(toNative(libraryDir, relative), next);
     changed.push(relative);
   }
   if (ref.section === 'log') {
@@ -300,7 +316,7 @@ export async function addNote(options: AddNoteOptions): Promise<AddNoteResult> {
       changed.push(LOG_INDEX_FILE);
       indexUpdated = true;
     }
-  } else if (ref.section !== 'lessons' || givenSummary !== undefined) {
+  } else if (ref.section !== 'lessons' || change.summaryGiven) {
     const indexFile = toNative(libraryDir, INDEX_FILE);
     const current = (await readTextIfExists(indexFile)) ?? '';
     const update = upsertIndexEntry(current, INDEX_HEADINGS[ref.section], noteLink(ref.section, ref.name), summary);
@@ -311,17 +327,175 @@ export async function addNote(options: AddNoteOptions): Promise<AddNoteResult> {
     }
   }
 
-  const action = existing === undefined ? 'created' : 'appended';
-  const commit = await gitCommit(libraryDir, changed, `library: ${action === 'created' ? 'add' : 'update'} ${noteLink(ref.section, ref.name)}`);
+  const verb = existing === undefined ? 'add' : 'update';
+  const commit = await gitCommit(libraryDir, changed, `library: ${verb} ${noteLink(ref.section, ref.name)}`);
+  return { indexUpdated, committed: commit.committed, warnings: commit.warning !== undefined ? [commit.warning] : [] };
+}
+
+function assertSessionId(session: string | undefined): void {
+  if (session !== undefined && !isSessionId(session)) {
+    throw new BriefstackError('events.invalidSession', { session });
+  }
+}
+
+/**
+ * Adds content, from a markdown file or given as text, to a note.
+ * Everything is checked before anything is written: a secret, an invalid
+ * name or an invalid project status leaves the library untouched.
+ *
+ * - The content's frontmatter is not copied. `summary` (any section)
+ *   sets the note's line in the index; for `projects`, `target`, `path`,
+ *   `status`, `profile` and `summary` set the status block.
+ * - An existing note gets the body appended after a blank line; a new note
+ *   is created with it.
+ */
+export async function addNote(options: AddNoteOptions): Promise<AddNoteResult> {
+  const { libraryDir } = options;
+  if ((options.fromFile === undefined) === (options.text === undefined)) {
+    throw new TypeError('addNote needs exactly one of fromFile and text');
+  }
+  const ref = noteRef(options.section, options.name);
+  await assertLibrary(libraryDir);
+  const now = options.now ?? new Date();
+  assertSessionId(options.session);
+
+  const relative = noteRelativePath(ref.section, ref.name);
+  // Errors about the content name the --from file, or the note for text.
+  const label = options.fromFile ?? relative;
+  let source: string | undefined = options.text;
+  if (options.fromFile !== undefined) {
+    source = await readTextIfExists(options.fromFile);
+    if (source === undefined) throw new BriefstackError('library.fileNotFound', { file: options.fromFile });
+  }
+  const content = source ?? '';
+  const leaked = secretLines(content);
+  if (leaked.length > 0) throw new BriefstackError('library.secretContent', { file: label, lines: leaked });
+  const { data, body: rawBody } = parseFrontmatter(content, label);
+  const body = rawBody.replace(/^\s*\n/, '');
+  if (body.trim() === '' && ref.section !== 'projects') {
+    throw new BriefstackError('library.emptyContent', { file: label });
+  }
+
+  const existing = await readTextIfExists(toNative(libraryDir, relative));
+  const change = appendChange(ref, relative, existing, data, body, now, label, options.session);
+  const applied = await applyChange(libraryDir, change);
   return {
     section: ref.section,
     name: ref.name,
     file: relative,
-    action,
-    indexUpdated,
-    committed: commit.committed,
-    ...(status !== undefined ? { status } : {}),
-    warnings: commit.warning !== undefined ? [commit.warning] : [],
+    action: existing === undefined ? 'created' : 'appended',
+    indexUpdated: applied.indexUpdated,
+    committed: applied.committed,
+    ...(change.status !== undefined ? { status: change.status } : {}),
+    warnings: applied.warnings,
+  };
+}
+
+export interface SaveNoteOptions {
+  libraryDir: string;
+  section: string;
+  name?: string | undefined;
+  /** The whole note, frontmatter included. */
+  text: string;
+  now?: Date;
+}
+
+export type SaveMode = 'append' | 'rewrite' | 'create' | 'unchanged';
+
+export interface SaveNoteResult extends Omit<AddNoteResult, 'action'> {
+  mode: SaveMode;
+}
+
+/**
+ * The text added at the end of `existing`, or `undefined` when `text` is
+ * not `existing` plus whole new lines (trailing whitespace ignored). Text
+ * added on the old last line is an edit of that line, not an addition.
+ */
+function addedAtEnd(existing: string, text: string): string | undefined {
+  const before = existing.replace(/\s+$/, '');
+  const after = text.replace(/\s+$/, '');
+  if (before === '' || after.length <= before.length || !after.startsWith(before)) return undefined;
+  const added = after.slice(before.length);
+  return /^\r?\n/.test(added) ? added.replace(/^\s*\n/, '') : undefined;
+}
+
+/** A whole new text for a note (doubt 4: any edit that is not an addition at the end). */
+function rewriteChange(
+  ref: NoteRef,
+  relative: string,
+  existing: string | undefined,
+  text: string,
+  now: Date,
+): NoteChange {
+  const { hasFrontmatter, data, body } = parseFrontmatter(text, relative);
+  const givenSummary = stringField(data, 'summary');
+  if (ref.section !== 'projects') {
+    if (text.trim() === '') throw new BriefstackError('library.emptyContent', { file: relative });
+    const summary =
+      givenSummary !== undefined ? cleanSummary(givenSummary) : existing === undefined ? summaryFromBody(body) : undefined;
+    return { ref, relative, existing, next: withTrailingNewline(text), summary, summaryGiven: givenSummary !== undefined };
+  }
+
+  // The status block is part of the text; briefstack's own fields
+  // (`statusFormat`, `slug`, `updated`, and `created`/`session` once set)
+  // are kept or rewritten, and the result is checked as a whole.
+  const previous = previousStatus(existing, relative);
+  const status = projectStatusFor(data, previous, ref.name ?? '', body, now, relative, {
+    isNew: existing === undefined,
+    session: stringField(data, 'session'),
+  });
+  let next: string;
+  if (!hasFrontmatter) next = writeProjectNote(status, withTrailingNewline(body));
+  else {
+    next = withTrailingNewline(updateProjectNote(text, status, relative));
+    if (data.statusFormat === undefined) next = next.replace(/^(\uFEFF?---\r?\n)/, `$1statusFormat: ${STATUS_FORMAT}\n`);
+  }
+  const read = readProjectStatus(next, relative);
+  if (!read.ok) throw new BriefstackError('library.invalidProjectStatus', { file: relative, issues: read.issues });
+  return { ref, relative, existing, next, status: read.status, summary: read.status.summary, summaryGiven: true };
+}
+
+/**
+ * Saves a whole note, as edited in the web app (doubt 4). When the new text
+ * only adds lines at the end, the addition goes through the same dated
+ * append as `library add`; any other edit is a full rewrite. Both check for
+ * secrets and, in `projects/`, the status block, update the index and make
+ * one commit. Identical text (trailing whitespace aside) changes nothing.
+ */
+export async function saveNote(options: SaveNoteOptions): Promise<SaveNoteResult> {
+  const { libraryDir, text } = options;
+  const ref = noteRef(options.section, options.name);
+  await assertLibrary(libraryDir);
+  const now = options.now ?? new Date();
+  const relative = noteRelativePath(ref.section, ref.name);
+  const existing = await readTextIfExists(toNative(libraryDir, relative));
+  const base = { section: ref.section, name: ref.name, file: relative };
+
+  if (existing !== undefined && existing.replace(/\s+$/, '') === text.replace(/\s+$/, '')) {
+    const status = ref.section === 'projects' ? previousStatus(existing, relative) : undefined;
+    return { ...base, mode: 'unchanged', indexUpdated: false, committed: false, ...(status !== undefined ? { status } : {}), warnings: [] };
+  }
+  const leaked = secretLines(text);
+  if (leaked.length > 0) throw new BriefstackError('library.secretContent', { file: relative, lines: leaked });
+
+  const added = existing === undefined ? undefined : addedAtEnd(existing, text);
+  let change: NoteChange;
+  let mode: SaveMode;
+  if (added !== undefined) {
+    change = appendChange(ref, relative, existing, {}, added, now, relative, undefined);
+    mode = 'append';
+  } else {
+    change = rewriteChange(ref, relative, existing, text, now);
+    mode = existing === undefined ? 'create' : 'rewrite';
+  }
+  const applied = await applyChange(libraryDir, change);
+  return {
+    ...base,
+    mode,
+    indexUpdated: applied.indexUpdated,
+    committed: applied.committed,
+    ...(change.status !== undefined ? { status: change.status } : {}),
+    warnings: applied.warnings,
   };
 }
 

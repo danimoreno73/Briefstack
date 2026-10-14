@@ -22,12 +22,16 @@ export {
   listNotes,
   noteRef,
   readNote,
+  saveNote,
   secretLines,
   summaryFromBody,
   type AddNoteOptions,
   type AddNoteResult,
   type NoteRef,
   type NoteSummary,
+  type SaveMode,
+  type SaveNoteOptions,
+  type SaveNoteResult,
 } from './notes.js';
 export * from './projects.js';
 export * from './projectStatus.js';

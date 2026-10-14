@@ -10,6 +10,7 @@ import {
   listNotes,
   readNote,
   readProjectStatus,
+  saveNote,
 } from '../../src/library/index.js';
 import { renderLibraryContext } from '../../src/i18n/library.js';
 import { resolvesWikilink } from '../../src/validate/links.js';
@@ -324,6 +325,98 @@ describe('personal library', () => {
       const links = [...(await read('INDEX.md')).matchAll(/\[\[([^\]]+)\]\]/g), ...(await read('log/INDEX.md')).matchAll(/\[\[([^\]]+)\]\]/g)].map((m) => m[1] ?? '');
       expect(links.length).toBeGreaterThanOrEqual(5);
       for (const link of links) expect(resolvesWikilink(link, paths), link).toBe(true);
+    });
+  });
+
+  describe('add from text and save', () => {
+    beforeEach(async () => {
+      await init();
+    });
+    const log = () => git(libraryDir, ['log', '--format=%s']).trim().split('\n');
+    const project = '---\ntarget: claude-code\npath: ~/p/garden\nstatus: created\nprofile: balanced\nsummary: Garden.\n---\n# Garden\n';
+
+    it('addNote takes the content as text, exactly like a file', async () => {
+      const result = await addNote({ libraryDir, section: 'profile', name: 'style', text: '---\nsummary: Short.\n---\nShort answers.\n', now });
+      expect(result).toMatchObject({ action: 'created', file: 'profile/style.md', indexUpdated: true, committed: true });
+      expect(await read('profile/style.md')).toBe('Short answers.\n');
+      await expect(addNote({ libraryDir, section: 'profile', name: 'x', text: '   \n', now })).rejects.toMatchObject({
+        code: 'library.emptyContent',
+        params: { file: 'profile/x.md' },
+      });
+    });
+
+    it('creates, appends with a date heading, rewrites, and leaves identical text alone', async () => {
+      const created = await saveNote({ libraryDir, section: 'profile', name: 'tools', text: '# Tools\n\nUses VS Code.\n', now });
+      expect(created).toMatchObject({ mode: 'create', indexUpdated: true, committed: true });
+      expect(await read('INDEX.md')).toContain('- [[profile/tools]] — Tools\n');
+
+      const later = new Date('2026-11-02T08:00:00Z');
+      const appended = await saveNote({ libraryDir, section: 'profile', name: 'tools', text: '# Tools\n\nUses VS Code.\n\nPrefers pnpm.\n', now: later });
+      expect(appended).toMatchObject({ mode: 'append', committed: true });
+      expect(await read('profile/tools.md')).toBe('# Tools\n\nUses VS Code.\n\n### 2026-11-02\n\nPrefers pnpm.\n');
+
+      // Text added on the old last line is an edit, so a rewrite.
+      const current = await read('profile/tools.md');
+      const rewritten = await saveNote({ libraryDir, section: 'profile', name: 'tools', text: current.replace('pnpm.', 'pnpm and npm.'), now: later });
+      expect(rewritten).toMatchObject({ mode: 'rewrite', committed: true });
+      expect(await read('profile/tools.md')).toBe(current.replace('pnpm.', 'pnpm and npm.'));
+
+      const same = await saveNote({ libraryDir, section: 'profile', name: 'tools', text: `${await read('profile/tools.md')}\n\n`, now: later });
+      expect(same).toMatchObject({ mode: 'unchanged', committed: false, indexUpdated: false });
+      expect(log()).toEqual(['library: update profile/tools', 'library: update profile/tools', 'library: add profile/tools', 'library: initialise']);
+      expect(git(libraryDir, ['status', '--porcelain']).trim()).toBe('');
+    });
+
+    it('refuses secrets and invalid project status blocks, writing nothing', async () => {
+      // Built by concatenation so secret scanners do not flag the repo.
+      const fakeToken = 'ghp' + '_abcdefghijklmnopqrstuvwxyz0123456789AB';
+      await expect(saveNote({ libraryDir, section: 'profile', name: 'keys', text: `# Keys\n\ntoken: ${fakeToken}\n`, now })).rejects.toMatchObject({
+        code: 'library.secretContent',
+        params: { file: 'profile/keys.md', lines: [3] },
+      });
+      await expect(saveNote({ libraryDir, section: 'projects', name: 'bad', text: '---\ntarget: web\n---\n# Bad\n', now })).rejects.toMatchObject({
+        code: 'library.invalidProjectStatus',
+      });
+      await expect(stat(path.join(libraryDir, 'profile', 'keys.md'))).rejects.toThrow();
+      await expect(stat(path.join(libraryDir, 'projects', 'bad.md'))).rejects.toThrow();
+      expect(log()).toEqual(['library: initialise']);
+    });
+
+    it('keeps the project status block valid and briefstack fields in place on a rewrite', async () => {
+      await addNote({ libraryDir, section: 'projects', name: 'garden', text: project, session: 's-1', now });
+      const later = new Date('2026-11-02T08:00:00Z');
+      const text = (await read('projects/garden.md'))
+        .replace('status: created', 'status: active')
+        .replace('summary: Garden.', 'summary: Garden, now active.')
+        .replace('session: s-1\n', '');
+      const result = await saveNote({ libraryDir, section: 'projects', name: 'garden', text, now: later });
+      expect(result.mode).toBe('rewrite');
+      expect(result.status).toMatchObject({ status: 'active', updated: '2026-11-02', created: '2026-10-12', session: 's-1' });
+      expect(readProjectStatus(await read('projects/garden.md'), 'f')).toEqual({ ok: true, status: result.status });
+      expect(await read('INDEX.md')).toContain('- [[projects/garden]] — Garden, now active.');
+
+      // An addition at the end of a project note is dated and bumps `updated`.
+      const latest = new Date('2026-12-01T08:00:00Z');
+      const appended = await saveNote({ libraryDir, section: 'projects', name: 'garden', text: `${await read('projects/garden.md')}\nFirst harvest.\n`, now: latest });
+      expect(appended).toMatchObject({ mode: 'append', status: { updated: '2026-12-01' } });
+      expect(await read('projects/garden.md')).toMatch(/### 2026-12-01\n\nFirst harvest\.\n$/);
+
+      // A rewrite that changes the slug is refused.
+      const renamed = (await read('projects/garden.md')).replace('slug: garden', 'slug: other').replace('First harvest.', 'Edited.');
+      await expect(saveNote({ libraryDir, section: 'projects', name: 'garden', text: renamed, now })).rejects.toMatchObject({
+        code: 'library.invalidProjectStatus',
+      });
+    });
+
+    it('creates a project note from text without a status block line for statusFormat', async () => {
+      const result = await saveNote({ libraryDir, section: 'projects', name: 'garden', text: project, now });
+      expect(result).toMatchObject({ mode: 'create', status: { statusFormat: 1, slug: 'garden', created: '2026-10-12' } });
+      expect(await read('projects/garden.md')).toMatch(/^---\nstatusFormat: 1\ntarget: claude-code\n/);
+    });
+
+    it('keeps the log index for log notes', async () => {
+      await saveNote({ libraryDir, section: 'log', name: '2026-10-12-garden', text: '# Garden session\n', now });
+      expect(await read('log/INDEX.md')).toContain('[[log/2026-10-12-garden]] — Garden session');
     });
   });
 
