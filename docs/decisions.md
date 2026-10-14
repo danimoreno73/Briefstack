@@ -1289,3 +1289,68 @@ https://code.claude.com/docs/en/agent-sdk/typescript
   message asking the skill to close as `cancelled`).
 - Version: SDK 0.3.300 is the latest (2026-10-14). Under the two-week
   rule the pin is 0.3.286 (2026-09-30). Node 18+.
+
+### H0 probes (2026-10-14, SDK 0.3.286, Claude Code 2.1.300, Windows 11)
+
+Run with the user's go-ahead, from a Node script (PowerShell, no Git
+Bash), on `haiku` with `effort: low`. Every probe created its own temp
+folder (BRIEFSTACK_HOME, a throwaway project with the repo's hooks, a
+probe skill and a probe agent, output folders) and deleted it. The real
+repo was used only to load the SDK, zod and the hook script; the real
+library was never touched. The environment passed to the SDK had no
+`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_*` or
+`CLAUDECODE`.
+
+Plan usage, read through the SDK's experimental
+`usage_EXPERIMENTAL_…()` (the data behind `/usage`, from a session that
+sends no message): Team plan, 5-hour window 20% before and 22% after,
+7-day window 68% before and after. Before the probes, one `claude -p
+"/usage"` attempt from Git Bash was turned into a path
+(`C:/Program Files/Git/usage`) and sent to Sonnet as a prompt: one short
+turn. `/usage` is interactive; from Node it is read with the SDK call.
+
+Verified:
+
+1. **Skill, session id, hooks.** `/probe` (with
+   `disable-model-invocation: true`) is in `slash_commands` and runs.
+   `${CLAUDE_SESSION_ID}` is substituted and equals the SDK `session_id`
+   and the hooks' `session_id`. Settings hooks (exec form) recorded tool,
+   subagent and `session.end{other}` events with `settingSources:
+   ["project", "local"]`.
+2. **`canUseTool`.** `AskUserQuestion` arrives there and was held 20 s
+   with no problem; the answer is returned in `updatedInput.answers`. A
+   subagent's write outside the working folder arrives too, with
+   `agentID` and `decisionReason: "Path is outside allowed working
+   directories"`.
+3. **Login.** `apiKeySource: "none"`: the subscription login, no API key.
+   `claude_code_version` 2.1.300 through `pathToClaudeCodeExecutable`
+   with SDK 0.3.286: compatible in practice.
+4. **Folder for one session.** Returning `updatedPermissions:
+   [{ type: "addDirectories", directories: [dir], destination: "session" }]`
+   with an `allow` works mid-session: the next write in that folder did
+   not reach `canUseTool` (`acceptEdits`). Claude Code itself suggests
+   that exact update in `suggestions`. No settings file changed (repo
+   `settings.json`, no `settings.local.json` created, user
+   `~/.claude/settings.json` hash unchanged).
+5. **Model and effort.** `model: "haiku"` → `claude-haiku-5-5`. The init
+   message reported `effort: undefined` for `effort: "low"`: not
+   verifiable on Haiku. Check with a Sonnet profile in H6.
+6. **`SessionEnd`.** It fires when a session ends normally (`other`). It
+   does **not** fire on `abortController.abort()`, `close()` or when the
+   host process exits. In all three the running command (Git Bash plus
+   its `node` child) was left running, orphaned, until it ended or was
+   stopped by hand. After `close()` the folder stayed locked for over a
+   minute.
+7. **Auto mode.** `permissionMode: "auto"` is accepted (init reports
+   `auto`). The classifier allowed `node --version`, a write inside the
+   working folder **and a write outside it** without calling
+   `canUseTool`.
+8. **Cancel.** `interrupt()` during a running Bash command kills it in
+   about 25 ms (no orphan) and rejects the tool call; a follow-up message
+   on the same streaming input is then answered.
+9. **Background subagents.** The Agent tool started the subagent
+   asynchronously ("Async agent launched"); the main turn ended with a
+   `result` and a second turn (new init, second `result`) followed when
+   the subagent finished.
+10. **Connectors.** Without `strictMcpConfig`, the SDK session also loads
+    the user's claude.ai connectors (`source: "claudeai"`).
