@@ -1,11 +1,13 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { CreationManager } from '../creation/manager.js';
+import { systemPathEnv, type PathEnv } from '../config/index.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
 import { DEFAULT_LANG, type Lang } from '../i18n/index.js';
 import { VERSION } from '../version.js';
 import { creationRoutes } from './creations.js';
 import { BASE_HEADERS, header, sendError, sendJson } from './http.js';
+import { readRoutes } from './read.js';
 import { createRouter, type RouteTable } from './router.js';
 import { LOOPBACK, TOKEN_HEADER, checkRequest, newToken, type Rejection } from './security.js';
 import { loadStaticSite } from './static.js';
@@ -30,6 +32,10 @@ export interface WebServerOptions {
    * `creation.unavailable`. The caller owns it and calls its `shutdown()`.
    */
   creations?: CreationManager;
+  /** Where the user's files live; the real machine by default. Tests pass a temp home. */
+  pathEnv?: PathEnv;
+  /** The briefstack repo the usage and paths routes report on; the package by default. */
+  repoDir?: string;
   /** Time between heartbeat comments on a creation stream (tests shorten it). */
   heartbeatMs?: number;
 }
@@ -49,6 +55,7 @@ const REJECTION_STATUS: Record<Rejection, number> = { host: 403, token: 401, ori
 function apiRoutes(options: WebServerOptions): RouteTable {
   return [
     ['GET /api/health', (_req, res) => sendJson(res, 200, { ok: true, version: VERSION })],
+    ...readRoutes({ pathEnv: options.pathEnv ?? systemPathEnv(), repoDir: options.repoDir, lang: options.lang }),
     ...creationRoutes(options.creations, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
   ];
 }

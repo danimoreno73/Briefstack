@@ -30,6 +30,8 @@ export function sendJson(res: ServerResponse, status: number, body: unknown): vo
 const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'web.bodyTooLarge': 413,
   'web.unsupportedMediaType': 415,
+  'library.noteNotFound': 404,
+  'events.sessionNotFound': 404,
   'creation.unavailable': 503,
   'creation.busy': 409,
   'creation.notFound': 404,

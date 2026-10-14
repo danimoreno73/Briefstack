@@ -1,8 +1,8 @@
 # briefstack web API
 
 The local server started by `briefstack web` (BRIEF-phase-2 §6). The browser
-UI uses it; phase 4's global chat and phase 5 can call it too. Read routes
-for projects, sessions, the library, usage and settings are added in H3/H4.
+UI uses it; phase 4's global chat and phase 5 can call it too. Write routes
+for the library, usage and settings are added in H4.
 
 ## Requests
 
@@ -35,7 +35,7 @@ text use those. The security rejections above send `{ "code" }` only.
 | Status | Codes |
 |---|---|
 | 400 | `web.invalidJson`, `web.invalidBody`, `web.invalidQuery`, `creation.invalidAnswer`, any other coded error |
-| 404 | `web.notFound`, `creation.notFound` |
+| 404 | `web.notFound`, `creation.notFound`, `library.noteNotFound`, `events.sessionNotFound` |
 | 409 | `creation.busy`, `creation.noPending`, `creation.wrongPending` |
 | 413 | `web.bodyTooLarge` |
 | 415 | `web.unsupportedMediaType` |
@@ -46,6 +46,84 @@ text use those. The security rejections above send `{ "code" }` only.
 ### `GET /api/health`
 
 `200 { "ok": true, "version": "0.1.0" }`
+
+## Read routes
+
+All `GET`, all need the token. They read the config and files on every call,
+so a change made from the CLI shows at once. Text from notes and generated
+files passes the secret check first: a line that looks like a secret comes
+back as `[redacted]`.
+
+### `GET /api/projects`
+
+`200 { "projects": [ProjectListing, …] }`, newest first. A listing is
+`{ slug, file, name, created?, session?, status?, issues? }`: `status` is the
+note's frontmatter (`target`, `path`, `status`, `profile`, `updated`,
+`summary`), `issues` says what is wrong with an invalid one.
+
+### `GET /api/projects/:slug`
+
+```json
+{
+  "project": { "slug": "…" },
+  "note": { "file": "projects/<slug>.md", "text": "…" },
+  "timeline": { "summary": {}, "steps": [], "agents": [] },
+  "nextSteps": "…",
+  "instructions": "…",
+  "openCommand": { "cwd": "<project path>", "command": "claude" }
+}
+```
+
+- `timeline` is the creation session's (see `GET /api/sessions/:id`), or
+  `null` without a `session` or without its `events.jsonl`.
+- `nextSteps` and `instructions` are the text of `NEXT_STEPS.md` and
+  `INSTRUCTIONS.md` for `claude-app` projects, else `null`. A missing or
+  oversized (over 256 KB) file is `null` too.
+- `openCommand` is where to run `claude`; `null` when the note has no valid
+  status block.
+- `404 library.noteNotFound` for an unknown slug; `400` for an invalid one.
+
+### `GET /api/sessions`
+
+`200 { "sessions": [{ id, status, outcome?, startedAt?, lastEventAt?, lastStep?, endReason? }, …] }`,
+newest first. `status` is `finished | in-progress | interrupted`;
+`outcome` (`completed | cancelled | failed`) comes with `finished`. The UI
+lists `interrupted` and `cancelled` ones apart, with their `lastStep`.
+
+### `GET /api/sessions/:id`
+
+`200 { summary, steps: [{ step, startedAt, finishedAt?, outcome? }], agents: [{ agentId, agentType, startedAt, stoppedAt? }] }`.
+`404 events.sessionNotFound`, `400 events.invalidSession`.
+
+### Library
+
+- `GET /api/library/index`: `{ "file": "INDEX.md", "text": "…" | null }`.
+- `GET /api/library/notes[?section=<s>]`: `{ "notes": [{ section, name?, file, summary }, …] }`;
+  sections are `profile`, `projects`, `log`, `skills`, `lessons`. An unknown
+  section is a 400.
+- `GET /api/library/note?section=<s>[&name=<slug>]`: `{ "file", "text" }`.
+  `lessons` takes no name; the others need one. `404 library.noteNotFound`.
+- `GET /api/library/history[?limit=<1–200>]`: `{ "commits": [{ sha, shortSha, date, subject, files }, …] }`,
+  newest first, 50 by default. A library without git history has none.
+
+### `GET /api/usage`
+
+What `briefstack usage show --json` prints (`profile`, `label`, `fromConfig`,
+`sessionModel`, `agents`, `tiers`, `research`, `reviewRounds`, `available`,
+`drift`, `envWarnings`) plus `presets`: `[{ name, source: "base" | "user", label: { en, es }, sessionModel, effort, tiers, research, reviewRounds }, …]`.
+No token or cost figures.
+
+### `GET /api/paths`
+
+What `briefstack paths --json` prints: `home`, `configFile`, `libraryDir`,
+`libraryExists`, `projectsDir`, `sessionsDir`, `repoDir`, `allowedDirs`.
+
+### `GET /api/settings`
+
+`{ "projectsDir", "lang", "configLang": "en" | "es" | null, "permissionPolicy": "ask" | "unattended" }`.
+`lang` is the language in use; `configLang` the one saved in the config.
+
+## Creation routes
 
 ### `POST /api/creations`
 

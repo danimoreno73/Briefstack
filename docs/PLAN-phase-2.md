@@ -22,14 +22,15 @@ Updated 2026-10-14. A new session reads `CLAUDE.md`,
 | H0 | Docs read and 8 real SDK probes (`decisions.md`, "Agent SDK and policy", "H0 probes", "Design after the H0 checkpoint"). Section 3 reflects the approved changes: guard hook, cancel without `interrupt()`, the server records the end and kills the process tree, a `result` is not the end, `strictMcpConfig` |
 | H1 | `briefstack web` on 127.0.0.1 with Host, token and Origin checks; UI built by `tsc -p tsconfig.ui.json` into `dist/web` (Preact with an import map, strict CSP); `@playwright/test` 1.61.1 (chromium 1228 already installed); SDK 0.3.286 pinned; installed `claude` lookup with a compatibility warning (`src/creation/claudeBinary.ts`) |
 | H2 | Project notes get optional `created` and `session` fields (`library add projects … --session <id>`); `listProjects`, `listSessions`, `sessionTimeline`, `saveNote`, `addNote` with `text`, `libraryHistory`, `revertLibraryCommit`, `usageShow`/`usageSet` (moved out of `cli.ts`), `permissionPolicy`, `setProjectsDir` |
+| H3 | Read routes in `src/server/read.ts`: projects (with detail, timeline, `NEXT_STEPS.md`/`INSTRUCTIONS.md`), sessions, library index/notes/note/history, usage (with presets), paths, settings; secret lines redacted; documented in `docs/api.md`. `startWebServer` takes `pathEnv` and `repoDir` |
 | H5 | `CreationRunner` interface (`src/creation/types.ts`), `FakeRunner` with recordings (`tests/fixtures/recordings/`), `CreationManager`, creation routes and the SSE stream (`docs/api.md`) |
 
-Build and lint are clean, and 379 tests pass on Windows. CI runs on
+Build and lint are clean, and 391 tests pass on Windows. CI runs on
 Linux only for each push; the full matrix runs by hand.
 
 ### Left, in order
 
-H3 → H4 → H7 → H6 → H8 → H9 → H10 (section 5 has each one's
+H4 → H7 → H6 → H8 → H9 → H10 (section 5 has each one's
 verification). H6 comes after H7 because it needs the most care and
 spends real tokens.
 
@@ -52,8 +53,11 @@ spends real tokens.
   | `validate …` | yes | yes | yes |
   | `commit …` | yes | | |
 
-  The hook input carries `agent_type`, so the hook can enforce this
-  per caller rather than as one list. Decide that in H6.
+  **Decided 2026-10-14:** the hook enforces the list per caller, using
+  the `agent_type` in its input, not as one list. The main session
+  (no `agent_type`) gets the "Main session" column, `generator` and
+  `reviewer` their own column, and any other agent no CLI command at
+  all. A command outside the caller's column returns `ask`.
 - **Generator and reviewer bodies:** remove "read-only commands".
   The reviewer inspects with Glob and Read; its only non-CLI command in
   H10 was `find -type d`.
