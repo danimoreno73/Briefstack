@@ -13,33 +13,16 @@ commits, one concern each.
 
 Updated 2026-10-14:
 
-- **H1 done.** `briefstack web` serves a first page with every security
-  check. Build and lint are clean, and 311 tests pass.
-- **H0:** the docs have been read (`decisions.md`, "Agent SDK and
-  policy").
-- **Waiting on the user:**
-  - the subscription-policy conflict (item 7);
-  - bundled SDK binary versus the installed `claude.exe`;
-  - the go-ahead for the real probes, which use the user's login.
-
-## Context
-
-Phase 1 is done. The CLI, the `/new-project` skill, the five agents, the
-library, usage profiles and events all work from Claude Code.
-
-Phase 2 adds a second way in, a local web app. The browser runs the same skill
-through the Agent SDK and lets the user browse projects, edit the library and
-choose the profile. The server must stay a thin layer over the phase 1 library
-code. The exploration found that almost everything already returns structured
-data. The gaps are:
-
-- no git history or revert for the library;
-- no one-call project listing;
-- no session listing;
-- no link from a project note to its creation session;
-- `usage show` JSON is assembled in `cli.ts`;
-- `addNote` only takes a file;
-- the skill asks for spec approval and `/add-dir` in plain text.
+- **H1 done.**
+- **H0 done:** docs and real probes (`decisions.md`, "H0 probes"). The
+  checkpoint changes were approved and are reflected in section 3:
+  - guard hook for writes and shell commands;
+  - cancel without `interrupt()`;
+  - the server writes the end and kills the process tree;
+  - `result` is not the end;
+  - `strictMcpConfig`.
+  Effort is checked in H6.
+- **Next:** H2 ‖ H5.
 
 ### Before publishing the repo
 
@@ -145,7 +128,7 @@ Extra items this design depends on:
 **Checkpoint:** after H0, stop and show every finding that changes the design.
 If subscription use does not work in practice, stop and ask (brief §2).
 
-## 3. Decisions (proposed)
+## 3. Decisions
 
 ### Stack
 
@@ -217,14 +200,43 @@ If subscription use does not work in practice, stop and ask (brief §2).
     - `FakeRunner`: replays a recorded creation from a JSONL script (questions,
       permission requests, spec approval, events). It writes `events.jsonl` as
       the real hooks would.
-- `SdkRunner`:
-  - Starts `query()` with `cwd` = repo, the profile's session `model`/`effort`,
-    `permissionMode: 'auto'`, narrow allow rules (the briefstack CLI,
-    `Write`/`Edit` under `projectsDir` and the session folder,
-    `WebSearch`/`WebFetch`), the `briefstack-web` MCP server, and streaming
-    input.
-  - `canUseTool` routes `AskUserQuestion` to a form. Anything else goes to the
-    permission dialog (`ask`) or is denied and recorded (`unattended`).
+- `SdkRunner` (H0 changes approved 2026-10-14, `decisions.md` "H0 probes"):
+  - Starts `query()` with:
+    - `cwd` = repo and `settingSources: ["project", "local"]`;
+    - the user's `claude` as `pathToClaudeCodeExecutable`;
+    - the profile's session `model`/`effort`;
+    - `permissionMode: 'auto'`;
+    - `strictMcpConfig: true` with only the `briefstack-web` server, so no
+      claude.ai connectors;
+    - streaming input;
+    - an environment without `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`,
+      `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDECODE` or `CLAUDE_CODE_*`.
+  - **Guard hook** (an SDK `PreToolUse` callback; hooks run before the
+    permission mode, so the auto classifier never decides these). It applies
+    to the main session and to subagents:
+    - **File writes** (`Write`, `Edit`, `NotebookEdit`): inside
+      `projectsDir`, the session folder or a folder granted to this session,
+      they pass. Anywhere else the hook returns `ask`.
+    - **Shell** (`Bash` and `PowerShell`): only the commands the flow needs
+      pass. That means `npm run --silent briefstack -- <sub> …`, where `<sub>`
+      is `event`, `paths`, `usage show`, `library context`,
+      `library add`, `spec check`, `scaffold`, `validate` or `commit`, with
+      no `&&`, `;`, `|`, `$(`, backticks, redirects or newlines. Any other
+      command returns `ask`. The list comes from the skill, the five agents
+      and the H10 transcripts.
+    - `ask` reaches `canUseTool`. That shows the permission dialog under
+      `ask me`, or denies and records under `unattended`.
+    - After a cancel, every tool is denied except the `briefstack event`
+      calls that close the session.
+  - `canUseTool`:
+    - `AskUserQuestion` goes to the question form.
+    - A write in a folder the user confirmed through `grant_directory` is
+      allowed, with `updatedPermissions: [{ type: "addDirectories",
+      destination: "session" }]`. The grant is never written to any
+      settings file.
+    - Anything else goes to the dialog or the unattended denial.
+  - `grant_directory` creates a missing folder only after the user confirms
+    (it replaces the CLI's `! mkdir`).
   - Before showing a request, inputs pass through the secret redactor.
   - Never `bypassPermissions`.
 - `CreationManager`: creations live in a map keyed by id (phase 4 ready). Phase 2
@@ -232,12 +244,23 @@ If subscription use does not work in practice, stop and ask (brief §2).
   - The manager keeps pending questions and requests in memory. Closing the tab
     loses nothing, and on reopen the browser fetches the state and the stream
     replays from the last seen sequence number.
-  - Cancel: answers any pending question with cancel, or interrupts the turn,
-    then asks the skill to close the session as `cancelled`.
-  - If the skill has not closed it within a time limit, the server writes
-    `session finished cancelled` through `appendEvent`.
-  - On server stop (SIGINT/SIGTERM), the query is aborted, so `SessionEnd`
-    (or the 120-minute rule) marks the session `interrupted`.
+  - A `result` message is not the end: subagents run in the background and
+    a second turn follows. A creation ends only with the flow's
+    `session.finished` event, or with a stop.
+  - **Cancel** never calls `interrupt()`, because it kills a running command
+    within about 25 ms and could cut a CLI write.
+    - A pending question is answered "cancel".
+    - Otherwise the guard hook denies the next tool calls with a message
+      telling the skill to close the session as `cancelled`.
+    - If the skill has not closed it within a time limit, the server writes
+      `session finished cancelled` through `appendEvent`.
+  - **Server stop:** `SessionEnd` does not fire on abort, `close()` or host
+    exit, and running commands are left orphaned on Windows. On stop, the
+    server:
+    - writes the end itself (a `session.end` event with reason
+      `server_stop`, so the session reads `interrupted`);
+    - kills the whole Claude Code process tree. It owns that process through
+      the SDK's `spawnClaudeCodeProcess`, verified in H6.
 - Stream events: `{seq, ts, kind, data}`, where `kind` is one of
   `flow | hook | question | permission | spec | status`. They are built from
   `events.jsonl` (watched) and runner events. This is the shape the phase 3
@@ -254,6 +277,10 @@ If subscription use does not work in practice, stop and ask (brief §2).
 
   The steps themselves are the same either way.
 - `library add projects` gains `--session <id>`, and the skill passes it.
+- Generator and reviewer bodies: "Bash only for the briefstack CLI". The
+  "read-only commands" wording goes, and the reviewer inspects the tree with
+  Glob and Read. In H10 its one non-CLI command was `find -type d`.
+  The bodies are edited by hand; `model` and `effort` are not.
 - `tests/unit/new-project-skill.test.ts` checks that both answer sources are
   present, and that the step sequence and the `event` calls do not depend on
   the branch.
@@ -306,7 +333,7 @@ passing. From H9 on, `npm run test:e2e` must pass as well.
 | H3 | Read routes: projects, project detail/timeline, sessions, library browse, usage, paths, settings; `docs/api.md` | API test per route against a temp home |
 | H4 | Write routes: save note, revert, usage set, settings | API tests; no secret in responses or logs; a note containing a secret is refused |
 | H5 | `CreationRunner`, `FakeRunner`, `CreationManager`, stream, cancel, reconnect, one-active rule, server-stop behaviour | Unit and API tests over recordings: full run, change at the spec, cancel, reconnect with replay, 409, unattended denial recorded and listed in the result |
-| H6 | Web MCP tools, skill branches, `SdkRunner` (allow rules, auto mode, policy, folder grant, model/effort) | Skill test; one small real smoke run with the `saver` profile in a folder the tool creates; a recording captured for the fake runner |
+| H6 | Web MCP tools, skill branches, `SdkRunner` (guard hook, auto mode, policy, folder grant, model/effort, process tree) | Guard hook unit tests: allowed CLI commands, chained or other commands, PowerShell, writes in and out of the allowed folders, after cancel. Real checks: a hook `ask` reaches `canUseTool` in auto mode; `spawnClaudeCodeProcess` kill leaves no orphan; effort visible with a Sonnet profile. One small real smoke run in a folder the tool creates; a recording captured for the fake runner |
 | H7 | UI: projects, library, usage, settings | Component tests where useful; manual check in the browser |
 | H8 | UI: creation flow (all screens, Cancel, reopen tab) | Manual check over `FakeRunner` |
 | H9 | Playwright E2E over `FakeRunner`: full creation, change at spec, cancel, close/reopen tab, library edit and revert, slider change | `npm run test:e2e` green on Windows |

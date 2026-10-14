@@ -1354,3 +1354,31 @@ Verified:
    the subagent finished.
 10. **Connectors.** Without `strictMcpConfig`, the SDK session also loads
     the user's claude.ai connectors (`source: "claudeai"`).
+
+### Design after the H0 checkpoint (user decisions, 2026-10-14)
+
+- **Guard hook.** File writes outside `projectsDir`, the session folder
+  and the session's granted folders, and every shell command (`Bash`,
+  `PowerShell`) outside a fixed list, go to `canUseTool` and never to
+  the auto classifier. `canUseTool` then shows the UI dialog or applies
+  the unattended denial.
+  - The list is `npm run --silent briefstack -- <sub> …` with `<sub>` in
+    `event`, `paths`, `usage show`, `library context`, `library add`,
+    `spec check`, `scaffold`, `validate`, `commit`, and no shell
+    operators.
+  - Sources: the skill, the five agent bodies, and the commands in the H10
+    run's transcripts. All were the CLI, except one reviewer
+    `find "<dir>" -path '*/.git' -prune -o -type d -print`, which Glob and
+    Read cover. The generator and reviewer bodies lose "read-only commands".
+  - The user approved closing the Bash gap this way instead of leaving it
+    to the classifier.
+- **Cancel** never uses `interrupt()`. It answers a pending question,
+  otherwise denies further tools, and the skill closes the session as
+  `cancelled`. If the skill does not, the server writes the close.
+- **Server stop.** The server writes `session.end` with reason
+  `server_stop` and kills the Claude Code process tree (through
+  `spawnClaudeCodeProcess`, to verify in H6).
+- **End of a creation.** A creation ends with the flow's `session.finished`,
+  not with an SDK `result`.
+- **MCP.** `strictMcpConfig: true`: only `briefstack-web`.
+- **Effort.** Checked in H6 with a Sonnet profile.
