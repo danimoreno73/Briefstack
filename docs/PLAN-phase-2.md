@@ -22,7 +22,22 @@ Updated 2026-10-14:
   - `result` is not the end;
   - `strictMcpConfig`.
   Effort is checked in H6.
-- **Next:** H2 ‖ H5.
+- **H2 done:** library additions. Also:
+  - the `--session` link;
+  - `usageShow`/`usageSet` moved out of the CLI;
+  - `permissionPolicy` and `setProjectsDir`.
+- **H5 done:**
+  - the `CreationRunner` interface, `FakeRunner` with recordings, and
+    `CreationManager`;
+  - creation routes and the SSE stream (`docs/api.md`).
+- Build and lint are clean, and 379 tests pass.
+- **Open for H6:**
+  - `runWeb` still has no `CreationManager` (the creation routes answer
+    503);
+  - the skill must pass `--session` to `library add projects`;
+  - the secret redactor for requests.
+- **Open for H8:** a route that serves the spec summary.
+- **Next:** H3+H4 (main session) ‖ H7 (worktree).
 
 ### Before publishing the repo
 
