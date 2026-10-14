@@ -74,6 +74,7 @@ describe('error catalogue', () => {
     'library.noteNotFound': { section: 'profile', name: 'n' },
     'library.invalidProjectStatus': { file: 'f', issues: ['target: x'] },
     'events.invalidSession': { session: '../x' },
+    'events.sessionNotFound': { session: 's' },
     'web.invalidPort': { value: 'abc' },
     'web.portInUse': { port: 4870 },
     'web.uiNotBuilt': { dir: 'd' },
