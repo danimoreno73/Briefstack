@@ -25,5 +25,8 @@
     "tests",
     "scripts",
     "vitest.config.ts"
+  ],
+  "exclude": [
+    "src/ui"
   ]
 }
