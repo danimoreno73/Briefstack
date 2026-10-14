@@ -1,16 +1,19 @@
-# Not exercised yet: the repo has no remote. See docs/decisions.md.
+# Every push runs on Linux only: macOS and Windows runners use the private
+# repo's minutes faster. The full matrix runs only when started by hand
+# (Actions → CI → Run workflow). Windows is verified locally.
 name: CI
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   check:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: ${{ github.event_name == 'workflow_dispatch' && fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]') || fromJSON('["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
