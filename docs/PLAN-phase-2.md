@@ -34,6 +34,12 @@ H4 → H7 → H6 → H8 → H9 → H10 (section 5 has each one's
 verification). H6 comes after H7 because it needs the most care and
 spends real tokens.
 
+**Next: H4** (write routes: save note, revert a library commit, usage set,
+settings). The library code it calls already exists from H2: `saveNote`,
+`revertLibraryCommit`, `usageSet`, `setProjectsDir`, `updateConfig`. Needs
+API tests, a secret-in-note refusal, and no secrets in responses or logs.
+The read routes in `src/server/read.ts` and `docs/api.md` are the model.
+
 ### Pending for H6 (not done yet)
 
 - **Guard hook: not implemented.** Section 3, "SdkRunner", has the
