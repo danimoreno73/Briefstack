@@ -62,6 +62,7 @@ import {
 import { validateProject } from './validate/index.js';
 import { DEFAULT_WEB_PORT, startWebServer } from './server/index.js';
 import { webMessages } from './i18n/web.js';
+import { checkClaudeCode, formatVersion, type ClaudeCheck } from './creation/claudeBinary.js';
 
 /** Argument parsing only; all real work lives in the library. */
 
@@ -83,6 +84,8 @@ export interface CliIO {
   untilStopped?: () => Promise<void>;
   /** Built UI served by `web`; defaults to `dist/web` in the package. */
   uiDir?: string;
+  /** Checks the installed Claude Code for `web`; tests pass their own. */
+  checkClaude?: () => Promise<ClaudeCheck>;
 }
 
 const defaultIO = (): CliIO => ({
@@ -555,6 +558,22 @@ const untilSignal = (): Promise<void> =>
     process.once('SIGTERM', stop);
   });
 
+function claudeWarning(check: ClaudeCheck, lang: Lang): string | undefined {
+  const messages = webMessages[lang];
+  switch (check.status) {
+    case 'compatible':
+      return undefined;
+    case 'notFound':
+      return messages.claudeNotFound;
+    case 'unknownVersion':
+      return messages.claudeUnknownVersion(check.executable);
+    case 'older':
+      return messages.claudeOlder(formatVersion(check.installed), formatVersion(check.expected));
+    case 'untested':
+      return messages.claudeUntested(formatVersion(check.installed), formatVersion(check.expected));
+  }
+}
+
 async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
   const messages = webMessages[lang];
   const { positionals, values } = parseArgs(args, [], lang, ['--port'], messages.usage);
@@ -569,6 +588,10 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   io.out(messages.listening);
   // Alone on its own line, so it is easy to copy.
   io.out(server.url);
+  const claude = await (io.checkClaude ?? (() =>
+    checkClaudeCode({ env: io.pathEnv.env, platform: process.platform, homedir: io.pathEnv.homedir })))();
+  const warning = claudeWarning(claude, lang);
+  if (warning !== undefined) io.err(warning);
   await (io.untilStopped ?? untilSignal)();
   await server.close();
   io.out(messages.stopped);

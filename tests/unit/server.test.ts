@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main, type CliIO } from '../../src/cli.js';
 import { BriefstackError } from '../../src/errors.js';
 import { startWebServer, TOKEN_HEADER, type WebServer } from '../../src/server/index.js';
+import type { ClaudeCheck } from '../../src/creation/claudeBinary.js';
 import { VERSION } from '../../src/version.js';
 import { tempDir, writeTree } from '../helpers.js';
 
@@ -164,13 +165,27 @@ describe('briefstack web', () => {
   });
   afterEach(() => cleanup());
 
-  const io = (out: string[], err: string[], untilStopped: () => Promise<void>, lang = 'en'): CliIO => ({
+  const compatible = async (): Promise<ClaudeCheck> => ({
+    status: 'compatible',
+    executable: 'claude',
+    installed: [2, 1, 300],
+    expected: [2, 1, 286],
+  });
+
+  const io = (
+    out: string[],
+    err: string[],
+    untilStopped: () => Promise<void>,
+    lang = 'en',
+    checkClaude: () => Promise<ClaudeCheck> = compatible,
+  ): CliIO => ({
     out: (line) => out.push(line),
     err: (line) => err.push(line),
     cwd: dir,
     repoDir: path.join(dir, 'repo'),
     uiDir: path.join(dir, 'ui'),
     untilStopped,
+    checkClaude,
     pathEnv: {
       env: { BRIEFSTACK_HOME: path.join(dir, 'home'), BRIEFSTACK_LANG: lang },
       homedir: path.join(dir, 'user'),
@@ -193,6 +208,25 @@ describe('briefstack web', () => {
     expect(out[0]).toContain('Open this address');
     expect(seen).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/#token=[A-Za-z0-9_-]{43}$/);
     expect(out[2]).toBe('briefstack web stopped.');
+  });
+
+  it('warns when Claude Code is missing or not compatible', async () => {
+    const cases: [ClaudeCheck, string][] = [
+      [{ status: 'notFound' }, 'Claude Code was not found'],
+      [{ status: 'older', executable: 'c', installed: [2, 1, 200], expected: [2, 1, 286] }, 'Claude Code 2.1.200 is older than the 2.1.286'],
+      [{ status: 'untested', executable: 'c', installed: [2, 2, 0], expected: [2, 1, 286] }, 'Claude Code 2.2.0 has not been tested'],
+      [{ status: 'unknownVersion', executable: 'c' }, 'could not read the version of c'],
+    ];
+    for (const [check, text] of cases) {
+      const out: string[] = [];
+      const err: string[] = [];
+      expect(await main(['web', '--port', '0'], io(out, err, async () => undefined, 'en', async () => check))).toBe(0);
+      expect(err.join('\n')).toContain(text);
+      expect(out[1]).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/#token=/);
+    }
+    const quiet: string[] = [];
+    await main(['web', '--port', '0'], io([], quiet, async () => undefined));
+    expect(quiet.filter((line) => line.startsWith('Warning'))).toEqual([]);
   });
 
   it('suggests --port 0 when the port is taken, in both languages', async () => {
