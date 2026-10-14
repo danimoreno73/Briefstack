@@ -54,6 +54,17 @@ export interface ErrorParams {
   'web.invalidPort': { value: string };
   'web.portInUse': { port: number };
   'web.uiNotBuilt': { dir: string };
+  'web.invalidJson': { detail: string };
+  'web.invalidBody': { issues: string[] };
+  'web.invalidQuery': { name: string; value: string };
+  'web.bodyTooLarge': { limit: number };
+  'web.unsupportedMediaType': { contentType: string };
+  'creation.unavailable': Record<string, never>;
+  'creation.busy': { active: string };
+  'creation.notFound': { id: string };
+  'creation.noPending': { id: string };
+  'creation.wrongPending': { pendingId: string; expected: string };
+  'creation.invalidAnswer': { kind: string; issues: string[] };
 }
 
 export type ErrorCode = keyof ErrorParams;

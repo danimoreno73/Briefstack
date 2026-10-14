@@ -77,6 +77,17 @@ describe('error catalogue', () => {
     'web.invalidPort': { value: 'abc' },
     'web.portInUse': { port: 4870 },
     'web.uiNotBuilt': { dir: 'd' },
+    'web.invalidJson': { detail: 'd' },
+    'web.invalidBody': { issues: ['idea: required'] },
+    'web.invalidQuery': { name: 'from', value: 'x' },
+    'web.bodyTooLarge': { limit: 65536 },
+    'web.unsupportedMediaType': { contentType: 'text/plain' },
+    'creation.unavailable': {},
+    'creation.busy': { active: 'c1' },
+    'creation.notFound': { id: 'c1' },
+    'creation.noPending': { id: 'c1' },
+    'creation.wrongPending': { pendingId: 'p1', expected: 'p2' },
+    'creation.invalidAnswer': { kind: 'question', issues: ['a'] },
   };
 
   it('has a distinct message for every code in every language', () => {

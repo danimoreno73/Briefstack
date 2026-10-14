@@ -104,6 +104,20 @@ const errors = defineCatalogue<ErrorMessages>({
     'web.portInUse': (p) =>
       `Port ${p.port} is already in use. Run again with --port 0 to use any free port.`,
     'web.uiNotBuilt': (p) => `The web app is not built (${p.dir} is missing). Run npm run build first.`,
+    'web.invalidJson': (p) => `The request body is not valid JSON: ${p.detail}`,
+    'web.invalidBody': (p) => `The request body is not valid:${bullets(p.issues)}`,
+    'web.invalidQuery': (p) => `"${p.value}" is not a valid value for "${p.name}".`,
+    'web.bodyTooLarge': (p) => `The request body is larger than ${p.limit} bytes.`,
+    'web.unsupportedMediaType': (p) =>
+      `The request body must be JSON (Content-Type: application/json), not "${p.contentType}".`,
+    'creation.unavailable': () => 'Creating projects is not available in this server.',
+    'creation.busy': (p) =>
+      `A creation is already running (${p.active}). Finish or cancel it before starting another one.`,
+    'creation.notFound': (p) => `No creation with id ${p.id}.`,
+    'creation.noPending': (p) => `Creation ${p.id} is not waiting for an answer.`,
+    'creation.wrongPending': (p) =>
+      `That answer is for ${p.pendingId}, but the creation is waiting for ${p.expected}. Reload and try again.`,
+    'creation.invalidAnswer': (p) => `The answer to this ${p.kind} is not valid:${bullets(p.issues)}`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -171,6 +185,20 @@ const errors = defineCatalogue<ErrorMessages>({
     'web.portInUse': (p) =>
       `El puerto ${p.port} ya está en uso. Vuelve a ejecutarlo con --port 0 para usar cualquier puerto libre.`,
     'web.uiNotBuilt': (p) => `La aplicación web no está compilada (falta ${p.dir}). Ejecuta antes npm run build.`,
+    'web.invalidJson': (p) => `El cuerpo de la petición no es JSON válido: ${p.detail}`,
+    'web.invalidBody': (p) => `El cuerpo de la petición no es válido:${bullets(p.issues)}`,
+    'web.invalidQuery': (p) => `"${p.value}" no es un valor válido para "${p.name}".`,
+    'web.bodyTooLarge': (p) => `El cuerpo de la petición ocupa más de ${p.limit} bytes.`,
+    'web.unsupportedMediaType': (p) =>
+      `El cuerpo de la petición debe ser JSON (Content-Type: application/json), no "${p.contentType}".`,
+    'creation.unavailable': () => 'Este servidor no permite crear proyectos.',
+    'creation.busy': (p) =>
+      `Ya hay una creación en marcha (${p.active}). Termínala o cancélala antes de empezar otra.`,
+    'creation.notFound': (p) => `No hay ninguna creación con id ${p.id}.`,
+    'creation.noPending': (p) => `La creación ${p.id} no está esperando ninguna respuesta.`,
+    'creation.wrongPending': (p) =>
+      `Esa respuesta es para ${p.pendingId}, pero la creación espera ${p.expected}. Recarga e inténtalo de nuevo.`,
+    'creation.invalidAnswer': (p) => `La respuesta a esta petición (${p.kind}) no es válida:${bullets(p.issues)}`,
   },
 });
 
