@@ -8,6 +8,7 @@ export {
   isGitRepo,
   type GitWarning,
 } from './git.js';
+export * from './history.js';
 export * from './indexFile.js';
 export * from './init.js';
 export * from './layout.js';

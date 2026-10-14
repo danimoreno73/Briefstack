@@ -98,6 +98,12 @@ const errors = defineCatalogue<ErrorMessages>({
     'library.noteNotFound': (p) => `No note "${p.name}" in ${p.section}.`,
     'library.invalidProjectStatus': (p) =>
       `The project status in ${p.file} is not valid:${bullets(p.issues)}`,
+    'library.commitNotFound': (p) => `No change "${p.sha}" in the library history.`,
+    'library.dirtyTree': (p) =>
+      `The library in ${p.dir} has uncommitted changes. Commit or discard them before undoing a change.`,
+    'library.revertConflict': (p) =>
+      `Undoing ${p.sha.slice(0, 12)} clashes with later changes to:${bullets(p.files)}\nNothing was changed.`,
+    'library.revertFailed': (p) => `Could not undo ${p.sha.slice(0, 12)}; nothing was changed: ${p.detail}`,
     'events.invalidSession': (p) =>
       `"${p.session}" is not a valid session id (letters, digits, ".", "_" and "-" only).`,
     'events.sessionNotFound': (p) => `No creation session "${p.session}" (it has no events.jsonl).`,
@@ -180,6 +186,12 @@ const errors = defineCatalogue<ErrorMessages>({
     'library.noteNotFound': (p) => `No hay ninguna nota "${p.name}" en ${p.section}.`,
     'library.invalidProjectStatus': (p) =>
       `El estado del proyecto en ${p.file} no es válido:${bullets(p.issues)}`,
+    'library.commitNotFound': (p) => `No hay ningún cambio "${p.sha}" en el historial de la biblioteca.`,
+    'library.dirtyTree': (p) =>
+      `La biblioteca en ${p.dir} tiene cambios sin confirmar. Confírmalos o descártalos antes de deshacer un cambio.`,
+    'library.revertConflict': (p) =>
+      `Deshacer ${p.sha.slice(0, 12)} choca con cambios posteriores en:${bullets(p.files)}\nNo se ha cambiado nada.`,
+    'library.revertFailed': (p) => `No se ha podido deshacer ${p.sha.slice(0, 12)}; no se ha cambiado nada: ${p.detail}`,
     'events.invalidSession': (p) =>
       `"${p.session}" no es un id de sesión válido (solo letras, dígitos, ".", "_" y "-").`,
     'events.sessionNotFound': (p) => `No hay ninguna sesión de creación "${p.session}" (no tiene events.jsonl).`,

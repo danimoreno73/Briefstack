@@ -50,6 +50,10 @@ export interface ErrorParams {
   'library.secretContent': { file: string; lines: number[] };
   'library.noteNotFound': { section: string; name: string };
   'library.invalidProjectStatus': { file: string; issues: string[] };
+  'library.commitNotFound': { sha: string };
+  'library.dirtyTree': { dir: string };
+  'library.revertConflict': { sha: string; files: string[] };
+  'library.revertFailed': { sha: string; detail: string };
   'events.invalidSession': { session: string };
   'events.sessionNotFound': { session: string };
   'web.invalidPort': { value: string };
