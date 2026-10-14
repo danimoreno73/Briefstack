@@ -1,5 +1,13 @@
 export * from './context.js';
-export { FALLBACK_IDENTITY, gitCommit, gitHasChanges, gitInit, isGitRepo, type GitWarning } from './git.js';
+export {
+  FALLBACK_IDENTITY,
+  gitCommit,
+  gitFirstAddedDate,
+  gitHasChanges,
+  gitInit,
+  isGitRepo,
+  type GitWarning,
+} from './git.js';
 export * from './indexFile.js';
 export * from './init.js';
 export * from './layout.js';
@@ -21,5 +29,6 @@ export {
   type NoteRef,
   type NoteSummary,
 } from './notes.js';
+export * from './projects.js';
 export * from './projectStatus.js';
 export * from './settings.js';
