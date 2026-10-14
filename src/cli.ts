@@ -3,7 +3,7 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { configFilePath, readConfig, resolvePaths, updateConfig } from './config/config.js';
+import { configFilePath, readConfig, resolvePaths } from './config/config.js';
 import { isFullyAbsolute, systemPathEnv, type PathEnv } from './config/paths.js';
 import { BriefstackError, isBriefstackError } from './errors.js';
 import {
@@ -47,18 +47,7 @@ import {
 import { PACKAGE_ROOT } from './packageRoot.js';
 import { commitProject, inspectOutputDir, loadTemplate, scaffold, type ProtectedDir } from './scaffold/index.js';
 import { readSpec } from './spec/index.js';
-import {
-  agentSetting,
-  applyProfileToAgents,
-  applyProfileToProject,
-  baseProfilesFile,
-  checkAgentDrift,
-  getPreset,
-  loadUsageProfiles,
-  resolveActiveProfile,
-  usageEnvWarnings,
-  type ApplyResult,
-} from './usage/index.js';
+import { getPreset, loadUsageContext, usageSet, usageShow, type ApplyResult } from './usage/index.js';
 import { validateProject } from './validate/index.js';
 import { DEFAULT_WEB_PORT, startWebServer } from './server/index.js';
 import { webMessages } from './i18n/web.js';
@@ -266,79 +255,39 @@ async function runCommit(args: readonly string[], io: CliIO, lang: Lang): Promis
   return EXIT_OK;
 }
 
-async function loadProfiles(io: CliIO) {
-  const config = await readConfig(configFilePath(io.pathEnv));
-  const paths = resolvePaths(config, io.pathEnv);
-  const profiles = await loadUsageProfiles({
-    baseFile: baseProfilesFile(),
-    userFile: paths.userProfilesFile,
-  });
-  return { config, paths, profiles };
-}
-
-const repoAgentsDir = (io: CliIO): string => path.join(io.repoDir ?? PACKAGE_ROOT, '.claude', 'agents');
+const loadProfiles = (io: CliIO) => loadUsageContext(io.pathEnv);
 
 async function runUsageShow(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
   const messages = usageMessages[lang];
   const { positionals, flags } = parseArgs(args, ['--json'], lang, [], messages.usage);
   if (positionals.length > 0) throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
-  const { config, profiles } = await loadProfiles(io);
-  const active = resolveActiveProfile(config, profiles);
-  const { preset } = active;
+  const shown = await usageShow({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang });
 
   if (flags.has('--json')) {
     // For /new-project: the knobs it follows and the warnings it relays.
-    const drift = await checkAgentDrift(repoAgentsDir(io));
-    const agents = Object.fromEntries(
-      Object.keys(preset.agents).flatMap((agent) => {
-        const setting = agentSetting(preset, agent);
-        return setting === undefined ? [] : [[agent, setting]];
-      }),
-    );
-    io.out(
-      JSON.stringify(
-        {
-          profile: active.name,
-          label: preset.label[lang],
-          fromConfig: active.fromConfig,
-          sessionModel: preset.sessionModel,
-          agents,
-          tiers: preset.tiers,
-          research: preset.research,
-          reviewRounds: preset.reviewRounds,
-          available: Object.keys(profiles.presets),
-          drift:
-            drift.status === 'checked'
-              ? drift.drift.map((item) => ({ ...item, committed: item.committed ?? null, current: item.current ?? null }))
-              : [],
-          envWarnings: usageEnvWarnings(io.pathEnv.env),
-        },
-        null,
-        2,
-      ),
-    );
+    io.out(JSON.stringify(shown, null, 2));
     return EXIT_OK;
   }
 
-  io.out(messages.activeProfile(active.name, preset.label[lang]));
-  if (!active.fromConfig) io.out(messages.defaultProfileNote);
-  io.out(messages.sessionModel(preset.sessionModel));
+  io.out(messages.activeProfile(shown.profile, shown.label));
+  if (!shown.fromConfig) io.out(messages.defaultProfileNote);
+  io.out(messages.sessionModel(shown.sessionModel));
   io.out(messages.agentsHeader);
-  for (const agent of Object.keys(preset.agents)) {
-    const setting = agentSetting(preset, agent);
-    if (setting !== undefined) io.out(messages.agentLine(agent, setting.model, setting.effort));
+  for (const [agent, setting] of Object.entries(shown.agents)) {
+    io.out(messages.agentLine(agent, setting.model, setting.effort));
   }
-  io.out(messages.projectTiers(preset.tiers.light, preset.tiers.standard, preset.tiers.heavy));
-  io.out(messages.research(preset.research));
-  io.out(messages.reviewRounds(preset.reviewRounds));
-  io.out(messages.available(Object.keys(profiles.presets)));
+  io.out(messages.projectTiers(shown.tiers.light, shown.tiers.standard, shown.tiers.heavy));
+  io.out(messages.research(shown.research));
+  io.out(messages.reviewRounds(shown.reviewRounds));
+  io.out(messages.available(shown.available));
 
-  const drift = await checkAgentDrift(repoAgentsDir(io));
-  if (drift.status === 'checked' && drift.drift.length > 0) {
+  if (shown.drift.length > 0) {
     io.err(messages.driftHeader);
-    for (const item of drift.drift) io.err(messages.driftLine(item));
+    for (const item of shown.drift) {
+      io.err(messages.driftLine({ ...item, committed: item.committed ?? undefined, current: item.current ?? undefined }));
+    }
   }
-  for (const warning of usageEnvWarnings(io.pathEnv.env)) io.err(messages.envWarning(warning));
+  for (const warning of shown.envWarnings) io.err(messages.envWarning(warning));
   io.out(messages.consumption);
   return EXIT_OK;
 }
@@ -358,24 +307,21 @@ async function runUsageSet(args: readonly string[], io: CliIO, lang: Lang): Prom
   }
   const project = values.get('--project');
   const projectPath = project === undefined ? undefined : argPath(io, lang, project);
-  const { paths, profiles } = await loadProfiles(io);
-  const preset = getPreset(profiles, name);
+  const set = await usageSet({ pathEnv: io.pathEnv, repoDir: io.repoDir, profile: name, project: projectPath });
 
-  if (projectPath !== undefined) {
-    const result = await applyProfileToProject(projectPath, name, profiles);
+  if (set.scope === 'project') {
+    const { result } = set;
     io.out(messages.projectApplied(result.projectDir, name, result.previousProfile));
     reportApply(result, io, lang);
     if (result.missingAgents.length > 0) io.err(messages.missingAgents(result.missingAgents));
     return EXIT_OK;
   }
 
-  const result = await applyProfileToAgents(repoAgentsDir(io), preset);
-  await updateConfig(paths.configFile, { activeProfile: name });
   io.out(messages.applied(name));
-  reportApply(result, io, lang);
+  reportApply(set.result, io, lang);
   io.out(messages.savedActive(name));
-  io.out(messages.sessionModel(preset.sessionModel));
-  if (result.changed.length > 0) io.out(messages.doNotCommit);
+  io.out(messages.sessionModel(set.sessionModel));
+  if (set.result.changed.length > 0) io.out(messages.doNotCommit);
   return EXIT_OK;
 }
 

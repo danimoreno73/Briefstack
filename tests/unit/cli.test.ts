@@ -2,7 +2,7 @@ import { cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main, type CliIO } from '../../src/cli.js';
-import { PACKAGE_ROOT, VERSION } from '../../src/index.js';
+import { PACKAGE_ROOT, VERSION, usageSet, usageShow } from '../../src/index.js';
 import { specInput, tempDir, writeTree } from '../helpers.js';
 
 interface Captured {
@@ -291,6 +291,24 @@ describe('cli usage', () => {
       fromConfig: true,
       research: 'required-only',
       reviewRounds: 1,
+    });
+  });
+
+  it('prints exactly what usageShow returns, and usageSet is what usage set runs', async () => {
+    for (const lang of ['en', 'es'] as const) {
+      const run = capture(dir, { BRIEFSTACK_LANG: lang, CLAUDE_CODE_EFFORT_LEVEL: 'low' });
+      expect(await main(['usage', 'show', '--json'], run.io)).toBe(0);
+      const shown = await usageShow({ pathEnv: run.io.pathEnv, repoDir: run.io.repoDir });
+      expect(run.out.join('\n')).toBe(JSON.stringify(shown, null, 2));
+    }
+
+    const io = capture(dir).io;
+    const set = await usageSet({ pathEnv: io.pathEnv, repoDir: io.repoDir, profile: 'max' });
+    expect(set).toMatchObject({ scope: 'repo', profile: 'max', sessionModel: 'opus' });
+    if (set.scope === 'repo') expect(set.result.changed.length).toBeGreaterThan(0);
+    expect(await usageShow({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang: 'en' })).toMatchObject({ profile: 'max', fromConfig: true });
+    await expect(usageSet({ pathEnv: io.pathEnv, repoDir: io.repoDir, profile: 'turbo' })).rejects.toMatchObject({
+      code: 'usage.unknownProfile',
     });
   });
 
