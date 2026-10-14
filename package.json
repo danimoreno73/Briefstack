@@ -20,7 +20,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json && node scripts/copy-ui-static.mjs",
     "test": "vitest run",
     "lint": "eslint .",
     "briefstack": "tsx src/cli.ts",
@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.61.1",
     "@types/node": "^24.19.2",
     "eslint": "^10.12.0",
     "tsx": "^4.23.15",
@@ -36,6 +37,7 @@
     "vitest": "^5.0.4"
   },
   "dependencies": {
+    "preact": "^10.29.8",
     "yaml": "^2.9.1",
     "zod": "^4.6.6"
   }
