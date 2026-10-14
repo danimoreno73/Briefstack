@@ -584,7 +584,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     port = Number(portValue);
     if (!/^\d+$/.test(portValue) || port > 65535) throw new BriefstackError('web.invalidPort', { value: portValue });
   }
-  const server = await startWebServer({ port, log: io.err, ...(io.uiDir === undefined ? {} : { uiDir: io.uiDir }) });
+  const server = await startWebServer({ port, lang, log: io.err,...(io.uiDir === undefined ? {} : { uiDir: io.uiDir }) });
   io.out(messages.listening);
   // Alone on its own line, so it is easy to copy.
   io.out(server.url);

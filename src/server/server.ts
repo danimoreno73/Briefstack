@@ -1,9 +1,16 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { BriefstackError } from '../errors.js';
+import type { CreationManager } from '../creation/manager.js';
+import { BriefstackError, isBriefstackError } from '../errors.js';
+import { DEFAULT_LANG, type Lang } from '../i18n/index.js';
 import { VERSION } from '../version.js';
+import { creationRoutes } from './creations.js';
+import { BASE_HEADERS, header, sendError, sendJson } from './http.js';
+import { createRouter, type RouteTable } from './router.js';
 import { LOOPBACK, TOKEN_HEADER, checkRequest, newToken, type Rejection } from './security.js';
 import { loadStaticSite } from './static.js';
+
+export { sendJson } from './http.js';
 
 /** Default port of `briefstack web`; `0` asks the OS for any free port. */
 export const DEFAULT_WEB_PORT = 4870;
@@ -16,6 +23,15 @@ export interface WebServerOptions {
   token?: string;
   /** One line per request: method, route and status. Never bodies. */
   log?: (line: string) => void;
+  /** Language of error messages in API responses. Default English. */
+  lang?: Lang;
+  /**
+   * Creation sessions. Without one, the creation routes answer 503
+   * `creation.unavailable`. The caller owns it and calls its `shutdown()`.
+   */
+  creations?: CreationManager;
+  /** Time between heartbeat comments on a creation stream (tests shorten it). */
+  heartbeatMs?: number;
 }
 
 export interface WebServer {
@@ -27,31 +43,14 @@ export interface WebServer {
   close(): Promise<void>;
 }
 
-type Handler = (req: IncomingMessage, res: ServerResponse) => Promise<void> | void;
-
 const REJECTION_STATUS: Record<Rejection, number> = { host: 403, token: 401, origin: 403 };
 
-const BASE_HEADERS = {
-  'x-content-type-options': 'nosniff',
-  'referrer-policy': 'no-referrer',
-  'cache-control': 'no-store',
-  'cross-origin-opener-policy': 'same-origin',
-  'cross-origin-resource-policy': 'same-origin',
-} as const;
-
-function header(req: IncomingMessage, name: string): string | undefined {
-  const value = req.headers[name];
-  return Array.isArray(value) ? value[0] : value;
-}
-
-export function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { ...BASE_HEADERS, 'content-type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(body));
-}
-
-/** Read-only and mutating `/api` routes, keyed by `METHOD /path`. Filled in by later milestones. */
-function apiRoutes(): Map<string, Handler> {
-  return new Map<string, Handler>([['GET /api/health', (_req, res) => sendJson(res, 200, { ok: true, version: VERSION })]]);
+/** Read-only and mutating `/api` routes, as `METHOD /path` (`:name` segments are parameters). */
+function apiRoutes(options: WebServerOptions): RouteTable {
+  return [
+    ['GET /api/health', (_req, res) => sendJson(res, 200, { ok: true, version: VERSION })],
+    ...creationRoutes(options.creations, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
+  ];
 }
 
 /**
@@ -62,7 +61,8 @@ function apiRoutes(): Map<string, Handler> {
 export async function startWebServer(options: WebServerOptions): Promise<WebServer> {
   const site = await loadStaticSite(options.uiDir);
   const token = options.token ?? newToken();
-  const routes = apiRoutes();
+  const route = createRouter(apiRoutes(options));
+  const lang = options.lang ?? DEFAULT_LANG;
   const log = options.log ?? (() => undefined);
   let port = options.port;
 
@@ -84,12 +84,17 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
       return;
     }
     if (api) {
-      const route = routes.get(`${req.method ?? ''} ${pathname}`);
-      if (route === undefined) {
+      const match = route(req.method ?? '', pathname);
+      if (match === undefined) {
         sendJson(res, 404, { code: 'web.notFound' });
         return;
       }
-      await route(req, res);
+      try {
+        await match.handler(req, res, match.params);
+      } catch (error) {
+        if (!isBriefstackError(error) || res.headersSent) throw error;
+        sendError(res, error, lang);
+      }
       return;
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
