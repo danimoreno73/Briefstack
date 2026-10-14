@@ -11,8 +11,16 @@ commits, one concern each.
 
 ## 0. Status
 
-Updated 2026-10-14: plan approved, H0 and H1 starting. The user is told
-before any H0 probe that uses their real login.
+Updated 2026-10-14:
+
+- **H1 done.** `briefstack web` serves a first page with every security
+  check. Build and lint are clean, and 311 tests pass.
+- **H0:** the docs have been read (`decisions.md`, "Agent SDK and
+  policy").
+- **Waiting on the user:**
+  - the subscription-policy conflict (item 7);
+  - bundled SDK binary versus the installed `claude.exe`;
+  - the go-ahead for the real probes, which use the user's login.
 
 ## Context
 
