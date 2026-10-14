@@ -1,0 +1,39 @@
+# A complete creation: two question batches, research skipped, spec approved,
+# one permission request during generation. Replayed by FakeRunner.
+{"do":"session","phase":"started"}
+{"do":"flow","step":"idea","phase":"started"}
+{"do":"flow","step":"idea","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"gap-analysis","phase":"started"}
+{"do":"hook","type":"subagent.start","agentId":"a1","agentType":"interviewer"}
+{"do":"hook","type":"subagent.stop","agentId":"a1","agentType":"interviewer"}
+{"do":"flow","step":"gap-analysis","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"interview","phase":"started"}
+{"do":"question","questions":[{"question":"Who is the planner for?","header":"Audience","options":[{"label":"Just me (Recommended)","description":"A personal tool"},{"label":"My family","description":"Shared by a household"}],"multiSelect":false},{"question":"Where should the project be created?","header":"Folder","options":[{"label":"garden-planner (Recommended)","description":"Inside your projects folder"}],"multiSelect":false}]}
+{"do":"hook","type":"subagent.start","agentId":"a2","agentType":"interviewer"}
+{"do":"hook","type":"subagent.stop","agentId":"a2","agentType":"interviewer"}
+{"do":"question","questions":[{"question":"Which seasons should it cover?","header":"Seasons","options":[{"label":"All four (Recommended)","description":"A full year"},{"label":"Spring and summer","description":"The main growing season"}],"multiSelect":false}]}
+{"do":"flow","step":"interview","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"research","phase":"started"}
+{"do":"flow","step":"research","phase":"finished","outcome":"skipped"}
+{"do":"flow","step":"spec","phase":"started"}
+{"do":"label","name":"write-spec"}
+{"do":"hook","type":"subagent.start","agentId":"a3","agentType":"architect"}
+{"do":"hook","type":"subagent.stop","agentId":"a3","agentType":"architect"}
+{"do":"spec","onChange":"write-spec","spec":"{\"name\":\"Garden planner\"}\n","summary":"# Garden planner\n\nA planting calendar for a home gardener.\n"}
+{"do":"flow","step":"spec","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"generate","phase":"started"}
+{"do":"hook","type":"subagent.start","agentId":"a4","agentType":"generator"}
+{"do":"hook","type":"tool.pre","agentId":"a4","agentType":"generator","tool":"Bash"}
+{"do":"permission","toolName":"Bash","summary":"git status","agentType":"generator"}
+{"do":"hook","type":"tool.post","agentId":"a4","agentType":"generator","tool":"Bash"}
+{"do":"hook","type":"subagent.stop","agentId":"a4","agentType":"generator"}
+{"do":"flow","step":"generate","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"validate-review","phase":"started"}
+{"do":"hook","type":"subagent.start","agentId":"a5","agentType":"reviewer"}
+{"do":"hook","type":"subagent.stop","agentId":"a5","agentType":"reviewer"}
+{"do":"flow","step":"validate-review","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"learn","phase":"started"}
+{"do":"flow","step":"learn","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"handoff","phase":"started"}
+{"do":"flow","step":"handoff","phase":"finished","outcome":"ok"}
+{"do":"session","phase":"finished","outcome":"completed"}

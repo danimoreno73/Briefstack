@@ -1,0 +1,27 @@
+# The user asks for a change at the spec, then approves. The skill sends the
+# change to the architect and asks again; the fake jumps back the same way.
+{"do":"session","phase":"started"}
+{"do":"flow","step":"idea","phase":"started"}
+{"do":"flow","step":"idea","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"gap-analysis","phase":"started"}
+{"do":"flow","step":"gap-analysis","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"interview","phase":"started"}
+{"do":"question","questions":[{"question":"Who is the novel for?","header":"Readers","options":[{"label":"Adults (Recommended)","description":"General fiction"},{"label":"Young adults","description":"Ages 12 to 18"}],"multiSelect":false}]}
+{"do":"flow","step":"interview","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"research","phase":"started"}
+{"do":"flow","step":"research","phase":"finished","outcome":"skipped"}
+{"do":"flow","step":"spec","phase":"started"}
+{"do":"label","name":"write-spec"}
+{"do":"hook","type":"subagent.start","agentType":"architect"}
+{"do":"hook","type":"subagent.stop","agentType":"architect"}
+{"do":"spec","onChange":"write-spec","summary":"# Novel workspace\n"}
+{"do":"flow","step":"spec","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"generate","phase":"started"}
+{"do":"flow","step":"generate","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"validate-review","phase":"started"}
+{"do":"flow","step":"validate-review","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"learn","phase":"started"}
+{"do":"flow","step":"learn","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"handoff","phase":"started"}
+{"do":"flow","step":"handoff","phase":"finished","outcome":"ok"}
+{"do":"session","phase":"finished","outcome":"completed"}
