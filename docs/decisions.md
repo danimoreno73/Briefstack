@@ -1155,8 +1155,11 @@ and tests pass.
 - Same-origin check: when `Sec-Fetch-Site` is present it must be
   `same-origin` (stricter than the plan's "not cross-site": `same-site`
   is refused too).
-- CI: the repo now has a remote, so the workflow runs on every push. Its
-  result was not checked from this machine (no `gh` CLI).
+- CI (user decision, 2026-10-14): every push and pull request runs on
+  Linux only; the Windows, macOS and Linux matrix runs only when started
+  by hand (`workflow_dispatch`). The repo is private and macOS/Windows
+  runners use its minutes faster. Windows stays verified locally. Run
+  results are not visible from this machine (no `gh` CLI).
 
 ## Agent SDK and policy (H0, docs read 2026-10-14)
 
@@ -1203,8 +1206,11 @@ first.
   and `CLAUDE_CODE_OAUTH_TOKEN` from the session's environment and warns
   if they were set. Source: https://code.claude.com/docs/en/authentication
 - The SDK bundles a native binary per platform (optional dependency) and
-  accepts `pathToClaudeCodeExecutable`. **To decide:** bundled binary or
-  the user's installed `claude.exe`.
+  accepts `pathToClaudeCodeExecutable`.
+- **Decision (user, 2026-10-14):** the server runs the user's installed
+  Claude Code (the same binary, login and version as the CLI), passed as
+  `pathToClaudeCodeExecutable`, and warns when its version is not
+  compatible with the pinned SDK.
 
 ### 4. Extra writable folder for one session
 
@@ -1215,6 +1221,10 @@ first.
 - Fallback that needs no such API: `grant_directory` records the
   confirmed folder in the server, and `canUseTool` allows writes inside
   it for that session only. **Probe** the `addDirectories` update first.
+- **Rule (user, 2026-10-14):** a folder granted from the UI is valid for
+  that session only and is never written to any settings file
+  (`settings.json`, `settings.local.json` or user settings). Any
+  `addDirectories` update uses the `session` destination only.
 
 ### 5. Model and effort
 
@@ -1248,6 +1258,10 @@ https://code.claude.com/docs/en/agent-sdk/typescript
   is not addressed by either page. The help article covers it; the
   developer docs restrict products offered by third-party developers,
   which matters if briefstack is later published.
+- **Decision (user, 2026-10-14):** briefstack uses the user's subscription
+  login, for personal use only. Before publishing the repo, the policy on
+  use from third-party apps must be checked again (`PLAN-phase-2.md`,
+  "Before publishing").
 
 ### 8–11. Design-relevant details
 

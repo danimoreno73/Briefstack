@@ -41,6 +41,12 @@ data. The gaps are:
 - `addNote` only takes a file;
 - the skill asks for spec approval and `/add-dir` in plain text.
 
+### Before publishing the repo
+
+- Check the policy on subscription use from third-party apps again
+  (`decisions.md`, "Subscription use from third-party apps"). Today the
+  tool relies on the user's own login, for personal use only.
+
 ## 1. Doubts about the brief (answered 2026-10-14: every proposal accepted, with the notes in "User adjustments")
 
 1. **Playwright "already installed".** Only the browsers are on this machine
@@ -56,7 +62,8 @@ data. The gaps are:
    (`briefstack-web`) with two tools:
    - `approve_spec(specFile, summaryFile)` returns `approve | change(text) | cancel`;
    - `grant_directory(dir)` shows a confirmation in the UI and grants the folder
-     for this session only.
+     for this session only. The grant is never written to any settings file
+     (user decision, 2026-10-14).
 
    The skill uses these tools when they exist, and otherwise behaves exactly as
    today, so the CLI path does not change. This is an I/O channel, not a second
