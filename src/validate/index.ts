@@ -26,7 +26,7 @@ export const SKIPPED_DIRS: readonly string[] = ['.git', 'node_modules'];
 /** `.git` means an initialised git repository (folder, or file for worktrees). */
 export const GIT_MARKER = '.git';
 
-/** Files each target must contain, non-empty (BRIEF §5, PLAN "Targets"). */
+/** Files each target must contain, non-empty (BRIEF-phase-1 §5, PLAN "Targets"). */
 export const REQUIRED_FILES: { readonly [T in Target]: readonly string[] } = {
   'claude-code': [
     'CLAUDE.md',
@@ -206,7 +206,7 @@ const SKILL_FILE_RE = /^\.claude\/skills\/[^/]+\/SKILL\.md$/;
 const SKILL_DIR_RE = /^\.claude\/skills\/[^/]+$/;
 
 /**
- * Checks a generated project (BRIEF §6). Never writes anything. Throws only
+ * Checks a generated project (BRIEF-phase-1 §6). Never writes anything. Throws only
  * when `projectDir` is not a folder; every problem inside it is a finding.
  */
 export async function validateProject(projectDir: string, options: ValidateOptions = {}): Promise<ValidationResult> {

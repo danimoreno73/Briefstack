@@ -7,7 +7,7 @@ You run `/new-project` inside Claude Code, answer a short interview, approve a
 spec, and get a generated project folder for Claude Code or the Claude desktop
 app. Each run is recorded in a personal library so the next interview asks less.
 
-> Status: phase 1 in progress. Scope: [docs/BRIEF.md](docs/BRIEF.md).
+> Status: phase 2 in progress. Scope: [docs/BRIEF-phase-2.md](docs/BRIEF-phase-2.md); phase 1: [docs/BRIEF-phase-1.md](docs/BRIEF-phase-1.md).
 > Plan: [docs/PLAN.md](docs/PLAN.md).
 
 ## Requirements

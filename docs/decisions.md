@@ -828,7 +828,7 @@ and `library add` (commits to the library repo). A test pins the rule list.
   caught before the user approves it.
 - **Working files in the session folder.** The idea, `spec.json` and the
   note drafts for `library add --from` go in `<home>/sessions/<id>/`, next to
-  `events.jsonl` (BRIEF §7). The architect has no Write tool, so the main
+  `events.jsonl` (BRIEF-phase-1 §7). The architect has no Write tool, so the main
   session writes the spec there. `init` now also creates the sessions folder
   and adds it to `additionalDirectories`, so those writes need no extra
   grant. Neither folder applies to a session that was already running: after
@@ -1025,7 +1025,7 @@ Found and fixed:
   only sees `settings.local.json`.
 - **The target was not asked**; the user set it. The interviewer now asks
   when both targets would work, with a recommended default and the reason
-  (BRIEF §5 still holds: the architect recommends when the user leaves the
+  (BRIEF-phase-1 §5 still holds: the architect recommends when the user leaves the
   default).
 
 ### Session end from Claude Code (user decision, 2026-10-12)

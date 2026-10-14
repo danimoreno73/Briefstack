@@ -32,7 +32,7 @@ import {
 } from './projectStatus.js';
 
 /**
- * Library notes (BRIEF §3.4): append to an existing note before creating a
+ * Library notes (BRIEF-phase-1 §3.4): append to an existing note before creating a
  * new one, keep `INDEX.md` up to date, never store secrets, commit each change.
  */
 

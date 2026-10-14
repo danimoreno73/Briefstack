@@ -1,12 +1,13 @@
 # briefstack
 
 Local tool that turns an idea into a ready-to-use Claude project and learns from
-each one. Scope and requirements: @docs/BRIEF.md — read it before planning.
+each one. Scope and requirements: @docs/BRIEF-phase-2.md — read it before planning.
 
 ## Current phase
 
-Phase 1: creator + library, no web UI. Anything listed in BRIEF section 8 is out
-of scope; do not start it.
+Phase 2: local web app over the phase 1 core. Anything listed in BRIEF section 7
+is out of scope; do not start it. Phase 1 is done (tag `phase-1-done`); its
+brief is `docs/BRIEF-phase-1.md`, open it only when needed.
 
 ## Commands
 

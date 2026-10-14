@@ -1,6 +1,6 @@
 # briefstack — Phase 1 plan
 
-Approved plan for phase 1. Scope comes from [BRIEF.md](BRIEF.md); this file
+Approved plan for phase 1. Scope comes from [BRIEF-phase-1.md](BRIEF-phase-1.md); this file
 records how it will be built and every decision taken while planning.
 Verified Claude Code behaviour goes in `docs/decisions.md` (created in H0).
 
@@ -11,7 +11,7 @@ one concern each.
 
 Updated 2026-10-13: **phase 1 done.** H10 closed, the user accepted the
 project of a real run. Build, lint and 294 tests pass on Windows.
-Read `CLAUDE.md`, `docs/BRIEF.md`, this file and `docs/decisions.md` before
+Read `CLAUDE.md`, `docs/BRIEF-phase-1.md`, this file and `docs/decisions.md` before
 continuing.
 
 ### Done
@@ -310,7 +310,7 @@ scripts/generate-schema.ts
 tests/
   unit/
   fixtures/{software,learning,novel}.spec.json
-docs/  BRIEF.md  PLAN.md  decisions.md
+docs/  BRIEF-phase-1.md  PLAN.md  decisions.md
 README.md
 ```
 

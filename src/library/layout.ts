@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 /**
- * Layout of the personal library (BRIEF §3.4). Plain markdown, usable as an
+ * Layout of the personal library (BRIEF-phase-1 §3.4). Plain markdown, usable as an
  * Obsidian vault. Notes are linked with path wikilinks such as
  * `[[profile/style]]`, so two notes with the same name in different folders
  * never clash.

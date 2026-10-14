@@ -13,7 +13,7 @@ import { BriefstackError } from '../errors.js';
 export const EVENTS_FILE = 'events.jsonl';
 export const EVENT_FORMAT = 1;
 
-/** The creation flow, BRIEF §4. */
+/** The creation flow, BRIEF-phase-1 §4. */
 export const FLOW_STEPS = [
   'idea',
   'gap-analysis',
