@@ -1136,3 +1136,142 @@ matched the profile, the skill passes neither per invocation, and
 
 The user accepted the project of a real `/new-project` run. Build, lint
 and tests pass.
+
+# Phase 2
+
+## Tooling (H1, 2026-10-14)
+
+- `@playwright/test` is pinned to `1.61.1`: its chromium revision is
+  1228, the one already installed in the user's Playwright cache
+  (checked in each release's `browsers.json`). Newer releases would
+  download another browser.
+- `preact` stays on 10.x (`^10.29.8`): 11.0.0 was published on 2026-09-30
+  and 11.0.1 on 2026-10-08, both less than two weeks old.
+- The UI is compiled by `tsc -p tsconfig.ui.json` (DOM types, Preact JSX)
+  into `dist/web`; `src/ui` is excluded from the Node configs. The import
+  map is injected into `index.html` by the server and allowed by its
+  SHA-256 in the CSP (`script-src 'self' 'sha256-…'`). Checked in headless
+  chromium: the page loads with no CSP errors.
+- Same-origin check: when `Sec-Fetch-Site` is present it must be
+  `same-origin` (stricter than the plan's "not cross-site": `same-site`
+  is refused too).
+- CI: the repo now has a remote, so the workflow runs on every push. Its
+  result was not checked from this machine (no `gh` CLI).
+
+## Agent SDK and policy (H0, docs read 2026-10-14)
+
+Read by two `claude-code-guide` agents from the official docs and the
+SDK's type definitions (`@anthropic-ai/claude-agent-sdk` 0.3.300,
+`sdk.d.ts`). Quotes from legal pages came through a summarising fetch.
+Probes with real sessions are still pending; they need the user's go-ahead
+first.
+
+### 1. Skills, agents, hooks and settings under the SDK
+
+- `settingSources` omitted = `["user", "project", "local"]`, the same as
+  the CLI. Project settings, hooks, skills and agents load only from
+  `<cwd>/.claude/`. Source:
+  https://code.claude.com/docs/en/agent-sdk/claude-code-features
+- "Sending `/<name>` runs a user-invocable skill even when your `skills`
+  list omits it." `disable-model-invocation: true` still allows `/name`.
+  An unknown `/name` is sent as an ordinary message, not an error: check
+  `new-project` is in the init message's `slash_commands`. Source:
+  https://code.claude.com/docs/en/agent-sdk/skills
+- `${CLAUDE_SESSION_ID}` in skills, and the SDK `session_id` being the
+  hooks' `session_id`: inferred, not stated. **Probe.**
+
+### 2. `canUseTool`, `AskUserQuestion`, long waits
+
+- `AskUserQuestion` reaches `canUseTool` with `{ questions }`; the answer
+  is `allow` with `updatedInput: { questions, answers }` (answers keyed
+  by question text). Main session only. Source:
+  https://code.claude.com/docs/en/agent-sdk/user-input
+- "The callback can stay pending indefinitely." No timeout is
+  documented, so a held callback is the waiting mechanism.
+- The defer mechanism (`PreToolUse` → `permissionDecision: "defer"`,
+  resume with `--resume`) is documented for `claude -p` subprocesses and
+  only when the turn has a single tool call. Not needed while the
+  callback can wait. Source: https://code.claude.com/docs/en/hooks
+- The callback receives `agentID`, so subagent requests probably reach it:
+  inferred. **Probe.**
+
+### 3. Login and the Claude Code binary
+
+- The SDK follows the CLI's auth precedence; `ANTHROPIC_API_KEY` beats
+  the subscription login and is always used in `-p` mode when present.
+  Decision: the server removes `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`
+  and `CLAUDE_CODE_OAUTH_TOKEN` from the session's environment and warns
+  if they were set. Source: https://code.claude.com/docs/en/authentication
+- The SDK bundles a native binary per platform (optional dependency) and
+  accepts `pathToClaudeCodeExecutable`. **To decide:** bundled binary or
+  the user's installed `claude.exe`.
+
+### 4. Extra writable folder for one session
+
+- `additionalDirectories` works at start only. A `PermissionUpdate` of
+  type `addDirectories` with destination `session` exists in the types,
+  but its effect from `canUseTool` mid-session is not documented. `Query`
+  has no method to add a folder.
+- Fallback that needs no such API: `grant_directory` records the
+  confirmed folder in the server, and `canUseTool` allows writes inside
+  it for that session only. **Probe** the `addDirectories` update first.
+
+### 5. Model and effort
+
+`model` and `effort` (`low` … `max`) are `query()` options. Source:
+https://code.claude.com/docs/en/agent-sdk/typescript
+
+### 6. Hooks and `SessionEnd`
+
+- Settings command hooks run in SDK sessions with the `project` source;
+  `${CLAUDE_PROJECT_DIR}` is set. Source:
+  https://code.claude.com/docs/en/agent-sdk/hooks
+- Whether `SessionEnd` fires on abort, `interrupt()`, `close()` or when
+  the server process stops is not documented. Decision: the server
+  records the end itself (see `summarizeSession`), and `SessionEnd` is
+  best-effort. **Probe.**
+
+### 7. Subscription use from third-party apps
+
+- Help article (support.claude.com/articles/15036540, "Update October 7,
+  2026"): "You can still use the Claude Agent SDK, `claude -p`, and
+  third-party apps with your subscription limits."
+- Agent SDK overview and quickstart (no date): "Unless previously
+  approved, Anthropic does not allow third party developers to offer
+  claude.ai login or rate limits for their products, including agents
+  built on the Claude Agent SDK. Use the API key authentication methods
+  described in the Quickstart instead."
+- Consumer terms (effective 2025-10-08): no access "through automated or
+  non-human means … except … where we otherwise explicitly permit it";
+  no sharing of login.
+- **Conflict, for the user to decide.** Personal use on one's own machine
+  is not addressed by either page. The help article covers it; the
+  developer docs restrict products offered by third-party developers,
+  which matters if briefstack is later published.
+
+### 8–11. Design-relevant details
+
+- `permissionMode: 'auto'` exists in the SDK. Auto mode: all plans; on
+  Team/Enterprise an admin can disable it; needs a supported model
+  (Opus 4.6+, Sonnet 4.6+, Haiku 5.5, Fable); native Windows from Claude
+  Code 2.1.233. What the SDK does when auto is unavailable is not
+  documented (the CLI falls back to manual). **Probe.**
+  Source: https://code.claude.com/docs/en/permission-modes
+- Evaluation order: hooks → deny rules → ask rules → permission mode →
+  allow rules (`allowedTools`, settings) → `canUseTool`. A bare allowed
+  tool name skips the callback. Source:
+  https://code.claude.com/docs/en/agent-sdk/permissions
+- `Edit(...)` rules govern every file-writing tool; `Write(path)` is never
+  matched. On Windows paths are matched in POSIX form: `C:\Users\<user>`
+  is `/c/Users/<user>`, written `Edit(//c/Users/<user>/…/**)`. The allow
+  rules are built in code from `projectsDir` and the sessions folder.
+- In-process MCP tools are named `mcp__<server>__<tool>`; listing them in
+  `allowedTools` skips the prompt. Tool search defers SDK MCP tools unless
+  `alwaysLoad: true`. Source:
+  https://code.claude.com/docs/en/agent-sdk/custom-tools
+- `interrupt()` needs streaming input and cancels a pending tool call;
+  whether a running tool is cut is not documented. `close()` ends the
+  process. **Probe** the cancel recipe (interrupt, then a follow-up
+  message asking the skill to close as `cancelled`).
+- Version: SDK 0.3.300 is the latest (2026-10-14). Under the two-week
+  rule the pin is 0.3.286 (2026-09-30). Node 18+.
