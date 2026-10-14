@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { BriefstackError } from '../errors.js';
+import { isSessionId } from '../events/index.js';
 import { parseFrontmatter } from '../frontmatter/index.js';
 import { SLUG_RE } from '../spec/schema.js';
 import { findSecrets } from '../validate/text.js';
@@ -161,6 +162,8 @@ export interface AddNoteOptions {
   name?: string | undefined;
   /** Markdown file with the content. Its frontmatter is read, not copied. */
   fromFile: string;
+  /** `projects` only: the creation session id, recorded in the status block. */
+  session?: string | undefined;
   now?: Date;
 }
 
@@ -190,6 +193,7 @@ function projectStatusFor(
   body: string,
   now: Date,
   file: string,
+  link: { isNew: boolean; session?: string | undefined },
 ): ProjectStatus {
   const merged: Record<string, unknown> = { ...previous };
   for (const key of PROJECT_STATUS_INPUT_FIELDS) {
@@ -204,6 +208,11 @@ function projectStatusFor(
   merged.statusFormat = STATUS_FORMAT;
   merged.slug = slug;
   merged.updated = today(now);
+  if (link.isNew) merged.created = today(now);
+  // A note keeps the session that created it: a later `--session` (a second
+  // session updating the project) only fills the field when the note has
+  // none, e.g. a note written before sessions were recorded.
+  if (link.session !== undefined && merged.session === undefined) merged.session = link.session;
   const result = projectStatusSchema.safeParse(merged);
   if (!result.success) {
     throw new BriefstackError('library.invalidProjectStatus', { file, issues: statusIssues(result.error) });
@@ -227,6 +236,9 @@ export async function addNote(options: AddNoteOptions): Promise<AddNoteResult> {
   const ref = noteRef(options.section, options.name);
   await assertLibrary(libraryDir);
   const now = options.now ?? new Date();
+  if (options.session !== undefined && !isSessionId(options.session)) {
+    throw new BriefstackError('events.invalidSession', { session: options.session });
+  }
 
   const source = await readTextIfExists(options.fromFile);
   if (source === undefined) throw new BriefstackError('library.fileNotFound', { file: options.fromFile });
@@ -251,7 +263,10 @@ export async function addNote(options: AddNoteOptions): Promise<AddNoteResult> {
       const read = readProjectStatus(existing, relative);
       if (read.ok) previous = read.status;
     }
-    status = projectStatusFor(data, previous, ref.name ?? '', body, now, options.fromFile);
+    status = projectStatusFor(data, previous, ref.name ?? '', body, now, options.fromFile, {
+      isNew: existing === undefined,
+      session: options.session,
+    });
     if (existing === undefined) next = writeProjectNote(status, withTrailingNewline(body));
     else {
       const updated = updateProjectNote(existing, status, relative);

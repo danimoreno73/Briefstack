@@ -130,6 +130,23 @@ describe('cli: init and library', () => {
     expect(await readFile(path.join(libraryDir(), 'projects', 'podcast.md'), 'utf8')).toMatch(/^---\nstatusFormat: 1\nslug: podcast\n/);
   });
 
+  it('links a project note to its creation session', async () => {
+    await main(['init'], capture(dir).io);
+    await writeTree(dir, {
+      'p.md': '---\ntarget: claude-code\npath: ~/briefstack-projects/podcast\nstatus: created\nprofile: balanced\nsummary: Podcast planner.\n---\n# Podcast\n',
+    });
+    const run = capture(dir);
+    expect(await main(['library', 'add', 'projects', 'podcast', '--from', 'p.md', '--session', 'abc-1'], run.io)).toBe(0);
+    const text = await readFile(path.join(libraryDir(), 'projects', 'podcast.md'), 'utf8');
+    expect(text).toMatch(/\ncreated: \d{4}-\d{2}-\d{2}\nsession: abc-1\n/);
+
+    const bad = capture(dir);
+    expect(await main(['library', 'add', 'projects', 'other', '--from', 'p.md', '--session', 'a/b'], bad.io)).toBe(1);
+    expect(bad.err.at(-1)).toContain('"a/b" is not a valid session id');
+    // Only project notes record a session.
+    expect(await main(['library', 'add', 'profile', 'x', '--from', 'p.md', '--session', 'abc-1'], bad.io)).toBe(2);
+  });
+
   it('context and list work without a library', async () => {
     await writeTree(dir, { 'idea.md': 'Anything.\n' });
     const context = capture(dir);

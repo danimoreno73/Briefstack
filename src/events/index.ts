@@ -91,8 +91,13 @@ export function isFlowStep(value: string): value is FlowStep {
   return (FLOW_STEPS as readonly string[]).includes(value);
 }
 
+/** Whether `value` is usable as a session id (and so as a folder name). */
+export function isSessionId(value: string): boolean {
+  return SESSION_ID_RE.test(value) && !value.includes('..');
+}
+
 export function sessionEventsFile(sessionsDir: string, session: string): string {
-  if (!SESSION_ID_RE.test(session) || session.includes('..')) {
+  if (!isSessionId(session)) {
     throw new BriefstackError('events.invalidSession', { session });
   }
   return path.join(sessionsDir, session, EVENTS_FILE);

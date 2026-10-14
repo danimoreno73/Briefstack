@@ -469,15 +469,21 @@ async function runInit(args: readonly string[], io: CliIO, lang: Lang): Promise<
 
 async function runLibraryAdd(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
   const messages = libraryMessages[lang];
-  const { positionals, values } = parseArgs(args, [], lang, ['--from'], messages.usage);
+  const { positionals, values } = parseArgs(args, [], lang, ['--from', '--session'], messages.usage);
   const [section, name] = positionals;
   const from = values.get('--from');
-  if (section === undefined || positionals.length > 2 || from === undefined) {
+  const session = values.get('--session');
+  if (
+    section === undefined ||
+    positionals.length > 2 ||
+    from === undefined ||
+    (session !== undefined && section !== 'projects')
+  ) {
     throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   }
   const fromFile = argPath(io, lang, from);
   const paths = await resolvedPaths(io);
-  const result = await addNote({ libraryDir: paths.libraryDir, section, name, fromFile });
+  const result = await addNote({ libraryDir: paths.libraryDir, section, name, fromFile, session });
   const link = noteLink(result.section, result.name);
   io.out(result.action === 'created' ? messages.noteCreated(link, result.file) : messages.noteAppended(link, result.file));
   if (result.status !== undefined) {

@@ -9,7 +9,7 @@ export const libraryMessages = defineCatalogue({
   en: {
     initUsage: 'briefstack init',
     usage:
-      'briefstack library <add <section> [name] --from <file.md> | list [section] | show <section> [name] | context --idea <file> [--limit <n>]>',
+      'briefstack library <add <section> [name] --from <file.md> [--session <id>] | list [section] | show <section> [name] | context --idea <file> [--limit <n>]>',
     libraryCreated: (dir: string) => `Created the personal library in ${dir}.`,
     libraryCompleted: (dir: string, items: readonly string[]) =>
       `Completed the personal library in ${dir}: added ${items.join(', ')}.`,
@@ -42,7 +42,7 @@ export const libraryMessages = defineCatalogue({
   es: {
     initUsage: 'briefstack init',
     usage:
-      'briefstack library <add <sección> [nombre] --from <archivo.md> | list [sección] | show <sección> [nombre] | context --idea <archivo> [--limit <n>]>',
+      'briefstack library <add <sección> [nombre] --from <archivo.md> [--session <id>] | list [sección] | show <sección> [nombre] | context --idea <archivo> [--limit <n>]>',
     libraryCreated: (dir: string) => `Biblioteca personal creada en ${dir}.`,
     libraryCompleted: (dir: string, items: readonly string[]) =>
       `Biblioteca personal completada en ${dir}: se añadió ${items.join(', ')}.`,

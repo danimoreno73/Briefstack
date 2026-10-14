@@ -233,6 +233,7 @@ describe('personal library', () => {
         status: 'created',
         profile: 'saver',
         updated: '2026-10-12',
+        created: '2026-10-12',
         summary: 'Garden planner for a small plot.',
       });
       expect(await read('INDEX.md')).toContain('- [[projects/garden]] — Garden planner for a small plot.');
@@ -245,6 +246,35 @@ describe('personal library', () => {
         status: { ...result.status, status: 'active', updated: '2026-11-02' },
       });
       expect(text).toMatch(/# Garden\n\n### 2026-11-02\n\nFirst harvest\.\n$/);
+    });
+
+    it('links a project note to its creation session and keeps the first one', async () => {
+      const fields = '---\ntarget: claude-code\npath: ~/p/garden\nstatus: created\nprofile: balanced\n---\n# Garden\n';
+      const created = await addNote({ libraryDir, section: 'projects', name: 'garden', fromFile: await source('p.md', fields), session: 's-1', now });
+      expect(created.status).toMatchObject({ created: '2026-10-12', session: 's-1' });
+
+      const later = new Date('2026-11-02T00:00:00Z');
+      const update = await source('q.md', '---\nstatus: active\n---\nMore.\n');
+      const again = await addNote({ libraryDir, section: 'projects', name: 'garden', fromFile: update, session: 's-2', now: later });
+      expect(again.status).toMatchObject({ created: '2026-10-12', session: 's-1', updated: '2026-11-02' });
+
+      // An older note without a session gets the first one given, and no invented creation date.
+      await writeTree(libraryDir, {
+        'projects/old.md':
+          '---\nstatusFormat: 1\nslug: old\ntarget: claude-code\npath: ~/p/old\nstatus: active\nprofile: saver\nupdated: 2026-01-01\nsummary: Old.\n---\n# Old\n',
+      });
+      const old = await addNote({ libraryDir, section: 'projects', name: 'old', fromFile: update, session: 's-3', now: later });
+      expect(old.status).toMatchObject({ session: 's-3' });
+      expect(old.status?.created).toBeUndefined();
+    });
+
+    it('refuses an invalid session id before writing anything', async () => {
+      const fields = '---\ntarget: claude-code\npath: ~/p/x\nstatus: created\nprofile: balanced\n---\n# X\n';
+      const from = await source('p.md', fields);
+      await expect(addNote({ libraryDir, section: 'projects', name: 'x', fromFile: from, session: '../up', now })).rejects.toMatchObject({
+        code: 'events.invalidSession',
+      });
+      await expect(stat(path.join(libraryDir, 'projects', 'x.md'))).rejects.toThrow();
     });
 
     it('refuses a project note without the required status fields', async () => {

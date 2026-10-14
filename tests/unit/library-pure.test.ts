@@ -200,6 +200,20 @@ describe('project status block', () => {
     expect(next.endsWith('---\n# Garden planner\n\nNotes.\n')).toBe(true);
   });
 
+  it('writes the optional created and session fields after updated, and reads them back', () => {
+    const linked = { ...status, created: '2026-10-12', session: 'abc-123' };
+    const text = writeProjectNote(linked, '# Garden planner\n');
+    expect(text).toContain('updated: 2026-10-12\ncreated: 2026-10-12\nsession: abc-123\nsummary: ');
+    expect(readProjectStatus(text, 'f')).toEqual({ ok: true, status: linked });
+  });
+
+  it('refuses an unsafe session id', () => {
+    const text = writeProjectNote(status, '# Garden planner\n').replace('summary:', 'session: ../x\nsummary:');
+    const result = readProjectStatus(text, 'f');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.issues.some((issue) => issue.startsWith('session'))).toBe(true);
+  });
+
   it('reports what is wrong', () => {
     const result = readProjectStatus('---\nslug: x\ntarget: web\n---\n', 'f');
     expect(result.ok).toBe(false);
