@@ -40,7 +40,7 @@ local on Windows plus tests that use both `path.win32` and `path.posix`.
 ## Claude Code behaviour (H0)
 
 Read on 2026-10-12. Conclusions marked **changes the plan** were approved at
-the H0 checkpoint and are reflected in `PLAN.md`. Main sources:
+the H0 checkpoint and are reflected in `PLAN-phase-1.md`. Main sources:
 
 - Subagents: https://code.claude.com/docs/en/sub-agents.md
 - Skills: https://code.claude.com/docs/en/skills.md
@@ -1080,7 +1080,7 @@ the inactivity rule is what handles those.
 ### H9 closed (2026-10-12)
 
 The guided rehearsal covered runs A (twice), B, C (an Esc interruption,
-then a cancel at the spec) and D, and every item of PLAN "To verify in
+then a cancel at the spec) and D, and every item of PLAN-phase-1 "To verify in
 real runs" except `/tasks`, which is H10.
 
 ## Real run (H10, 2026-10-13, Claude Code 2.1.296, Windows 11)

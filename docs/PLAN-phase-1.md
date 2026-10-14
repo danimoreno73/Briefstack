@@ -58,6 +58,9 @@ Development sessions on briefstack start with `claude --model opus`
 
 Do not start any of them before the user chooses.
 
+Resolved 2026-10-14: the repo is on GitHub (private) and phase 2 is
+planned in [PLAN-phase-2.md](PLAN-phase-2.md).
+
 ### Verified in real runs (H9 rehearsal and H10, `decisions.md` has the detail)
 
 1. `init` from the real CLI (temp home): library git repo, projects and

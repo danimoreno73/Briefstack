@@ -5,7 +5,7 @@ import { readTextIfExists } from './notes.js';
 import { INDEX_FILE, LESSONS_FILE, toNative } from './layout.js';
 
 /**
- * Gap-analysis input for the interviewer (PLAN "Learning"): the index, every
+ * Gap-analysis input for the interviewer (PLAN-phase-1 "Learning"): the index, every
  * profile note, the lessons, and the project notes most similar to the idea
  * with the session logs they link to ([[log/...]]), which hold the questions
  * asked and the answers given. Deterministic: same library and idea, same output.

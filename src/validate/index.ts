@@ -26,7 +26,7 @@ export const SKIPPED_DIRS: readonly string[] = ['.git', 'node_modules'];
 /** `.git` means an initialised git repository (folder, or file for worktrees). */
 export const GIT_MARKER = '.git';
 
-/** Files each target must contain, non-empty (BRIEF-phase-1 §5, PLAN "Targets"). */
+/** Files each target must contain, non-empty (BRIEF-phase-1 §5, PLAN-phase-1 "Targets"). */
 export const REQUIRED_FILES: { readonly [T in Target]: readonly string[] } = {
   'claude-code': [
     'CLAUDE.md',
