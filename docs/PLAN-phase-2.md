@@ -11,33 +11,96 @@ commits, one concern each.
 
 ## 0. Status
 
-Updated 2026-10-14:
+Updated 2026-10-14. A new session reads `CLAUDE.md`,
+`docs/BRIEF-phase-2.md`, this file and `docs/decisions.md` from
+"# Phase 2" onwards before continuing.
 
-- **H1 done.**
-- **H0 done:** docs and real probes (`decisions.md`, "H0 probes"). The
-  checkpoint changes were approved and are reflected in section 3:
-  - guard hook for writes and shell commands;
-  - cancel without `interrupt()`;
-  - the server writes the end and kills the process tree;
-  - `result` is not the end;
-  - `strictMcpConfig`.
-  Effort is checked in H6.
-- **H2 done:** library additions. Also:
-  - the `--session` link;
-  - `usageShow`/`usageSet` moved out of the CLI;
-  - `permissionPolicy` and `setProjectsDir`.
-- **H5 done:**
-  - the `CreationRunner` interface, `FakeRunner` with recordings, and
-    `CreationManager`;
-  - creation routes and the SSE stream (`docs/api.md`).
-- Build and lint are clean, and 379 tests pass.
-- **Open for H6:**
-  - `runWeb` still has no `CreationManager` (the creation routes answer
-    503);
-  - the skill must pass `--session` to `library add projects`;
-  - the secret redactor for requests.
-- **Open for H8:** a route that serves the spec summary.
-- **Next:** H3+H4 (main session) ‖ H7 (worktree).
+### Done
+
+| # | What exists now |
+|---|---|
+| H0 | Docs read and 8 real SDK probes (`decisions.md`, "Agent SDK and policy", "H0 probes", "Design after the H0 checkpoint"). Section 3 reflects the approved changes: guard hook, cancel without `interrupt()`, the server records the end and kills the process tree, a `result` is not the end, `strictMcpConfig` |
+| H1 | `briefstack web` on 127.0.0.1 with Host, token and Origin checks; UI built by `tsc -p tsconfig.ui.json` into `dist/web` (Preact with an import map, strict CSP); `@playwright/test` 1.61.1 (chromium 1228 already installed); SDK 0.3.286 pinned; installed `claude` lookup with a compatibility warning (`src/creation/claudeBinary.ts`) |
+| H2 | Project notes get optional `created` and `session` fields (`library add projects … --session <id>`); `listProjects`, `listSessions`, `sessionTimeline`, `saveNote`, `addNote` with `text`, `libraryHistory`, `revertLibraryCommit`, `usageShow`/`usageSet` (moved out of `cli.ts`), `permissionPolicy`, `setProjectsDir` |
+| H5 | `CreationRunner` interface (`src/creation/types.ts`), `FakeRunner` with recordings (`tests/fixtures/recordings/`), `CreationManager`, creation routes and the SSE stream (`docs/api.md`) |
+
+Build and lint are clean, and 379 tests pass on Windows. CI runs on
+Linux only for each push; the full matrix runs by hand.
+
+### Left, in order
+
+H3 → H4 → H7 → H6 → H8 → H9 → H10 (section 5 has each one's
+verification). H6 comes after H7 because it needs the most care and
+spends real tokens.
+
+### Pending for H6 (not done yet)
+
+- **Guard hook: not implemented.** Section 3, "SdkRunner", has the
+  design. Until H6, nothing closes the Bash risk from H0: in `auto`,
+  the classifier alone decides shell commands and writes outside the
+  allowed folders. The shell allow list, and the caller each command
+  comes from (skill, five agent bodies and the H10 transcripts):
+
+  | Command (`npm run --silent briefstack -- …`) | Main session (skill) | generator | reviewer |
+  |---|---|---|---|
+  | `event …` | yes | | |
+  | `paths --json`, `paths check …` | yes | | |
+  | `usage show --json` | yes | | |
+  | `library context …`, `library add …` | yes | | |
+  | `spec check …` | yes | | |
+  | `scaffold …` | | yes | |
+  | `validate …` | yes | yes | yes |
+  | `commit …` | yes | | |
+
+  The hook input carries `agent_type`, so the hook can enforce this
+  per caller rather than as one list. Decide that in H6.
+- **Generator and reviewer bodies:** remove "read-only commands".
+  The reviewer inspects with Glob and Read; its only non-CLI command in
+  H10 was `find -type d`.
+- **`runWeb`:**
+  - It does not create a `CreationManager` yet, so the creation routes
+    answer 503.
+  - Wire in the `SdkRunner`, the profile from `usageShow` and the
+    policy from `permissionPolicyOf(config)`.
+  - Call `manager.shutdown()` before `server.close()`.
+- **Skill:**
+  - Pass `--session ${CLAUDE_SESSION_ID}` to `library add projects`.
+  - Add the `approve_spec` and `grant_directory` answer sources with
+    the same steps (section 3, "Skill changes").
+- **Requests:** pass them through the secret redactor before the UI
+  shows them. A cancelled question returns a deny that tells the skill
+  to close the session as `cancelled`.
+- **Real checks:**
+  - a hook `ask` reaches `canUseTool` in `auto` mode;
+  - `spawnClaudeCodeProcess` lets the server kill the whole process
+    tree with no orphans (H0 showed orphans on Windows);
+  - effort is visible with a Sonnet profile.
+
+### Pending for H8
+
+- A route that serves the spec summary (`spec.summaryFile` is an
+  absolute path).
+- The stream closes at `session.finished`, so hook lines written after
+  it are not streamed.
+
+### How to work from here (user decisions, 2026-10-14)
+
+- One milestone per session. Build, lint and tests must pass, then
+  commit, push, update this Status section, and stop so the user can
+  run `/clear`.
+- H3, H4 and H7 are done with `opusplan`, one after another, in the main
+  session. No parallel worktrees.
+- Real Claude Code sessions (H6, H10) spend the user's plan.
+  - Tell the user first, and report usage before and after.
+  - Read usage with the SDK's `usage_EXPERIMENTAL_…()` from a session
+    that sends no message (`decisions.md`, "H0 probes").
+- Never launch `claude` from Git Bash with a `/…` argument: it becomes a
+  path. Start probes from Node, through PowerShell.
+- Probes:
+  - Use temp folders the probe creates, and delete them with retries.
+    Windows keeps the folder locked for a while after `close()`.
+  - Never use the real library or the repo as the working folder.
+  - Stop leftover processes.
 
 ### Before publishing the repo
 
