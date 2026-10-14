@@ -30,7 +30,7 @@ import { scaffoldMessages } from './i18n/scaffold.js';
 import { specMessages } from './i18n/spec.js';
 import { usageMessages } from './i18n/usage.js';
 import { formatFinding, validateMessages } from './i18n/validate.js';
-import { VERSION } from './index.js';
+import { VERSION } from './version.js';
 import {
   INDEX_FILE,
   LOG_INDEX_FILE,
@@ -60,6 +60,8 @@ import {
   type ApplyResult,
 } from './usage/index.js';
 import { validateProject } from './validate/index.js';
+import { DEFAULT_WEB_PORT, startWebServer } from './server/index.js';
+import { webMessages } from './i18n/web.js';
 
 /** Argument parsing only; all real work lives in the library. */
 
@@ -74,6 +76,13 @@ export interface CliIO {
    * updates. Defaults to the briefstack package (the repo).
    */
   repoDir?: string;
+  /**
+   * Resolves when `web` should stop. Defaults to the first SIGINT or SIGTERM;
+   * tests pass their own.
+   */
+  untilStopped?: () => Promise<void>;
+  /** Built UI served by `web`; defaults to `dist/web` in the package. */
+  uiDir?: string;
 }
 
 const defaultIO = (): CliIO => ({
@@ -535,6 +544,37 @@ async function runLibrary(args: readonly string[], io: CliIO, lang: Lang): Promi
   throw new UsageError(cliMessages[lang].wrongArguments(libraryMessages[lang].usage));
 }
 
+const untilSignal = (): Promise<void> =>
+  new Promise((resolve) => {
+    const stop = () => {
+      process.off('SIGINT', stop);
+      process.off('SIGTERM', stop);
+      resolve();
+    };
+    process.once('SIGINT', stop);
+    process.once('SIGTERM', stop);
+  });
+
+async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = webMessages[lang];
+  const { positionals, values } = parseArgs(args, [], lang, ['--port'], messages.usage);
+  if (positionals.length > 0) throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  const portValue = values.get('--port');
+  let port = DEFAULT_WEB_PORT;
+  if (portValue !== undefined) {
+    port = Number(portValue);
+    if (!/^\d+$/.test(portValue) || port > 65535) throw new BriefstackError('web.invalidPort', { value: portValue });
+  }
+  const server = await startWebServer({ port, log: io.err, ...(io.uiDir === undefined ? {} : { uiDir: io.uiDir }) });
+  io.out(messages.listening);
+  // Alone on its own line, so it is easy to copy.
+  io.out(server.url);
+  await (io.untilStopped ?? untilSignal)();
+  await server.close();
+  io.out(messages.stopped);
+  return EXIT_OK;
+}
+
 async function detectLang(io: CliIO): Promise<Lang> {
   let configLang: string | undefined;
   try {
@@ -577,6 +617,8 @@ export async function main(argv: readonly string[], io: CliIO = defaultIO()): Pr
         return await runUsage(rest, io, lang);
       case 'validate':
         return await runValidate(rest, io, lang);
+      case 'web':
+        return await runWeb(rest, io, lang);
       default:
         throw new UsageError(cliMessages[lang].unknownCommand(command));
     }

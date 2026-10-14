@@ -74,6 +74,9 @@ describe('error catalogue', () => {
     'library.noteNotFound': { section: 'profile', name: 'n' },
     'library.invalidProjectStatus': { file: 'f', issues: ['target: x'] },
     'events.invalidSession': { session: '../x' },
+    'web.invalidPort': { value: 'abc' },
+    'web.portInUse': { port: 4870 },
+    'web.uiNotBuilt': { dir: 'd' },
   };
 
   it('has a distinct message for every code in every language', () => {

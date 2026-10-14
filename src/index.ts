@@ -17,3 +17,4 @@ export * from './usage/index.js';
 export * from './validate/index.js';
 export { formatFinding, formatFindingMessage } from './i18n/validate.js';
 export { PACKAGE_ROOT } from './packageRoot.js';
+export * from './server/index.js';

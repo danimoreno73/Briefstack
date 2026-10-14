@@ -51,6 +51,9 @@ export interface ErrorParams {
   'library.noteNotFound': { section: string; name: string };
   'library.invalidProjectStatus': { file: string; issues: string[] };
   'events.invalidSession': { session: string };
+  'web.invalidPort': { value: string };
+  'web.portInUse': { port: number };
+  'web.uiNotBuilt': { dir: string };
 }
 
 export type ErrorCode = keyof ErrorParams;

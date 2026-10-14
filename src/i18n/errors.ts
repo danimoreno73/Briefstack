@@ -100,6 +100,10 @@ const errors = defineCatalogue<ErrorMessages>({
       `The project status in ${p.file} is not valid:${bullets(p.issues)}`,
     'events.invalidSession': (p) =>
       `"${p.session}" is not a valid session id (letters, digits, ".", "_" and "-" only).`,
+    'web.invalidPort': (p) => `"${p.value}" is not a valid port (a whole number from 0 to 65535).`,
+    'web.portInUse': (p) =>
+      `Port ${p.port} is already in use. Run again with --port 0 to use any free port.`,
+    'web.uiNotBuilt': (p) => `The web app is not built (${p.dir} is missing). Run npm run build first.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -163,6 +167,10 @@ const errors = defineCatalogue<ErrorMessages>({
       `El estado del proyecto en ${p.file} no es válido:${bullets(p.issues)}`,
     'events.invalidSession': (p) =>
       `"${p.session}" no es un id de sesión válido (solo letras, dígitos, ".", "_" y "-").`,
+    'web.invalidPort': (p) => `"${p.value}" no es un puerto válido (un número entero de 0 a 65535).`,
+    'web.portInUse': (p) =>
+      `El puerto ${p.port} ya está en uso. Vuelve a ejecutarlo con --port 0 para usar cualquier puerto libre.`,
+    'web.uiNotBuilt': (p) => `La aplicación web no está compilada (falta ${p.dir}). Ejecuta antes npm run build.`,
   },
 });
 
