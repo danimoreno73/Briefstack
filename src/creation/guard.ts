@@ -23,7 +23,7 @@ import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './webTools.js';
  *   no shell operators, and only the subcommands each caller needs;
  * - after a cancel, nothing except the `briefstack event` calls that close
  *   the session;
- * - web access for the researcher is allowed;
+ * - web access is allowed for the researcher and denied to everyone else;
  * - a tool outside `FLOW_TOOLS` is denied.
  * Everything else is left to the permission mode and `canUseTool`.
  */
@@ -312,8 +312,10 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
     );
   }
 
-  if (WEB_TOOLS.has(tool) && input.agent_type === 'researcher') {
-    return { verdict: 'allow', reason: 'read-only web access for the researcher' };
+  if (WEB_TOOLS.has(tool)) {
+    if (input.agent_type === 'researcher') return { verdict: 'allow', reason: 'read-only web access for the researcher' };
+    const query = text(toolInput.url) ?? text(toolInput.query) ?? '';
+    return deny('Only the researcher agent may use the web. Ask it through the Agent tool if the spec needs outside facts.', `${tool}: ${query}`);
   }
   if (!FLOW_TOOLS.has(tool)) {
     return deny(`The tool ${tool} is not available in a creation. Use only the tools the /new-project flow names.`, tool);

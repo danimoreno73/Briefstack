@@ -320,12 +320,17 @@ describe('evaluateToolUse', () => {
     });
   });
 
-  it('allows web access for the researcher only', async () => {
+  it('allows web access for the researcher and denies it to everyone else', async () => {
     const researcher = { agent_id: 'a3', agent_type: 'researcher' };
     expect(await verdictOf('WebSearch', { query: 'x' }, researcher)).toBe('allow');
     expect(await verdictOf('WebFetch', { url: 'https://example.com' }, researcher)).toBe('allow');
-    expect(await verdictOf('WebFetch', { url: 'https://example.com' })).toBe('pass');
-    expect(await verdictOf('WebFetch', { url: 'https://example.com' }, generator)).toBe('pass');
+    for (const who of [{}, generator, reviewer, { agent_id: 'a4', agent_type: 'interviewer' }, { agent_id: 'a5', agent_type: 'general-purpose' }]) {
+      expect(await verdictOf('WebFetch', { url: 'https://example.com/?q=data' }, who), JSON.stringify(who)).toBe('deny');
+      expect(await verdictOf('WebSearch', { query: 'x' }, who), JSON.stringify(who)).toBe('deny');
+    }
+    const verdict = await evaluateToolUse(ctx, input('WebFetch', { url: 'https://example.com' }));
+    expect(verdict).toMatchObject({ verdict: 'deny', summary: 'WebFetch: https://example.com' });
+    expect((verdict as { reason: string }).reason).toContain('researcher');
   });
 
   it('leaves the other flow tools to the permission mode', async () => {
