@@ -55,17 +55,17 @@ export async function gitInit(dir: string): Promise<{ initialised: boolean; warn
   }
 }
 
-async function hasConfig(dir: string, key: string): Promise<boolean> {
+async function hasConfig(dir: string, key: string, configArgs: readonly string[]): Promise<boolean> {
   try {
-    return (await git(dir, ['config', '--get', key])).trim() !== '';
+    return (await git(dir, [...configArgs, 'config', '--get', key])).trim() !== '';
   } catch {
     return false;
   }
 }
 
 /** `-c` options with the fallback identity when the repo has none configured; empty otherwise. */
-export async function identityArgs(dir: string): Promise<string[]> {
-  return (await hasConfig(dir, 'user.name')) && (await hasConfig(dir, 'user.email'))
+export async function identityArgs(dir: string, configArgs: readonly string[] = []): Promise<string[]> {
+  return (await hasConfig(dir, 'user.name', configArgs)) && (await hasConfig(dir, 'user.email', configArgs))
     ? []
     : ['-c', `user.name=${FALLBACK_IDENTITY.name}`, '-c', `user.email=${FALLBACK_IDENTITY.email}`];
 }
@@ -86,10 +86,16 @@ export async function gitFirstAddedDate(dir: string, file: string): Promise<stri
   }
 }
 
-/** Whether `git status` shows anything to commit (untracked files included). */
-export async function gitHasChanges(dir: string): Promise<{ changes: boolean; warning?: GitWarning }> {
+/**
+ * Whether `git status` shows anything to commit (untracked files included).
+ * `configArgs` are `-c` options put before the command, as in `gitCommit`.
+ */
+export async function gitHasChanges(
+  dir: string,
+  configArgs: readonly string[] = [],
+): Promise<{ changes: boolean; warning?: GitWarning }> {
   try {
-    return { changes: (await git(dir, ['status', '--porcelain'])).trim() !== '' };
+    return { changes: (await git(dir, [...configArgs, 'status', '--porcelain'])).trim() !== '' };
   } catch (error) {
     return { changes: false, warning: toWarning(error) };
   }
@@ -98,17 +104,19 @@ export async function gitHasChanges(dir: string): Promise<{ changes: boolean; wa
 /**
  * Commits exactly `files` (relative to `dir`, with `/`). Without a configured
  * identity it passes the fallback with `-c` for this command only.
+ * `configArgs` are more `-c` options for every git call it makes.
  */
 export async function gitCommit(
   dir: string,
   files: readonly string[],
   message: string,
+  configArgs: readonly string[] = [],
 ): Promise<{ committed: boolean; warning?: GitWarning }> {
   if (files.length === 0) return { committed: false };
   if (!(await isGitRepo(dir))) return { committed: false, warning: { code: 'notAGitRepo', dir } };
   try {
-    await git(dir, ['add', '--', ...files]);
-    await git(dir, [...(await identityArgs(dir)), 'commit', '--quiet', '-m', message, '--', ...files]);
+    await git(dir, [...configArgs, 'add', '--', ...files]);
+    await git(dir, [...configArgs, ...(await identityArgs(dir, configArgs)), 'commit', '--quiet', '-m', message, '--', ...files]);
     return { committed: true };
   } catch (error) {
     return { committed: false, warning: toWarning(error) };

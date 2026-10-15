@@ -186,6 +186,38 @@ describe('evaluateToolUse', () => {
       expect(await verdictOf('Write', { file_path: path.join(inward, 'a.md') })).toBe('allow');
     });
 
+    it('denies any write in a .git folder, in any case and spelling Windows accepts', async () => {
+      const app = path.join(projectsDir, 'app');
+      for (const target of [
+        path.join(app, '.git', 'hooks', 'pre-commit'),
+        path.join(app, '.git', 'config'),
+        path.join(app, '.GIT', 'config'),
+        path.join(app, '.Git', 'hooks', 'post-checkout'),
+        `${app}${path.sep}.git.${path.sep}config`,
+        `${app}${path.sep}.git ${path.sep}config`,
+        path.join(app, 'GIT~1', 'config'),
+        path.join(app, 'sub', '.git'),
+        `${slashes(app)}/.git/hooks/pre-commit`,
+      ]) {
+        for (const tool of ['Write', 'Edit', 'MultiEdit']) expect(await verdictOf(tool, { file_path: target }), `${tool} ${target}`).toBe('deny');
+        expect(await verdictOf('NotebookEdit', { notebook_path: target }), target).toBe('deny');
+      }
+      granted.push(outside);
+      expect(await verdictOf('Write', { file_path: path.join(outside, '.git', 'config') })).toBe('deny');
+      // Names that only look alike are fine.
+      expect(await verdictOf('Write', { file_path: path.join(app, '.gitignore') })).toBe('allow');
+      expect(await verdictOf('Write', { file_path: path.join(app, '.github', 'workflows', 'ci.yml') })).toBe('allow');
+      expect(await verdictOf('Write', { file_path: path.join(app, 'docs', 'git.md') })).toBe('allow');
+    });
+
+    it('denies a write through a link that leads into a .git folder', async () => {
+      const gitDir = path.join(projectsDir, 'app', '.git');
+      await mkdir(path.join(gitDir, 'hooks'), { recursive: true });
+      const link = path.join(projectsDir, 'innocent');
+      await symlink(gitDir, link, 'junction');
+      expect(await verdictOf('Write', { file_path: path.join(link, 'hooks', 'pre-commit') })).toBe('deny');
+    });
+
     it('denies a drive-less Windows form on Windows', async () => {
       if (process.platform !== 'win32') return;
       const withoutDrive = slashes(path.join(projectsDir, 'a.md')).slice(2);
@@ -253,6 +285,15 @@ describe('evaluateToolUse', () => {
       await symlink(outside, link, 'junction');
       granted.length = 0;
       expect(await shell(`${CLI} scaffold "x.json" "${slashes(link)}/app"`, generator)).toBe('deny');
+    });
+
+    it('denies scaffold and commit pointed at a .git folder', async () => {
+      const inside = slashes(path.join(projectsDir, 'app'));
+      expect(await shell(`${CLI} scaffold "x.json" "${inside}/.git/hooks"`, generator)).toBe('deny');
+      expect(await shell(`${CLI} scaffold "x.json" "${inside}/.GIT"`, generator)).toBe('deny');
+      expect(await shell(`${CLI} commit "${inside}/.git"`)).toBe('deny');
+      expect(await shell(`${CLI} commit "${inside}/sub/.Git/x"`)).toBe('deny');
+      expect(await shell(`${CLI} commit "${inside}"`)).toBe('allow');
     });
 
     it('tells the model to use forward slashes when a path has backslashes', async () => {

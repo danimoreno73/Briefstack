@@ -16,7 +16,8 @@ import { redactSecretLines } from '../validate/secrets.js';
  *
  * What it decides:
  * - file writes only inside `projectsDir`, the session folder and the
- *   folders the user granted to this session; anything else is denied;
+ *   folders the user granted to this session, and never in a `.git`
+ *   folder; anything else is denied;
  * - shell commands only as `npm run --silent briefstack -- <sub> ...` with
  *   no shell operators, and only the subcommands each caller needs;
  * - after a cancel, nothing except the `briefstack event` calls that close
@@ -181,6 +182,32 @@ export async function insideAny(target: string, roots: readonly string[], pathEn
   return false;
 }
 
+/**
+ * Whether a path has a `.git` segment, ignoring case. Windows also drops
+ * trailing dots and spaces (`.git.` is `.git`) and may reach it by its short
+ * name (`GIT~1`), so those count too.
+ */
+export function hasGitSegment(value: string): boolean {
+  return value.split(/[\\/]+/).some((segment) => {
+    const name = segment.toLowerCase().replace(/[. ]+$/, '');
+    return name === '.git' || /^git~\d+$/.test(name);
+  });
+}
+
+/** `hasGitSegment` of the path as written, or of where it really leads after symlinks. */
+async function touchesGitDir(target: string, pathEnv: PathEnv): Promise<boolean> {
+  if (hasGitSegment(target)) return true;
+  try {
+    return hasGitSegment(await realpathNearest(pathEnv.pathApi.resolve(target)));
+  } catch {
+    return false;
+  }
+}
+
+const GIT_MESSAGE =
+  'Writing inside a .git folder is not allowed: git runs hooks and settings from there. Let `briefstack scaffold` create ' +
+  'the repository and `briefstack commit` commit it.';
+
 const redact = (value: string): string => redactSecretLines(value).slice(0, 500);
 
 /** Decides one tool call. Pure apart from reading symlinks on the disk. */
@@ -233,6 +260,7 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
         if (kind !== 'ok') {
           return deny('Use a full path with a drive letter or a leading slash, in double quotes with forward slashes.', summary);
         }
+        if (await touchesGitDir(target, pathEnv)) return deny(GIT_MESSAGE, summary);
         if (!(await insideAny(target, roots(), pathEnv))) {
           return deny('That folder is outside the projects folder and the folders the user granted for this creation.', summary);
         }
@@ -249,6 +277,7 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
     const kind = classifyPath(target, pathEnv);
     if (kind === 'relative') return deny('Use an absolute path.', target);
     if (kind === 'not-fully-absolute') return deny('Use a full path with a drive letter, not a /c/... form.', target);
+    if (await touchesGitDir(target, pathEnv)) return deny(GIT_MESSAGE, target);
     if (await insideAny(target, roots(), pathEnv)) return { verdict: 'allow', reason: 'inside an allowed folder' };
     return deny(
       'Writes are only allowed inside the projects folder, this creation\'s session folder and folders the user granted for it.',
