@@ -193,11 +193,19 @@ export interface SdkRunnerDeps {
   findExecutable?: () => string | undefined;
   /** Tests inject the process starter. */
   tracked?: () => TrackedSpawn;
-  /** After a turn ends, how long without any message before the runner ends itself. Default 15 minutes. */
+  /**
+   * After a turn ends, how long without any message before the runner ends
+   * itself. Default 15 minutes. It never runs while the user is being asked
+   * something (a question, a permission, the spec, a folder): the user may
+   * take as long as they need.
+   */
   idleAfterResultMs?: number;
+  /** The same wait while a background agent is still running, as a last resort against a missed stop. Default 2 hours. */
+  idleWithAgentsMs?: number;
 }
 
 const IDLE_AFTER_RESULT_MS = 15 * 60_000;
+const IDLE_WITH_AGENTS_MS = 2 * 60 * 60_000;
 
 export class SdkRunner implements CreationRunner {
   constructor(private readonly deps: SdkRunnerDeps) {}
@@ -214,6 +222,10 @@ class SdkRun {
   private stopped = false;
   private afterResult = false;
   private readonly agents = new Map<string, string>();
+  /** Agents that started and have not stopped. */
+  private readonly running = new Set<string>();
+  /** Requests to the user that have no answer yet. */
+  private requests = 0;
   private readonly input = new InputQueue();
   private readonly abort = new AbortController();
   private readonly tracked: TrackedSpawn;
@@ -291,13 +303,23 @@ class SdkRun {
         pathEnv: this.deps.pathEnv,
       };
       const recordAgent: HookCallback = async (hook) => {
-        if (hook.hook_event_name === 'SubagentStart' && hook.session_id === this.claimed) {
+        if (hook.session_id !== this.claimed) return {};
+        if (hook.hook_event_name === 'SubagentStart') {
           this.agents.set(hook.agent_id, hook.agent_type);
+          this.running.add(hook.agent_id);
+          this.armIdle();
+        } else if (hook.hook_event_name === 'SubagentStop') {
+          this.running.delete(hook.agent_id);
+          this.armIdle();
         }
         return {};
       };
       const webTools = createWebToolsServer({
-        io: this.io,
+        // Waiting for the user on the spec or a folder counts as a request too.
+        io: {
+          approveSpec: (request) => this.whileAsking(() => this.io.approveSpec(request)),
+          grantDirectory: (request) => this.whileAsking(() => this.io.grantDirectory(request)),
+        },
         sessionDir: () => (this.claimed === undefined ? undefined : this.sessionDir(this.claimed)),
         protectedDirs: protectedDirs(libraryDir, this.deps.repoDir),
         projectsDir,
@@ -320,8 +342,9 @@ class SdkRun {
             },
           ],
           SubagentStart: [{ hooks: [recordAgent] }],
+          SubagentStop: [{ hooks: [recordAgent] }],
         },
-        canUseTool: (toolName, input, extra) => this.canUseTool(toolName, input, extra.agentID),
+        canUseTool: (toolName, input, extra) => this.whileAsking(() => this.canUseTool(toolName, input, extra.agentID)),
         mcpServers: { [WEB_SERVER_NAME]: webTools },
         abortController: this.abort,
         spawn: (spawnOptions) => this.tracked.spawn(spawnOptions),
@@ -395,12 +418,29 @@ class SdkRun {
    */
   private armIdle(): void {
     this.clearIdle();
-    if (!this.afterResult || this.stopped) return;
+    // Never while the user has something to answer: that wait has no limit.
+    if (!this.afterResult || this.stopped || this.requests > 0) return;
+    const wait =
+      this.running.size > 0
+        ? (this.deps.idleWithAgentsMs ?? IDLE_WITH_AGENTS_MS)
+        : (this.deps.idleAfterResultMs ?? IDLE_AFTER_RESULT_MS);
     this.idleTimer = setTimeout(() => {
       this.input.close();
       this.query?.close();
-    }, this.deps.idleAfterResultMs ?? IDLE_AFTER_RESULT_MS);
+    }, wait);
     this.idleTimer.unref();
+  }
+
+  /** Runs a request to the user: the idle wait is off until it is answered, and starts again after. */
+  private async whileAsking<T>(request: () => Promise<T>): Promise<T> {
+    this.requests += 1;
+    this.clearIdle();
+    try {
+      return await request();
+    } finally {
+      this.requests -= 1;
+      this.armIdle();
+    }
   }
 
   private clearIdle(): void {

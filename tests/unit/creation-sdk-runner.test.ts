@@ -165,17 +165,24 @@ describe('SdkRunner', () => {
   let permissionAnswer: 'allow' | 'deny';
   let specAnswer: SpecDecision;
   let grantAnswer: boolean;
+  /** While set, questions and the spec wait for it: the user is thinking. */
+  let gate: Promise<void> | undefined;
 
   const io = (): RunnerIO => ({
     askQuestions: async (request) => {
       asked.push(request);
+      await gate;
       return answer;
     },
     requestPermission: async (request) => {
       permissions.push(request);
+      await gate;
       return permissionAnswer;
     },
-    approveSpec: async () => specAnswer,
+    approveSpec: async () => {
+      await gate;
+      return specAnswer;
+    },
     grantDirectory: async () => grantAnswer,
     emit: (event) => events.push(event),
   });
@@ -248,6 +255,7 @@ describe('SdkRunner', () => {
     permissionAnswer = 'allow';
     specAnswer = { decision: 'approve' };
     grantAnswer = true;
+    gate = undefined;
   });
   afterEach(() => cleanup());
 
@@ -390,4 +398,94 @@ describe('SdkRunner', () => {
     expect(fake.closed).toBe(false);
     expect(await handle.done).toEqual({ kind: 'ended' });
   });
+  describe('the wait after a turn ended', () => {
+    const settled = (promise: Promise<unknown>): Promise<boolean> =>
+      Promise.race([promise.then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 0))]);
+    const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    it('does not run while a question waits for the user, however long they take', async () => {
+      const handle = start(runner({ idleAfterResultMs: 30 }));
+      init();
+      await handle.sessionId;
+      fake.push({ type: 'result', subtype: 'success' });
+      let release!: () => void;
+      gate = new Promise<void>((resolve) => (release = resolve));
+      const questions = [{ question: 'Which folder?', header: 'Folder', options: [{ label: 'Default', description: 'd' }], multiSelect: false }];
+      const asking = canUse('AskUserQuestion', { questions });
+      await pause(150);
+      expect(fake.closed).toBe(false);
+      expect(await settled(handle.done)).toBe(false);
+      release();
+      expect(await asking).toMatchObject({ behavior: 'allow' });
+      // Answered: the quiet wait starts again, and ends it.
+      expect(await handle.done).toEqual({ kind: 'ended' });
+    });
+
+    it('does not run while a permission request waits', async () => {
+      const handle = start(runner({ idleAfterResultMs: 30 }));
+      init();
+      await handle.sessionId;
+      fake.push({ type: 'result', subtype: 'success' });
+      let release!: () => void;
+      gate = new Promise<void>((resolve) => (release = resolve));
+      const asking = canUse('WebFetch', { url: 'https://example.com' });
+      await pause(150);
+      expect(fake.closed).toBe(false);
+      expect(await settled(handle.done)).toBe(false);
+      expect(permissions).toHaveLength(1);
+      release();
+      expect(await asking).toMatchObject({ behavior: 'allow' });
+      expect(await handle.done).toEqual({ kind: 'ended' });
+    });
+
+    it('does not run while the spec approval waits', async () => {
+      const handle = start(runner({ idleAfterResultMs: 30 }));
+      init();
+      await handle.sessionId;
+      fake.push({ type: 'result', subtype: 'success' });
+      let release!: () => void;
+      gate = new Promise<void>((resolve) => (release = resolve));
+      const server = options().mcpServers?.['briefstack-web'] as unknown as {
+        instance: { _registeredTools: Record<string, { handler: (args: unknown, extra: unknown) => Promise<{ content: { text: string }[] }> }> };
+      };
+      const files = { specFile: path.join(sessionsDir, SESSION, 'spec.json'), summaryFile: path.join(sessionsDir, SESSION, 'summary.md') };
+      const approving = server.instance._registeredTools.approve_spec?.handler(files, {});
+      await pause(150);
+      expect(fake.closed).toBe(false);
+      expect(await settled(handle.done)).toBe(false);
+      release();
+      expect(JSON.parse((await approving)?.content[0]?.text ?? '{}')).toEqual({ decision: 'approve' });
+      expect(await handle.done).toEqual({ kind: 'ended' });
+    });
+
+    it('waits much longer while a background agent is running, and still ends if its stop never comes', async () => {
+      const handle = start(runner({ idleAfterResultMs: 30, idleWithAgentsMs: 250 }));
+      init();
+      await handle.sessionId;
+      const hook = options().hooks?.SubagentStart?.[0]?.hooks[0] as HookCallback;
+      const signal = new AbortController().signal;
+      await hook({ hook_event_name: 'SubagentStart', session_id: SESSION, transcript_path: '', cwd: '', agent_id: 'a1', agent_type: 'generator' } as never, undefined, { signal });
+      fake.push({ type: 'result', subtype: 'success' });
+      await pause(120);
+      expect(fake.closed).toBe(false);
+      // Its stop comes: the short wait applies from then on.
+      const stop = options().hooks?.SubagentStop?.[0]?.hooks[0] as HookCallback;
+      await stop({ hook_event_name: 'SubagentStop', session_id: SESSION, transcript_path: '', cwd: '', agent_id: 'a1', agent_type: 'generator' } as never, undefined, { signal });
+      expect(await handle.done).toEqual({ kind: 'ended' });
+
+      // A stop that never comes: the long wait still ends it.
+      fake = new FakeQuery();
+      const lost = start(runner({ idleAfterResultMs: 30, idleWithAgentsMs: 120 }));
+      init();
+      await lost.sessionId;
+      await (options().hooks?.SubagentStart?.[0]?.hooks[0] as HookCallback)(
+        { hook_event_name: 'SubagentStart', session_id: SESSION, transcript_path: '', cwd: '', agent_id: 'a2', agent_type: 'generator' } as never,
+        undefined,
+        { signal },
+      );
+      fake.push({ type: 'result', subtype: 'success' });
+      expect(await lost.done).toEqual({ kind: 'ended' });
+    });
+  });
+
 });
