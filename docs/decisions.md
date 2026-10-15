@@ -1382,3 +1382,53 @@ Verified:
   not with an SDK `result`.
 - **MCP.** `strictMcpConfig: true`: only `briefstack-web`.
 - **Effort.** Checked in H6 with a Sonnet profile.
+
+## Moving the data folders (2026-10-15)
+
+briefstack keeps no path in code. Where its data lives is set by three
+things, so it can move to another drive without a code change:
+
+- `BRIEFSTACK_HOME` (an environment variable) is the home. `config.json`,
+  `sessions/`, `usage-profiles.json` and, by default, `library/` live in
+  it. The config is inside the home, so this one cannot be in the config:
+  it must be a persistent user environment variable. The hook script reads
+  it with the same rule (`scripts/hook-event.mjs`).
+- `projectsDir` in `config.json` (or Settings in the web app) is where new
+  projects go. `BRIEFSTACK_LIBRARY` or `libraryDir` can place the library
+  elsewhere, but it is not needed when the home moves.
+- The folders Claude Code may write to are entries in the repo's
+  `.claude/settings.local.json` (`permissions.additionalDirectories`).
+  `briefstack init` and `setProjectsDir` add entries and never remove any,
+  so old ones are removed by hand.
+
+Only processes started after the variable is set see it. Anything opened
+earlier (a terminal, Claude Code, a running `briefstack web`) keeps the old
+home and would create a new, empty one there. Restart them first.
+
+Order that was followed, and should be followed again:
+
+1. **Prepare.** Close Claude Code and `briefstack web`. Check that the
+   library's `git status` is clean.
+2. **Copy**, without touching the originals: `robocopy <old home> <new home>
+   /E /COPY:DAT /DCOPY:DAT` (it includes `library/.git`) and the same for
+   the projects folder. robocopy exits with 1 when the copy is correct.
+   Compare file counts and a SHA-256 of every file, and in the copied
+   library run `git fsck`, check `git status` is clean and that `HEAD` is
+   the same commit.
+3. **Point to the new place.** Set `BRIEFSTACK_HOME` (`setx` on Windows).
+   With it set explicitly: set `projectsDir`, run `briefstack init` (adds
+   the new `sessions` entry), remove the old entries from
+   `.claude/settings.local.json`, and change the `path:` of each project
+   note in the library with `saveNote` (one commit each).
+4. **Verify** from a new session: the variable is set,
+   `briefstack paths --json` shows only the new places, and the web app
+   lists the projects with their new path and opens their timeline.
+5. **Delete** the originals only after that, listing exactly what goes.
+
+A project note links to its creation timeline through its `session` field.
+Notes made before `--session` existed have none, so their history is empty;
+adding the session id to the note with `saveNote` restores it.
+
+Claude Code keeps its own data per project path (trust, history and memory
+under its own folders). A project that moves is a new project to Claude
+Code, and the old entry stays behind until the user removes it.
