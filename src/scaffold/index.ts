@@ -16,6 +16,7 @@ export { DENY_RULES, SECRET_ENV_FILES, isReadDenied, readRuleDenies } from './se
 export {
   checkOutputDir,
   inspectOutputDir,
+  protectedDirs,
   realpathNearest,
   type OutputDirReport,
   type OutputDirStatus,

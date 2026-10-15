@@ -2,11 +2,18 @@ import { lstat, readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { isPathInside, systemPathEnv } from '../config/paths.js';
 import { BriefstackError, type ProtectedRoot } from '../errors.js';
+import { PACKAGE_ROOT } from '../packageRoot.js';
 
 export interface ProtectedDir {
   root: ProtectedRoot;
   path: string;
 }
+
+/** Folders a generated project, or the projects folder, must not overlap. */
+export const protectedDirs = (libraryDir: string, repoDir: string = PACKAGE_ROOT): ProtectedDir[] => [
+  { root: 'repo', path: repoDir },
+  { root: 'library', path: libraryDir },
+];
 
 /** `realpath` of the deepest existing ancestor, with the missing tail re-appended. */
 export async function realpathNearest(target: string): Promise<string> {

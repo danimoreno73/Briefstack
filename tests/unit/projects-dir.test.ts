@@ -70,6 +70,45 @@ describe('setProjectsDir', () => {
     await expect(stat(settingsFile())).rejects.toThrow();
   });
 
+  it('refuses a Windows path without a drive letter, as the CLI does', async () => {
+    const env: PathEnv = { ...pathEnv, pathApi: path.win32, homedir: 'C:\\Users\\someone' };
+    for (const value of ['/c/Users/someone/projects', '\\Users\\someone\\projects']) {
+      await expect(setProjectsDir({ pathEnv: env, repoDir, dir: value })).rejects.toMatchObject({ code: 'config.relativePath' });
+    }
+    await expect(stat(path.join(dir, 'home', 'config.json'))).rejects.toThrow();
+  });
+
+  it('creates a folder that does not exist yet, and accepts one that does', async () => {
+    const missing = path.join(dir, 'new', 'projects');
+    await expect(stat(missing)).rejects.toThrow();
+    expect(await setProjectsDir({ pathEnv, repoDir, dir: missing })).toMatchObject({ created: true });
+    expect((await stat(missing)).isDirectory()).toBe(true);
+    const existing = path.join(dir, 'existing');
+    await mkdir(existing, { recursive: true });
+    expect(await setProjectsDir({ pathEnv, repoDir, dir: existing })).toMatchObject({ created: false });
+  });
+
+  it('refuses what paths check refuses: around or inside the repo or the library, and a file', async () => {
+    const libraryDir = path.join(dir, 'home', 'library');
+    await mkdir(libraryDir, { recursive: true });
+    await mkdir(repoDir, { recursive: true });
+    const file = path.join(dir, 'a-file');
+    await writeFile(file, 'x', 'utf8');
+    const cases: [string, string][] = [
+      [repoDir, 'scaffold.forbiddenOutput'],
+      [path.join(repoDir, 'sub'), 'scaffold.forbiddenOutput'],
+      [dir, 'scaffold.forbiddenOutput'],
+      [path.join(libraryDir, 'projects'), 'scaffold.forbiddenOutput'],
+      [file, 'scaffold.notADirectory'],
+    ];
+    for (const [target, code] of cases) {
+      await expect(setProjectsDir({ pathEnv, repoDir, dir: target })).rejects.toMatchObject({ code });
+    }
+    await expect(stat(path.join(dir, 'home', 'config.json'))).rejects.toThrow();
+    await expect(stat(settingsFile())).rejects.toThrow();
+    await expect(stat(path.join(repoDir, 'sub'))).rejects.toThrow();
+  });
+
   it('stops before writing when the settings file is invalid', async () => {
     await mkdir(path.join(repoDir, '.claude'), { recursive: true });
     await writeFile(settingsFile(), '{ not json', 'utf8');

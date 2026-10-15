@@ -45,7 +45,7 @@ import {
   readNote,
 } from './library/index.js';
 import { PACKAGE_ROOT } from './packageRoot.js';
-import { commitProject, inspectOutputDir, loadTemplate, scaffold, type ProtectedDir } from './scaffold/index.js';
+import { commitProject, inspectOutputDir, loadTemplate, protectedDirs, scaffold, type ProtectedDir } from './scaffold/index.js';
 import { readSpec } from './spec/index.js';
 import { getPreset, loadUsageContext, usageSet, usageShow, type ApplyResult } from './usage/index.js';
 import { validateProject } from './validate/index.js';
@@ -159,12 +159,6 @@ async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Prom
   for (const warning of result.warnings) io.err(messages.warning(warning));
   return EXIT_OK;
 }
-
-/** Folders a generated project must not overlap. */
-const protectedDirs = (libraryDir: string): ProtectedDir[] => [
-  { root: 'repo', path: PACKAGE_ROOT },
-  { root: 'library', path: libraryDir },
-];
 
 /** Where things live, and whether an output folder is usable. Reports; never fails on what it finds. */
 async function runPaths(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
