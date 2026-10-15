@@ -132,6 +132,34 @@ from PowerShell in the repo, in this order:
 If a check fails, stop and read `decisions.md`, "H6 design", before changing
 the guard: each rule there has a reason.
 
+### Plan for H8 (autonomous run, 2026-10-15)
+
+UI of the creation flow over the existing creation routes and stream; manual
+checks are replaced by the H9 e2e over the fake runner.
+
+- **Server additions** (small, documented in `docs/api.md`):
+  - `GET /api/creations/:id/spec`: the spec summary (secrets redacted) and
+    a few fields of `spec.json`, for the approval screen. Only files the
+    creation itself asked about, inside its session folder.
+  - `GET /api/paths/check?dir=`: what `paths check` says about a folder, so
+    Settings can warn that a missing projects folder will be created.
+  - The manager redacts secrets in permission and denial summaries too.
+- **Screens** (`#/new`, `#/new/<id>`): idea form; progress list (steps and
+  the agent working now); question form (recommended option preselected plus
+  free text); permission dialog (exactly what is asked, allow or deny); spec
+  approval (approve, change with text, cancel); folder grant confirmation;
+  result (project link, next steps through the project page, denied requests
+  under the `unattended` policy). Cancel is always visible and asks first.
+- **Reopening the tab**: `#/new` finds the active creation and shows it;
+  the stream resumes from the last `seq`. A second start says there is one
+  running and links to it. The nav marks a creation in progress.
+- **Settings**: a note under the projects folder field when the folder does
+  not exist; the permission policy is shown on the creation too.
+- **Strings**: `src/i18n/ui.ts`, en and es, with the same-keys test.
+- **Tests**: unit tests for the pure parts (SSE parsing, progress from
+  events, answers from the form) and for the new routes; the browser flow is
+  H9.
+
 ### Pending for H8
 
 - A route that serves the spec summary (`spec.summaryFile` is an
