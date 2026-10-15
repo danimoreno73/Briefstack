@@ -58,6 +58,7 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
     // The saved language wins over the browser's once the server has answered.
     api<SettingsView>(token, 'GET', '/api/settings').then(
       (settings) => {
+        storeLang(settings.lang);
         setLang(settings.lang);
         setGate('ready');
       },
@@ -67,12 +68,22 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
 
   useEffect(() => {
     document.documentElement.lang = lang;
-    // Only a language the server confirmed is kept (see the settings effect above).
-    if (gate === 'ready') storeLang(lang);
-  }, [lang, gate]);
+  }, [lang]);
 
   const context = useMemo<AppContext | undefined>(
-    () => (token === undefined ? undefined : { lang, t, token, setLang }),
+    () =>
+      token === undefined
+        ? undefined
+        : {
+            lang,
+            t,
+            token,
+            // Kept at once, not in an effect, so a reload right after saving already sees it.
+            setLang: (next: Lang) => {
+              storeLang(next);
+              setLang(next);
+            },
+          },
     [lang, t, token],
   );
 

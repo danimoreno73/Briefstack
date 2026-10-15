@@ -165,7 +165,11 @@ test.describe('library', () => {
 test.describe('secrets', () => {
   test('a note that already holds a secret is shown redacted, and cannot overwrite it', async ({ page, app }) => {
     await page.goto(app.url);
-    await page.goto(app.url.replace(/#.*$/, '') + '#/library/profile/legacy');
+    // Wait until the app is up, then follow a link a person could have bookmarked.
+    await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+    await page.evaluate(() => {
+      window.location.hash = '#/library/profile/legacy';
+    });
     await expect(page.getByTestId('editor')).toHaveValue(/Keep this line\./);
     await expect(page.getByTestId('editor')).toHaveValue(/\[redacted\]/);
     expect(await everywhere(page)).not.toContain(FAKE_KEY);
@@ -262,7 +266,7 @@ test.describe('settings, starting in Spanish', () => {
       await route.continue();
     });
     await page.reload();
-    await expect(page.getByRole('status')).toHaveText('Connecting…');
+    await expect(page.getByRole('status').first()).toHaveText('Connecting…');
     await expect(page.getByRole('link', { name: 'Projects' })).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await page.unroute('**/api/settings');
