@@ -1432,3 +1432,109 @@ adding the session id to the note with `saveNote` restores it.
 Claude Code keeps its own data per project path (trust, history and memory
 under its own folders). A project that moves is a new project to Claude
 Code, and the old entry stays behind until the user removes it.
+
+## H6 design (2026-10-15, code only, nothing run against the real SDK)
+
+Built and tested with a scripted stand-in for `query()`. What is **not**
+verified until the real runs (`PLAN-phase-2.md`, "H6 status"): that a hook's
+`deny` and `allow` behave as documented under `permissionMode: 'auto'`, that
+the two `briefstack-web` tools are listed to the skill (`alwaysLoad`), that
+`slash_commands` in the init message has the field name the runner reads, and
+that killing the tree leaves nothing behind.
+
+- **The guard denies; it does not ask** (user, 2026-10-15; this replaces the
+  `ask` of 2026-10-14). Writes outside `projectsDir`, the session folder and
+  the folders granted to the session, and shell commands outside the
+  caller's list, are denied with a reason the model can act on. What the
+  guard does not decide (`pass`) goes to the permission mode, then to
+  `canUseTool`, which shows the dialog or applies the unattended denial.
+- **Registered by code, not by settings.** The guard is passed in the
+  `hooks` option of the runner's own `query()`. No settings file mentions it,
+  so a normal Claude Code session in this repo never runs it (a test reads
+  the settings and scans `src/` to keep it so), and it also ignores any
+  hook input whose `session_id` is not the creation's. The runner claims the
+  first session id it sees, from the init message or from a hook, whichever
+  comes first.
+- **`allow` is a pre-approval.** For a write inside an allowed folder, a CLI
+  command in the caller's list and the researcher's web tools the hook
+  returns `allow`, so no `allowedTools` path rule (with the POSIX-form paths
+  of `Edit(//c/...)`) is needed. The two `briefstack-web` tools are in
+  `allowedTools`.
+- **Shell rule.** `npm run --silent briefstack -- <sub> ...`, read token by
+  token: unquoted text may only hold letters, digits and `_ . - / : = ,`;
+  inside double quotes there may be no `$`, backtick, backslash, double
+  quote or line break; no single quotes. So no `;`, `&`, `|`, redirects,
+  subshells, globs, `~` or comments. The skill already says "absolute
+  paths in double quotes with forward slashes", so it fits.
+- **Per caller.** Main session: `event`, `paths`, `usage show`, `library
+  context`, `library add`, `spec check`, `validate`, `commit`. `generator`:
+  `scaffold`, `validate`. `reviewer`: `validate`. Any other agent: no shell.
+  `usage set`, `init`, `web`, `library list|show` and `scaffold` from the
+  main session are denied. A test reads the commands in the skill and in the
+  two agent bodies and checks each is allowed for its caller.
+- **Commands that write on their own are checked too.** `scaffold` (the
+  output folder) and `commit` (the project folder) must point inside the
+  allowed folders, symlinks resolved, because the guard cannot see their
+  writes any other way.
+- **After a cancel** every tool is denied, with a message that tells the skill
+  to close the open step as skipped and the session as `cancelled`; only the
+  main session's `briefstack event` calls pass. `canUseTool` denies the same.
+- **Granted folders** (`grant_directory`): the tool refuses a relative path,
+  the repo, the library and a file; says nothing to the user for a folder
+  already inside `projectsDir`; creates a missing folder only after the user
+  confirmed; and records it for this session only. A write there passes the
+  guard, and in `canUseTool` returns `updatedPermissions: [{ type:
+  'addDirectories', destination: 'session' }]` (checked in H0). Nothing is
+  written to any settings file.
+- **`approve_spec`** only takes files inside the session folder.
+- **Session end.** A creation ends with the flow's `session.finished`. The
+  runner does not end itself on a `result`; it ends 15 minutes after the last
+  message that follows a `result` (any message, such as a background agent's
+  progress, restarts the wait), so a flow that stopped without closing is
+  marked interrupted instead of waiting for ever. On stop the runner closes
+  the query and kills the process tree (`taskkill /T /F`, or the process
+  group), and also kills it if it exits on its own.
+- **Process.** Claude Code is started by `spawnTracked` (our own spawn,
+  `windowsHide`, its own process group on POSIX), and the SDK's forwarded
+  abort signal also ends the tree.
+- **Environment.** `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`,
+  `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDECODE` and every `CLAUDE_CODE_*` are not
+  passed (the runner reports the names, never the values), and
+  `BRIEFSTACK_HOME` is set to the home the server uses, so the skill, the
+  CLI and the hooks write where the server reads.
+- **Errors.** `creation.claudeNotFound` (no `claude` on PATH or in
+  `~/.local/bin`) and `creation.slashCommandMissing` (the init message does
+  not list `new-project`) end the run as failed, with text in both languages.
+- **Manager.** `policy` may be asynchronous: it is read from the config when
+  each creation starts, after the creation is registered, so the "one active
+  creation" check stays atomic.
+- **Tests and the user's data.** `BRIEFSTACK_HOME` is now set at user level
+  and points at real data. vitest (`tests/setup-env.ts`) and Playwright
+  (`tests/e2e/fixtures.ts`) point `BRIEFSTACK_HOME`, `USERPROFILE` and `HOME`
+  at a temp folder before any test runs, and a test fails if they do not.
+
+## Decisiones sin Dani (decisions taken while the user was away, 2026-10-15)
+
+For the user to review. Each one chose the more conservative option.
+
+1. **Guard denies instead of asking** was the user's own instruction for
+   writes and shell; I applied it to every shell command outside the list,
+   including ones the old plan would have asked about.
+2. **Main session cannot `scaffold`** (only `generator` can), following the
+   plan's table, although the skill's text never calls it.
+3. **`scaffold` and `commit` need their folder inside the allowed folders.**
+   Not asked for; it closes a way round the write rule.
+4. **No backslashes, `$`, backticks or single quotes in a quoted argument.**
+   Stricter than needed for bash, but PowerShell and bash disagree about what
+   is special there. If a real run shows the model using backslashes, the
+   skill is the place to fix, not the guard.
+5. **A 15-minute idle end after a `result`** is my number. The flow's longest
+   quiet stretch is a background agent, which sends progress messages; if a
+   real run shows otherwise, change `IDLE_AFTER_RESULT_MS`.
+6. **A denial by the guard is shown like an unattended denial** (listed on the
+   result screen, `by: runner`), even under the `ask` policy, because nobody
+   was asked.
+7. **`markdown-it` 15.0.1** (earlier, in H7) is the only runtime dependency
+   added since H5; nothing new in this stretch.
+8. **Tests may start a real child process tree** (`creation-process-tree`):
+   two `node` processes in a temp folder, killed by the test.

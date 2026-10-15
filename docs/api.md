@@ -38,7 +38,7 @@ text use those. The security rejections above send `{ "code" }` only.
 | 409 | `creation.busy`, `creation.noPending`, `creation.wrongPending`, `library.dirtyTree`, `library.revertConflict` |
 | 413 | `web.bodyTooLarge` |
 | 415 | `web.unsupportedMediaType` |
-| 503 | `creation.unavailable` (the server has no creation runner) |
+| 503 | `creation.unavailable` (the server was started without a creation manager; `briefstack web` always has one) |
 
 ## Routes
 

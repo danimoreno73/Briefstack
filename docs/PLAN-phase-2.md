@@ -26,20 +26,20 @@ Updated 2026-10-15 (after H7). A new session reads `CLAUDE.md`,
 | H4 | Write routes in `src/server/write.ts`: `PUT /api/library/note` (`saveNote`; a note with a secret is a 400 and nothing is written or echoed), `POST /api/library/revert`, `PUT /api/usage`, `PUT /api/settings` (`projectsDir`, `lang` or `null`, `permissionPolicy`). Revert errors map to 404/409. Documented in `docs/api.md` |
 | H5 | `CreationRunner` interface (`src/creation/types.ts`), `FakeRunner` with recordings (`tests/fixtures/recordings/`), `CreationManager`, creation routes and the SSE stream (`docs/api.md`) |
 | H7 | UI in `src/ui/` (hash router, started after the token leaves the address): projects (list, detail, timeline, copy buttons, the open command with the path in quotes, interrupted and cancelled creations apart), library (browse, editor with preview, history, revert behind a confirmation dialog), usage (3-level slider and a selector for user presets, warnings), settings (`projectsDir`, language, policy, paths). Strings in `src/i18n/ui.ts`. `markdown-it` 15.0.1 is vendored (`/vendor/markdown-it.mjs`). Secrets: the secret detector moved to `src/validate/secrets.ts` (no imports) so the preview hides secrets with the server's own code; a note loaded with `[redacted]` lines cannot be saved until they are removed. `setProjectsDir` now runs `inspectOutputDir` with the shared `protectedDirs` (the check of `paths check`): a folder around or inside the repo or the library, or a file, is refused; a folder that does not exist yet is created. Playwright is set up (`playwright.config.ts`, `tests/e2e/fixtures.ts` starts a server per test over temp folders and the fake runner, with seeded library, projects, sessions and a user preset); 17 e2e tests |
+| H6 (code) | Guard, web MCP tools, `SdkRunner`, process-tree kill, wiring into `briefstack web`, skill and agent changes; real runs pending (see "H6 status") |
 
-Build and lint are clean, 420 vitest tests and 17 e2e tests pass on
+Build and lint are clean, 479 vitest tests and 18 e2e tests pass on
 Windows. CI runs on Linux only for each push; the full matrix runs by
 hand. `npm run test:e2e` builds the UI first; `npm run build` also
 type-checks `tests/e2e`.
 
 ### Left, in order
 
-H6 → H8 → H9 → H10 (section 5 has each one's verification). H6 needs the
-most care and spends real tokens.
+H8 → H9 → the real runs of H6 → H10 (section 5 has each one's
+verification).
 
-**Next: H6** (web MCP tools, skill branches, `SdkRunner`; see "Pending for
-H6"). Tell the user before any real run, and report usage before and after.
-H8 builds the creation screens on the same `src/ui/` (hooks, `common.tsx`,
+**Next: H8.** The real runs spend the user's plan: they are scripts the user
+launches ("H6 status"). H8 builds the creation screens on the same `src/ui/` (hooks, `common.tsx`,
 `Router` in `main.tsx`) and H9 adds creation specs to `tests/e2e/`, whose
 fixture already holds a `CreationManager` over the fake runner
 (`appOptions.recording` picks the recording).
@@ -85,51 +85,52 @@ check with Sonnet and H10 are prepared as scripts (below, "Real runs").
 - **Agents**: "read-only commands" removed from generator and reviewer.
 - **Secrets** in permission summaries pass through `redactSecretLines`.
 
-### Pending for H6 (not done yet)
+### H6 status (2026-10-15): code done, real runs pending
 
-- **Guard hook: not implemented.** Section 3, "SdkRunner", has the
-  design. Until H6, nothing closes the Bash risk from H0: in `auto`,
-  the classifier alone decides shell commands and writes outside the
-  allowed folders. The shell allow list, and the caller each command
-  comes from (skill, five agent bodies and the H10 transcripts):
+Done and tested without a real session:
 
-  | Command (`npm run --silent briefstack -- …`) | Main session (skill) | generator | reviewer |
-  |---|---|---|---|
-  | `event …` | yes | | |
-  | `paths --json`, `paths check …` | yes | | |
-  | `usage show --json` | yes | | |
-  | `library context …`, `library add …` | yes | | |
-  | `spec check …` | yes | | |
-  | `scaffold …` | | yes | |
-  | `validate …` | yes | yes | yes |
-  | `commit …` | yes | | |
+- `src/creation/guard.ts`, `webTools.ts`, `sdkRunner.ts`, `processTree.ts`,
+  `wiring.ts`; `briefstack web` builds the manager (real runner unless
+  `CliIO.creationRunner` is set); the skill and the two agent bodies;
+  permission summaries pass through the secret redactor.
+- The guard **denies** (it does not `ask`) writes outside the allowed folders
+  and shell commands outside the caller's list (user decision, 2026-10-15,
+  replacing the 2026-10-14 `ask`). What it passes goes to the permission mode
+  and `canUseTool`. See `decisions.md`, "H6 design".
 
-  **Decided 2026-10-14:** the hook enforces the list per caller, using
-  the `agent_type` in its input, not as one list. The main session
-  (no `agent_type`) gets the "Main session" column, `generator` and
-  `reviewer` their own column, and any other agent no CLI command at
-  all. A command outside the caller's column returns `ask`.
-- **Generator and reviewer bodies:** remove "read-only commands".
-  The reviewer inspects with Glob and Read; its only non-CLI command in
-  H10 was `find -type d`.
-- **`runWeb`:**
-  - It does not create a `CreationManager` yet, so the creation routes
-    answer 503.
-  - Wire in the `SdkRunner`, the profile from `usageShow` and the
-    policy from `permissionPolicyOf(config)`.
-  - Call `manager.shutdown()` before `server.close()`.
-- **Skill:**
-  - Pass `--session ${CLAUDE_SESSION_ID}` to `library add projects`.
-  - Add the `approve_spec` and `grant_directory` answer sources with
-    the same steps (section 3, "Skill changes").
-- **Requests:** pass them through the secret redactor before the UI
-  shows them. A cancelled question returns a deny that tells the skill
-  to close the session as `cancelled`.
-- **Real checks:**
-  - a hook `ask` reaches `canUseTool` in `auto` mode;
-  - `spawnClaudeCodeProcess` lets the server kill the whole process
-    tree with no orphans (H0 showed orphans on Windows);
-  - effort is visible with a Sonnet profile.
+Still to do, and not run (they start real sessions and spend the user's
+plan): the real checks below. H10 is the real run from the browser.
+
+#### Real runs (ready to launch, none has been run)
+
+Every script needs `--yes`, works in a temp folder it creates (with its own
+temp `BRIEFSTACK_HOME`) and deletes it, prints the plan usage (5-hour and
+7-day windows) before and after, and ends with PASS or FAIL lines. Run them
+from PowerShell in the repo, in this order:
+
+1. `npx tsx scripts/real/preflight.ts` — reads only: resolved paths, claude
+   version, API-key variables, clean repo and library, plan usage. Costs
+   nothing.
+2. `npx tsx scripts/real/check-guard-auto.ts --yes` — haiku, about four tool
+   calls. Checks that under `auto` mode the guard denies `echo hello` and a
+   write outside the projects folder, lets a write inside through, and shows
+   whether a web fetch by the main session reaches `canUseTool`.
+3. `npx tsx scripts/real/check-kill-tree.ts --yes` — haiku, one tool call.
+   Starts a command that sleeps two minutes, then ends the tree as the server
+   does on stop and checks no process is left.
+4. `npx tsx scripts/real/check-effort.ts --yes` — two one-word Sonnet turns
+   (`low` and `high`). Prints the effort each init message reports.
+5. H10, after the three checks pass and the user has seen their output:
+   - `npm run build`
+   - `npm run briefstack -- web` (with `BRIEFSTACK_HOME` as the user has it
+     set, i.e. the real data), open the printed address, and create one
+     project from the browser through the whole flow.
+   - Afterwards look at Projects (the new project with its timeline) and
+     `git -C <library> log` for the project note and the session log.
+   - The user accepts it; phase 2 is not done before that.
+
+If a check fails, stop and read `decisions.md`, "H6 design", before changing
+the guard: each rule there has a reason.
 
 ### Pending for H8
 
