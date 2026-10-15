@@ -38,6 +38,8 @@ export interface App {
 export interface AppOptions {
   /** Recording the fake runner replays; `full.jsonl` by default. */
   recording?: string;
+  /** Language saved in the config; English by default. */
+  lang?: 'en' | 'es';
 }
 
 async function emptyGitConfig(dir: string): Promise<void> {
@@ -68,7 +70,7 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   await cp(path.join(PACKAGE_ROOT, '.claude', 'agents'), path.join(repoDir, '.claude', 'agents'), { recursive: true });
   await initLibrary({ libraryDir, projectsDir, sessionsDir, repoDir });
   // The UI follows the saved language, so the machine's own locale does not matter.
-  await updateConfig(path.join(home, 'config.json'), { lang: 'en', projectsDir });
+  await updateConfig(path.join(home, 'config.json'), { lang: options.lang ?? 'en', projectsDir });
 
   // A user preset, cloned from a base one.
   const base = JSON.parse(await readFile(path.join(PACKAGE_ROOT, 'library', 'usage-profiles.json'), 'utf8')) as {

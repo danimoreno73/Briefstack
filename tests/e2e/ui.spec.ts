@@ -244,6 +244,33 @@ test.describe('usage', () => {
   });
 });
 
+test.describe('settings, starting in Spanish', () => {
+  test.use({ appOptions: { lang: 'es' }, locale: 'es-ES' });
+
+  test('a language chosen in Settings is still there after a reload (F5)', async ({ page, app }) => {
+    await page.goto(app.url);
+    await expect(page.getByRole('link', { name: 'Proyectos' })).toBeVisible();
+    await page.getByRole('link', { name: 'Ajustes' }).click();
+    await page.getByLabel('Idioma').selectOption('en');
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.getByRole('status')).toContainText('Settings saved.');
+    expect(await readFile(path.join(app.home, 'config.json'), 'utf8')).toContain('"lang": "en"');
+
+    // The settings answer is slow on purpose: even before it arrives, the page is already in the chosen language.
+    await page.route('**/api/settings', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      await route.continue();
+    });
+    await page.reload();
+    await expect(page.getByRole('status')).toHaveText('Connecting…');
+    await expect(page.getByRole('link', { name: 'Projects' })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await page.unroute('**/api/settings');
+    await page.getByRole('link', { name: 'Settings' }).click();
+    await expect(page.getByLabel('Language')).toHaveValue('en');
+  });
+});
+
 test.describe('settings', () => {
   test('shows the resolved paths read-only', async ({ page, app }) => {
     await page.goto(app.url);

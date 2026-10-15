@@ -8,6 +8,7 @@ import { LibraryView } from './library.js';
 import { ProjectView, ProjectsView } from './projects.js';
 import { parseRoute, routeHash, type Route } from './route.js';
 import { SettingsPage } from './settings.js';
+import { readStoredLang, storeLang } from './storedLang.js';
 import type { SettingsView } from './types.js';
 import { UsageView } from './usage.js';
 
@@ -66,7 +67,9 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
 
   useEffect(() => {
     document.documentElement.lang = lang;
-  }, [lang]);
+    // Only a language the server confirmed is kept (see the settings effect above).
+    if (gate === 'ready') storeLang(lang);
+  }, [lang, gate]);
 
   const context = useMemo<AppContext | undefined>(
     () => (token === undefined ? undefined : { lang, t, token, setLang }),
@@ -104,4 +107,4 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
 // address (`history.replaceState`); only then 3. start the router and render.
 const token = takeToken();
 const root = document.getElementById('app');
-if (root !== null) render(<App initialLang={langFromLocale(navigator.language) ?? 'en'} token={token} />, root);
+if (root !== null) render(<App initialLang={readStoredLang() ?? langFromLocale(navigator.language) ?? 'en'} token={token} />, root);
