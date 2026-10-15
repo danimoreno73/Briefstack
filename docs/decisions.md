@@ -1480,7 +1480,8 @@ that killing the tree leaves nothing behind.
   to close the open step as skipped and the session as `cancelled`; only the
   main session's `briefstack event` calls pass. `canUseTool` denies the same.
 - **Granted folders** (`grant_directory`): the tool refuses a relative path,
-  the repo, the library and a file; says nothing to the user for a folder
+  the repo, the library, the other protected folders ("Guard review" below)
+  and a file; says nothing to the user for a folder
   already inside `projectsDir`; creates a missing folder only after the user
   confirmed; and records it for this session only. A write there passes the
   guard, and in `canUseTool` returns `updatedPermissions: [{ type:
@@ -1522,6 +1523,25 @@ that killing the tree leaves nothing behind.
   and points at real data. vitest (`tests/setup-env.ts`) and Playwright
   (`tests/e2e/fixtures.ts`) point `BRIEFSTACK_HOME`, `USERPROFILE` and `HOME`
   at a temp folder before any test runs, and a test fails if they do not.
+
+### Guard review (2026-10-15, code only, nothing run against the real SDK)
+
+A read-only review of the guard, `approve_spec`, `grant_directory` and the
+effort check. What it found and how each item was closed, one commit each:
+
+| # | Finding | Severity | Closed by |
+|---|---|---|---|
+| 1 | `grant_directory`, the projects folder and `paths check` only protected the repo and the library: a user could confirm briefstack's home (config, other sessions), `~/.claude` or AppData. | medium (needs the user's yes) | `protectedDirs` adds briefstack's home, `~/.claude` (and `CLAUDE_CONFIG_DIR`), `%APPDATA%` and `%LOCALAPPDATA%`. The overlap is checked both ways, so a drive root or the user's home is refused too. Consequence: on Windows the system temp folder is inside `%LOCALAPPDATA%`, so a projects or output folder in temp is refused; unit tests point `APPDATA`/`LOCALAPPDATA` at their sandbox. |
+| A | Code execution through git: the guard allowed writes anywhere in `projectsDir`, `.git/hooks/` and `.git/config` included, and `briefstack commit` then ran git with the project's hooks and `core.fsmonitor`. | high | The guard denies writes (and `scaffold`/`commit` destinations) with a `.git` segment, ignoring case, trailing dots or spaces and `GIT~n`, also after symlinks. `commitProject` runs every git call with `core.hooksPath` set to a folder made empty for that commit and `core.fsmonitor=false`, which also covers the terminal flow. |
+| B | Tools the guard did not know (`Monitor`, which runs a shell command, `EnterWorktree`, `CronCreate`, `Workflow`, `RemoteTrigger`…) went to the auto classifier. | high | `query()` gets `tools`: the built-ins the flow uses (`FLOW_BUILTIN_TOOLS`). The guard denies any tool outside that list plus the two `briefstack-web` tools. Those two are not in `tools` (it names built-in tools, passed as `--tools`); they come from the only MCP server (`strictMcpConfig`) and `allowedTools`. `ToolSearch` is in the list because it only loads schemas of listed tools; `TodoWrite`, `NotebookEdit` and `Skill` are not (the skill is started by its slash command). |
+| C | `WebFetch`/`WebSearch` outside the researcher went to the classifier, so any agent could send data out in a URL. | medium | The guard denies them unless `agent_type` is `researcher`. |
+| D | `approve_spec` compared paths as text. | low | It uses `insideAny`, symlinks resolved, like the guard. |
+| E | A generated project could carry hooks in `.claude/settings.local.json` (only `settings.json` was checked). | medium | The validator reports `settings.hooks` (error) and `settings.invalidJson` for `settings.local.json` too; the reviewer checks both files. No spec field asks for hooks (both files are reserved paths), so there is no exception. Not covered: `hooks` in a generated agent's or skill's frontmatter. |
+| — | `check-effort` failed with `init reports undefined`. | check bug | SDK 0.3.286 types: `SDKSystemMessage.effort` is "Present on Remote Control bridge init frames … absent on hosts that do not publish it". The H0 reading of `undefined` on Haiku had the same cause. Hook inputs carry `effort.level` "after any silent downgrade" in a tool-use context (`PreToolUse`, `Stop`…). `check-effort` now compares the level from a `Stop` hook; `SdkRunner` reports the level of the first `PreToolUse` as a runner event (`kind: effort`, with `requested`). Unverified until the script runs: that `Stop` fires before the `result` message the script stops at. |
+
+`check-guard-auto.ts` now also asks for a `.git` write, a `Monitor` call
+(added to `tools` on purpose so the guard is what stops it) and a
+main-session `WebFetch`; all three must be denied by the guard.
 
 ## Decisiones sin Dani (decisions taken while the user was away, 2026-10-15)
 
