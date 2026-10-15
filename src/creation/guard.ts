@@ -3,6 +3,7 @@ import path from 'node:path';
 import { isFullyAbsolute, isPathInside, systemPathEnv, type PathEnv } from '../config/paths.js';
 import { realpathNearest } from '../scaffold/outputDir.js';
 import { redactSecretLines } from '../validate/secrets.js';
+import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './webTools.js';
 
 /**
  * The guard of a creation session (PLAN-phase-2 §3 "SdkRunner", H6).
@@ -22,13 +23,39 @@ import { redactSecretLines } from '../validate/secrets.js';
  *   no shell operators, and only the subcommands each caller needs;
  * - after a cancel, nothing except the `briefstack event` calls that close
  *   the session;
- * - web access for the researcher is allowed.
+ * - web access for the researcher is allowed;
+ * - a tool outside `FLOW_TOOLS` is denied.
  * Everything else is left to the permission mode and `canUseTool`.
  */
 
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit', 'MultiEdit']);
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 const WEB_TOOLS = new Set(['WebSearch', 'WebFetch']);
+
+/**
+ * The built-in tools a creation offers: what the skill and the five agents
+ * use (their `tools:` lists, the Agent tool and `AskUserQuestion`), plus
+ * `ToolSearch`, which only loads the schemas of tools in this list. `query()`
+ * gets it as `tools`, so `Monitor`, `CronCreate`, `EnterWorktree`,
+ * `Workflow` and the rest are not offered at all.
+ */
+export const FLOW_BUILTIN_TOOLS = [
+  'Read',
+  'Glob',
+  'Grep',
+  'Write',
+  'Edit',
+  'Bash',
+  'PowerShell',
+  'Agent',
+  'AskUserQuestion',
+  'WebSearch',
+  'WebFetch',
+  'ToolSearch',
+] as const;
+
+/** Every tool the guard knows: the built-ins above and the two `briefstack-web` tools. Anything else is denied. */
+export const FLOW_TOOLS: ReadonlySet<string> = new Set<string>([...FLOW_BUILTIN_TOOLS, APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL]);
 
 export type Caller = 'main' | 'generator' | 'reviewer' | 'other';
 
@@ -287,6 +314,9 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
 
   if (WEB_TOOLS.has(tool) && input.agent_type === 'researcher') {
     return { verdict: 'allow', reason: 'read-only web access for the researcher' };
+  }
+  if (!FLOW_TOOLS.has(tool)) {
+    return deny(`The tool ${tool} is not available in a creation. Use only the tools the /new-project flow names.`, tool);
   }
   return { verdict: 'pass' };
 }

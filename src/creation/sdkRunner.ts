@@ -17,7 +17,7 @@ import type { Lang } from '../i18n/index.js';
 import { protectedDirs } from '../scaffold/outputDir.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { findClaudeExecutable } from './claudeBinary.js';
-import { guardHook, insideAny, type GuardContext } from './guard.js';
+import { FLOW_BUILTIN_TOOLS, guardHook, insideAny, type GuardContext } from './guard.js';
 import { killProcessTree, spawnTracked, type TrackedSpawn } from './processTree.js';
 import type {
   CreationRunner,
@@ -98,6 +98,8 @@ export function buildQueryOptions(params: QueryOptionsParams): Options {
     permissionMode: 'auto',
     ...(profile.sessionModel === undefined ? {} : { model: profile.sessionModel }),
     ...(isEffort(profile.effort) ? { effort: profile.effort } : {}),
+    // Only the built-in tools the flow uses (`--tools`); the guard denies any other tool name too.
+    tools: [...FLOW_BUILTIN_TOOLS],
     // Only the briefstack-web server: no claude.ai connectors.
     strictMcpConfig: true,
     mcpServers: params.mcpServers,

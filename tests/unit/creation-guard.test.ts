@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  FLOW_TOOLS,
   classifyPath,
   evaluateToolUse,
   guardHook,
@@ -327,9 +328,53 @@ describe('evaluateToolUse', () => {
     expect(await verdictOf('WebFetch', { url: 'https://example.com' }, generator)).toBe('pass');
   });
 
-  it('leaves other tools to the permission mode', async () => {
-    for (const tool of ['Read', 'Glob', 'Grep', 'Agent', 'AskUserQuestion', 'mcp__briefstack-web__approve_spec']) {
+  it('leaves the other flow tools to the permission mode', async () => {
+    for (const tool of [
+      'Read',
+      'Glob',
+      'Grep',
+      'Agent',
+      'AskUserQuestion',
+      'ToolSearch',
+      'mcp__briefstack-web__approve_spec',
+      'mcp__briefstack-web__grant_directory',
+    ]) {
       expect(await verdictOf(tool, {}), tool).toBe('pass');
+    }
+  });
+
+  it('denies any tool it does not know, whoever calls it', async () => {
+    for (const tool of [
+      'Monitor',
+      'CronCreate',
+      'EnterWorktree',
+      'ExitWorktree',
+      'Workflow',
+      'RemoteTrigger',
+      'PushNotification',
+      'ScheduleWakeup',
+      'TaskCreate',
+      'TodoWrite',
+      'Skill',
+      'mcp__other__run',
+      'mcp__briefstack-web__something_else',
+      'NoSuchTool',
+    ]) {
+      expect(await verdictOf(tool, { command: 'echo hi' }), tool).toBe('deny');
+      expect(await verdictOf(tool, {}, generator), tool).toBe('deny');
+    }
+    const verdict = await evaluateToolUse(ctx, input('Monitor', { command: 'echo hi' }));
+    expect((verdict as { reason: string }).reason).toContain('not available');
+  });
+
+  it('knows every tool the five agents list', async () => {
+    const agentsDir = path.join(PACKAGE_ROOT, '.claude', 'agents');
+    for (const file of await readdir(agentsDir)) {
+      const text = await readFile(path.join(agentsDir, file), 'utf8');
+      const line = /^tools:\s*(.+)$/m.exec(text)?.[1] ?? '';
+      for (const tool of line.split(',').map((item) => item.trim()).filter((item) => item !== '')) {
+        expect(FLOW_TOOLS.has(tool), `${file}: ${tool}`).toBe(true);
+      }
     }
   });
 

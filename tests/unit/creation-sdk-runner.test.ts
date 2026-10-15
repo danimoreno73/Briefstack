@@ -52,6 +52,18 @@ describe('buildQueryOptions', () => {
     expect(options.allowedTools).toEqual(['mcp__briefstack-web__approve_spec', 'mcp__briefstack-web__grant_directory']);
   });
 
+  it('offers only the built-in tools the flow uses', () => {
+    const { tools } = base();
+    expect(Array.isArray(tools)).toBe(true);
+    const list = tools as string[];
+    for (const needed of ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash', 'PowerShell', 'Agent', 'AskUserQuestion', 'WebSearch', 'WebFetch']) {
+      expect(list, needed).toContain(needed);
+    }
+    for (const never of ['Monitor', 'CronCreate', 'EnterWorktree', 'ExitWorktree', 'Workflow', 'RemoteTrigger', 'PushNotification', 'ScheduleWakeup', 'NotebookEdit', 'TaskCreate']) {
+      expect(list, never).not.toContain(never);
+    }
+  });
+
   it('never bypasses permissions', () => {
     const options = base();
     expect(options.permissionMode).not.toBe('bypassPermissions');
