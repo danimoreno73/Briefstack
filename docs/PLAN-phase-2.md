@@ -11,7 +11,7 @@ commits, one concern each.
 
 ## 0. Status
 
-Updated 2026-10-14. A new session reads `CLAUDE.md`,
+Updated 2026-10-15. A new session reads `CLAUDE.md`,
 `docs/BRIEF-phase-2.md`, this file and `docs/decisions.md` from
 "# Phase 2" onwards before continuing.
 
@@ -23,22 +23,22 @@ Updated 2026-10-14. A new session reads `CLAUDE.md`,
 | H1 | `briefstack web` on 127.0.0.1 with Host, token and Origin checks; UI built by `tsc -p tsconfig.ui.json` into `dist/web` (Preact with an import map, strict CSP); `@playwright/test` 1.61.1 (chromium 1228 already installed); SDK 0.3.286 pinned; installed `claude` lookup with a compatibility warning (`src/creation/claudeBinary.ts`) |
 | H2 | Project notes get optional `created` and `session` fields (`library add projects … --session <id>`); `listProjects`, `listSessions`, `sessionTimeline`, `saveNote`, `addNote` with `text`, `libraryHistory`, `revertLibraryCommit`, `usageShow`/`usageSet` (moved out of `cli.ts`), `permissionPolicy`, `setProjectsDir` |
 | H3 | Read routes in `src/server/read.ts`: projects (with detail, timeline, `NEXT_STEPS.md`/`INSTRUCTIONS.md`), sessions, library index/notes/note/history, usage (with presets), paths, settings; secret lines redacted; documented in `docs/api.md`. `startWebServer` takes `pathEnv` and `repoDir` |
+| H4 | Write routes in `src/server/write.ts`: `PUT /api/library/note` (`saveNote`; a note with a secret is a 400 and nothing is written or echoed), `POST /api/library/revert`, `PUT /api/usage`, `PUT /api/settings` (`projectsDir`, `lang` or `null`, `permissionPolicy`). Revert errors map to 404/409. Documented in `docs/api.md` |
 | H5 | `CreationRunner` interface (`src/creation/types.ts`), `FakeRunner` with recordings (`tests/fixtures/recordings/`), `CreationManager`, creation routes and the SSE stream (`docs/api.md`) |
 
-Build and lint are clean, and 391 tests pass on Windows. CI runs on
+Build and lint are clean, and 405 tests pass on Windows. CI runs on
 Linux only for each push; the full matrix runs by hand.
 
 ### Left, in order
 
-H4 → H7 → H6 → H8 → H9 → H10 (section 5 has each one's
+H7 → H6 → H8 → H9 → H10 (section 5 has each one's
 verification). H6 comes after H7 because it needs the most care and
 spends real tokens.
 
-**Next: H4** (write routes: save note, revert a library commit, usage set,
-settings). The library code it calls already exists from H2: `saveNote`,
-`revertLibraryCommit`, `usageSet`, `setProjectsDir`, `updateConfig`. Needs
-API tests, a secret-in-note refusal, and no secrets in responses or logs.
-The read routes in `src/server/read.ts` and `docs/api.md` are the model.
+**Next: H7** (UI: projects, library, usage, settings, over the read and
+write routes in `docs/api.md`). The routes are all in place; `src/ui/` and
+`src/i18n/ui.ts` hold the UI so far. Do it with `opusplan`, in the main
+session.
 
 ### Pending for H6 (not done yet)
 
