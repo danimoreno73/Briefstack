@@ -1,8 +1,7 @@
 # briefstack web API
 
 The local server started by `briefstack web` (BRIEF-phase-2 §6). The browser
-UI uses it; phase 4's global chat and phase 5 can call it too. Write routes
-for the library, usage and settings are added in H4.
+UI uses it; phase 4's global chat and phase 5 can call it too.
 
 ## Requests
 
@@ -35,8 +34,8 @@ text use those. The security rejections above send `{ "code" }` only.
 | Status | Codes |
 |---|---|
 | 400 | `web.invalidJson`, `web.invalidBody`, `web.invalidQuery`, `creation.invalidAnswer`, any other coded error |
-| 404 | `web.notFound`, `creation.notFound`, `library.noteNotFound`, `events.sessionNotFound` |
-| 409 | `creation.busy`, `creation.noPending`, `creation.wrongPending` |
+| 404 | `web.notFound`, `creation.notFound`, `library.noteNotFound`, `library.commitNotFound`, `events.sessionNotFound` |
+| 409 | `creation.busy`, `creation.noPending`, `creation.wrongPending`, `library.dirtyTree`, `library.revertConflict` |
 | 413 | `web.bodyTooLarge` |
 | 415 | `web.unsupportedMediaType` |
 | 503 | `creation.unavailable` (the server has no creation runner) |
@@ -122,6 +121,49 @@ What `briefstack paths --json` prints: `home`, `configFile`, `libraryDir`,
 
 `{ "projectsDir", "lang", "configLang": "en" | "es" | null, "permissionPolicy": "ask" | "unattended" }`.
 `lang` is the language in use; `configLang` the one saved in the config.
+
+## Write routes
+
+Mutating: they need the token, the `Origin` check and a JSON body, as in
+"Requests". They call the same library code as the CLI. Responses never echo
+note text and the server log has no bodies, so a refused secret goes nowhere.
+
+### `PUT /api/library/note`
+
+Body `{ "section", "name"?, "text" }` (`text` up to 48 KB; `lessons` takes no
+name, the others need one). Saves the whole note as `saveNote` does: text that
+only adds lines at the end becomes a dated append (`### YYYY-MM-DD`), any other
+edit is a full rewrite. Notes in `projects/` keep a validated status block.
+One commit and an `INDEX.md` update. Answers
+`{ section, name?, file, mode: "append" | "rewrite" | "create" | "unchanged", indexUpdated, committed, status?, warnings }`.
+Text with a secret is a 400 `library.secretContent` (`params.lines` are line
+numbers) and nothing is written.
+
+### `POST /api/library/revert`
+
+Body `{ "sha" }` (4–64 hex characters). Undoes that commit with a new one:
+`{ "reverted": sha, "commit": newSha }`. `404 library.commitNotFound`;
+`409 library.dirtyTree` (uncommitted changes) or `409 library.revertConflict`
+(aborted, the library is as it was). The UI asks for confirmation first.
+
+### `PUT /api/usage`
+
+Body `{ "profile" }`: what `briefstack usage set <profile>` does (rewrites the
+repo's agent files and saves `activeProfile`). Answers
+`{ "scope": "repo", "profile", "sessionModel" }`. An unknown profile is a 400
+`usage.unknownProfile`.
+
+### `PUT /api/settings`
+
+Body with at least one of:
+
+- `projectsDir`: absolute or starting with `~`. The folder is created and
+  allowed in the repo's `settings.local.json`, the old one stays allowed.
+  A relative path is a 400 `config.relativePath`.
+- `lang`: `"en"`, `"es"`, or `null` to clear it.
+- `permissionPolicy`: `"ask"` or `"unattended"`.
+
+Answers the same as `GET /api/settings`.
 
 ## Creation routes
 

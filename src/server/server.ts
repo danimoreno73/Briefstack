@@ -8,6 +8,7 @@ import { VERSION } from '../version.js';
 import { creationRoutes } from './creations.js';
 import { BASE_HEADERS, header, sendError, sendJson } from './http.js';
 import { readRoutes } from './read.js';
+import { writeRoutes } from './write.js';
 import { createRouter, type RouteTable } from './router.js';
 import { LOOPBACK, TOKEN_HEADER, checkRequest, newToken, type Rejection } from './security.js';
 import { loadStaticSite } from './static.js';
@@ -53,9 +54,11 @@ const REJECTION_STATUS: Record<Rejection, number> = { host: 403, token: 401, ori
 
 /** Read-only and mutating `/api` routes, as `METHOD /path` (`:name` segments are parameters). */
 function apiRoutes(options: WebServerOptions): RouteTable {
+  const pathEnv = options.pathEnv ?? systemPathEnv();
   return [
     ['GET /api/health', (_req, res) => sendJson(res, 200, { ok: true, version: VERSION })],
-    ...readRoutes({ pathEnv: options.pathEnv ?? systemPathEnv(), repoDir: options.repoDir, lang: options.lang }),
+    ...readRoutes({ pathEnv, repoDir: options.repoDir, lang: options.lang }),
+    ...writeRoutes({ pathEnv, repoDir: options.repoDir }),
     ...creationRoutes(options.creations, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
   ];
 }
