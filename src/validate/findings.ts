@@ -1,18 +1,7 @@
 import type { ApplicationFileKind, SpecIssue } from '../spec/index.js';
+import type { SecretKind } from './secrets.js';
 
-/** Kinds of secret-looking strings `validate` recognises. */
-export const SECRET_KINDS = [
-  'privateKey',
-  'anthropic',
-  'openai',
-  'aws',
-  'github',
-  'slack',
-  'google',
-  'stripe',
-  'assignment',
-] as const;
-export type SecretKind = (typeof SECRET_KINDS)[number];
+export { SECRET_KINDS, type SecretKind } from './secrets.js';
 
 /** Kinds of machine-specific absolute paths. */
 export const ABSOLUTE_PATH_KINDS = ['homeDir', 'windowsDrive', 'usersDir', 'homeFolder'] as const;

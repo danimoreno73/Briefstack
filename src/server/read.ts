@@ -17,7 +17,7 @@ import {
 import { readTextIfExists } from '../library/notes.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import { loadUsageContext, usageShow } from '../usage/index.js';
-import { findSecrets } from '../validate/index.js';
+import { redactSecretLines } from '../validate/index.js';
 import { sendJson } from './http.js';
 import type { RouteTable } from './router.js';
 
@@ -35,12 +35,7 @@ const MAX_PROJECT_FILE_BYTES = 256 * 1024;
 const MAX_HISTORY_LIMIT = 200;
 
 /** Secrets never reach the UI: a line that looks like one is replaced. */
-export function redactSecrets(text: string): string {
-  return text
-    .split('\n')
-    .map((line) => (findSecrets(line).length > 0 ? '[redacted]' : line))
-    .join('\n');
-}
+export const redactSecrets = redactSecretLines;
 
 async function readProjectFile(projectDir: string, name: string): Promise<string | null> {
   const file = path.join(projectDir, name);

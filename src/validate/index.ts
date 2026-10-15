@@ -12,7 +12,7 @@ import { findAbsolutePaths, findSecrets } from './text.js';
 export * from './findings.js';
 export { SPAWN_TOOLS, checkAgentFile, checkSkillFile, splitToolList } from './agents.js';
 export { extractLinks, maskCode, resolvesRelative, resolvesWikilink, type MarkdownLink, type ProjectPaths } from './links.js';
-export { findAbsolutePaths, findSecrets, looksRandom, type AbsolutePathMatch } from './text.js';
+export { REDACTED_LINE, findAbsolutePaths, findSecrets, looksRandom, redactSecretLines, type AbsolutePathMatch } from './text.js';
 
 export const SPEC_FILE = '.briefstack/spec.json';
 export const SETTINGS_FILE = '.claude/settings.json';
