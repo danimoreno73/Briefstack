@@ -16,6 +16,7 @@ export { REDACTED_LINE, findAbsolutePaths, findSecrets, looksRandom, redactSecre
 
 export const SPEC_FILE = '.briefstack/spec.json';
 export const SETTINGS_FILE = '.claude/settings.json';
+export const LOCAL_SETTINGS_FILE = '.claude/settings.local.json';
 /** `CLAUDE.md` must stay under this many lines. */
 export const CLAUDE_MD_LINE_LIMIT = 60;
 /** Larger files are not scanned for secrets, paths or links. */
@@ -174,6 +175,24 @@ export function checkSettings(text: string, requireDeny: boolean): Finding[] {
   return findings;
 }
 
+/**
+ * `.claude/settings.local.json` is never generated (the project's
+ * `.gitignore` lists it), but if one is there it must not declare hooks
+ * either: Claude Code loads it like `settings.json`. No spec field asks for
+ * hooks, so there is no exception.
+ */
+export function checkLocalSettings(text: string): Finding[] {
+  const file = LOCAL_SETTINGS_FILE;
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch (error) {
+    return [finding('settings.invalidJson', { detail: errorDetail(error) }, { file })];
+  }
+  const hasHooks = typeof data === 'object' && data !== null && !Array.isArray(data) && (data as { hooks?: unknown }).hooks !== undefined;
+  return hasHooks ? [finding('settings.hooks', {}, { file })] : [];
+}
+
 /** Findings for text content: secrets, machine paths, and links in markdown. */
 function scanText(text: string, file: string, paths: ProjectPaths, pathEnv: PathEnv): Finding[] {
   const findings: Finding[] = [];
@@ -289,6 +308,8 @@ export async function validateProject(projectDir: string, options: ValidateOptio
   if (settings !== undefined && settings.trim() !== '') {
     findings.push(...checkSettings(settings, target === 'claude-code'));
   }
+  const localSettings = texts.get(LOCAL_SETTINGS_FILE);
+  if (localSettings !== undefined && localSettings.trim() !== '') findings.push(...checkLocalSettings(localSettings));
 
   // Secrets, machine paths and links in every text file.
   for (const [file, text] of texts) findings.push(...scanText(text, file, tree, pathEnv));

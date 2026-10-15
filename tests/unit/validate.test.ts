@@ -1,8 +1,9 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { PathEnv } from '../../src/config/paths.js';
 import { isValidModel } from '../../src/models.js';
+import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { DENY_RULES, scaffold } from '../../src/scaffold/index.js';
 import { parseSpec, type SpecInput, type Target } from '../../src/spec/index.js';
 import {
@@ -311,6 +312,32 @@ describe('validateProject', () => {
         },
       ]);
       expect(result.errors).toBe(0);
+    });
+
+    it('rejects hooks in settings.local.json too, for both targets', async () => {
+      const local = settingsJson({ hooks: { SessionStart: [] } });
+      const code = await run(await project('claude-code', { '.claude/settings.local.json': local }));
+      expect(code.findings).toEqual([{ rule: 'settings.hooks', severity: 'error', file: '.claude/settings.local.json', params: {} }]);
+      await cleanup();
+      ({ dir, cleanup } = await tempDir('validate'));
+      const app = await run(await project('claude-app', { '.claude/settings.local.json': local }));
+      expect(rules(app.findings)).toEqual(['settings.hooks']);
+      await cleanup();
+      ({ dir, cleanup } = await tempDir('validate'));
+      const invalid = await run(await project('claude-code', { '.claude/settings.local.json': '{ nope' }));
+      expect(invalid.findings).toMatchObject([{ rule: 'settings.invalidJson', file: '.claude/settings.local.json' }]);
+      await cleanup();
+      ({ dir, cleanup } = await tempDir('validate'));
+      const plain = await run(await project('claude-code', { '.claude/settings.local.json': settingsJson({ permissions: {} }) }));
+      expect(plain.findings).toEqual([]);
+    });
+
+    it('the reviewer checks both settings files for hooks', async () => {
+      const reviewer = await readFile(path.join(PACKAGE_ROOT, '.claude', 'agents', 'reviewer.md'), 'utf8');
+      const body = reviewer.split('\n---\n').slice(1).join('\n---\n');
+      expect(body).toContain('`.claude/settings.json`');
+      expect(body).toContain('`.claude/settings.local.json`');
+      expect(body).toMatch(/hooks[\s\S]*blocks hand-off/);
     });
 
     it('does not require settings for claude-app but still rejects hooks there', async () => {

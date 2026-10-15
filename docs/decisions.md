@@ -508,7 +508,7 @@ Rules (`src/validate/findings.ts` holds the single severity table):
 | `path.absolute` | error | Real home dir (native, `/` and JSON-escaped forms), drive letters, `/Users/<name>`, `/home/<name>`; URLs skipped except `file://`; `~` and `//**` allowed |
 | `link.wikilink` | error | `[[name]]`, `[[name\|alias]]`, `[[name#heading]]` resolve by note name, case-insensitively (Obsidian) |
 | `link.relative` | error | Relative markdown links resolve, case-sensitively (a link that only works on Windows or macOS is reported); code spans and fences ignored |
-| `settings.invalidJson`, `settings.noDeny`, `settings.hooks`, `settings.allow` | error | `.claude/settings.json` holds deny rules only (deny list required for `claude-code`) |
+| `settings.invalidJson`, `settings.noDeny`, `settings.hooks`, `settings.allow` | error | `.claude/settings.json` holds deny rules only (deny list required for `claude-code`); `.claude/settings.local.json`, if present, gets `settings.invalidJson` and `settings.hooks` too (2026-10-15) |
 | `settings.missingDenyRule` | warning | A default deny rule is missing |
 
 - Scans text files; skips `.git` and `node_modules` at any depth, a `.git`
