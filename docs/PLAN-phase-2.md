@@ -115,7 +115,7 @@ from PowerShell in the repo, in this order:
 2. `npx tsx scripts/real/check-guard-auto.ts --yes` — haiku, about four tool
    calls. Checks that under `auto` mode the guard denies `echo hello` and a
    write outside the projects folder, lets a write inside through, and shows
-   whether a web fetch by the main session reaches `canUseTool`.
+   whether a web fetch by the main session reaches `canUseTool`, and that `AskUserQuestion` reaches it and gets its answer back.
 3. `npx tsx scripts/real/check-kill-tree.ts --yes` — haiku, one tool call.
    Starts a command that sleeps two minutes, then ends the tree as the server
    does on stop and checks no process is left.

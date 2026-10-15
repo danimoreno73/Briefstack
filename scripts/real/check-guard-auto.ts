@@ -7,7 +7,9 @@
 //   2. a write outside the projects folder is denied by the guard;
 //   3. a write inside the projects folder goes through;
 //   4. a web fetch by the main session is not decided by the guard: it either
-//      reaches canUseTool or the classifier decides (both are recorded).
+//      reaches canUseTool or the classifier decides (both are recorded);
+//   5. AskUserQuestion reaches canUseTool in auto mode, and the answer we give
+//      ("blue") comes back to the model.
 // Spends a few short turns of haiku. Run:  npx tsx scripts/real/check-guard-auto.ts --yes
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
@@ -18,7 +20,7 @@ import { buildQueryOptions } from '../../src/creation/sdkRunner.js';
 import { spawnTracked } from '../../src/creation/processTree.js';
 import { claudeExecutable, oneShot, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show } from './common.js';
 
-requireConfirmation('Check the guard hook under auto mode (haiku, about four tool calls).');
+requireConfirmation('Check the guard hook under auto mode (haiku, about five tool calls).');
 
 const exists = (file: string): Promise<boolean> =>
   stat(file).then(
@@ -35,6 +37,7 @@ try {
   let claimed: string | undefined;
   const denials: string[] = [];
   const asked: string[] = [];
+  let finalText = '';
   const context: GuardContext = {
     isOwnSession: (id) => {
       claimed ??= id;
@@ -58,6 +61,10 @@ try {
     hooks: { PreToolUse: [{ hooks: [guardHook(context, (denial) => denials.push(`${denial.toolName}: ${denial.summary}`))] }] },
     canUseTool: async (toolName, input) => {
       asked.push(`${toolName}: ${JSON.stringify(input).slice(0, 120)}`);
+      if (toolName === 'AskUserQuestion') {
+        const questions = (input as { questions?: { question: string }[] }).questions ?? [];
+        return { behavior: 'allow', updatedInput: { ...input, answers: Object.fromEntries(questions.map((q) => [q.question, 'blue'])) } };
+      }
       return { behavior: 'deny', message: 'Not allowed in this check.' };
     },
     mcpServers: {},
@@ -69,13 +76,16 @@ try {
   options.maxTurns = 10;
 
   const prompt =
-    'Do these four things in this order, one tool call each, then reply with one line per thing saying what happened. ' +
+    'Do these five things in this order, one tool call each, then reply with one line per thing saying what happened. ' +
     `1) Run the shell command: echo hello. 2) Write the text "x" to the file ${outside.replaceAll('\\', '/')}. ` +
-    `3) Write the text "ok" to the file ${inside.replaceAll('\\', '/')}. 4) Fetch https://example.com with WebFetch. ` +
+    `3) Write the text "ok" to the file ${inside.replaceAll('\\', '/')}. 4) Fetch https://example.com with WebFetch. 5) Use AskUserQuestion to ask which colour I prefer, red or blue, and tell me the answer. ` +
     'If a tool is denied, say so and carry on with the next thing.';
   const q = query({ prompt: oneShot(prompt), options });
   for await (const message of q) {
-    if (message.type === 'result') break;
+    if (message.type === 'result') {
+      finalText = 'result' in message && typeof message.result === 'string' ? message.result : '';
+      break;
+    }
   }
   q.close();
   await tracked.killTree();
@@ -86,6 +96,12 @@ try {
   ok = report('write outside denied by the guard', denials.some((entry) => entry.includes('x.txt')), (await exists(outside)) ? 'THE FILE EXISTS' : 'no file') && ok;
   ok = report('write outside left no file', !(await exists(outside)), outside) && ok;
   ok = report('write inside went through', (await exists(inside)) && (await readFile(inside, 'utf8')) === 'ok', inside) && ok;
+  ok =
+    report(
+      'AskUserQuestion reached canUseTool and the answer came back',
+      asked.some((entry) => entry.startsWith('AskUserQuestion')) && /blue/i.test(finalText),
+      finalText.slice(0, 120) || 'no final text',
+    ) && ok;
   report('web fetch by the main session', true, asked.some((entry) => entry.startsWith('WebFetch')) ? 'reached canUseTool' : 'decided by the classifier (not asked)');
 
   console.log(`\nPlan usage after: ${show(await readPlanUsage(box, executable))}`);
