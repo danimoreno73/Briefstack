@@ -11,7 +11,7 @@ commits, one concern each.
 
 ## 0. Status
 
-Updated 2026-10-15. A new session reads `CLAUDE.md`,
+Updated 2026-10-15 (after H7). A new session reads `CLAUDE.md`,
 `docs/BRIEF-phase-2.md`, this file and `docs/decisions.md` from
 "# Phase 2" onwards before continuing.
 
@@ -25,20 +25,24 @@ Updated 2026-10-15. A new session reads `CLAUDE.md`,
 | H3 | Read routes in `src/server/read.ts`: projects (with detail, timeline, `NEXT_STEPS.md`/`INSTRUCTIONS.md`), sessions, library index/notes/note/history, usage (with presets), paths, settings; secret lines redacted; documented in `docs/api.md`. `startWebServer` takes `pathEnv` and `repoDir` |
 | H4 | Write routes in `src/server/write.ts`: `PUT /api/library/note` (`saveNote`; a note with a secret is a 400 and nothing is written or echoed), `POST /api/library/revert`, `PUT /api/usage`, `PUT /api/settings` (`projectsDir`, `lang` or `null`, `permissionPolicy`). Revert errors map to 404/409. Documented in `docs/api.md` |
 | H5 | `CreationRunner` interface (`src/creation/types.ts`), `FakeRunner` with recordings (`tests/fixtures/recordings/`), `CreationManager`, creation routes and the SSE stream (`docs/api.md`) |
+| H7 | UI in `src/ui/` (hash router, started after the token leaves the address): projects (list, detail, timeline, copy buttons, the open command with the path in quotes, interrupted and cancelled creations apart), library (browse, editor with preview, history, revert behind a confirmation dialog), usage (3-level slider and a selector for user presets, warnings), settings (`projectsDir`, language, policy, paths). Strings in `src/i18n/ui.ts`. `markdown-it` 15.0.1 is vendored (`/vendor/markdown-it.mjs`). Secrets: the secret detector moved to `src/validate/secrets.ts` (no imports) so the preview hides secrets with the server's own code; a note loaded with `[redacted]` lines cannot be saved until they are removed. `setProjectsDir` now runs `inspectOutputDir` with the shared `protectedDirs` (the check of `paths check`): a folder around or inside the repo or the library, or a file, is refused; a folder that does not exist yet is created. Playwright is set up (`playwright.config.ts`, `tests/e2e/fixtures.ts` starts a server per test over temp folders and the fake runner, with seeded library, projects, sessions and a user preset); 17 e2e tests |
 
-Build and lint are clean, and 405 tests pass on Windows. CI runs on
-Linux only for each push; the full matrix runs by hand.
+Build and lint are clean, 420 vitest tests and 17 e2e tests pass on
+Windows. CI runs on Linux only for each push; the full matrix runs by
+hand. `npm run test:e2e` builds the UI first; `npm run build` also
+type-checks `tests/e2e`.
 
 ### Left, in order
 
-H7 → H6 → H8 → H9 → H10 (section 5 has each one's
-verification). H6 comes after H7 because it needs the most care and
-spends real tokens.
+H6 → H8 → H9 → H10 (section 5 has each one's verification). H6 needs the
+most care and spends real tokens.
 
-**Next: H7** (UI: projects, library, usage, settings, over the read and
-write routes in `docs/api.md`). The routes are all in place; `src/ui/` and
-`src/i18n/ui.ts` hold the UI so far. Do it with `opusplan`, in the main
-session.
+**Next: H6** (web MCP tools, skill branches, `SdkRunner`; see "Pending for
+H6"). Tell the user before any real run, and report usage before and after.
+H8 builds the creation screens on the same `src/ui/` (hooks, `common.tsx`,
+`Router` in `main.tsx`) and H9 adds creation specs to `tests/e2e/`, whose
+fixture already holds a `CreationManager` over the fake runner
+(`appOptions.recording` picks the recording).
 
 ### Pending for H6 (not done yet)
 
