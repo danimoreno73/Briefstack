@@ -1,6 +1,7 @@
 import { lstat, readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { isPathInside, systemPathEnv } from '../config/paths.js';
+import { resolveHome } from '../config/config.js';
+import { isFullyAbsolute, isPathInside, systemPathEnv, type PathEnv } from '../config/paths.js';
 import { BriefstackError, type ProtectedRoot } from '../errors.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 
@@ -9,11 +10,34 @@ export interface ProtectedDir {
   path: string;
 }
 
-/** Folders a generated project, or the projects folder, must not overlap. */
-export const protectedDirs = (libraryDir: string, repoDir: string = PACKAGE_ROOT): ProtectedDir[] => [
-  { root: 'repo', path: repoDir },
-  { root: 'library', path: libraryDir },
-];
+/**
+ * Folders a generated project, the projects folder or a folder granted to a
+ * creation must not overlap, either way round: the repo, the library,
+ * briefstack's own home (config and sessions), Claude Code's settings folder
+ * (`~/.claude`, and `CLAUDE_CONFIG_DIR` when set) and, when the environment
+ * names them, `%APPDATA%` and `%LOCALAPPDATA%`. "Either way round" also
+ * refuses what contains them, such as a drive root or the user's home.
+ */
+export function protectedDirs(
+  libraryDir: string,
+  repoDir: string = PACKAGE_ROOT,
+  pathEnv: PathEnv = systemPathEnv(),
+): ProtectedDir[] {
+  const { env, pathApi } = pathEnv;
+  const dirs: ProtectedDir[] = [
+    { root: 'repo', path: repoDir },
+    { root: 'library', path: libraryDir },
+    { root: 'home', path: resolveHome(pathEnv) },
+    { root: 'claudeConfig', path: pathApi.join(pathEnv.homedir, '.claude') },
+  ];
+  const named = (root: ProtectedRoot, value: string | undefined): void => {
+    if (value !== undefined && isFullyAbsolute(value, pathApi)) dirs.push({ root, path: pathApi.resolve(value) });
+  };
+  named('claudeConfig', env.CLAUDE_CONFIG_DIR);
+  named('appData', env.APPDATA);
+  named('localAppData', env.LOCALAPPDATA);
+  return dirs;
+}
 
 /** `realpath` of the deepest existing ancestor, with the missing tail re-appended. */
 export async function realpathNearest(target: string): Promise<string> {

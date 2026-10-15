@@ -21,7 +21,7 @@ export interface WebToolsDeps {
   io: Pick<RunnerIO, 'approveSpec' | 'grantDirectory'>;
   /** The session folder, once the session id is known. Spec files must be inside it. */
   sessionDir(): string | undefined;
-  /** Folders a granted output folder must not overlap (the repo and the library). */
+  /** Folders a granted output folder must not overlap (`protectedDirs`). */
   protectedDirs: readonly ProtectedDir[];
   /** The projects folder: granting it needs no confirmation, so it is refused as redundant. */
   projectsDir: string;
@@ -70,7 +70,12 @@ export async function grantDirectory(deps: WebToolsDeps, args: { dir: string }):
   if (isPathInside(dir, deps.projectsDir, pathEnv)) return reply({ granted: true, note: 'Already inside the projects folder.' });
 
   const report = await inspectOutputDir(dir, [...deps.protectedDirs]);
-  if (report.status === 'forbidden') return fail('That folder overlaps the briefstack repository or the personal library.');
+  if (report.status === 'forbidden') {
+    return fail(
+      `That folder overlaps a protected folder (${report.overlaps?.root ?? 'protected'}): the briefstack repository, the ` +
+        "personal library, briefstack's own folder, Claude Code's settings or AppData, or a folder that contains one of them.",
+    );
+  }
   if (report.status === 'notADirectory') return fail('That path is a file, not a folder.');
 
   const granted = await deps.io.grantDirectory({ dir });

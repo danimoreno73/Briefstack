@@ -36,7 +36,9 @@ export const uiMessages = defineCatalogue({
     errForbiddenOutput: (root: string) =>
       root === 'library'
         ? 'That folder overlaps your personal library. Choose another one.'
-        : 'That folder overlaps the briefstack repository. Choose another one.',
+        : root === 'repo'
+          ? 'That folder overlaps the briefstack repository. Choose another one.'
+          : "That folder overlaps a protected folder (briefstack's own, Claude Code's or AppData). Choose another one.",
     errNotADirectory: 'That path is a file, not a folder.',
     errNoteNotFound: 'That note does not exist.',
     errCommitNotFound: 'That commit does not exist.',
@@ -299,7 +301,9 @@ export const uiMessages = defineCatalogue({
     errForbiddenOutput: (root: string) =>
       root === 'library'
         ? 'Esa carpeta se solapa con tu librería personal. Elige otra.'
-        : 'Esa carpeta se solapa con el repositorio de briefstack. Elige otra.',
+        : root === 'repo'
+          ? 'Esa carpeta se solapa con el repositorio de briefstack. Elige otra.'
+          : 'Esa carpeta se solapa con una carpeta protegida (la de briefstack, la de Claude Code o AppData). Elige otra.',
     errNotADirectory: 'Esa ruta es un archivo, no una carpeta.',
     errNoteNotFound: 'Esa nota no existe.',
     errCommitNotFound: 'Ese commit no existe.',

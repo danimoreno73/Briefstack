@@ -204,6 +204,8 @@ describe('read API', () => {
     expect(await body(path.join(dir, 'projects', 'garden', 'NEXT_STEPS.md'))).toMatchObject({ status: 'notADirectory' });
     expect(await body(libraryDir)).toMatchObject({ status: 'forbidden', overlaps: 'library' });
     expect(await body(path.join(dir, 'repo'))).toMatchObject({ status: 'forbidden', overlaps: 'repo' });
+    expect(await body(path.join(home, 'sessions', 'x'))).toMatchObject({ status: 'forbidden', overlaps: 'home' });
+    expect(await body(path.join(dir, 'home', '.claude', 'x'))).toMatchObject({ status: 'forbidden', overlaps: 'claudeConfig' });
     expect((await check('relative/folder')).status).toBe(400);
     expect(JSON.parse((await check('relative/folder')).body)).toMatchObject({ code: 'config.relativePath' });
     expect((await get(server, '/api/paths/check')).status).toBe(400);

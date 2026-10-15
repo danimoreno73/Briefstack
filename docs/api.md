@@ -121,8 +121,10 @@ What `briefstack paths --json` prints: `home`, `configFile`, `libraryDir`,
 
 What `briefstack paths check` inspects, for a folder that is absolute or starts
 with `~`: `{ "outDir", "status", "overlaps"? }`. `status` is `missing`, `empty`,
-`nonEmpty`, `notADirectory` or `forbidden`; `overlaps` (`repo` or `library`) comes
-with `forbidden`. Nothing is created. A relative path is a 400
+`nonEmpty`, `notADirectory` or `forbidden`; `overlaps` (`repo`, `library`,
+`home`, `claudeConfig`, `appData` or `localAppData`) comes with `forbidden`. A
+folder inside one of them, or one that contains one (a drive root, the user's
+home), is `forbidden`. Nothing is created. A relative path is a 400
 `config.relativePath`. Settings uses it to say that a missing projects folder
 will be created.
 

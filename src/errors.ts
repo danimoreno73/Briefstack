@@ -4,7 +4,7 @@ import type { SpecIssue } from './spec/index.js';
 export type FieldExpectation = 'text' | 'lang' | 'permissionPolicy';
 
 /** Folders an output directory must stay out of. */
-export type ProtectedRoot = 'repo' | 'library';
+export type ProtectedRoot = 'repo' | 'library' | 'home' | 'claudeConfig' | 'appData' | 'localAppData';
 
 /** The part of `settings.local.json` that has the wrong shape. */
 export type SettingsField = 'root' | 'permissions' | 'additionalDirectories';

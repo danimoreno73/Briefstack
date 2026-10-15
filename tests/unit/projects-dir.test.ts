@@ -88,7 +88,7 @@ describe('setProjectsDir', () => {
     expect(await setProjectsDir({ pathEnv, repoDir, dir: existing })).toMatchObject({ created: false });
   });
 
-  it('refuses what paths check refuses: around or inside the repo or the library, and a file', async () => {
+  it('refuses what paths check refuses: around or inside a protected folder, and a file', async () => {
     const libraryDir = path.join(dir, 'home', 'library');
     await mkdir(libraryDir, { recursive: true });
     await mkdir(repoDir, { recursive: true });
@@ -99,6 +99,10 @@ describe('setProjectsDir', () => {
       [path.join(repoDir, 'sub'), 'scaffold.forbiddenOutput'],
       [dir, 'scaffold.forbiddenOutput'],
       [path.join(libraryDir, 'projects'), 'scaffold.forbiddenOutput'],
+      [path.join(dir, 'home', 'sessions'), 'scaffold.forbiddenOutput'],
+      [path.join(dir, 'home', 'projects'), 'scaffold.forbiddenOutput'],
+      [path.join(dir, 'user', '.claude', 'projects'), 'scaffold.forbiddenOutput'],
+      [path.join(dir, 'user'), 'scaffold.forbiddenOutput'],
       [file, 'scaffold.notADirectory'],
     ];
     for (const [target, code] of cases) {

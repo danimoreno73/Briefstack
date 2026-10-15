@@ -213,7 +213,7 @@ export function readRoutes(context: ReadContext): RouteTable {
         const dir = required(query(req), 'dir');
         const absolute = toAbsolute(dir, pathEnv);
         if (absolute === undefined) throw new BriefstackError('config.relativePath', { source: 'dir', value: dir });
-        const report = await inspectOutputDir(absolute, protectedDirs(paths.libraryDir, repoDir));
+        const report = await inspectOutputDir(absolute, protectedDirs(paths.libraryDir, repoDir, pathEnv));
         sendJson(res, 200, {
           outDir: report.outDir,
           status: report.status,

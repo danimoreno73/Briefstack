@@ -23,10 +23,18 @@ const expectationEs: Record<FieldExpectation, string> = {
 const rootEn: Record<ProtectedRoot, string> = {
   repo: 'the briefstack repo',
   library: 'the personal library',
+  home: "briefstack's own folder (config and sessions)",
+  claudeConfig: "Claude Code's settings folder",
+  appData: 'the Windows AppData\\Roaming folder',
+  localAppData: 'the Windows AppData\\Local folder',
 };
 const rootEs: Record<ProtectedRoot, string> = {
   repo: 'el repo de briefstack',
   library: 'la biblioteca personal',
+  home: 'la carpeta propia de briefstack (configuración y sesiones)',
+  claudeConfig: 'la carpeta de configuración de Claude Code',
+  appData: 'la carpeta AppData\\Roaming de Windows',
+  localAppData: 'la carpeta AppData\\Local de Windows',
 };
 
 const settingsFieldEn: Record<SettingsField, string> = {

@@ -56,7 +56,7 @@ export async function setProjectsDir(options: SetProjectsDirOptions): Promise<Se
   const { projectsDir: previous, libraryDir } = resolvePaths(config, pathEnv);
   const repoDir = options.repoDir ?? PACKAGE_ROOT;
   // The same check as `briefstack paths check`: not inside or around the repo or the library, and not a file.
-  const report = await inspectOutputDir(projectsDir, protectedDirs(libraryDir, repoDir));
+  const report = await inspectOutputDir(projectsDir, protectedDirs(libraryDir, repoDir, pathEnv));
   if (report.status === 'forbidden') {
     const { root, path: rootPath } = report.overlaps as ProtectedDir;
     throw new BriefstackError('scaffold.forbiddenOutput', { outDir: report.outDir, root, rootPath });

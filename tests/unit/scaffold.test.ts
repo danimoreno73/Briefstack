@@ -1,12 +1,14 @@
 import { mkdir, readFile, stat, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { PathEnv } from '../../src/config/paths.js';
 import { parseFrontmatter } from '../../src/frontmatter/index.js';
 import {
   DENY_RULES,
   buildPlan,
   checkOutputDir,
   loadTemplate,
+  protectedDirs,
   renderTemplate,
   scaffold,
   type ProtectedDir,
@@ -170,6 +172,88 @@ describe('buildPlan', () => {
         buildPlan(spec(), { ...template, files: [{ path: reserved, content: '' }] }),
       ).toThrow(expect.objectContaining({ code: 'scaffold.templateReservedPath' }));
     }
+  });
+});
+
+describe('protectedDirs', () => {
+  const win: PathEnv = {
+    env: {
+      BRIEFSTACK_HOME: 'D:\\data\\briefstack',
+      APPDATA: 'C:\\Users\\ana\\AppData\\Roaming',
+      LOCALAPPDATA: 'C:\\Users\\ana\\AppData\\Local',
+      CLAUDE_CONFIG_DIR: 'E:\\claude-config',
+    },
+    homedir: 'C:\\Users\\ana',
+    pathApi: path.win32,
+    caseInsensitive: true,
+  };
+  const posix: PathEnv = { env: {}, homedir: '/home/ana', pathApi: path.posix, caseInsensitive: false };
+
+  it('lists the repo, the library, the briefstack home, Claude Code settings and AppData on Windows', () => {
+    expect(protectedDirs('D:\\lib', 'D:\\repo', win)).toEqual([
+      { root: 'repo', path: 'D:\\repo' },
+      { root: 'library', path: 'D:\\lib' },
+      { root: 'home', path: 'D:\\data\\briefstack' },
+      { root: 'claudeConfig', path: 'C:\\Users\\ana\\.claude' },
+      { root: 'claudeConfig', path: 'E:\\claude-config' },
+      { root: 'appData', path: 'C:\\Users\\ana\\AppData\\Roaming' },
+      { root: 'localAppData', path: 'C:\\Users\\ana\\AppData\\Local' },
+    ]);
+  });
+
+  it('uses ~/.briefstack and ~/.claude on POSIX, and skips variables that are unset or not absolute', () => {
+    expect(protectedDirs('/lib', '/repo', { ...posix, env: { APPDATA: 'relative' } })).toEqual([
+      { root: 'repo', path: '/repo' },
+      { root: 'library', path: '/lib' },
+      { root: 'home', path: '/home/ana/.briefstack' },
+      { root: 'claudeConfig', path: '/home/ana/.claude' },
+    ]);
+  });
+});
+
+describe('checkOutputDir with protectedDirs', () => {
+  let dir: string;
+  let cleanup: () => Promise<void>;
+  let roots: ProtectedDir[];
+  beforeEach(async () => {
+    ({ dir, cleanup } = await tempDir('protected'));
+    const pathEnv: PathEnv = {
+      env: {
+        BRIEFSTACK_HOME: path.join(dir, 'data', 'briefstack'),
+        APPDATA: path.join(dir, 'user', 'AppData', 'Roaming'),
+        LOCALAPPDATA: path.join(dir, 'user', 'AppData', 'Local'),
+      },
+      homedir: path.join(dir, 'user'),
+      pathApi: path,
+      caseInsensitive: process.platform !== 'linux',
+    };
+    roots = protectedDirs(path.join(dir, 'lib'), path.join(dir, 'repo'), pathEnv);
+  });
+  afterEach(() => cleanup());
+
+  const refusedFor = (outDir: string) =>
+    checkOutputDir(outDir, roots, false).then(
+      () => undefined,
+      (error: { code?: string; params?: { root?: string } }) => `${error.code}:${error.params?.root}`,
+    );
+
+  it('refuses the briefstack home and its sessions, Claude Code settings and AppData', async () => {
+    expect(await refusedFor(path.join(dir, 'data', 'briefstack', 'sessions', 'abc'))).toBe('scaffold.forbiddenOutput:home');
+    expect(await refusedFor(path.join(dir, 'user', '.claude', 'out'))).toBe('scaffold.forbiddenOutput:claudeConfig');
+    expect(await refusedFor(path.join(dir, 'user', 'AppData', 'Roaming', 'x'))).toBe('scaffold.forbiddenOutput:appData');
+    expect(await refusedFor(path.join(dir, 'user', 'AppData', 'Local', 'Temp', 'x'))).toBe(
+      'scaffold.forbiddenOutput:localAppData',
+    );
+  });
+
+  it('refuses a folder that contains one: the user home, the drive root', async () => {
+    expect(await refusedFor(path.join(dir, 'user'))).toBe('scaffold.forbiddenOutput:claudeConfig');
+    expect(await refusedFor(path.join(dir, 'data'))).toBe('scaffold.forbiddenOutput:home');
+    expect(await refusedFor(path.parse(dir).root)).toBe('scaffold.forbiddenOutput:repo');
+  });
+
+  it('still accepts a projects folder inside the user home', async () => {
+    expect(await refusedFor(path.join(dir, 'user', 'briefstack-projects'))).toBeUndefined();
   });
 });
 

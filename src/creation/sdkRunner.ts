@@ -321,7 +321,7 @@ class SdkRun {
           grantDirectory: (request) => this.whileAsking(() => this.io.grantDirectory(request)),
         },
         sessionDir: () => (this.claimed === undefined ? undefined : this.sessionDir(this.claimed)),
-        protectedDirs: protectedDirs(libraryDir, this.deps.repoDir),
+        protectedDirs: protectedDirs(libraryDir, this.deps.repoDir, this.deps.pathEnv),
         projectsDir,
         onGrant: (dir) => this.granted.push(dir),
         pathEnv: this.deps.pathEnv,

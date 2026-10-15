@@ -3,6 +3,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { approveSpec, grantDirectory, type WebToolsDeps } from '../../src/creation/webTools.js';
 import type { GrantRequest, SpecApprovalRequest, SpecDecision } from '../../src/creation/types.js';
+import type { PathEnv } from '../../src/config/paths.js';
+import { protectedDirs } from '../../src/scaffold/outputDir.js';
 import { tempDir } from '../helpers.js';
 
 describe('web tools', () => {
@@ -103,6 +105,34 @@ describe('web tools', () => {
       }
       expect(grantRequests).toHaveLength(0);
       expect(granted).toEqual([]);
+    });
+
+    it('refuses the briefstack home, its sessions, Claude Code settings, AppData and what contains them', async () => {
+      const pathEnv: PathEnv = {
+        env: {
+          BRIEFSTACK_HOME: path.join(dir, 'data'),
+          APPDATA: path.join(dir, 'user', 'AppData', 'Roaming'),
+          LOCALAPPDATA: path.join(dir, 'user', 'AppData', 'Local'),
+        },
+        homedir: path.join(dir, 'user'),
+        pathApi: path,
+        caseInsensitive: process.platform !== 'linux',
+      };
+      deps.protectedDirs = protectedDirs(path.join(dir, 'library'), path.join(dir, 'repo'), pathEnv);
+      for (const bad of [
+        path.join(dir, 'data'),
+        path.join(dir, 'data', 'sessions', 's2'),
+        path.join(dir, 'user', '.claude'),
+        path.join(dir, 'user', 'AppData', 'Roaming', 'x'),
+        path.join(dir, 'user', 'AppData', 'Local', 'Temp', 'x'),
+        path.join(dir, 'user'),
+        path.parse(dir).root,
+      ]) {
+        expect((await grantDirectory(deps, { dir: bad })).isError, bad).toBe(true);
+      }
+      expect(grantRequests).toHaveLength(0);
+      expect(granted).toEqual([]);
+      expect(parse(await grantDirectory(deps, { dir: path.join(dir, 'user', 'work', 'out') }))).toEqual({ granted: true });
     });
   });
 });

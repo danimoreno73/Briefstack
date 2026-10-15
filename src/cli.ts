@@ -148,7 +148,7 @@ async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Prom
   const { paths, profiles } = await loadProfiles(io);
   const spec = await readSpec(specPath);
   const result = await scaffold(spec, outPath, {
-    protectedDirs: protectedDirs(paths.libraryDir),
+    protectedDirs: protectedDirs(paths.libraryDir, PACKAGE_ROOT, io.pathEnv),
     templateRoots: templateRoots(paths.libraryDir),
 
     profiles,
@@ -193,7 +193,7 @@ async function runPaths(args: readonly string[], io: CliIO, lang: Lang): Promise
   if (sub !== 'check' || positionals.length !== 2 || dirArg === undefined) {
     throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   }
-  const report = await inspectOutputDir(argPath(io, lang, dirArg), protectedDirs(paths.libraryDir));
+  const report = await inspectOutputDir(argPath(io, lang, dirArg), protectedDirs(paths.libraryDir, repoDir, io.pathEnv));
   const allowedBy = allowingDirectory(report.outDir, allowedDirs, io.pathEnv) ?? null;
   if (json) {
     const overlaps = report.overlaps === undefined ? null : report.overlaps;

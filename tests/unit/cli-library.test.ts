@@ -265,6 +265,14 @@ describe('cli: paths', () => {
     const forbidden = capture(dir);
     expect(await main(['paths', 'check', path.join(dir, 'home')], forbidden.io)).toBe(0);
     expect(forbidden.out[0]).toContain('it overlaps the personal library');
+    expect(await check(path.join(dir, 'home', 'sessions', 'x'))).toMatchObject({
+      status: 'forbidden',
+      overlaps: { root: 'home', path: path.join(dir, 'home') },
+    });
+    expect(await check(path.join(dir, 'user'))).toMatchObject({
+      status: 'forbidden',
+      overlaps: { root: 'claudeConfig', path: path.join(dir, 'user', '.claude') },
+    });
   });
 
   it('exits 2 on usage errors', async () => {
