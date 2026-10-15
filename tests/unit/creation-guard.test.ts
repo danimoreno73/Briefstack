@@ -255,6 +255,22 @@ describe('evaluateToolUse', () => {
       expect(await shell(`${CLI} scaffold "x.json" "${slashes(link)}/app"`, generator)).toBe('deny');
     });
 
+    it('tells the model to use forward slashes when a path has backslashes', async () => {
+      const reasonOf = async (command: string, who: Partial<GuardInput> = {}) =>
+        ((await evaluateToolUse(ctx, input('Bash', { command }, who))) as { reason: string }).reason;
+      const quoted = `${CLI} validate "C:${BS}Users${BS}Ana${BS}projects${BS}app" --json`;
+      const bare = `${CLI} validate C:${BS}Users${BS}Ana${BS}app`;
+      for (const command of [quoted, bare]) {
+        const reason = await reasonOf(command, reviewer);
+        expect(reason, command).toContain('forward slashes');
+        expect(reason, command).toContain('C:/Users/you/projects/app');
+        expect(reason, command).toContain('backslash');
+      }
+      // The same hint for the generator's scaffold, and none when the cause is something else.
+      expect(await reasonOf(`${CLI} scaffold "C:${BS}x.json" "C:${BS}out"`, generator)).toContain('forward slashes');
+      expect(await reasonOf(`${CLI} paths --json && ls`)).not.toContain('backslash');
+    });
+
     it('gives a reason the model can act on', async () => {
       const verdict = await evaluateToolUse(ctx, input('Bash', { command: `${CLI} paths --json && ls` }));
       expect(verdict).toMatchObject({ verdict: 'deny' });

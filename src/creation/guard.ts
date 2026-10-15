@@ -204,8 +204,12 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
       return deny(CANCEL_MESSAGE, summary);
     }
     if (!parsed.ok) {
+      // The usual cause on Windows: a path copied with backslashes. Say what to do instead of only what is wrong.
+      const hint = command.includes(String.fromCharCode(92))
+        ? ' It has a backslash: write every path with forward slashes, for example "C:/Users/you/projects/app", in double quotes.'
+        : '';
       return deny(
-        `This command is not allowed (${parsed.reason}). The only shell commands are ` +
+        `This command is not allowed (${parsed.reason}).${hint} The only shell commands are ` +
           '`npm run --silent briefstack -- <command> ...`, one per call, with no `;`, `&&`, `|`, redirects or `$(...)`, ' +
           'and with absolute paths in double quotes using forward slashes.',
         summary,
