@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": [
+      "es2024",
+      "dom",
+      "dom.iterable"
+    ],
+    "rootDir": "../.."
+  },
+  "include": [
+    "./**/*.ts",
+    "../../playwright.config.ts"
+  ],
+  "exclude": []
+}
