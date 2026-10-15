@@ -3,7 +3,7 @@ import path from 'node:path';
 import { isFullyAbsolute, isPathInside, systemPathEnv, type PathEnv } from '../config/paths.js';
 import { realpathNearest } from '../scaffold/outputDir.js';
 import { redactSecretLines } from '../validate/secrets.js';
-import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './webTools.js';
+import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './toolNames.js';
 
 /**
  * The guard of a creation session (PLAN-phase-2 §3 "SdkRunner", H6).

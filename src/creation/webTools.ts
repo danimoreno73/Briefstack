@@ -3,6 +3,8 @@ import { mkdir } from 'node:fs/promises';
 import { z } from 'zod';
 import { isFullyAbsolute, isPathInside, systemPathEnv, type PathEnv } from '../config/paths.js';
 import { inspectOutputDir, type ProtectedDir } from '../scaffold/outputDir.js';
+import { insideAny } from './guard.js';
+import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL, WEB_SERVER_NAME } from './toolNames.js';
 import type { RunnerIO } from './types.js';
 
 /**
@@ -13,9 +15,7 @@ import type { RunnerIO } from './types.js';
  * with or without them.
  */
 
-export const WEB_SERVER_NAME = 'briefstack-web';
-export const APPROVE_SPEC_TOOL = `mcp__${WEB_SERVER_NAME}__approve_spec`;
-export const GRANT_DIRECTORY_TOOL = `mcp__${WEB_SERVER_NAME}__grant_directory`;
+export { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL, WEB_SERVER_NAME };
 
 export interface WebToolsDeps {
   io: Pick<RunnerIO, 'approveSpec' | 'grantDirectory'>;
@@ -49,7 +49,8 @@ export async function approveSpec(deps: WebToolsDeps, args: { specFile: string; 
   const sessionDir = deps.sessionDir();
   if (sessionDir === undefined) return fail('The session is not open yet.');
   for (const file of [args.specFile, args.summaryFile]) {
-    if (!isFullyAbsolute(file, pathEnv.pathApi) || !isPathInside(file, sessionDir, pathEnv)) {
+    // After symlinks, as the guard compares: a link in the session folder that leads out does not count as inside.
+    if (!isFullyAbsolute(file, pathEnv.pathApi) || !(await insideAny(file, [sessionDir], pathEnv))) {
       return fail('Both files must be absolute paths inside the session folder.');
     }
   }

@@ -1,4 +1,4 @@
-import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, stat, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { approveSpec, grantDirectory, type WebToolsDeps } from '../../src/creation/webTools.js';
@@ -70,6 +70,17 @@ describe('web tools', () => {
       expect(specRequests).toHaveLength(0);
       sessionDir = undefined;
       expect((await approveSpec(deps, { specFile: inside, summaryFile: inside })).isError).toBe(true);
+    });
+
+    it('follows links: a link in the session folder that leads out does not count as inside', async () => {
+      const outside = path.join(dir, 'outside');
+      await mkdir(outside, { recursive: true });
+      const link = path.join(sessionDir as string, 'link-out');
+      await symlink(outside, link, 'junction');
+      const inside = path.join(sessionDir as string, 'summary.md');
+      expect((await approveSpec(deps, { specFile: path.join(link, 'spec.json'), summaryFile: inside })).isError).toBe(true);
+      expect((await approveSpec(deps, { specFile: inside, summaryFile: path.join(link, 'summary.md') })).isError).toBe(true);
+      expect(specRequests).toHaveLength(0);
     });
   });
 
