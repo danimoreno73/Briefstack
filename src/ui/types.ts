@@ -108,3 +108,72 @@ export interface PathsView {
   repoDir: string;
   allowedDirs: string[];
 }
+
+// ---- creations (docs/api.md, "Creation routes") ----
+
+export interface UiQuestionOption {
+  label: string;
+  description: string;
+}
+
+export interface UiQuestion {
+  question: string;
+  header: string;
+  options: UiQuestionOption[];
+  multiSelect: boolean;
+}
+
+export type Pending =
+  | { id: string; kind: 'question'; payload: { questions: UiQuestion[] } }
+  | { id: string; kind: 'permission'; payload: { toolName: string; summary: string; agentType?: string } }
+  | { id: string; kind: 'spec'; payload: { specFile: string; summaryFile: string } }
+  | { id: string; kind: 'grant'; payload: { dir: string } };
+
+export interface DeniedRequest {
+  toolName: string;
+  summary: string;
+  agentType?: string;
+  at: string;
+}
+
+export interface CreationState {
+  id: string;
+  sessionId?: string;
+  idea: string;
+  profile: string;
+  policy: 'ask' | 'unattended';
+  status: 'running' | 'waiting' | 'finished';
+  outcome?: 'completed' | 'cancelled' | 'failed' | 'interrupted';
+  pending?: Pending;
+  cancelling?: true;
+  denied: DeniedRequest[];
+  error?: string;
+  startedAt: string;
+  finishedAt?: string;
+}
+
+export interface FlowLine {
+  type: string;
+  step?: string;
+  outcome?: string;
+}
+
+export interface HookLine {
+  type: string;
+  agentId?: string;
+  agentType?: string;
+  tool?: string;
+  reason?: string;
+}
+
+export type StreamEvent =
+  | { seq: number; ts: string; kind: 'flow'; data: FlowLine }
+  | { seq: number; ts: string; kind: 'hook'; data: HookLine }
+  | { seq: number; ts: string; kind: 'question' | 'permission' | 'spec' | 'grant'; data: { pendingId: string; state: 'pending' | 'answered' } }
+  | { seq: number; ts: string; kind: 'status'; data: { status: string; outcome?: string; sessionId?: string; cancelling?: boolean } }
+  | { seq: number; ts: string; kind: 'denied'; data: DeniedRequest & { by: 'policy' | 'runner'; reason?: string } };
+
+export interface SpecView {
+  summary: string | null;
+  spec: Partial<Record<'name' | 'slug' | 'summary' | 'type' | 'target' | 'profile' | 'language', string>> | null;
+}

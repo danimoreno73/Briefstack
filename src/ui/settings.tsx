@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'preact/hooks';
 import { isLang } from '../i18n/index.js';
+import { api } from './api.js';
 import { ErrorBanner, Loader, Notice } from './common.js';
 import { useApp, useLoad, useSend } from './hooks.js';
 import type { PathsView, SettingsView } from './types.js';
 
 export function SettingsPage() {
-  const { t, setLang } = useApp();
+  const { t, setLang, token } = useApp();
   const loaded = useLoad<SettingsView>('/api/settings');
   const paths = useLoad<PathsView>('/api/paths');
   const send = useSend();
@@ -16,6 +17,7 @@ export function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
   const [saved, setSaved] = useState(false);
+  const [willCreate, setWillCreate] = useState(false);
 
   useEffect(() => {
     if (settings === undefined) return;
@@ -23,6 +25,25 @@ export function SettingsPage() {
     setLanguage(settings.configLang ?? '');
     setPolicy(settings.permissionPolicy);
   }, [settings]);
+
+  // Before saving, say whether the folder exists: a missing one is created by the save.
+  useEffect(() => {
+    if (settings === undefined || projectsDir.trim() === '' || projectsDir === settings.projectsDir) {
+      setWillCreate(false);
+      return;
+    }
+    let current = true;
+    const timer = setTimeout(() => {
+      api<{ status: string }>(token, 'GET', `/api/paths/check?dir=${encodeURIComponent(projectsDir.trim())}`).then(
+        (result) => current && setWillCreate(result.status === 'missing'),
+        () => current && setWillCreate(false),
+      );
+    }, 300);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [projectsDir, settings, token]);
 
   const save = async (event: Event) => {
     event.preventDefault();
@@ -66,6 +87,11 @@ export function SettingsPage() {
                 onInput={(event) => setProjectsDir(event.currentTarget.value)}
               />
               <span class="muted">{t.projectsDirHint}</span>
+              {willCreate && (
+                <span class="banner banner-warn" role="status" data-testid="folder-note">
+                  {t.folderWillBeCreated}
+                </span>
+              )}
             </p>
             <p>
               <label for="language">{t.languageLabel}</label>

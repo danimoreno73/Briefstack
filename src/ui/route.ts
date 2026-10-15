@@ -2,6 +2,7 @@
 
 export type Route =
   | { page: 'projects' }
+  | { page: 'new'; id: string | undefined }
   | { page: 'project'; slug: string }
   | { page: 'library'; section: string | undefined; name: string | undefined }
   | { page: 'usage' }
@@ -28,6 +29,8 @@ export function parseRoute(hash: string): Route {
       return first === undefined ? DEFAULT_ROUTE : { page: 'project', slug: first };
     case 'library':
       return { page: 'library', section: first, name: rest.length === 0 ? undefined : rest.join('/') };
+    case 'new':
+      return { page: 'new', id: first };
     case 'usage':
       return { page: 'usage' };
     case 'settings':
@@ -45,6 +48,8 @@ export function routeHash(route: Route): string {
       return '#/projects';
     case 'project':
       return `#/projects/${enc(route.slug)}`;
+    case 'new':
+      return route.id === undefined ? '#/new' : `#/new/${enc(route.id)}`;
     case 'library': {
       if (route.section === undefined) return '#/library';
       const name = route.name === undefined ? '' : `/${route.name.split('/').map(enc).join('/')}`;

@@ -71,12 +71,14 @@ export interface ConfirmDialogProps {
   title: string;
   body: string;
   confirmLabel: string;
+  /** The text of the button that backs out; "Cancel" by default. */
+  cancelLabel?: string;
   onConfirm(): void;
   onCancel(): void;
 }
 
 /** A modal confirmation. Escape and the Cancel button both call `onCancel`. */
-export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({ title, body, confirmLabel, cancelLabel, onConfirm, onCancel }: ConfirmDialogProps) {
   const { t } = useApp();
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -96,7 +98,7 @@ export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel }
       <p>{body}</p>
       <div class="actions">
         <button type="button" onClick={onCancel}>
-          {t.cancel}
+          {cancelLabel ?? t.cancel}
         </button>
         <button type="button" class="danger" onClick={onConfirm}>
           {confirmLabel}

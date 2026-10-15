@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { langFromLocale, type Lang } from '../i18n/index.js';
 import { uiMessages } from '../i18n/ui.js';
 import { ApiError, api, takeToken } from './api.js';
+import { NewProjectPage } from './creation.js';
 import { AppCtx, type AppContext } from './hooks.js';
 import { LibraryView } from './library.js';
 import { ProjectView, ProjectsView } from './projects.js';
@@ -14,8 +15,9 @@ import { UsageView } from './usage.js';
 
 type Gate = 'connecting' | 'ready' | 'noToken' | 'rejected' | 'unreachable';
 
-const NAV: { page: Route['page']; route: Route; label: 'navProjects' | 'navLibrary' | 'navUsage' | 'navSettings' }[] = [
+const NAV: { page: Route['page']; route: Route; label: 'navProjects' | 'navNew' | 'navLibrary' | 'navUsage' | 'navSettings' }[] = [
   { page: 'projects', route: { page: 'projects' }, label: 'navProjects' },
+  { page: 'new', route: { page: 'new', id: undefined }, label: 'navNew' },
   { page: 'library', route: { page: 'library', section: undefined, name: undefined }, label: 'navLibrary' },
   { page: 'usage', route: { page: 'usage' }, label: 'navUsage' },
   { page: 'settings', route: { page: 'settings' }, label: 'navSettings' },
@@ -38,6 +40,8 @@ function Page({ route }: { route: Route }) {
       return <ProjectsView />;
     case 'project':
       return <ProjectView key={route.slug} slug={route.slug} />;
+    case 'new':
+      return <NewProjectPage id={route.id} />;
     case 'library':
       return <LibraryView section={route.section} name={route.name} />;
     case 'usage':
@@ -69,6 +73,27 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
   useEffect(() => {
     document.documentElement.lang = lang;
   }, [lang]);
+
+  // Whether a creation is running, so the menu can say so wherever the user is. Checked on every move and every few seconds.
+  const [activeCreation, setActiveCreation] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (gate !== 'ready' || token === undefined) return;
+    let stopped = false;
+    const check = () => {
+      api<{ creations: { id: string; status: string }[] }>(token, 'GET', '/api/creations').then(
+        (result) => {
+          if (!stopped) setActiveCreation(result.creations.find((creation) => creation.status !== 'finished')?.id);
+        },
+        () => undefined,
+      );
+    };
+    check();
+    const timer = setInterval(check, 4000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [gate, token, route]);
 
   const context = useMemo<AppContext | undefined>(
     () =>
@@ -103,6 +128,12 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
           {NAV.map((item) => (
             <a key={item.page} href={routeHash(item.route)} aria-current={route.page === item.page || (item.page === 'projects' && route.page === 'project') ? 'page' : undefined}>
               {t[item.label]}
+              {item.page === 'new' && activeCreation !== undefined && (
+                <span class="dot" role="img" aria-label={t.creationInProgress} title={t.creationInProgress}>
+                  {' '}
+                  ●
+                </span>
+              )}
             </a>
           ))}
         </nav>

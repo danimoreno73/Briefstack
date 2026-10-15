@@ -35,6 +35,8 @@ describe('routes', () => {
   const routes: Route[] = [
     { page: 'projects' },
     { page: 'project', slug: 'garden-planner' },
+    { page: 'new', id: undefined },
+    { page: 'new', id: '3f2b9c1e-0000-4a5b' },
     { page: 'library', section: undefined, name: undefined },
     { page: 'library', section: 'history', name: undefined },
     { page: 'library', section: 'profile', name: 'style' },

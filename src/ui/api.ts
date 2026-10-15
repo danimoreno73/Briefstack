@@ -4,7 +4,7 @@ import { ApiError } from './apiError.js';
 
 export { ApiError };
 
-const TOKEN_HEADER = 'x-briefstack-token';
+export const TOKEN_HEADER = 'x-briefstack-token';
 const STORAGE_KEY = 'briefstack-token';
 
 /** Reads `#token=…` once, keeps it for this tab and removes it from the address bar. */

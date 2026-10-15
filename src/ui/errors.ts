@@ -37,6 +37,8 @@ export function describeError(error: unknown, t: Messages): string {
       return t.errUnknownProfile;
     case 'web.invalidBody':
       return t.errInvalidBody;
+    case 'creation.invalidAnswer':
+      return t.errInvalidAnswer;
     default:
       return t.errGeneric(error.code);
   }
