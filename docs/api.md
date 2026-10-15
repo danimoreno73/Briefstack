@@ -34,7 +34,7 @@ text use those. The security rejections above send `{ "code" }` only.
 | Status | Codes |
 |---|---|
 | 400 | `web.invalidJson`, `web.invalidBody`, `web.invalidQuery`, `creation.invalidAnswer`, any other coded error |
-| 404 | `web.notFound`, `creation.notFound`, `library.noteNotFound`, `library.commitNotFound`, `events.sessionNotFound` |
+| 404 | `web.notFound`, `creation.notFound`, `creation.noSpec`, `library.noteNotFound`, `library.commitNotFound`, `events.sessionNotFound` |
 | 409 | `creation.busy`, `creation.noPending`, `creation.wrongPending`, `library.dirtyTree`, `library.revertConflict` |
 | 413 | `web.bodyTooLarge` |
 | 415 | `web.unsupportedMediaType` |
@@ -116,6 +116,15 @@ No token or cost figures.
 
 What `briefstack paths --json` prints: `home`, `configFile`, `libraryDir`,
 `libraryExists`, `projectsDir`, `sessionsDir`, `repoDir`, `allowedDirs`.
+
+### `GET /api/paths/check?dir=<path>`
+
+What `briefstack paths check` inspects, for a folder that is absolute or starts
+with `~`: `{ "outDir", "status", "overlaps"? }`. `status` is `missing`, `empty`,
+`nonEmpty`, `notADirectory` or `forbidden`; `overlaps` (`repo` or `library`) comes
+with `forbidden`. Nothing is created. A relative path is a 400
+`config.relativePath`. Settings uses it to say that a missing projects folder
+will be created.
 
 ### `GET /api/settings`
 
@@ -219,9 +228,17 @@ Starts a creation session, which runs the `/new-project` flow.
 | kind | payload |
 |---|---|
 | `question` | `{ "questions": [{ "question", "header", "options": [{ "label", "description" }], "multiSelect" }] }` (1–4 questions, `AskUserQuestion`'s shape) |
-| `permission` | `{ "toolName", "summary", "agentType"? }` |
+| `permission` | `{ "toolName", "summary", "agentType"? }` (`summary` has any secret-looking line replaced by `[redacted]`) |
 | `spec` | `{ "specFile", "summaryFile" }` (both in the session folder) |
 | `grant` | `{ "dir" }` (an output folder outside `projectsDir`) |
+
+### `GET /api/creations/:id/spec`
+
+The spec the flow last asked the user to approve, for the approval screen:
+`{ "summary": "<markdown or null>", "spec": { "name"?, "slug"?, "summary"?, "type"?, "target"?, "profile"?, "language"? } | null }`.
+Both files must be inside the creation's session folder, and lines that look
+like a secret come back as `[redacted]`. `404 creation.noSpec` before the
+flow has shown a spec.
 
 ### `POST /api/creations/:id/answer`
 

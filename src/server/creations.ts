@@ -86,6 +86,7 @@ export function creationRoutes(manager: CreationManager | undefined, options: { 
         sendJson(res, 200, m.answer(id(params), body.pendingId, body.answer));
       },
     ],
+    ['GET /api/creations/:id/spec', async (_req, res, params) => sendJson(res, 200, await need().readSpec(id(params)))],
     ['POST /api/creations/:id/cancel', (_req, res, params) => sendJson(res, 200, need().cancel(id(params)))],
     [
       'GET /api/creations/:id/stream',

@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises';
 import { request } from 'node:http';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -190,6 +191,23 @@ describe('read API', () => {
     expect((await get(server, '/api/library/history?limit=0')).status).toBe(400);
     expect((await get(server, '/api/library/history?limit=abc')).status).toBe(400);
     expect((await get(server, '/api/library/history?limit=9999')).status).toBe(400);
+  });
+
+  it('checks a folder the way paths check does', async () => {
+    const check = (dirValue: string) => get(server, `/api/paths/check?dir=${encodeURIComponent(dirValue)}`);
+    const body = async (dirValue: string) => JSON.parse((await check(dirValue)).body) as { status: string; overlaps?: string };
+    const fresh = path.join(dir, 'new-projects');
+    expect(await body(fresh)).toMatchObject({ status: 'missing' });
+    await mkdir(fresh, { recursive: true });
+    expect(await body(fresh)).toMatchObject({ status: 'empty' });
+    expect(await body(path.join(dir, 'projects'))).toMatchObject({ status: 'nonEmpty' });
+    expect(await body(path.join(dir, 'projects', 'garden', 'NEXT_STEPS.md'))).toMatchObject({ status: 'notADirectory' });
+    expect(await body(libraryDir)).toMatchObject({ status: 'forbidden', overlaps: 'library' });
+    expect(await body(path.join(dir, 'repo'))).toMatchObject({ status: 'forbidden', overlaps: 'repo' });
+    expect((await check('relative/folder')).status).toBe(400);
+    expect(JSON.parse((await check('relative/folder')).body)).toMatchObject({ code: 'config.relativePath' });
+    expect((await get(server, '/api/paths/check')).status).toBe(400);
+    expect((await get(server, '/api/paths/check?dir=x', null)).status).toBe(401);
   });
 
   it('reports the usage profile, the presets and the warnings', async () => {

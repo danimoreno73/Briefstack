@@ -200,6 +200,57 @@ describe('creation API', () => {
     expect(list.creations.map((c) => c.id)).toEqual([id]);
   });
 
+  describe('spec and secrets', () => {
+    // Built at run time so the test file holds no secret-looking string.
+    const FAKE_KEY = ['sk', 'ant', 'a'.repeat(30)].join('-');
+    const recording = [
+      '{"do":"session","phase":"started"}',
+      '{"do":"flow","step":"spec","phase":"started"}',
+      JSON.stringify({ do: 'permission', toolName: 'Bash', summary: `curl -H "x-api-key: ${FAKE_KEY}" https://example.com` }),
+      '{"do":"label","name":"write-spec"}',
+      JSON.stringify({
+        do: 'spec',
+        onChange: 'write-spec',
+        spec: JSON.stringify({ name: 'Garden planner', slug: 'garden-planner', target: 'claude-code', profile: 'balanced', ignored: 'x' }),
+        summary: ['# Garden planner', '', `Key: ${FAKE_KEY}`, 'A planting calendar.', ''].join(String.fromCharCode(10)),
+      }),
+      '{"do":"flow","step":"spec","phase":"finished","outcome":"ok"}',
+      '{"do":"session","phase":"finished","outcome":"completed"}',
+    ].join(String.fromCharCode(10));
+
+    it('serves the spec summary of the pending approval, with secrets hidden', async () => {
+      const s = await start({ runner: new FakeRunner({ steps: parseRecording(recording) }) });
+      const id = await create(s);
+      expect((await send(s, `/api/creations/${id}/spec`, { headers: auth(s) })).status).toBe(404);
+
+      const permission = await waitFor(async () => {
+        const st = await state(s, id);
+        return st.pending?.kind === 'permission' ? st.pending : undefined;
+      });
+      // The permission dialog never shows the secret.
+      expect(JSON.stringify(permission.payload)).not.toContain(FAKE_KEY);
+      expect(JSON.stringify(permission.payload)).toContain('[redacted]');
+      await post(s, `/api/creations/${id}/answer`, { pendingId: permission.id, answer: 'deny' });
+
+      const spec = await waitFor(async () => {
+        const st = await state(s, id);
+        return st.pending?.kind === 'spec' ? st.pending : undefined;
+      });
+      const reply = await send(s, `/api/creations/${id}/spec`, { headers: auth(s) });
+      expect(reply.status).toBe(200);
+      const view = JSON.parse(reply.body) as { summary: string; spec: Record<string, string> };
+      expect(view.summary).toContain('# Garden planner');
+      expect(view.summary).toContain('A planting calendar.');
+      expect(reply.body).not.toContain(FAKE_KEY);
+      // Only the fields the page shows.
+      expect(view.spec).toEqual({ name: 'Garden planner', slug: 'garden-planner', target: 'claude-code', profile: 'balanced' });
+
+      await post(s, `/api/creations/${id}/answer`, { pendingId: spec.id, answer: { decision: 'approve' } });
+      expect((await send(s, '/api/creations/unknown/spec', { headers: auth(s) })).status).toBe(404);
+      expect((await send(s, `/api/creations/${id}/spec`)).status).toBe(401);
+    });
+  });
+
   it('replays a stream from a sequence number, with heartbeats', async () => {
     const steps = parseRecording(
       ['{"do":"session","phase":"started"}', '{"do":"flow","step":"idea","phase":"started"}', '{"do":"wait","ms":300}',

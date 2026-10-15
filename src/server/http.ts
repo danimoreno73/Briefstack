@@ -40,6 +40,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'creation.notFound': 404,
   'creation.noPending': 409,
   'creation.wrongPending': 409,
+  'creation.noSpec': 404,
 };
 
 /** Error body of every `/api` route: `{ code, params, message }`, the message in the server's language. */

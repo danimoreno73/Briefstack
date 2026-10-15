@@ -122,6 +122,7 @@ const errors = defineCatalogue<ErrorMessages>({
     'creation.unavailable': () => 'Creating projects is not available in this server.',
     'creation.busy': (p) =>
       `A creation is already running (${p.active}). Finish or cancel it before starting another one.`,
+    'creation.noSpec': (p) => `Creation ${p.id} has not shown a spec yet.`,
     'creation.claudeNotFound': () =>
       'Claude Code was not found. Install it (https://claude.com/claude-code), log in with `claude`, and start briefstack web again.',
     'creation.slashCommandMissing': (p) =>
@@ -214,6 +215,7 @@ const errors = defineCatalogue<ErrorMessages>({
     'creation.unavailable': () => 'Este servidor no permite crear proyectos.',
     'creation.busy': (p) =>
       `Ya hay una creación en marcha (${p.active}). Termínala o cancélala antes de empezar otra.`,
+    'creation.noSpec': (p) => `La creación ${p.id} aún no ha mostrado ninguna spec.`,
     'creation.claudeNotFound': () =>
       'No se encontró Claude Code. Instálalo (https://claude.com/claude-code), inicia sesión con `claude` y vuelve a arrancar briefstack web.',
     'creation.slashCommandMissing': (p) =>

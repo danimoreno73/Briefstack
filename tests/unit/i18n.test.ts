@@ -89,6 +89,7 @@ describe('error catalogue', () => {
     'web.unsupportedMediaType': { contentType: 'text/plain' },
     'creation.unavailable': {},
     'creation.busy': { active: 'c1' },
+    'creation.noSpec': { id: 'c1' },
     'creation.claudeNotFound': {},
     'creation.slashCommandMissing': { command: 'new-project' },
     'creation.notFound': { id: 'c1' },

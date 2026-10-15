@@ -66,6 +66,7 @@ export interface ErrorParams {
   'web.unsupportedMediaType': { contentType: string };
   'creation.unavailable': Record<string, never>;
   'creation.busy': { active: string };
+  'creation.noSpec': { id: string };
   'creation.claudeNotFound': Record<string, never>;
   'creation.slashCommandMissing': { command: string };
   'creation.notFound': { id: string };

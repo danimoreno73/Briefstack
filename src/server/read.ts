@@ -1,6 +1,6 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { configFilePath, permissionPolicyOf, readConfig, resolvePaths, type PathEnv } from '../config/index.js';
+import { configFilePath, permissionPolicyOf, readConfig, resolvePaths, toAbsolute, type PathEnv } from '../config/index.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
 import { listSessions, sessionTimeline, type SessionTimeline } from '../events/sessions.js';
 import { resolveLang, systemLocale, type Lang } from '../i18n/index.js';
@@ -16,6 +16,7 @@ import {
 } from '../library/index.js';
 import { readTextIfExists } from '../library/notes.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
+import { inspectOutputDir, protectedDirs } from '../scaffold/outputDir.js';
 import { loadUsageContext, usageShow } from '../usage/index.js';
 import { redactSecretLines } from '../validate/index.js';
 import { sendJson } from './http.js';
@@ -201,6 +202,22 @@ export function readRoutes(context: ReadContext): RouteTable {
           sessionsDir,
           repoDir,
           allowedDirs: await readAdditionalDirectories(repoDir),
+        });
+      },
+    ],
+    [
+      // What `paths check` says about a folder (the same inspection), so Settings can warn before saving.
+      'GET /api/paths/check',
+      async (req, res) => {
+        const { paths } = await load();
+        const dir = required(query(req), 'dir');
+        const absolute = toAbsolute(dir, pathEnv);
+        if (absolute === undefined) throw new BriefstackError('config.relativePath', { source: 'dir', value: dir });
+        const report = await inspectOutputDir(absolute, protectedDirs(paths.libraryDir, repoDir));
+        sendJson(res, 200, {
+          outDir: report.outDir,
+          status: report.status,
+          ...(report.overlaps === undefined ? {} : { overlaps: report.overlaps.root }),
         });
       },
     ],

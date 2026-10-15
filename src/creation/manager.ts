@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { readFile, stat } from 'node:fs/promises';
 import { z } from 'zod';
+import { isPathInside, systemPathEnv } from '../config/paths.js';
 import { BriefstackError } from '../errors.js';
 import {
   EVENT_FORMAT,
@@ -14,6 +16,7 @@ import {
   type SessionLifecycleEvent,
   type SessionOutcome,
 } from '../events/index.js';
+import { redactSecretLines } from '../validate/secrets.js';
 import type {
   CreationRunner,
   GrantRequest,
@@ -42,6 +45,17 @@ import type {
  * `session.finished`, or when the server ends it (stop, cancel fallback,
  * runner gone): an SDK `result` is not the end.
  */
+
+/** The fields of `spec.json` the approval screen shows. */
+const SPEC_FIELDS = ['name', 'slug', 'summary', 'type', 'target', 'profile', 'language'] as const;
+export type SpecFields = Partial<Record<(typeof SPEC_FIELDS)[number], string>>;
+const MAX_SPEC_FILE_BYTES = 256 * 1024;
+
+export interface SpecView {
+  /** `null` when the summary file is missing or not in the session folder. */
+  summary: string | null;
+  spec: SpecFields | null;
+}
 
 export type CreationStatus = 'running' | 'waiting' | 'finished';
 /** `interrupted`: the server stopped, or the runner ended without closing the flow. */
@@ -163,6 +177,8 @@ interface QueuedRequest {
 
 interface Creation {
   state: CreationState;
+  /** The last spec the flow asked about: the approval screen reads its files. */
+  lastSpec?: SpecApprovalRequest | undefined;
   handle?: RunnerHandle;
   runnerDone: boolean;
   /** The server is ending the runner itself: its `done` is not a crash. */
@@ -279,6 +295,46 @@ export class CreationManager {
       .then((outcome) => this.onRunnerDone(c, outcome));
     this.pushStatus(c);
     return this.snapshot(c);
+  }
+
+  /**
+   * The files of the spec the flow showed last, for the approval screen: the
+   * summary as written (secrets hidden) and the fields of `spec.json` the
+   * page shows. Both files must be inside this creation's session folder.
+   */
+  async readSpec(id: string): Promise<SpecView> {
+    const c = this.find(id);
+    const request = c.lastSpec;
+    const session = c.state.sessionId;
+    if (request === undefined || session === undefined) throw new BriefstackError('creation.noSpec', { id });
+    const pathEnv = systemPathEnv();
+    const folder = pathEnv.pathApi.join(this.options.sessionsDir, session);
+    const read = async (file: string): Promise<string | undefined> => {
+      if (!isPathInside(file, folder, pathEnv)) return undefined;
+      try {
+        const info = await stat(file);
+        if (!info.isFile() || info.size > MAX_SPEC_FILE_BYTES) return undefined;
+        return await readFile(file, 'utf8');
+      } catch {
+        return undefined;
+      }
+    };
+    const summary = await read(request.summaryFile);
+    const specText = await read(request.specFile);
+    let spec: SpecFields | null = null;
+    if (specText !== undefined) {
+      try {
+        const parsed = JSON.parse(specText) as Record<string, unknown>;
+        spec = {};
+        for (const key of SPEC_FIELDS) {
+          const value = parsed[key];
+          if (typeof value === 'string') spec[key] = redactSecretLines(value);
+        }
+      } catch {
+        spec = null;
+      }
+    }
+    return { summary: summary === undefined ? null : redactSecretLines(summary), spec };
   }
 
   list(): CreationState[] {
@@ -415,7 +471,9 @@ export class CreationManager {
   private io(c: Creation): RunnerIO {
     return {
       askQuestions: (request) => this.request(c, 'question', request),
-      requestPermission: async (request) => {
+      requestPermission: async (raw) => {
+        // Whatever a runner passes, a secret never reaches the page or the history.
+        const request: PermissionRequest = { ...raw, summary: redactSecretLines(raw.summary) };
         if (c.state.policy !== 'unattended') return this.request(c, 'permission', request);
         await this.flush(c);
         const denied: DeniedRequest = { toolName: request.toolName, summary: request.summary, at: this.now().toISOString() };
@@ -424,13 +482,16 @@ export class CreationManager {
         this.push(c, { kind: 'denied', data: { ...denied, by: 'policy' } });
         return 'deny';
       },
-      approveSpec: (request) => this.request(c, 'spec', request),
+      approveSpec: (request) => {
+        c.lastSpec = request;
+        return this.request(c, 'spec', request);
+      },
       grantDirectory: (request) => this.request(c, 'grant', request),
       emit: (event) => {
         if (event.kind === 'denial') {
           const data: DeniedEventData = {
             toolName: event.toolName,
-            summary: event.summary,
+            summary: redactSecretLines(event.summary),
             at: this.now().toISOString(),
             by: 'runner',
             reason: event.reason,
