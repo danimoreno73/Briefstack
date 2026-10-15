@@ -44,6 +44,47 @@ H8 builds the creation screens on the same `src/ui/` (hooks, `common.tsx`,
 fixture already holds a `CreationManager` over the fake runner
 (`appOptions.recording` picks the recording).
 
+### Plan for H6, code only (autonomous run, 2026-10-15)
+
+The user is away and approved H6 (code only), H8 and H9 in advance. No real
+SDK session and no `claude -p` is run: the three real checks, the effort
+check with Sonnet and H10 are prepared as scripts (below, "Real runs").
+
+- **Guard** (`src/creation/guard.ts`): pure logic plus a `PreToolUse` SDK
+  callback that only `SdkRunner` registers. It is not in any settings file,
+  so ordinary sessions in this repo never see it; it also passes through any
+  hook input whose `session_id` is not the creation's own.
+  - Writes (`Write`, `Edit`, `NotebookEdit`): allowed only inside
+    `projectsDir`, the session folder and folders granted to this session;
+    everything else is denied (relative paths, `..`, symlinks resolved,
+    other drive, `/c/...` forms).
+  - Shell (`Bash`, `PowerShell`): only `npm run --silent briefstack -- <sub>`,
+    no operators, parsed token by token. Per caller: main session `event`,
+    `paths`, `usage show`, `library context|add`, `spec check`,
+    `validate`, `commit`; `generator` `scaffold` and `validate`;
+    `reviewer` `validate`; any other agent nothing.
+  - Researcher: `WebSearch`/`WebFetch` allowed. After a cancel: everything
+    denied except `briefstack event` from the main session.
+  - A denial is recorded as a `denial` runner event (listed on the result).
+- **Web tools** (`src/creation/webTools.ts`): in-process MCP server
+  `briefstack-web` with `approve_spec` and `grant_directory`.
+- **SdkRunner** (`src/creation/sdkRunner.ts`): `query()` injected so tests
+  use a scripted fake. Options from `buildQueryOptions` (pure, tested):
+  repo `cwd`, `settingSources` project+local, user's `claude`, profile
+  model and effort, `permissionMode: 'auto'`, `strictMcpConfig`, a clean
+  environment, `additionalDirectories`, streaming input, hooks and
+  `canUseTool`. Process tree killed through `spawnClaudeCodeProcess`
+  (`taskkill /T /F` on Windows, process group elsewhere). The runner ends
+  itself after 15 minutes without messages following a `result`; otherwise
+  the manager stops it after `session.finished`.
+- **Wiring**: `briefstack web` builds the manager with the real runner;
+  tests inject `creationRunner`. Creation routes stop answering 503.
+- **Skill**: `--session` on `library add projects`; `approve_spec` and
+  `grant_directory` when the tools exist, else exactly today's text. Test
+  that the steps and `event` calls are the same on both branches.
+- **Agents**: "read-only commands" removed from generator and reviewer.
+- **Secrets** in permission summaries pass through `redactSecretLines`.
+
 ### Pending for H6 (not done yet)
 
 - **Guard hook: not implemented.** Section 3, "SdkRunner", has the
