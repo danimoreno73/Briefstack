@@ -1,0 +1,9 @@
+# The flow is busy for a long time, with a generator running: for cancelling while it works.
+{"do":"session","phase":"started"}
+{"do":"flow","step":"idea","phase":"started"}
+{"do":"flow","step":"idea","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"generate","phase":"started"}
+{"do":"hook","type":"subagent.start","agentId":"g1","agentType":"generator"}
+{"do":"wait","ms":60000}
+{"do":"flow","step":"generate","phase":"finished","outcome":"ok"}
+{"do":"session","phase":"finished","outcome":"completed"}

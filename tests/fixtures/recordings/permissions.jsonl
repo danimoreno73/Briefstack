@@ -1,0 +1,11 @@
+# Two requests nobody pre-approved, then a refusal by the guard, and the end.
+# Under the unattended policy the manager denies the two requests by itself.
+{"do":"session","phase":"started"}
+{"do":"flow","step":"generate","phase":"started"}
+{"do":"hook","type":"subagent.start","agentId":"g1","agentType":"generator"}
+{"do":"permission","toolName":"Bash","summary":"git status","agentType":"generator"}
+{"do":"permission","toolName":"WebFetch","summary":"https://example.com/docs"}
+{"do":"emit","event":{"kind":"denial","toolName":"Bash","summary":"rm -rf /","agentType":"generator","reason":"Not a briefstack command."}}
+{"do":"hook","type":"subagent.stop","agentId":"g1","agentType":"generator"}
+{"do":"flow","step":"generate","phase":"finished","outcome":"ok"}
+{"do":"session","phase":"finished","outcome":"completed"}

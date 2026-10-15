@@ -1,0 +1,8 @@
+# The output folder is outside the projects folder: the user is asked to allow it.
+{"do":"session","phase":"started"}
+{"do":"flow","step":"interview","phase":"started"}
+{"do":"grant","dir":"out"}
+{"do":"flow","step":"interview","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"generate","phase":"started"}
+{"do":"wait","ms":60000}
+{"do":"session","phase":"finished","outcome":"completed"}

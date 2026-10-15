@@ -2,8 +2,9 @@ import { test as base } from '@playwright/test';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { FakeRunner } from '../../src/creation/fakeRunner.js';
+import { FakeRunner, parseRecording } from '../../src/creation/fakeRunner.js';
 import { CreationManager } from '../../src/creation/manager.js';
+import type { PermissionPolicy } from '../../src/creation/types.js';
 import { updateConfig } from '../../src/config/index.js';
 import type { PathEnv } from '../../src/config/index.js';
 import { appendEvent, flowEvent, sessionEndEvent, sessionLifecycleEvent } from '../../src/events/index.js';
@@ -30,6 +31,8 @@ export interface App {
   /** The address to open, with the launch token in the fragment. */
   url: string;
   server: WebServer;
+  /** The creation manager the server uses, over the fake runner. */
+  manager: CreationManager;
   dir: string;
   home: string;
   libraryDir: string;
@@ -43,6 +46,10 @@ export interface App {
 export interface AppOptions {
   /** Recording the fake runner replays; `full.jsonl` by default. */
   recording?: string;
+  /** The recording itself, when a test must build it (for example with a secret in it). Wins over `recording`. */
+  recordingText?: string;
+  /** The permission policy for unexpected requests; `ask` by default. */
+  policy?: PermissionPolicy;
   /** Language saved in the config; English by default. */
   lang?: 'en' | 'es';
 }
@@ -112,15 +119,18 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   await appendEvent(sessionsDir, sessionEndEvent(SESSION_INTERRUPTED, 'server_stop', at('07:04')));
 
   const manager = new CreationManager({
-    runner: await FakeRunner.fromFile(path.join(RECORDINGS, options.recording ?? 'full.jsonl')),
+    runner:
+      options.recordingText === undefined
+        ? await FakeRunner.fromFile(path.join(RECORDINGS, options.recording ?? 'full.jsonl'))
+        : new FakeRunner({ steps: parseRecording(options.recordingText) }),
     sessionsDir,
-    policy: () => 'ask',
+    policy: () => options.policy ?? 'ask',
     profile: () => ({ name: 'balanced' }),
     pollMs: 20,
   });
   const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager });
 
-  const app: App = { url: server.url, server, dir, home, libraryDir, projectsDir, sessionsDir, repoDir, gardenDir };
+  const app: App = { url: server.url, server, manager, dir, home, libraryDir, projectsDir, sessionsDir, repoDir, gardenDir };
   const stop = async () => {
     await manager.shutdown();
     await server.close();
@@ -143,3 +153,30 @@ export const test = base.extend<{ app: App; appOptions: AppOptions }>({
 });
 
 export { expect } from '@playwright/test';
+
+/**
+ * What the skill's learn step does at the end of a creation: the project note
+ * in the library, linked to the creation's session. The fake runner writes no
+ * library, so a test calls this before the creation ends.
+ */
+export async function recordProject(app: App, slug: string, name: string, session: string): Promise<string> {
+  const projectDir = path.join(app.projectsDir, slug);
+  await mkdir(projectDir, { recursive: true });
+  const file = path.join(app.dir, `${slug}.note.md`);
+  const text = [
+    '---',
+    'target: claude-code',
+    `path: ${projectDir.replaceAll(String.fromCharCode(92), '/')}`,
+    'status: created',
+    'profile: balanced',
+    `summary: ${name} summary.`,
+    '---',
+    `# ${name}`,
+    '',
+    'Text.',
+    '',
+  ].join(String.fromCharCode(10));
+  await writeFile(file, text, 'utf8');
+  await addNote({ libraryDir: app.libraryDir, section: 'projects', name: slug, fromFile: file, session, now: new Date('2026-10-15T10:00:00Z') });
+  return projectDir;
+}

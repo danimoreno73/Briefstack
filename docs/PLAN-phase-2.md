@@ -26,23 +26,24 @@ Updated 2026-10-15 (after H7). A new session reads `CLAUDE.md`,
 | H4 | Write routes in `src/server/write.ts`: `PUT /api/library/note` (`saveNote`; a note with a secret is a 400 and nothing is written or echoed), `POST /api/library/revert`, `PUT /api/usage`, `PUT /api/settings` (`projectsDir`, `lang` or `null`, `permissionPolicy`). Revert errors map to 404/409. Documented in `docs/api.md` |
 | H5 | `CreationRunner` interface (`src/creation/types.ts`), `FakeRunner` with recordings (`tests/fixtures/recordings/`), `CreationManager`, creation routes and the SSE stream (`docs/api.md`) |
 | H7 | UI in `src/ui/` (hash router, started after the token leaves the address): projects (list, detail, timeline, copy buttons, the open command with the path in quotes, interrupted and cancelled creations apart), library (browse, editor with preview, history, revert behind a confirmation dialog), usage (3-level slider and a selector for user presets, warnings), settings (`projectsDir`, language, policy, paths). Strings in `src/i18n/ui.ts`. `markdown-it` 15.0.1 is vendored (`/vendor/markdown-it.mjs`). Secrets: the secret detector moved to `src/validate/secrets.ts` (no imports) so the preview hides secrets with the server's own code; a note loaded with `[redacted]` lines cannot be saved until they are removed. `setProjectsDir` now runs `inspectOutputDir` with the shared `protectedDirs` (the check of `paths check`): a folder around or inside the repo or the library, or a file, is refused; a folder that does not exist yet is created. Playwright is set up (`playwright.config.ts`, `tests/e2e/fixtures.ts` starts a server per test over temp folders and the fake runner, with seeded library, projects, sessions and a user preset); 17 e2e tests |
+| H8 | Creation UI in `src/ui/creation.tsx` (`#/new`, `#/new/<id>`): idea form; live progress from the stream (`progress.ts`); question form with the recommended option preselected and free text (`answers.ts`); permission panel (not modal, so Cancel stays reachable); spec approval (approve, change with text, cancel) over `GET /api/creations/:id/spec`; folder grant confirmation; result with the project card (found by the session id), and denied requests; Cancel always visible and asks first; the active creation reopened on `#/new` and marked in the menu; one active creation, with a link to it. Settings says before saving that a missing projects folder will be created (`GET /api/paths/check`). Secrets are hidden in permission and denial summaries by the manager as well |
+| H9 | Playwright e2e over the fake runner, 38 tests: `ui.spec.ts` (start-up and F5, projects, library edit and revert, secrets, usage, settings), `creation.spec.ts` (whole creation, change at the spec, cancel in three places, close and reopen the tab, second start, permissions under `ask` and `unattended`, folder grant, secrets in a request, Spanish), `security.spec.ts` (wrong Host, missing or wrong token, cross-origin and cross-site writes, a page from another origin, framing). Recordings added: `working`, `permissions`, `grant` |
 | H6 (code) | Guard, web MCP tools, `SdkRunner`, process-tree kill, wiring into `briefstack web`, skill and agent changes; real runs pending (see "H6 status") |
 
-Build and lint are clean, 479 vitest tests and 18 e2e tests pass on
+Build and lint are clean, 489 vitest tests and 38 e2e tests pass on
 Windows. CI runs on Linux only for each push; the full matrix runs by
 hand. `npm run test:e2e` builds the UI first; `npm run build` also
 type-checks `tests/e2e`.
 
 ### Left, in order
 
-H8 → H9 → the real runs of H6 → H10 (section 5 has each one's
-verification).
+The real runs of H6 → H10 (section 5 has each one's verification). Both
+spend the user's plan and are for the user to launch.
 
-**Next: H8.** The real runs spend the user's plan: they are scripts the user
-launches ("H6 status"). H8 builds the creation screens on the same `src/ui/` (hooks, `common.tsx`,
-`Router` in `main.tsx`) and H9 adds creation specs to `tests/e2e/`, whose
-fixture already holds a `CreationManager` over the fake runner
-(`appOptions.recording` picks the recording).
+**Next: the real runs ("H6 status") and then H10.** Nothing is pending in code.
+The e2e fixture (`tests/e2e/fixtures.ts`) holds a `CreationManager` over the
+fake runner; `appOptions` picks the recording (or builds one at run time),
+the permission policy and the language.
 
 ### Plan for H6, code only (autonomous run, 2026-10-15)
 
@@ -159,13 +160,6 @@ checks are replaced by the H9 e2e over the fake runner.
 - **Tests**: unit tests for the pure parts (SSE parsing, progress from
   events, answers from the form) and for the new routes; the browser flow is
   H9.
-
-### Pending for H8
-
-- A route that serves the spec summary (`spec.summaryFile` is an
-  absolute path).
-- The stream closes at `session.finished`, so hook lines written after
-  it are not streamed.
 
 ### How to work from here (user decisions, 2026-10-14)
 

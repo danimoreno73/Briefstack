@@ -304,7 +304,7 @@ phase 3 live panel can read either.
 `FakeRunner` (`src/creation/fakeRunner.ts`) replays a recorded creation for
 tests and the E2E suite: no tokens, no login. A recording is a text file
 with one JSON object per line; blank lines and lines starting with `#` are
-ignored. Examples are in `tests/fixtures/recordings/`.
+ignored. Examples are in `tests/fixtures/recordings/`: `full` (a whole creation), `change-at-spec`, `working` (busy for a long time, to cancel), `permissions` (two requests and a refusal by the guard) and `grant` (an output folder to allow). The e2e fixture can also build a recording at run time.
 
 | line | effect |
 |---|---|

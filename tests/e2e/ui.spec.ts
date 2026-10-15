@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { FAKE_KEY, expect, test } from './fixtures.js';
@@ -293,6 +293,26 @@ test.describe('settings', () => {
     await expect(page.getByRole('status')).toContainText('Settings saved.');
     await expect(page.getByTestId('paths')).toContainText(target);
     expect((await readFile(path.join(app.home, 'config.json'), 'utf8'))).toContain('my projects');
+  });
+
+  test('says before saving that a missing projects folder will be created', async ({ page, app }) => {
+    await mkdir(path.join(app.dir, 'already-there'), { recursive: true });
+    await page.goto(app.url);
+    await page.getByRole('link', { name: 'Settings' }).click();
+    const field = page.getByLabel('Projects folder');
+    const note = page.getByTestId('folder-note');
+    await expect(field).toHaveValue(app.projectsDir);
+    await expect(note).toHaveCount(0);
+
+    await field.fill(path.join(app.dir, 'not-yet', 'projects'));
+    await expect(note).toContainText('does not exist yet');
+    // Nothing is created until Save.
+    await expect(stat(path.join(app.dir, 'not-yet'))).rejects.toThrow();
+
+    await field.fill(path.join(app.dir, 'already-there'));
+    await expect(note).toHaveCount(0);
+    await field.fill(app.libraryDir);
+    await expect(note).toHaveCount(0);
   });
 
   test('refuses what the CLI refuses: a relative path, and a folder over the library or a file', async ({ page, app }) => {
