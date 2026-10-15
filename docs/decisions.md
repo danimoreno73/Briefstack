@@ -1488,12 +1488,22 @@ that killing the tree leaves nothing behind.
   written to any settings file.
 - **`approve_spec`** only takes files inside the session folder.
 - **Session end.** A creation ends with the flow's `session.finished`. The
-  runner does not end itself on a `result`; it ends 15 minutes after the last
-  message that follows a `result` (any message, such as a background agent's
-  progress, restarts the wait), so a flow that stopped without closing is
-  marked interrupted instead of waiting for ever. On stop the runner closes
-  the query and kills the process tree (`taskkill /T /F`, or the process
-  group), and also kills it if it exits on its own.
+  runner does not end itself on a `result`. Once a turn has ended it ends by
+  itself only after 15 minutes with no message at all, so a flow that stopped
+  without closing is marked interrupted instead of waiting for ever. That wait
+  **never runs while the user has something to answer**: a question, a
+  permission request, the spec approval and a folder grant each switch it off
+  until they are answered (the user can take hours), and it starts again
+  after. While a background agent is running (its start seen, its stop not
+  yet) the wait is 2 hours instead of 15 minutes, only as a last resort
+  against a stop that never comes. When it does end the run, the manager
+  writes `session.end` with reason `runner_exit` and the creation finishes as
+  `interrupted`: it shows in the list of interrupted creations with its last
+  step. It cannot be resumed (nothing in phase 2 uses the SDK's `resume`,
+  and the skill's steps are not written to be repeated); the user starts a
+  new creation, and the old session folder keeps what was written. On stop
+  the runner closes the query and kills the process tree (`taskkill /T /F`,
+  or the process group), and also kills it if it exits on its own.
 - **Process.** Claude Code is started by `spawnTracked` (our own spawn,
   `windowsHide`, its own process group on POSIX), and the SDK's forwarded
   abort signal also ends the tree.
@@ -1528,9 +1538,10 @@ For the user to review. Each one chose the more conservative option.
    Stricter than needed for bash, but PowerShell and bash disagree about what
    is special there. If a real run shows the model using backslashes, the
    skill is the place to fix, not the guard.
-5. **A 15-minute idle end after a `result`** is my number. The flow's longest
-   quiet stretch is a background agent, which sends progress messages; if a
-   real run shows otherwise, change `IDLE_AFTER_RESULT_MS`.
+5. **A 15-minute idle end after a `result`** (2 hours with an agent running)
+   is my number, and it is off while the user is being asked anything. If a
+   real run shows quiet stretches that are not an agent, change
+   `IDLE_AFTER_RESULT_MS` and `IDLE_WITH_AGENTS_MS`.
 6. **A denial by the guard is shown like an unattended denial** (listed on the
    result screen, `by: runner`), even under the `ask` policy, because nobody
    was asked.
@@ -1538,3 +1549,53 @@ For the user to review. Each one chose the more conservative option.
    added since H5; nothing new in this stretch.
 8. **Tests may start a real child process tree** (`creation-process-tree`):
    two `node` processes in a temp folder, killed by the test.
+
+## `/new-project` from the terminal has no guard (2026-10-15)
+
+The guard of H6 exists only in creations started from the web app. A
+`/new-project` typed in Claude Code in this repo runs as it always did, with
+the repo's `.claude/settings.json` and the user's own permission prompts.
+Why:
+
+- **Where it lives.** The guard is a callback passed to the SDK's `query()`
+  by `SdkRunner`. A settings-file hook is a command line, and a command-line
+  hook would run in every Claude Code session in this repo, development
+  sessions included. The guard needs to know that a session is a creation
+  (it claims the session id the runner started); a settings hook cannot know.
+  Registering it from code is the only way it stays out of ordinary work, and
+  a test keeps it that way.
+- **What it replaces.** In the web app nobody is at the terminal to approve
+  an unexpected command, and the permission mode is `auto`, where a
+  classifier decides. The guard keeps the classifier out of writes and shell.
+  In the terminal the user sees every prompt, the mode is the one they chose,
+  and the repo's allow rule covers only the plain
+  `npm run --silent briefstack` command. The user is the guard.
+- **The brief.** Phase 2 says the CLI and the skill keep working exactly as
+  before; adding a guard there would change that, and the skill test pins the
+  terminal text.
+- **What follows.** The terminal path has no deny of its own: if the model
+  runs a command the user did not expect, the user's prompt is what stops it.
+  The agents' bodies still say to use Bash only for the briefstack CLI.
+
+## What each real script touches (2026-10-15, before any is run)
+
+All of them create `briefstack-real-<name>-<random>` under the system temp
+folder (`os.tmpdir()`, which on this machine is on C:) and remove it at the
+end; `BRIEFSTACK_HOME` for the session is a folder inside it, `settingSources`
+is empty, so no user or project settings, hooks or CLAUDE.md are loaded, and
+the sessions' working folder is `<temp>/project`. Claude Code itself keeps a
+transcript of each session under `~/.claude/projects/` for that temp folder,
+as it did for the H0 probes; that is its own bookkeeping, not briefstack data,
+and moving its config would also move the login.
+
+| Script | What it makes the model attempt | Exact paths | If the guard (or our check) failed |
+|---|---|---|---|
+| `preflight.ts` | nothing: no conversation | reads the real `config.json`, runs `git status` in the repo and in the real library, and opens a no-message session in the temp folder for the plan usage | it only reads. `git status` can refresh `.git/index` (a write), see the note below |
+| `check-guard-auto.ts` | `echo hello` (shell), a write outside the projects folder, a write inside, a web fetch of example.com, an `AskUserQuestion` | outside: `<temp>/outside/x.txt`; inside: `<temp>/projects/ok.txt`; the shell runs with `<temp>/project` as its folder | the `echo` is harmless; the outside write would create `<temp>/outside/x.txt`, still inside the temp folder. A tool that reaches `canUseTool` is denied, but the classifier may allow others without asking (H0 probe 7), so beyond those named paths containment is the prompt, `maxTurns: 10` and the temp working folder. The fetch is a read of one public page |
+| `check-kill-tree.ts` | one shell command: `node <temp>/sleeper.cjs`, which writes `<temp>/sleeper.pid` and sleeps two minutes | `<temp>/sleeper.cjs`, `<temp>/sleeper.pid` | this script has **no guard** and its `canUseTool` allows any tool call, so containment rests on the single instruction and `maxTurns: 4`, not on a check. Narrowing `canUseTool` to that exact command would make it a rule (proposed, not done) |
+| `check-effort.ts` | nothing: one word as the answer, twice | none | no tool is approved and `maxTurns` is 1 |
+
+Two things to decide before launching, both proposed and not applied:
+`preflight.ts` runs `git status` without `--no-optional-locks` (so it may
+touch `.git/index` of the repo and the library), and `check-kill-tree.ts`
+trusts the model with an allow-all `canUseTool` in a throwaway folder.
