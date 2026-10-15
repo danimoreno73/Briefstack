@@ -8,7 +8,7 @@
 // Each one works in a temp folder it creates (including a temp BRIEFSTACK_HOME)
 // and deletes it at the end. None touches the real library or projects.
 
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { query, type PermissionResult } from '@anthropic-ai/claude-agent-sdk';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -100,6 +100,26 @@ export async function readPlanUsage(box: Sandbox, executable: string): Promise<P
 
 export function show(usage: PlanUsage | string): string {
   return typeof usage === 'string' ? usage : `5-hour window ${usage.fiveHour ?? '?'}%, 7-day window ${usage.sevenDay ?? '?'}%`;
+}
+
+/**
+ * The `git status` the preflight runs. `--no-optional-locks` keeps git from
+ * refreshing the index, so even in the real repo and library nothing is written.
+ */
+export const GIT_STATUS_ARGS: readonly string[] = ['--no-optional-locks', 'status', '--porcelain'];
+
+/**
+ * A `canUseTool` that allows one shell command, character for character, and
+ * denies everything else: another command, a chained one, another tool.
+ */
+export function onlyThisCommand(expected: string): (toolName: string, input: Record<string, unknown>) => Promise<PermissionResult> {
+  return async (toolName, input) => {
+    const command = typeof input.command === 'string' ? input.command.trim() : undefined;
+    if ((toolName === 'Bash' || toolName === 'PowerShell') && command === expected) {
+      return { behavior: 'allow', updatedInput: input };
+    }
+    return { behavior: 'deny', message: 'This check allows only the one command it asked for.' };
+  };
 }
 
 export function report(name: string, passed: boolean, detail: string): boolean {

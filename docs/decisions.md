@@ -1590,12 +1590,9 @@ and moving its config would also move the login.
 
 | Script | What it makes the model attempt | Exact paths | If the guard (or our check) failed |
 |---|---|---|---|
-| `preflight.ts` | nothing: no conversation | reads the real `config.json`, runs `git status` in the repo and in the real library, and opens a no-message session in the temp folder for the plan usage | it only reads. `git status` can refresh `.git/index` (a write), see the note below |
+| `preflight.ts` | nothing: no conversation | reads the real `config.json`, runs `git status` in the repo and in the real library, and opens a no-message session in the temp folder for the plan usage | it only reads: `git status` runs with `--no-optional-locks`, so the index is not refreshed either (applied, tested) |
 | `check-guard-auto.ts` | `echo hello` (shell), a write outside the projects folder, a write inside, a web fetch of example.com, an `AskUserQuestion` | outside: `<temp>/outside/x.txt`; inside: `<temp>/projects/ok.txt`; the shell runs with `<temp>/project` as its folder | the `echo` is harmless; the outside write would create `<temp>/outside/x.txt`, still inside the temp folder. A tool that reaches `canUseTool` is denied, but the classifier may allow others without asking (H0 probe 7), so beyond those named paths containment is the prompt, `maxTurns: 10` and the temp working folder. The fetch is a read of one public page |
-| `check-kill-tree.ts` | one shell command: `node <temp>/sleeper.cjs`, which writes `<temp>/sleeper.pid` and sleeps two minutes | `<temp>/sleeper.cjs`, `<temp>/sleeper.pid` | this script has **no guard** and its `canUseTool` allows any tool call, so containment rests on the single instruction and `maxTurns: 4`, not on a check. Narrowing `canUseTool` to that exact command would make it a rule (proposed, not done) |
+| `check-kill-tree.ts` | one shell command: `node <temp>/sleeper.cjs`, which writes `<temp>/sleeper.pid` and sleeps two minutes | `<temp>/sleeper.cjs`, `<temp>/sleeper.pid` | this script has no guard, but its `canUseTool` allows that one command character for character and denies everything else, and only the shell tools exist (`tools: ['Bash', 'PowerShell']`); applied and tested without a session (`tests/unit/real-scripts.test.ts`). If the model words the command differently it is denied and the check reports that the command never started: harmless, run it again |
 | `check-effort.ts` | nothing: one word as the answer, twice | none | no tool is approved and `maxTurns` is 1 |
 
-Two things to decide before launching, both proposed and not applied:
-`preflight.ts` runs `git status` without `--no-optional-locks` (so it may
-touch `.git/index` of the repo and the library), and `check-kill-tree.ts`
-trusts the model with an allow-all `canUseTool` in a throwaway folder.
+The two changes proposed on 2026-10-15 (`--no-optional-locks` in the preflight, and the exact-command rule in `check-kill-tree.ts`) were applied the same day on the user's go-ahead.

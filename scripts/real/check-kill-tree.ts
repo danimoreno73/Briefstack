@@ -12,7 +12,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawnTracked } from '../../src/creation/processTree.js';
-import { claudeExecutable, oneShot, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show } from './common.js';
+import { claudeExecutable, onlyThisCommand, oneShot, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show } from './common.js';
 
 requireConfirmation('Check that stopping a creation leaves no orphan process (haiku, one tool call).');
 
@@ -33,6 +33,8 @@ try {
 
   const pidFile = path.join(box.dir, 'sleeper.pid').replaceAll('\\', '/');
   const script = path.join(box.dir, 'sleeper.cjs');
+  // The one command the session may run: nothing else is allowed, and only the shell tool exists.
+  const command = `node "${script.replaceAll(String.fromCharCode(92), '/')}"`;
   await writeFile(
     script,
     `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setTimeout(() => {}, 120000);\n`,
@@ -42,7 +44,7 @@ try {
   const tracked = spawnTracked();
   const abort = new AbortController();
   const q = query({
-    prompt: oneShot(`Run exactly this shell command and wait for it: node "${script.replaceAll('\\', '/')}"`),
+    prompt: oneShot(`Run exactly this shell command, character for character, and wait for it: ${command}`),
     options: {
       cwd: box.project,
       pathToClaudeCodeExecutable: executable,
@@ -54,8 +56,9 @@ try {
       maxTurns: 4,
       abortController: abort,
       spawnClaudeCodeProcess: (spawnOptions) => tracked.spawn(spawnOptions),
-      // A throwaway folder and a harmless command: allow it.
-      canUseTool: async (_tool, input) => ({ behavior: 'allow', updatedInput: input }),
+      // Only the shell exists, and only that one command is allowed; anything else is denied.
+      tools: ['Bash', 'PowerShell'],
+      canUseTool: onlyThisCommand(command),
     },
   });
 

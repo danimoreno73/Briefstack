@@ -1,7 +1,8 @@
 // Before H10 (the real run from the browser), print what it will use, so the
 // user can see it is the right data. Reads only: it creates nothing, writes
 // nothing and starts no conversation. The plan usage is read the way `/usage`
-// does, from a session that sends no message (it costs nothing).
+// does, from a session that sends no message (it costs nothing). The git
+// commands use --no-optional-locks, so not even the index is refreshed.
 // Run:  npx tsx scripts/real/preflight.ts
 
 import { execFile } from 'node:child_process';
@@ -10,7 +11,7 @@ import { promisify } from 'node:util';
 import { configFilePath, readConfig, resolvePaths, systemPathEnv } from '../../src/config/index.js';
 import { checkClaudeCode, formatVersion } from '../../src/creation/claudeBinary.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
-import { claudeExecutable, readPlanUsage, sandbox, show } from './common.js';
+import { GIT_STATUS_ARGS, claudeExecutable, readPlanUsage, sandbox, show } from './common.js';
 
 const run = promisify(execFile);
 const pathEnv = systemPathEnv();
@@ -27,9 +28,9 @@ console.log('claude          :', check.status === 'notFound' ? 'NOT FOUND' : `${
 for (const name of ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN']) {
   if (process.env[name] !== undefined) console.log(`WARNING         : ${name} is set; briefstack web does not pass it to Claude Code.`);
 }
-const git = await run('git', ['status', '--porcelain'], { cwd: PACKAGE_ROOT });
+const git = await run('git', [...GIT_STATUS_ARGS], { cwd: PACKAGE_ROOT });
 console.log('repo            :', git.stdout.trim() === '' ? 'clean' : 'HAS UNCOMMITTED CHANGES');
-const library = await run('git', ['status', '--porcelain'], { cwd: paths.libraryDir }).catch(() => undefined);
+const library = await run('git', [...GIT_STATUS_ARGS], { cwd: paths.libraryDir }).catch(() => undefined);
 console.log('library git     :', library === undefined ? 'not a git repo or missing' : library.stdout.trim() === '' ? 'clean' : 'HAS UNCOMMITTED CHANGES');
 
 if (check.status !== 'notFound') {
