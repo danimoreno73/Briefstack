@@ -1,0 +1,125 @@
+// Shared helpers for the real-session checks of phase 2 (PLAN-phase-2.md,
+// "Real runs"). These scripts START REAL CLAUDE CODE SESSIONS with the user's
+// own login and spend a little of their plan. They are never run by the test
+// suite or by CI; the user runs them on purpose, from PowerShell:
+//
+//   npx tsx scripts/real/<script>.ts --yes
+//
+// Each one works in a temp folder it creates (including a temp BRIEFSTACK_HOME)
+// and deletes it at the end. None touches the real library or projects.
+
+import { query } from '@anthropic-ai/claude-agent-sdk';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { findClaudeExecutable } from '../../src/creation/claudeBinary.js';
+import { cleanEnvironment } from '../../src/creation/sdkRunner.js';
+
+/** The scripts do nothing without `--yes`, so a stray run spends no tokens. */
+export function requireConfirmation(description: string): void {
+  if (process.argv.includes('--yes')) return;
+  console.error(`${description}\n\nThis starts a real Claude Code session with your login and uses part of your plan.`);
+  console.error('Run it again with --yes to go ahead.');
+  process.exit(2);
+}
+
+export interface Sandbox {
+  dir: string;
+  /** A temp BRIEFSTACK_HOME. */
+  home: string;
+  /** The working folder of the session: not the repo, not a real project. */
+  project: string;
+  projects: string;
+  sessions: string;
+  cleanup(): Promise<void>;
+}
+
+export async function sandbox(prefix: string): Promise<Sandbox> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), `briefstack-real-${prefix}-`));
+  const made = {
+    dir,
+    home: path.join(dir, 'home'),
+    project: path.join(dir, 'project'),
+    projects: path.join(dir, 'projects'),
+    sessions: path.join(dir, 'home', 'sessions'),
+  };
+  for (const folder of [made.home, made.project, made.projects, made.sessions]) await mkdir(folder, { recursive: true });
+  return {
+    ...made,
+    // Windows keeps a folder locked for a while after a session closes: retry.
+    cleanup: () => rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 }),
+  };
+}
+
+export function claudeExecutable(): string {
+  const executable = findClaudeExecutable({ env: process.env, platform: process.platform, homedir: os.homedir() });
+  if (executable === undefined) {
+    console.error('Claude Code was not found on PATH or in ~/.local/bin.');
+    process.exit(1);
+  }
+  return executable;
+}
+
+/** The environment of a session: no API key, no CLAUDE_CODE_*, the sandbox as BRIEFSTACK_HOME. */
+export function sessionEnv(box: Sandbox): Record<string, string | undefined> {
+  const { env, removed } = cleanEnvironment(process.env, box.home);
+  if (removed.length > 0) console.log(`Not passed to Claude Code: ${removed.join(', ')}`);
+  return env;
+}
+
+export interface PlanUsage {
+  fiveHour: number | null;
+  sevenDay: number | null;
+}
+
+/**
+ * Reads the plan usage the way `/usage` does, from a session that sends no
+ * message (so it costs nothing). The method is the SDK's experimental one.
+ */
+export async function readPlanUsage(box: Sandbox, executable: string): Promise<PlanUsage | string> {
+  const neverSends: AsyncIterable<never> = {
+    [Symbol.asyncIterator]: () => ({ next: () => new Promise<IteratorResult<never>>(() => undefined) }),
+  };
+  const q = query({
+    prompt: neverSends,
+    options: { cwd: box.project, pathToClaudeCodeExecutable: executable, env: sessionEnv(box), settingSources: [] },
+  });
+  try {
+    const usage = await q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true });
+    if (!usage.rate_limits_available || usage.rate_limits === null) return 'plan limits are not available for this login';
+    return {
+      fiveHour: usage.rate_limits.five_hour?.utilization ?? null,
+      sevenDay: usage.rate_limits.seven_day?.utilization ?? null,
+    };
+  } catch (error) {
+    return `could not read the usage: ${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    q.close();
+  }
+}
+
+export function show(usage: PlanUsage | string): string {
+  return typeof usage === 'string' ? usage : `5-hour window ${usage.fiveHour ?? '?'}%, 7-day window ${usage.sevenDay ?? '?'}%`;
+}
+
+export function report(name: string, passed: boolean, detail: string): boolean {
+  console.log(`${passed ? 'PASS' : 'FAIL'}  ${name}: ${detail}`);
+  return passed;
+}
+
+/** A prompt that stays open until `close()`, so the session can be driven by hand. */
+export function oneShot(text: string): AsyncIterable<{
+  type: 'user';
+  message: { role: 'user'; content: string };
+  parent_tool_use_id: null;
+}> {
+  let sent = false;
+  return {
+    [Symbol.asyncIterator]: () => ({
+      next: () =>
+        sent
+          ? new Promise(() => undefined)
+          : ((sent = true), Promise.resolve({ value: { type: 'user' as const, message: { role: 'user' as const, content: text }, parent_tool_use_id: null }, done: false })),
+    }),
+  };
+}
