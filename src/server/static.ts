@@ -16,7 +16,11 @@ const VENDOR: Readonly<Record<string, string>> = {
   preact: '/vendor/preact.mjs',
   'preact/hooks': '/vendor/preact-hooks.mjs',
   'preact/jsx-runtime': '/vendor/preact-jsx-runtime.mjs',
+  'markdown-it': '/vendor/markdown-it.mjs',
 };
+
+/** Where a vendored module is resolved from, when that is not its own specifier (a self-contained browser build). */
+const VENDOR_SOURCE: Readonly<Record<string, string>> = { 'markdown-it': 'markdown-it/browser' };
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.html': 'text/html; charset=utf-8',
@@ -62,7 +66,7 @@ export async function loadStaticSite(uiDir: string = defaultUiDir()): Promise<St
     .digest('base64');
   const index = Buffer.from(template.replace(IMPORT_MAP_SLOT, importMap), 'utf8');
   const vendorFiles = new Map<string, string>(
-    Object.entries(VENDOR).map(([specifier, url]) => [url, fileURLToPath(import.meta.resolve(specifier))]),
+    Object.entries(VENDOR).map(([specifier, url]) => [url, fileURLToPath(import.meta.resolve(VENDOR_SOURCE[specifier] ?? specifier))]),
   );
   const root = path.resolve(uiDir);
 
