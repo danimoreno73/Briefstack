@@ -10,6 +10,11 @@ import { appendEvent, flowEvent, sessionEndEvent, sessionLifecycleEvent } from '
 import { addNote, initLibrary, saveNote } from '../../src/library/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { startWebServer, type WebServer } from '../../src/server/index.js';
+import { isolateEnvironment } from '../sandboxEnv.js';
+
+// The server gets explicit paths, but anything read from the environment must not reach real data either.
+const removeSandbox = isolateEnvironment();
+process.once('exit', removeSandbox);
 
 // Built at run time so no file in the repo holds a secret-looking string.
 export const FAKE_KEY = ['sk', 'ant', 'a'.repeat(30)].join('-');
