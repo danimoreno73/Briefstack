@@ -1,5 +1,9 @@
 /** Talks to the local server. The launch token comes in the URL fragment once. */
 
+import { ApiError } from './apiError.js';
+
+export { ApiError };
+
 const TOKEN_HEADER = 'x-briefstack-token';
 const STORAGE_KEY = 'briefstack-token';
 
@@ -22,15 +26,6 @@ export function takeToken(): string | undefined {
   }
 }
 
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-  ) {
-    super(code);
-  }
-}
-
 export async function api<T>(token: string, method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { [TOKEN_HEADER]: token };
   const init: RequestInit = { method, headers, credentials: 'omit' };
@@ -39,7 +34,15 @@ export async function api<T>(token: string, method: string, path: string, body?:
     init.body = JSON.stringify(body);
   }
   const res = await fetch(path, init);
-  const data = (await res.json()) as T & { code?: string };
-  if (!res.ok) throw new ApiError(res.status, data.code ?? 'web.unknown');
-  return data;
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    throw new ApiError(res.status, 'web.unknown');
+  }
+  if (!res.ok) {
+    const failure = data as { code?: string; params?: Record<string, unknown> };
+    throw new ApiError(res.status, failure.code ?? 'web.unknown', failure.params);
+  }
+  return data as T;
 }

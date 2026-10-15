@@ -92,6 +92,9 @@ describe('web server', () => {
     const preact = await send(s, '/vendor/preact.mjs');
     expect(preact.status).toBe(200);
     expect(preact.headers['content-type']).toContain('text/javascript');
+    const markdown = await send(s, '/vendor/markdown-it.mjs');
+    expect(markdown.status).toBe(200);
+    expect(markdown.body).toContain('export');
     expect((await send(s, '/ui/main.js')).status).toBe(200);
     expect((await send(s, '/notes.txt')).status).toBe(404);
     expect((await send(s, '/../secret.txt')).status).toBe(404);

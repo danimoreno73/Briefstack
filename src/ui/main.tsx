@@ -1,47 +1,107 @@
 import { render } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { langFromLocale, type Lang } from '../i18n/index.js';
 import { uiMessages } from '../i18n/ui.js';
 import { ApiError, api, takeToken } from './api.js';
+import { AppCtx, type AppContext } from './hooks.js';
+import { LibraryView } from './library.js';
+import { ProjectView, ProjectsView } from './projects.js';
+import { parseRoute, routeHash, type Route } from './route.js';
+import { SettingsPage } from './settings.js';
+import type { SettingsView } from './types.js';
+import { UsageView } from './usage.js';
 
-interface Health {
-  ok: boolean;
-  version: string;
+type Gate = 'connecting' | 'ready' | 'noToken' | 'rejected' | 'unreachable';
+
+const NAV: { page: Route['page']; route: Route; label: 'navProjects' | 'navLibrary' | 'navUsage' | 'navSettings' }[] = [
+  { page: 'projects', route: { page: 'projects' }, label: 'navProjects' },
+  { page: 'library', route: { page: 'library', section: undefined, name: undefined }, label: 'navLibrary' },
+  { page: 'usage', route: { page: 'usage' }, label: 'navUsage' },
+  { page: 'settings', route: { page: 'settings' }, label: 'navSettings' },
+];
+
+function useRoute(): Route {
+  // The token has already been taken out of the address by now (see the bottom of this file).
+  const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
+  useEffect(() => {
+    const onChange = () => setRoute(parseRoute(window.location.hash));
+    window.addEventListener('hashchange', onChange);
+    return () => window.removeEventListener('hashchange', onChange);
+  }, []);
+  return route;
 }
 
-type Status = { kind: 'connecting' } | { kind: 'connected'; version: string } | { kind: 'noToken' | 'rejected' | 'unreachable' };
+function Page({ route }: { route: Route }) {
+  switch (route.page) {
+    case 'projects':
+      return <ProjectsView />;
+    case 'project':
+      return <ProjectView key={route.slug} slug={route.slug} />;
+    case 'library':
+      return <LibraryView section={route.section} name={route.name} />;
+    case 'usage':
+      return <UsageView />;
+    case 'settings':
+      return <SettingsPage />;
+  }
+}
 
-function App({ lang, token }: { lang: Lang; token: string | undefined }) {
+function App({ initialLang, token }: { initialLang: Lang; token: string | undefined }) {
+  const [lang, setLang] = useState<Lang>(initialLang);
+  const [gate, setGate] = useState<Gate>(token === undefined ? 'noToken' : 'connecting');
+  const route = useRoute();
   const t = uiMessages[lang];
-  const [status, setStatus] = useState<Status>(token === undefined ? { kind: 'noToken' } : { kind: 'connecting' });
 
   useEffect(() => {
     if (token === undefined) return;
-    api<Health>(token, 'GET', '/api/health')
-      .then((health) => setStatus({ kind: 'connected', version: health.version }))
-      .catch((error: unknown) => setStatus({ kind: error instanceof ApiError ? 'rejected' : 'unreachable' }));
+    // The saved language wins over the browser's once the server has answered.
+    api<SettingsView>(token, 'GET', '/api/settings').then(
+      (settings) => {
+        setLang(settings.lang);
+        setGate('ready');
+      },
+      (error: unknown) => setGate(error instanceof ApiError ? 'rejected' : 'unreachable'),
+    );
   }, [token]);
 
-  let text: string;
-  switch (status.kind) {
-    case 'connecting':
-      text = t.connecting;
-      break;
-    case 'connected':
-      text = t.connected(status.version);
-      break;
-    default:
-      text = t[status.kind];
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  const context = useMemo<AppContext | undefined>(
+    () => (token === undefined ? undefined : { lang, t, token, setLang }),
+    [lang, t, token],
+  );
+
+  if (gate !== 'ready' || context === undefined) {
+    return (
+      <main>
+        <h1>{t.title}</h1>
+        <p role="status">{t[gate === 'ready' ? 'connecting' : gate]}</p>
+      </main>
+    );
   }
   return (
-    <main>
-      <h1>{t.title}</h1>
-      <p role="status">{text}</p>
-    </main>
+    <AppCtx.Provider value={context}>
+      <header>
+        <strong>{t.title}</strong>
+        <nav aria-label={t.navLabel}>
+          {NAV.map((item) => (
+            <a key={item.page} href={routeHash(item.route)} aria-current={route.page === item.page || (item.page === 'projects' && route.page === 'project') ? 'page' : undefined}>
+              {t[item.label]}
+            </a>
+          ))}
+        </nav>
+      </header>
+      <main>
+        <Page route={route} />
+      </main>
+    </AppCtx.Provider>
   );
 }
 
-const lang: Lang = langFromLocale(navigator.language) ?? 'en';
-document.documentElement.lang = lang;
+// 1. Read the token from the address and keep it for this tab; 2. clean the
+// address (`history.replaceState`); only then 3. start the router and render.
+const token = takeToken();
 const root = document.getElementById('app');
-if (root !== null) render(<App lang={lang} token={takeToken()} />, root);
+if (root !== null) render(<App initialLang={langFromLocale(navigator.language) ?? 'en'} token={token} />, root);
