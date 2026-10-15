@@ -1433,7 +1433,7 @@ Claude Code keeps its own data per project path (trust, history and memory
 under its own folders). A project that moves is a new project to Claude
 Code, and the old entry stays behind until the user removes it.
 
-## H6 design (2026-10-15, code only, nothing run against the real SDK)
+## H6 design (2026-10-15; closed and verified in real runs, see the end of this section)
 
 Built and tested with a scripted stand-in for `query()`. What is **not**
 verified until the real runs (`PLAN-phase-2.md`, "H6 status"): that a hook's
@@ -1542,6 +1542,22 @@ effort check. What it found and how each item was closed, one commit each:
 `check-guard-auto.ts` now also asks for a `.git` write, a `Monitor` call
 (added to `tools` on purpose so the guard is what stops it) and a
 main-session `WebFetch`; all three must be denied by the guard.
+
+### H6 closed: verified in real runs (2026-10-15)
+
+The user ran the real checks after the guard review; all passed. Source: the
+scripts' PASS/FAIL output, reported by the user.
+
+| Check | Result | What it confirms |
+|---|---|---|
+| `check-guard-auto.ts` | 10 PASS | Under `permissionMode: 'auto'` the guard's `deny` holds before the classifier: `echo hello`, a write outside the projects folder, a main-session `WebFetch` (never reached `canUseTool`), a write in `.git` and `Monitor` (offered on purpose) were denied and left nothing behind; its `allow` lets a write inside the projects folder through; `AskUserQuestion` reaches `canUseTool` and the answer comes back. |
+| `check-kill-tree.ts` | PASS (run before the review) | Killing the tree through `spawnClaudeCodeProcess` leaves no orphan. Nothing it uses changed in the review. |
+| `check-effort.ts` | PASS for `low` and `high` | The `effort` option of `query()` reaches a Sonnet session: the `Stop` hook input reports the requested level. H0 probe 5 is answered: the effort is applied; the init message just does not carry it. |
+
+This closes the items the section above lists as not verified, except the
+two the checks do not exercise: that the `briefstack-web` tools are listed
+to the skill (`alwaysLoad`) and the `slash_commands` field name. Both are
+exercised by H10, the real run from the browser, which is next.
 
 ## Decisiones sin Dani (decisions taken while the user was away, 2026-10-15)
 
