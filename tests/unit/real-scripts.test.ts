@@ -30,6 +30,25 @@ describe('check-effort: reads the effort from a Stop hook', () => {
   });
 });
 
+describe('check-guard-auto: the cases it tries', () => {
+  it('asks for a .git write, Monitor and a main-session WebFetch, and expects the guard to deny each', async () => {
+    const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-guard-auto.ts'), 'utf8');
+    expect(script).toContain("path.join(box.projects, 'app', '.git', 'hooks', 'pre-commit')");
+    expect(script).toContain("options.tools = [...(options.tools as string[]), 'Monitor']");
+    expect(script).toContain('Use the Monitor tool');
+    for (const name of [
+      'web fetch by the main session denied by the guard',
+      'write in .git denied by the guard',
+      'write in .git left no file',
+      'Monitor denied by the guard',
+      'Monitor command did not run',
+    ]) {
+      expect(script).toMatch(new RegExp(`ok =\\s*report\\(\\s*'${name.replaceAll('.', '\\.')}'`));
+    }
+    expect(script).not.toContain('decided by the classifier');
+  });
+});
+
 describe('check-kill-tree: the one command it allows', () => {
   const expected = 'node "C:/Temp/briefstack-real-kill-abc123/sleeper.cjs"';
   const decide = onlyThisCommand(expected);
