@@ -294,7 +294,7 @@ data: {"seq":12,"ts":"<ISO time>","kind":"flow","data":{…}}
 | `flow` | an `events.jsonl` line from the flow: `step.started`/`step.finished` (`step`, `outcome`) or `session.started`/`session.finished` (`outcome`) |
 | `hook` | an `events.jsonl` line from the hooks: `subagent.start`/`subagent.stop` (`agentId`, `agentType`), `tool.pre`/`tool.post`/`tool.failure` (`tool`), `session.end` (`reason`) |
 | `question`, `permission`, `spec`, `grant` | `{ "pendingId", "state": "pending", "payload" }` when shown, `{ "pendingId", "state": "answered", "answer" }` when answered (by the user or by a cancel) |
-| `status` | `{ "status", "outcome"?, "sessionId"?, "cancelling"?, "runner"? }`: a status change, or progress the runner reports itself in `runner` |
+| `status` | `{ "status", "outcome"?, "sessionId"?, "cancelling"?, "runner"? }`: a status change, or progress the runner reports itself in `runner`. Once per creation the real runner reports `runner: { "kind": "effort", "level", "requested"? }`: the effort Claude Code applied (from the first `PreToolUse` hook input) and the one the profile asked for |
 | `denied` | `{ "toolName", "summary", "agentType"?, "at", "by": "policy" \| "runner", "reason"? }` |
 
 `seq` starts at 1 and has no gaps within a creation. The `flow` and `hook`

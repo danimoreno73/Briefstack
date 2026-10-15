@@ -2,10 +2,33 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
-import { GIT_STATUS_ARGS, onlyThisCommand } from '../../scripts/real/common.js';
+import { GIT_STATUS_ARGS, effortRecorder, onlyThisCommand } from '../../scripts/real/common.js';
 
 // These scripts start real Claude Code sessions and are never run by the tests;
 // what can be checked without one is checked here.
+
+describe('check-effort: reads the effort from a Stop hook', () => {
+  const signal = { signal: new AbortController().signal };
+  const stop = (extra: Record<string, unknown>) =>
+    ({ hook_event_name: 'Stop', session_id: 's', transcript_path: '', cwd: '', stop_hook_active: false, ...extra }) as never;
+
+  it('keeps the level a Stop hook input reports, and nothing else', async () => {
+    const recorder = effortRecorder();
+    await recorder.hook(stop({}), undefined, signal);
+    expect(recorder.level()).toBeUndefined();
+    await recorder.hook({ hook_event_name: 'PreToolUse', effort: { level: 'max' } } as never, undefined, signal);
+    expect(recorder.level()).toBeUndefined();
+    await recorder.hook(stop({ effort: { level: 'low' } }), undefined, signal);
+    expect(recorder.level()).toBe('low');
+  });
+
+  it('registers that hook and no longer trusts the init message', async () => {
+    const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-effort.ts'), 'utf8');
+    expect(script).toContain('hooks: { Stop: [{ hooks: [recorder.hook] }] }');
+    expect(script).toContain('level === effort');
+    expect(script).not.toMatch(/\{ effort\?: unknown \}\)\.effort/);
+  });
+});
 
 describe('check-kill-tree: the one command it allows', () => {
   const expected = 'node "C:/Temp/briefstack-real-kill-abc123/sleeper.cjs"';

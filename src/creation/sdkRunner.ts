@@ -228,6 +228,8 @@ class SdkRun {
   private readonly running = new Set<string>();
   /** Requests to the user that have no answer yet. */
   private requests = 0;
+  /** Whether the applied effort was already reported. */
+  private effortReported = false;
   private readonly input = new InputQueue();
   private readonly abort = new AbortController();
   private readonly tracked: TrackedSpawn;
@@ -316,6 +318,18 @@ class SdkRun {
         }
         return {};
       };
+      // The init message of an SDK session carries no effort; hook inputs in a tool context do.
+      const recordEffort: HookCallback = async (hook) => {
+        // Hooks of one event may run side by side, so this one claims the session as the guard does.
+        if (this.claimed === undefined) this.claim(hook.session_id);
+        if (this.effortReported || hook.session_id !== this.claimed) return {};
+        const level = (hook as { effort?: { level?: unknown } }).effort?.level;
+        if (typeof level !== 'string' || level === '') return {};
+        this.effortReported = true;
+        const requested = this.options.profile.effort;
+        this.io.emit({ kind: 'effort', level, ...(requested === undefined ? {} : { requested }) });
+        return {};
+      };
       const webTools = createWebToolsServer({
         // Waiting for the user on the spec or a folder counts as a request too.
         io: {
@@ -340,6 +354,7 @@ class SdkRun {
             {
               hooks: [
                 guardHook(guardContext, (denial) => this.io.emit({ kind: 'denial', ...denial })),
+                recordEffort,
               ],
             },
           ],

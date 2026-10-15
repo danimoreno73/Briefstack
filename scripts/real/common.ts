@@ -8,7 +8,7 @@
 // Each one works in a temp folder it creates (including a temp BRIEFSTACK_HOME)
 // and deletes it at the end. None touches the real library or projects.
 
-import { query, type PermissionResult } from '@anthropic-ai/claude-agent-sdk';
+import { query, type HookCallback, type PermissionResult } from '@anthropic-ai/claude-agent-sdk';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -119,6 +119,24 @@ export function onlyThisCommand(expected: string): (toolName: string, input: Rec
       return { behavior: 'allow', updatedInput: input };
     }
     return { behavior: 'deny', message: 'This check allows only the one command it asked for.' };
+  };
+}
+
+/**
+ * A `Stop` hook that keeps the effort Claude Code applied to the turn. The
+ * init message of an SDK session does not carry it (the field is only on
+ * Remote Control frames), but hook inputs in a tool-use context, `Stop`
+ * among them, carry `effort.level` after any downgrade for the model.
+ */
+export function effortRecorder(): { hook: HookCallback; level: () => string | undefined } {
+  let level: string | undefined;
+  return {
+    hook: async (input) => {
+      const reported = (input as { effort?: { level?: unknown } }).effort?.level;
+      if (input.hook_event_name === 'Stop' && typeof reported === 'string' && reported !== '') level = reported;
+      return {};
+    },
+    level: () => level,
   };
 }
 

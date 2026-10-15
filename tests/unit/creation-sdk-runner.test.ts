@@ -286,6 +286,29 @@ describe('SdkRunner', () => {
     await handle.stop();
   });
 
+  it('records the effort of the first PreToolUse that reports one, once, next to the requested one', async () => {
+    const handle = start();
+    init();
+    await handle.sessionId;
+    const hooks = options().hooks?.PreToolUse?.flatMap((matcher) => matcher.hooks) ?? [];
+    const fire = async (extra: Record<string, unknown>) => {
+      for (const hook of hooks) {
+        await hook(
+          { hook_event_name: 'PreToolUse', session_id: SESSION, transcript_path: '', cwd: '', tool_name: 'Read', tool_input: {}, tool_use_id: 't', ...extra } as never,
+          't',
+          { signal: new AbortController().signal },
+        );
+      }
+    };
+    await fire({});
+    await fire({ session_id: 'someone-else', effort: { level: 'max' } });
+    expect(events.filter((event) => event.kind === 'effort')).toEqual([]);
+    await fire({ effort: { level: 'low' } });
+    await fire({ effort: { level: 'high' } });
+    expect(events.filter((event) => event.kind === 'effort')).toEqual([{ kind: 'effort', level: 'low', requested: 'medium' }]);
+    await handle.stop();
+  });
+
   it('turns AskUserQuestion into the form and back into updatedInput.answers', async () => {
     const handle = start();
     init();
