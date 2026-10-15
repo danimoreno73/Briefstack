@@ -122,6 +122,10 @@ const errors = defineCatalogue<ErrorMessages>({
     'creation.unavailable': () => 'Creating projects is not available in this server.',
     'creation.busy': (p) =>
       `A creation is already running (${p.active}). Finish or cancel it before starting another one.`,
+    'creation.claudeNotFound': () =>
+      'Claude Code was not found. Install it (https://claude.com/claude-code), log in with `claude`, and start briefstack web again.',
+    'creation.slashCommandMissing': (p) =>
+      `Claude Code did not list /${p.command} among its commands, so the creation cannot start. Check that the briefstack repository is the working folder and has .claude/skills/${p.command}.`,
     'creation.notFound': (p) => `No creation with id ${p.id}.`,
     'creation.noPending': (p) => `Creation ${p.id} is not waiting for an answer.`,
     'creation.wrongPending': (p) =>
@@ -210,6 +214,10 @@ const errors = defineCatalogue<ErrorMessages>({
     'creation.unavailable': () => 'Este servidor no permite crear proyectos.',
     'creation.busy': (p) =>
       `Ya hay una creación en marcha (${p.active}). Termínala o cancélala antes de empezar otra.`,
+    'creation.claudeNotFound': () =>
+      'No se encontró Claude Code. Instálalo (https://claude.com/claude-code), inicia sesión con `claude` y vuelve a arrancar briefstack web.',
+    'creation.slashCommandMissing': (p) =>
+      `Claude Code no ha listado /${p.command} entre sus comandos, así que la creación no puede empezar. Comprueba que el repositorio de briefstack es la carpeta de trabajo y tiene .claude/skills/${p.command}.`,
     'creation.notFound': (p) => `No hay ninguna creación con id ${p.id}.`,
     'creation.noPending': (p) => `La creación ${p.id} no está esperando ninguna respuesta.`,
     'creation.wrongPending': (p) =>

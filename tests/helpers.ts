@@ -27,7 +27,7 @@ export function specInput(overrides: Partial<SpecInput> = {}): SpecInput {
 /** Creates a temp folder and returns it with a cleanup function. */
 export async function tempDir(prefix: string): Promise<{ dir: string; cleanup: () => Promise<void> }> {
   const dir = await mkdtemp(path.join(os.tmpdir(), `briefstack-${prefix}-`));
-  return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
+  return { dir, cleanup: () => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) };
 }
 
 /** Writes files given as `{ 'a/b.md': 'content' }` under `root`. */
