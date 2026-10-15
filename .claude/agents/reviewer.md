@@ -56,6 +56,7 @@ Output:
 
 Rules:
 
-- Use Bash only to run the validator and read-only commands.
+- Use Bash only to run `briefstack validate`. Inspect the project with Glob
+  and Read, not with shell commands.
 - Do not edit, create or delete any file.
 - Judge against the spec, not against what you would have designed.

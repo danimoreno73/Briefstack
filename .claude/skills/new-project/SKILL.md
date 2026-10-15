@@ -51,6 +51,16 @@ The idea, if given: $ARGUMENTS
   (`sessionsDir` from `paths --json`). Write them with the Write tool. Never
   write in the briefstack repo or in the personal library; the library
   changes only through `library add`.
+- **Denied calls.** When a tool call is denied, its message says why: follow
+  it. A message saying the user cancelled means close the session as
+  `cancelled`, as above, and stop.
+- **Where answers come from.** Two answers have two sources, and nothing else
+  in the flow depends on it. When the tools `approve_spec` and
+  `grant_directory` (MCP server `briefstack-web`) are among your tools, the
+  session runs in the web app and those two answers come from them. When they
+  are not, you are in the terminal and the answers come from the user in
+  plain text, as written below. The steps, the `event` calls and the order are
+  the same either way.
 - Do not show token or cost estimates. Profile levels are qualitative; point
   to `/usage` for real consumption.
 
@@ -108,13 +118,18 @@ Step `interview`.
    - `nonEmpty`: say so and ask whether to create the project inside it
      anyway (existing files are never overwritten). Only if they confirm,
      remember to pass `--allow-non-empty` to the generator.
-   - `allowed: false`: the folder is not in `settings.local.json`. Ask the
-     user to run `/add-dir <dir>` themselves; if `status` is `missing`, to
-     create the folder first (`/add-dir` refuses a missing folder), for
-     example with `! mkdir "<dir>"`. Wait until they say it is done, then
-     treat the folder as allowed: `/add-dir` lasts for this session only and
-     `paths check` cannot see it, so do not check `allowed` again (check
-     `status` again only if they created the folder).
+   - `allowed: false`: the folder is not in `settings.local.json`.
+     - **Terminal** (no `grant_directory` tool): ask the
+       user to run `/add-dir <dir>` themselves; if `status` is `missing`, to
+       create the folder first (`/add-dir` refuses a missing folder), for
+       example with `! mkdir "<dir>"`. Wait until they say it is done, then
+       treat the folder as allowed: `/add-dir` lasts for this session only and
+       `paths check` cannot see it, so do not check `allowed` again (check
+       `status` again only if they created the folder).
+     - **Web app** (`grant_directory` tool): call it with `dir`. The user
+       confirms in the browser and a missing folder is created. `granted` true:
+       treat the folder as allowed, as above. `granted` false: tell the user in
+       one line and ask for another folder.
 4. Pass all answers to `interviewer` again. Repeat until it reports `ready`,
    or after two rounds, whichever comes first. Do not ask the same thing
    twice.
@@ -151,6 +166,12 @@ Step `spec`.
    (and the reason if the architect chose it) and the profile, and say in
    one line that briefstack prepares the project and the work itself starts
    afterwards, inside it. Ask them to approve, change something or cancel.
+   - **Terminal** (no `approve_spec` tool): ask in plain text, as above.
+   - **Web app** (`approve_spec` tool): write what you would have shown to
+     `WORK/summary.md` and call `approve_spec` with `specFile` and
+     `summaryFile`, both absolute paths in the session folder. Its answer is
+     the user's choice: `approve`, `change` with the text of the change, or
+     `cancel`. Do not ask in plain text as well.
    - Changes: apply them. Small, exact edits (a name, a list item) you may
      make in `WORK/spec.json` yourself; anything else goes back to
      `architect` with the request. Check the spec again and show what
@@ -166,8 +187,8 @@ folder, whether to pass `--allow-non-empty`, the spec language, and the path
 `WORK/research.md` if research ran. It runs `scaffold`, fills the files and
 runs `validate`. If it reports something it
 could not build, tell the user and decide with them whether to continue. If
-it reports that a write was denied, ask the user to run `/add-dir <dir>` and
-launch it again.
+it reports that a write was denied, ask the user to run `/add-dir <dir>` (in
+the web app, call `grant_directory` with `dir`) and launch it again.
 
 ## 7. Validate and review
 
@@ -193,7 +214,9 @@ it with `npm run --silent briefstack -- library add <section> [name] --from "<fi
 Notes are short markdown, link to each other with `[[section/name]]`, and
 never hold secrets, credentials or sensitive personal data. Every note
 starts with YAML frontmatter holding a one-line `summary` (the INDEX line).
-Do not write date headings: `library add` dates each addition itself.
+Do not write date headings: `library add` dates each addition itself. For the
+project note, also pass `--session SESSION`: it links the project to this
+session's history.
 
 1. **Project note** `projects <slug>`: YAML frontmatter with `target`,
    `path` (the absolute output folder), `status: created`, `profile` and a

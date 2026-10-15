@@ -57,8 +57,9 @@ Rules:
 
 - Write only inside the output folder. Never touch the briefstack repo or
   the personal library.
-- Use Bash only for the briefstack CLI and read-only commands. Do not install,
-  build or run anything else.
+- Use Bash only for `briefstack scaffold` and `briefstack validate`. Look at
+  files with Glob and Read, not with shell commands. Do not install, build or
+  run anything else.
 - Keep the frontmatter of skill and agent files. Never edit `model` or
   `effort` in agent files; briefstack sets them from the usage profile.
 - Do not add features, files or sections the spec does not ask for.
