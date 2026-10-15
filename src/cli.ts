@@ -52,6 +52,8 @@ import { validateProject } from './validate/index.js';
 import { DEFAULT_WEB_PORT, startWebServer } from './server/index.js';
 import { webMessages } from './i18n/web.js';
 import { checkClaudeCode, formatVersion, type ClaudeCheck } from './creation/claudeBinary.js';
+import type { CreationRunner } from './creation/types.js';
+import { createWebCreations } from './creation/wiring.js';
 
 /** Argument parsing only; all real work lives in the library. */
 
@@ -75,6 +77,8 @@ export interface CliIO {
   uiDir?: string;
   /** Checks the installed Claude Code for `web`; tests pass their own. */
   checkClaude?: () => Promise<ClaudeCheck>;
+  /** The runner `web` creates projects with: the real SDK runner unless a test passes the fake one. */
+  creationRunner?: CreationRunner;
 }
 
 const defaultIO = (): CliIO => ({
@@ -530,7 +534,27 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     port = Number(portValue);
     if (!/^\d+$/.test(portValue) || port > 65535) throw new BriefstackError('web.invalidPort', { value: portValue });
   }
-  const server = await startWebServer({ port, lang, log: io.err, pathEnv: io.pathEnv, ...(io.repoDir === undefined ? {} : { repoDir: io.repoDir }),...(io.uiDir === undefined ? {} : { uiDir: io.uiDir }) });
+  const creations = await createWebCreations({
+    pathEnv: io.pathEnv,
+    repoDir: io.repoDir,
+    lang,
+    runner: io.creationRunner,
+  });
+  let server;
+  try {
+    server = await startWebServer({
+      port,
+      lang,
+      log: io.err,
+      pathEnv: io.pathEnv,
+      creations,
+      ...(io.repoDir === undefined ? {} : { repoDir: io.repoDir }),
+      ...(io.uiDir === undefined ? {} : { uiDir: io.uiDir }),
+    });
+  } catch (error) {
+    await creations.shutdown();
+    throw error;
+  }
   io.out(messages.listening);
   // Alone on its own line, so it is easy to copy.
   io.out(server.url);
@@ -539,6 +563,8 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   const warning = claudeWarning(claude, lang);
   if (warning !== undefined) io.err(warning);
   await (io.untilStopped ?? untilSignal)();
+  // Creations first: a running one is closed as interrupted before the server goes.
+  await creations.shutdown();
   await server.close();
   io.out(messages.stopped);
   return EXIT_OK;

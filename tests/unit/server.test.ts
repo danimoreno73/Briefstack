@@ -6,6 +6,9 @@ import { main, type CliIO } from '../../src/cli.js';
 import { BriefstackError } from '../../src/errors.js';
 import { startWebServer, TOKEN_HEADER, type WebServer } from '../../src/server/index.js';
 import type { ClaudeCheck } from '../../src/creation/claudeBinary.js';
+import { FakeRunner } from '../../src/creation/fakeRunner.js';
+import { PACKAGE_ROOT } from '../../src/packageRoot.js';
+import { readFile } from 'node:fs/promises';
 import { VERSION } from '../../src/version.js';
 import { tempDir, writeTree } from '../helpers.js';
 
@@ -195,6 +198,73 @@ describe('briefstack web', () => {
       pathApi: path,
       caseInsensitive: process.platform !== 'linux',
     },
+  });
+
+  describe('creations', () => {
+    /** Runs `web` until `stop()`, and gives the address it printed. */
+    const runWeb = async (runner?: FakeRunner) => {
+      const out: string[] = [];
+      let stop!: () => void;
+      const stopped = new Promise<void>((resolve) => (stop = resolve));
+      const done = main(['web', '--port', '0'], { ...io(out, [], () => stopped), ...(runner === undefined ? {} : { creationRunner: runner }) });
+      for (let i = 0; i < 200 && out[1] === undefined; i += 1) await new Promise((resolve) => setTimeout(resolve, 20));
+      const url = new URL(out[1] ?? 'http://127.0.0.1:1/');
+      const token = url.hash.replace('#token=', '');
+      const call = (method: string, route: string, body?: unknown): Promise<Reply> =>
+        new Promise((resolve, reject) => {
+          const req = request(
+            {
+              host: '127.0.0.1',
+              port: Number(url.port),
+              path: route,
+              method,
+              headers: {
+                host: url.host,
+                [TOKEN_HEADER]: token,
+                origin: url.origin,
+                'sec-fetch-site': 'same-origin',
+                'content-type': 'application/json',
+              },
+            },
+            (res) => {
+              let text = '';
+              res.setEncoding('utf8');
+              res.on('data', (chunk: string) => (text += chunk));
+              res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: text }));
+            },
+          );
+          req.on('error', reject);
+          req.end(body === undefined ? undefined : JSON.stringify(body));
+        });
+      return { call, stop, done };
+    };
+
+    it('answers the creation routes instead of 503, with the real runner unless a test passes one', async () => {
+      const { call, stop, done } = await runWeb();
+      const listed = await call('GET', '/api/creations');
+      expect(listed.status).toBe(200);
+      expect(JSON.parse(listed.body)).toEqual({ creations: [] });
+      stop();
+      expect(await done).toBe(0);
+    });
+
+    it('closes a running creation as interrupted when the server stops, before the server goes', async () => {
+      const runner = await FakeRunner.fromFile(path.join(PACKAGE_ROOT, 'tests', 'fixtures', 'recordings', 'full.jsonl'));
+      const { call, stop, done } = await runWeb(runner);
+      const created = JSON.parse((await call('POST', '/api/creations', { idea: 'A garden planner' })).body) as { id: string };
+      let state: { status: string; sessionId?: string } = { status: 'running' };
+      for (let i = 0; i < 200 && state.status !== 'waiting'; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        state = JSON.parse((await call('GET', `/api/creations/${created.id}`)).body) as typeof state;
+      }
+      expect(state.status).toBe('waiting');
+      const session = state.sessionId as string;
+      stop();
+      expect(await done).toBe(0);
+      const events = await readFile(path.join(dir, 'home', 'sessions', session, 'events.jsonl'), 'utf8');
+      expect(events).toContain('"reason":"server_stop"');
+      expect(events).not.toContain('session.finished');
+    });
   });
 
   it('prints the URL alone on its own line and stops cleanly', async () => {

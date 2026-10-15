@@ -137,7 +137,7 @@ export interface CreationManagerOptions {
   runner: CreationRunner;
   sessionsDir: string;
   /** Read when a creation starts; it applies to that creation until it ends. */
-  policy: () => PermissionPolicy;
+  policy: () => PermissionPolicy | Promise<PermissionPolicy>;
   /** The active usage profile's session model and effort. */
   profile: () => RunnerProfile | Promise<RunnerProfile>;
   now?: () => Date;
@@ -224,13 +224,12 @@ export class CreationManager {
     const active = [...this.creations.values()].find((c) => c.state.status !== 'finished');
     if (active !== undefined) throw new BriefstackError('creation.busy', { active: active.state.id });
 
-    const policy = this.options.policy();
     const c: Creation = {
       state: {
         id: randomUUID(),
         idea,
         profile: '',
-        policy,
+        policy: 'ask',
         status: 'running',
         denied: [],
         startedAt: this.now().toISOString(),
@@ -248,6 +247,7 @@ export class CreationManager {
     this.creations.set(c.state.id, c);
 
     try {
+      c.state.policy = await this.options.policy();
       const profile = await this.options.profile();
       c.state.profile = profile.name;
       c.handle = this.options.runner.start({
@@ -255,7 +255,7 @@ export class CreationManager {
         idea,
         profile,
         sessionsDir: this.options.sessionsDir,
-        policy,
+        policy: c.state.policy,
         io: this.io(c),
       });
     } catch (error) {
