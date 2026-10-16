@@ -189,6 +189,39 @@ describe('CreationManager', () => {
     ]);
   });
 
+  it('marks a turn that ended with nothing asked as awaiting a reply, redacted, until the next turn or request', async () => {
+    const key = ['sk', 'ant', 'a'.repeat(30)].join('-');
+    const steps = parseRecording(
+      [
+        '{"do":"session","phase":"started"}',
+        '{"do":"flow","step":"spec","phase":"started"}',
+        JSON.stringify({ do: 'emit', event: { kind: 'status', status: 'turnEnded', message: `Do you approve it?\nkey=${key}` } }),
+        '{"do":"wait","ms":150}',
+        '{"do":"emit","event":{"kind":"status","status":"running"}}',
+        '{"do":"wait","ms":150}',
+        '{"do":"emit","event":{"kind":"status","status":"turnEnded","message":"Again?"}}',
+        '{"do":"question","questions":[{"question":"Name?","header":"Name","options":[{"label":"A","description":""}],"multiSelect":false}]}',
+        '{"do":"session","phase":"finished","outcome":"completed"}',
+      ].join('\n'),
+    );
+    const m = await make(new FakeRunner({ steps }));
+    const { id } = await m.create('x');
+    const seen: StreamEvent[] = [];
+    m.subscribe(id, 0, (e) => seen.push(e));
+
+    const waiting = await waitFor(() => m.get(id).awaitingReply);
+    expect(waiting.lastMessage).toContain('Do you approve it?');
+    expect(waiting.lastMessage).not.toContain(key);
+    expect(JSON.stringify(seen)).not.toContain(key);
+    await waitFor(() => m.get(id).awaitingReply === undefined);
+
+    // A question asked after the end of a turn is what the page shows instead.
+    const asked = await waitFor(() => (m.get(id).pending !== undefined ? m.get(id) : undefined));
+    expect(asked.awaitingReply).toBeUndefined();
+    const final = await runToEnd(m, id);
+    expect(final.awaitingReply).toBeUndefined();
+  });
+
   it('allows one active creation at a time', async () => {
     const m = await make('full.jsonl');
     const first = await m.create('one');

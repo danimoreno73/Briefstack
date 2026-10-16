@@ -76,6 +76,11 @@ export interface GrantRequest {
 
 /** Progress a runner reports that `events.jsonl` does not carry (or not yet). */
 export type RunnerEvent =
+  /**
+   * `message` is a note for `starting`, and for `turnEnded` the main
+   * session's last text (not yet redacted), which the page shows when the
+   * turn ended with nothing asked.
+   */
   | { kind: 'status'; status: 'starting' | 'running' | 'turnEnded' | 'stopping' | 'error'; message?: string }
   | { kind: 'agent'; phase: 'started' | 'stopped'; agentType: string; agentId?: string }
   | { kind: 'step'; step: FlowStep; phase: StepPhase }

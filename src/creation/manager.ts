@@ -100,6 +100,12 @@ export interface CreationState {
   pending?: Pending;
   /** Set once the user cancelled and the flow has not closed yet. */
   cancelling?: true;
+  /**
+   * Set when the session ended a turn and asks nothing in the browser: it
+   * waits for a reply the page cannot send. `lastMessage` is the main
+   * session's last text, redacted. Cleared when a turn starts or something is asked.
+   */
+  awaitingReply?: { lastMessage: string; at: string };
   denied: DeniedRequest[];
   /** Why the runner failed, when it did. Never contains tool inputs. */
   error?: string;
@@ -499,7 +505,14 @@ export class CreationManager {
           if (event.agentType !== undefined) data.agentType = event.agentType;
           this.push(c, { kind: 'denied', data });
         } else {
-          this.push(c, { kind: 'status', data: { ...this.statusData(c), runner: event } });
+          const runner = event.kind === 'status' && event.message !== undefined ? { ...event, message: redactSecretLines(event.message) } : event;
+          if (runner.kind === 'status' && runner.status === 'turnEnded') {
+            // Requests are asked during a turn, so normally none is waiting here; if one is, it is what the page shows.
+            if (c.queue.length === 0) c.state.awaitingReply = { lastMessage: runner.message ?? '', at: this.now().toISOString() };
+          } else if (runner.kind === 'status' && runner.status === 'running') {
+            delete c.state.awaitingReply;
+          }
+          this.push(c, { kind: 'status', data: { ...this.statusData(c), runner } });
         }
       },
     };
@@ -529,6 +542,7 @@ export class CreationManager {
       return;
     }
     c.state.status = 'waiting';
+    delete c.state.awaitingReply;
     this.pushStatus(c);
     this.push(c, { kind: head.pending.kind, data: { pendingId: head.pending.id, state: 'pending', payload: head.pending.payload } });
   }
@@ -616,6 +630,7 @@ export class CreationManager {
     c.state.outcome = outcome;
     c.state.finishedAt = this.now().toISOString();
     delete c.state.cancelling;
+    delete c.state.awaitingReply;
     for (const timer of [c.pollTimer, c.cancelTimer]) if (timer !== undefined) clearTimeout(timer);
     c.pollTimer = undefined;
     c.cancelTimer = undefined;

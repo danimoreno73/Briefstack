@@ -243,6 +243,12 @@ function CreationView({ id }: { id: string }) {
         <div class="creation-main">
           {finished ? (
             <Result state={state} progress={progress} />
+          ) : pending === undefined && state.awaitingReply !== undefined && !state.cancelling ? (
+            <div class="panel" data-testid="awaiting-reply">
+              <h2>{t.awaitingReplyTitle}</h2>
+              <p role="status">{t.awaitingReplyBody}</p>
+              <Markdown text={state.awaitingReply.lastMessage} />
+            </div>
           ) : pending === undefined ? (
             <p role="status" data-testid="working">
               {state.cancelling ? t.cancellingNote : t.statusWorking}

@@ -146,6 +146,8 @@ export interface CreationState {
   outcome?: 'completed' | 'cancelled' | 'failed' | 'interrupted';
   pending?: Pending;
   cancelling?: true;
+  /** The session ended a turn with nothing asked here; `lastMessage` is redacted by the server. */
+  awaitingReply?: { lastMessage: string; at: string };
   denied: DeniedRequest[];
   error?: string;
   startedAt: string;

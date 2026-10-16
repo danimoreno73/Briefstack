@@ -242,6 +242,7 @@ export interface SdkRunnerDeps {
 }
 
 const IDLE_AFTER_RESULT_MS = 15 * 60_000;
+const MAX_LAST_MESSAGE = 4000;
 const IDLE_WITH_AGENTS_MS = 2 * 60 * 60_000;
 
 export class SdkRunner implements CreationRunner {
@@ -464,7 +465,9 @@ class SdkRun {
     }
     if (message.type === 'result') {
       this.afterResult = true;
-      this.io.emit({ kind: 'status', status: 'turnEnded' });
+      // The main session's last text: shown if the turn ended with nothing asked in the browser.
+      const last = 'result' in message && typeof message.result === 'string' ? message.result.trim().slice(0, MAX_LAST_MESSAGE) : '';
+      this.io.emit({ kind: 'status', status: 'turnEnded', ...(last === '' ? {} : { message: last }) });
       this.armIdle();
     }
   }

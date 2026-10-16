@@ -525,6 +525,19 @@ describe('SdkRunner', () => {
     expect(events).toContainEqual({ kind: 'status', status: 'turnEnded' });
   });
 
+  it('sends the main session last text with the end of a turn, trimmed and cut', async () => {
+    const handle = start();
+    init();
+    await handle.sessionId;
+    fake.push({ type: 'result', subtype: 'success', result: '  Do you approve it?  ' });
+    fake.push({ type: 'result', subtype: 'success', result: 'x'.repeat(5000) });
+    await tick();
+    const ended = events.filter((event) => event.kind === 'status' && event.status === 'turnEnded');
+    expect(ended[0]).toEqual({ kind: 'status', status: 'turnEnded', message: 'Do you approve it?' });
+    expect((ended[1] as { message: string }).message).toHaveLength(4000);
+    await handle.stop();
+  });
+
   it('keeps waiting while messages keep coming after a result (a background agent is working)', async () => {
     const handle = start(runner({ idleAfterResultMs: 80 }));
     init();

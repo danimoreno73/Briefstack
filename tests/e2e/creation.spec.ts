@@ -332,6 +332,29 @@ test.describe('secrets in a permission request', () => {
   });
 });
 
+test.describe('a turn that ends with nothing asked on the page', () => {
+  const recording = [
+    '{"do":"session","phase":"started"}',
+    '{"do":"flow","step":"spec","phase":"started"}',
+    JSON.stringify({ do: 'emit', event: { kind: 'status', status: 'turnEnded', message: `**Do you approve it?**\nkey: ${FAKE_KEY}` } }),
+    '{"do":"wait","ms":60000}',
+  ].join(String.fromCharCode(10));
+  test.use({ appOptions: { recordingText: recording } });
+
+  test('shows the last message, redacted, and says the session waits, not that it is working', async ({ page, app }) => {
+    await startCreation(page, app);
+    const panel = page.getByTestId('awaiting-reply');
+    await expect(panel.getByRole('heading', { name: 'The session is waiting for a reply' })).toBeVisible();
+    await expect(panel.locator('strong')).toHaveText('Do you approve it?');
+    await expect(page.getByTestId('working')).toHaveCount(0);
+    await expect(cancelButton(page)).toBeVisible();
+    expect(await everywhere(page)).not.toContain(FAKE_KEY);
+    await page.reload();
+    await expect(page.getByTestId('awaiting-reply')).toContainText('Do you approve it?');
+    expect(await everywhere(page)).not.toContain(FAKE_KEY);
+  });
+});
+
 test.describe('in Spanish', () => {
   test.use({ appOptions: { lang: 'es' } });
 

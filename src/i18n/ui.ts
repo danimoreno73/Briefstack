@@ -221,6 +221,9 @@ export const uiMessages = defineCatalogue({
     mainSessionWorking: 'the main session',
     statusWaiting: 'Waiting for your answer.',
     statusWorking: 'Working…',
+    awaitingReplyTitle: 'The session is waiting for a reply',
+    awaitingReplyBody:
+      'Claude ended its turn without asking anything on this page, so nothing here can answer it. This is its last message. You can cancel the creation; replying from the page is not available yet.',
     cancellingNote: 'Cancelling: the flow is closing the session at its next step. Nothing is cut halfway.',
     streamLost: 'Connection lost. Reconnecting…',
     cancelCreation: 'Cancel creation',
@@ -486,6 +489,9 @@ export const uiMessages = defineCatalogue({
     mainSessionWorking: 'la sesión principal',
     statusWaiting: 'Esperando tu respuesta.',
     statusWorking: 'Trabajando…',
+    awaitingReplyTitle: 'La sesión espera una respuesta',
+    awaitingReplyBody:
+      'Claude ha terminado su turno sin preguntar nada en esta página, así que desde aquí no se le puede contestar. Este es su último mensaje. Puedes cancelar la creación; responder desde la página aún no está disponible.',
     cancellingNote: 'Cancelando: el flujo cierra la sesión en su próximo paso. Nada se corta a medias.',
     streamLost: 'Se perdió la conexión. Reconectando…',
     cancelCreation: 'Cancelar creación',
