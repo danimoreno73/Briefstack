@@ -1823,3 +1823,30 @@ interview was rejected by Claude Code because one question had a single
 option ("fewer than 2 options … the person never saw it"); the model resent
 it with two and went on. If it happens again, the skill or the interviewer
 should never offer a one-option question.
+
+# Phase 3
+
+## Decisiones sin Dani (fase 3)
+
+Decisions taken while the user was away (2026-10-16), each the most
+conservative reading of the brief. The user can revisit any of them.
+
+1. **The brief was missing at first.** `docs/BRIEF-phase-3.md` did not exist
+   when the run started; nothing was done until the user added it. It is
+   committed as given.
+2. **P1, where the rule lives.** `library/rules/target.md`, a new `rules/`
+   folder in the base library. The interviewer reads and cites it; the
+   architect reads it and cites it in `targetReason` when it chose.
+   `targetChosenBy` is optional in the schema, so every spec written before
+   it stays valid; the architect is told to always set it. The project
+   detail page reads it from the project's `.briefstack/spec.json` instead
+   of adding a field to the project note's status block (no format change).
+   Accepting the interviewer's recommended option counts as the user
+   choosing.
+3. **P2 is prompt text only.** A deterministic check would need a new CLI
+   subcommand, and the guard's command list is not to be changed in this
+   run. The rule is pinned by tests on the agent and skill text.
+4. **P3 hides the warning silently.** The backlog suggested a console note;
+   the brief asks for a comment and a test, so there is no note. The filter
+   matches the exact set of the two tools; a test fails if the installed SDK
+   changes the wording, which makes the warning visible again.
