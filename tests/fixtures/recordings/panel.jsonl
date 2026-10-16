@@ -1,0 +1,51 @@
+# A creation with the phase 3 event fields, for the agent panel: models and
+# efforts, targets, a guard denial on the architect, a question from the main
+# session and a permission request from the generator. Replayed by FakeRunner.
+{"do":"session","phase":"started"}
+{"do":"flow","step":"idea","phase":"started"}
+{"do":"hook","type":"tool.pre","tool":"Write","toolUseId":"m1","target":{"root":"session","path":"idea.md"},"effort":"high"}
+{"do":"hook","type":"tool.post","tool":"Write","toolUseId":"m1"}
+{"do":"flow","step":"idea","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"gap-analysis","phase":"started"}
+{"do":"hook","type":"tool.pre","tool":"Agent","toolUseId":"m2","effort":"high"}
+{"do":"hook","type":"subagent.start","agentId":"i1","agentType":"interviewer","model":"sonnet"}
+{"do":"hook","type":"tool.pre","agentId":"i1","agentType":"interviewer","tool":"Read","toolUseId":"i1r1","target":{"root":"repo","path":"library/rules/target.md"},"effort":"medium"}
+{"do":"hook","type":"tool.post","agentId":"i1","agentType":"interviewer","tool":"Read","toolUseId":"i1r1"}
+{"do":"hook","type":"subagent.stop","agentId":"i1","agentType":"interviewer","effort":"medium"}
+{"do":"hook","type":"tool.post","tool":"Agent","toolUseId":"m2"}
+{"do":"flow","step":"gap-analysis","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"interview","phase":"started"}
+{"do":"hook","type":"tool.pre","tool":"AskUserQuestion","toolUseId":"m3"}
+{"do":"question","questions":[{"question":"Who is the planner for?","header":"Audience","options":[{"label":"Just me (Recommended)","description":"A personal tool"},{"label":"My family","description":"Shared by a household"}],"multiSelect":false}]}
+{"do":"hook","type":"tool.post","tool":"AskUserQuestion","toolUseId":"m3"}
+{"do":"flow","step":"interview","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"research","phase":"started"}
+{"do":"flow","step":"research","phase":"finished","outcome":"skipped"}
+{"do":"flow","step":"spec","phase":"started"}
+{"do":"label","name":"write-spec"}
+{"do":"hook","type":"tool.pre","tool":"Agent","toolUseId":"m4"}
+{"do":"hook","type":"subagent.start","agentId":"a1","agentType":"architect","model":"opus"}
+{"do":"hook","type":"tool.pre","agentId":"a1","agentType":"architect","tool":"Write","toolUseId":"a1w1","target":{"root":"outside"}}
+{"do":"emit","event":{"kind":"denial","toolName":"Write","summary":"write","agentType":"architect","agentId":"a1","toolUseId":"a1w1","reason":"Writes are only allowed inside the projects folder, this creation's session folder and folders the user granted for it."}}
+{"do":"hook","type":"subagent.stop","agentId":"a1","agentType":"architect"}
+{"do":"hook","type":"tool.post","tool":"Agent","toolUseId":"m4"}
+{"do":"spec","onChange":"write-spec","spec":"{\"name\":\"Garden planner\",\"target\":\"claude-app\",\"targetChosenBy\":\"architect\"}\n","summary":"# Garden planner\n\nA planting calendar for a home gardener.\n"}
+{"do":"flow","step":"spec","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"generate","phase":"started"}
+{"do":"hook","type":"tool.pre","tool":"Agent","toolUseId":"m5"}
+{"do":"hook","type":"subagent.start","agentId":"g1","agentType":"generator","model":"sonnet"}
+{"do":"hook","type":"tool.pre","agentId":"g1","agentType":"generator","tool":"Write","toolUseId":"g1w1","target":{"root":"projects","path":"garden-planner/docs/BRIEF.md"},"effort":"low"}
+{"do":"hook","type":"tool.post","agentId":"g1","agentType":"generator","tool":"Write","toolUseId":"g1w1"}
+{"do":"hook","type":"tool.pre","agentId":"g1","agentType":"generator","tool":"Bash","toolUseId":"g1b1","target":{"root":"cli","path":"validate"}}
+{"do":"permission","toolName":"Bash","summary":"git status","agentType":"generator"}
+{"do":"hook","type":"tool.post","agentId":"g1","agentType":"generator","tool":"Bash","toolUseId":"g1b1"}
+{"do":"hook","type":"subagent.stop","agentId":"g1","agentType":"generator"}
+{"do":"hook","type":"tool.post","tool":"Agent","toolUseId":"m5"}
+{"do":"flow","step":"generate","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"validate-review","phase":"started"}
+{"do":"flow","step":"validate-review","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"learn","phase":"started"}
+{"do":"flow","step":"learn","phase":"finished","outcome":"ok"}
+{"do":"flow","step":"handoff","phase":"started"}
+{"do":"flow","step":"handoff","phase":"finished","outcome":"ok"}
+{"do":"session","phase":"finished","outcome":"completed"}

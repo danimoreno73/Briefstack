@@ -117,6 +117,19 @@ describe('buildPanelState', () => {
     expect(main?.current).toBeUndefined();
   });
 
+  it('finds the target of a denial written after the agent stopped', () => {
+    const events = [
+      flow(0, 'session.started'),
+      hook(1, 'subagent.start', { agentId: 'a1', agentType: 'architect' }),
+      hook(2, 'tool.pre', { agentId: 'a1', agentType: 'architect', tool: 'Write', toolUseId: 'w1', target: { root: 'outside' } }),
+      hook(3, 'subagent.stop', { agentId: 'a1', agentType: 'architect' }),
+      runner(3, 'tool.denied', { agentId: 'a1', agentType: 'architect', tool: 'Write', toolUseId: 'w1', by: 'guard' }),
+    ];
+    expect(buildPanelState(events, { now: new Date(T0 + 4000) }).nodes[1]?.denials).toEqual([
+      { at: at(3), tool: 'Write', by: 'guard', target: { root: 'outside' } },
+    ]);
+  });
+
   it('reopens an agent that works after its stop, and ends it at its last stop', () => {
     const events = [
       flow(0, 'session.started'),

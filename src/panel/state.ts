@@ -187,6 +187,8 @@ export function buildPanelState(events: readonly PanelEventInput[], options: Pan
   const byId = new Map<string, NodeBuild>();
   const steps = Object.fromEntries(PANEL_STEPS.map((step) => [step, 'waiting'])) as Record<PanelStep, PanelStepState>;
   const usage: PanelState['usage'] = {};
+  // Targets by tool use id, kept after the call closes: the server may write a denial after the agent's stop.
+  const targets = new Map<string, PanelTarget>();
 
   let profileEffort: string | undefined;
   let profile: string | undefined;
@@ -261,7 +263,8 @@ export function buildPanelState(events: readonly PanelEventInput[], options: Pan
         const call = removeCall(build, event.tool, event.toolUseId);
         const denial: PanelDenial = { at: event.ts, tool: event.tool ?? '', by: event.by ?? 'guard' };
         if (event.reason !== undefined) denial.reason = event.reason;
-        if (call?.target !== undefined) denial.target = call.target;
+        const target = call?.target ?? (event.toolUseId === undefined ? undefined : targets.get(event.toolUseId));
+        if (target !== undefined) denial.target = target;
         build.node.denials.push(denial);
       }
       continue;
@@ -296,7 +299,10 @@ export function buildPanelState(events: readonly PanelEventInput[], options: Pan
         build.node.toolCalls += 1;
         const call: OpenCall = { tool: event.tool ?? '', since: event.ts };
         if (event.target !== undefined) call.target = event.target;
-        if (event.toolUseId !== undefined) call.toolUseId = event.toolUseId;
+        if (event.toolUseId !== undefined) {
+          call.toolUseId = event.toolUseId;
+          if (event.target !== undefined) targets.set(event.toolUseId, event.target);
+        }
         build.open.push(call);
         if (event.effort !== undefined) build.node.effort = event.effort;
         break;

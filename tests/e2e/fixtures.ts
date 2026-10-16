@@ -52,6 +52,8 @@ export interface AppOptions {
   policy?: PermissionPolicy;
   /** Language saved in the config; English by default. */
   lang?: 'en' | 'es';
+  /** Plan usage readings to record (5-hour and 7-day percent), one per reading; none by default. */
+  planUsage?: { fiveHour: number | null; sevenDay: number | null }[];
 }
 
 async function emptyGitConfig(dir: string): Promise<void> {
@@ -131,8 +133,18 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
         : new FakeRunner({ steps: parseRecording(options.recordingText) }),
     sessionsDir,
     policy: () => options.policy ?? 'ask',
-    profile: () => ({ name: 'balanced' }),
+    profile: () => ({ name: 'balanced', sessionModel: 'opus', effort: 'medium' }),
     pollMs: 20,
+    ...(options.planUsage === undefined
+      ? {}
+      : {
+          planUsage: (() => {
+            const readings = [...options.planUsage];
+            let last = readings[0];
+            return async () => (last = readings.shift() ?? last);
+          })(),
+          usageEveryMs: 300,
+        }),
   });
   const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager });
 
