@@ -136,8 +136,8 @@ from PowerShell in the repo, in this order:
    the requested one (the init message of an SDK session carries none).
 5. `npx tsx scripts/real/check-subagent.ts --yes` — haiku, one subagent that
    reports one word. Checks that, with the runner's options and environment,
-   the Agent call returns in the foreground with the subagent's report, the
-   guard denies nothing (so `SubagentHandback` goes through) and the main
+   the Agent call runs in the foreground (not "Async agent launched"), the
+   subagent's word reaches the main session, the guard denies nothing (so `SubagentHandback` goes through) and the main
    session runs no shell command while it waits. Added after the first H10
    run failed (`decisions.md`, "H10 run 1").
 6. H10, after the four checks pass and the user has seen their output:

@@ -57,7 +57,7 @@ describe('check-subagent: a report through the runner options', () => {
     expect(script).toContain("model: 'haiku'");
     expect(script).not.toContain('run_in_background');
     for (const name of [
-      'the Agent call returned the report in the foreground',
+      'the Agent call ran in the foreground and the word reached the main session',
       'the main session answered with the word',
       'the guard denied nothing',
       'the main session ran no shell command',

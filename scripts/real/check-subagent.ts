@@ -6,8 +6,10 @@
 // turns background tasks off) plus one throwaway haiku agent, `echo`, whose
 // whole report is one random word. The main session is not told how to run
 // it. Expected:
-//   1. the Agent call returns in the foreground, with the word in its result
-//      (not "Async agent launched", not "no report was delivered");
+//   1. the Agent call runs in the foreground (its result is not "Async agent
+//      launched") and the word reaches the main session. The word need not be
+//      in the Agent result: in auto mode that only says the report was
+//      delivered through SubagentHandback;
 //   2. the main session's final answer has the word;
 //   3. the guard denies nothing, so SubagentHandback goes through;
 //   4. the main session runs no shell command (no `sleep` while it waits).
@@ -113,11 +115,13 @@ try {
   console.log('Tool calls:', calls);
   console.log('Denied by the guard:', denials);
   console.log('Agent results:', agentResults.map((text) => text.slice(0, 200)));
+  // In auto mode the Agent result only says the report was delivered through
+  // SubagentHandback; the report itself reaches the main session apart from it.
   const first = agentResults[0] ?? '';
   ok =
     report(
-      'the Agent call returned the report in the foreground',
-      first.includes(word) && !/Async agent launched/i.test(first),
+      'the Agent call ran in the foreground and the word reached the main session',
+      agentResults.length > 0 && !/Async agent launched/i.test(first) && finalText.includes(word),
       agentResults.length === 0 ? 'no Agent call' : first.slice(0, 120),
     ) && ok;
   ok = report('the main session answered with the word', finalText.includes(word), finalText.slice(0, 120) || 'no final text') && ok;

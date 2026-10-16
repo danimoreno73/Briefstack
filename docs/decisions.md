@@ -1725,7 +1725,17 @@ completion notification and never poll with `sleep` or any tool.
 
 **Real check:** `scripts/real/check-subagent.ts` runs a haiku main session
 with the runner's options, guard and environment and one throwaway haiku
-agent that reports a random word, and checks the word comes back as the
-Agent result in the foreground, the guard denies nothing and the main session
-runs no shell command. It writes nothing: the agent has only `Read`, and
-`canUseTool` denies everything; the temp folder is removed at the end.
+agent that reports a random word, and checks the Agent call runs in the
+foreground (its result is not "Async agent launched"), the word reaches the
+main session, the guard denies nothing and the main session runs no shell
+command. It writes nothing: the agent has only `Read`, and `canUseTool`
+denies everything; the temp folder is removed at the end.
+
+First run (2026-10-16): the word reached the main session, no shell command,
+no denial; the check still failed because it wanted the word inside the
+Agent result. In auto mode that result only says the report was delivered
+through `SubagentHandback`; the report reaches the main session apart from
+it. The check was wrong, not the flow, and now asks only for the above.
+Nothing in briefstack reads the Agent result: `SdkRunner` reads only the
+`init` and `result` messages, the event hook records only tool and agent
+names, and the progress list uses `subagent.start` and `subagent.stop`.
