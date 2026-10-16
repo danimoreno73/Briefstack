@@ -8,11 +8,12 @@
 // Each one works in a temp folder it creates (including a temp BRIEFSTACK_HOME)
 // and deletes it at the end. None touches the real library or projects.
 
-import { query, type HookCallback, type PermissionResult } from '@anthropic-ai/claude-agent-sdk';
+import type { HookCallback, PermissionResult } from '@anthropic-ai/claude-agent-sdk';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { findClaudeExecutable } from '../../src/creation/claudeBinary.js';
+import { readPlanUsage as readPlanUsageIn, type PlanUsage } from '../../src/creation/planUsage.js';
 import { cleanEnvironment } from '../../src/creation/sdkRunner.js';
 
 /** The scripts do nothing without `--yes`, so a stray run spends no tokens. */
@@ -67,35 +68,15 @@ export function sessionEnv(box: Sandbox): Record<string, string | undefined> {
   return env;
 }
 
-export interface PlanUsage {
-  fiveHour: number | null;
-  sevenDay: number | null;
-}
+export type { PlanUsage } from '../../src/creation/planUsage.js';
 
 /**
  * Reads the plan usage the way `/usage` does, from a session that sends no
- * message (so it costs nothing). The method is the SDK's experimental one.
+ * message (so it costs nothing). The same reading the web server records
+ * during a creation (`src/creation/planUsage.ts`).
  */
-export async function readPlanUsage(box: Sandbox, executable: string): Promise<PlanUsage | string> {
-  const neverSends: AsyncIterable<never> = {
-    [Symbol.asyncIterator]: () => ({ next: () => new Promise<IteratorResult<never>>(() => undefined) }),
-  };
-  const q = query({
-    prompt: neverSends,
-    options: { cwd: box.project, pathToClaudeCodeExecutable: executable, env: sessionEnv(box), settingSources: [] },
-  });
-  try {
-    const usage = await q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true });
-    if (!usage.rate_limits_available || usage.rate_limits === null) return 'plan limits are not available for this login';
-    return {
-      fiveHour: usage.rate_limits.five_hour?.utilization ?? null,
-      sevenDay: usage.rate_limits.seven_day?.utilization ?? null,
-    };
-  } catch (error) {
-    return `could not read the usage: ${error instanceof Error ? error.message : String(error)}`;
-  } finally {
-    q.close();
-  }
+export function readPlanUsage(box: Sandbox, executable: string): Promise<PlanUsage | string> {
+  return readPlanUsageIn({ cwd: box.project, executable, env: sessionEnv(box) });
 }
 
 export function show(usage: PlanUsage | string): string {

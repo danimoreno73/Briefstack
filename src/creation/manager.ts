@@ -173,6 +173,14 @@ export interface CreationManagerOptions {
   cancelTimeoutMs?: number;
   /** After `session.finished`, how long the runner has to end by itself before it is stopped. Default 30 s. */
   finishGraceMs?: number;
+  /**
+   * Reads the plan usage (`src/creation/planUsage.ts`). Called once the
+   * session id is known and every `usageEveryMs` while the creation runs;
+   * each reading becomes a `usage` line. Without it, nothing is read.
+   */
+  planUsage?: () => Promise<{ fiveHour: number | null; sevenDay: number | null } | undefined>;
+  /** Default 5 minutes. */
+  usageEveryMs?: number;
 }
 
 type Listener = (event: StreamEvent) => void;
@@ -212,6 +220,7 @@ interface Creation {
   pollChain: Promise<void>;
   cancelTimer?: NodeJS.Timeout | undefined;
   graceTimer?: NodeJS.Timeout | undefined;
+  usageTimer?: NodeJS.Timeout | undefined;
 }
 
 const questionAnswerSchema = z.record(z.string(), z.string().trim().min(1));
@@ -308,6 +317,7 @@ export class CreationManager {
         c.state.sessionId = sessionId;
         this.recordProfile(c);
         for (const fields of c.unwritten.splice(0)) this.record(c, fields);
+        this.startUsage(c);
         this.pushStatus(c);
         this.schedulePoll(c);
       },
@@ -558,6 +568,26 @@ export class CreationManager {
     c.writeChain = c.writeChain.then(() => appendEvent(this.options.sessionsDir, event).then(() => undefined)).catch(() => undefined);
   }
 
+  /** Plan usage now, then every `usageEveryMs` until the creation finishes. A failed reading writes nothing. */
+  private startUsage(c: Creation): void {
+    const read = this.options.planUsage;
+    if (read === undefined) return;
+    const once = async () => {
+      if (this.isFinished(c)) return;
+      try {
+        const usage = await read();
+        if (usage !== undefined && !this.isFinished(c)) {
+          this.record(c, { type: 'usage', fiveHour: usage.fiveHour, sevenDay: usage.sevenDay });
+        }
+      } catch {
+        // Plan usage is a nice-to-have; the panel says it is not available.
+      }
+    };
+    void once();
+    c.usageTimer = setInterval(() => void once(), this.options.usageEveryMs ?? 300_000);
+    c.usageTimer.unref();
+  }
+
   private recordProfile(c: Creation): void {
     const profile = c.profile;
     if (profile === undefined) return;
@@ -705,6 +735,8 @@ export class CreationManager {
     delete c.state.cancelling;
     delete c.state.awaitingReply;
     for (const timer of [c.pollTimer, c.cancelTimer]) if (timer !== undefined) clearTimeout(timer);
+    if (c.usageTimer !== undefined) clearInterval(c.usageTimer);
+    c.usageTimer = undefined;
     c.pollTimer = undefined;
     c.cancelTimer = undefined;
     this.pushStatus(c);

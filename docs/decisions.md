@@ -1850,3 +1850,28 @@ conservative reading of the brief. The user can revisit any of them.
    the brief asks for a comment and a test, so there is no note. The filter
    matches the exact set of the two tools; a test fails if the installed SDK
    changes the wording, which makes the warning visible again.
+5. **Targets are computed by the hook script** (`scripts/hook-event.mjs`),
+   not by the runner, so sessions started from the terminal get them too and
+   there is one writer of `tool.pre`. The hook copies the CLI's rule for
+   `projectsDir` (a test keeps them equal). Folders granted to one web
+   creation outside `projectsDir` are not known to the hook, so a path there
+   shows as `outside`: the conservative side. Paths inside the briefstack
+   repo are shown relative to it (root `repo`); they are the flow's own files
+   and say nothing about the user.
+6. **The server writes its own lines to `events.jsonl`** with
+   `source: "runner"` (`tool.denied`, `session.profile`, `usage`). Without
+   them a finished session would lose its denials, and the brief asks for
+   denials and plan usage in finished panels too. The format stays `v: 1`;
+   these lines are not activity for `summarizeSession`. The guard itself is
+   unchanged except for two fields on its denial (`agentId`, `toolUseId`),
+   which the brief allows.
+7. **Subagent model** comes from the agent file's `model:` line at
+   `subagent.start` (written only by `briefstack usage set`); hook inputs
+   carry no model. Effort comes from the hook input `effort.level`, as the
+   runner already reads it for the main session.
+8. **Plan usage** is read with the same no-message session the preflight
+   uses (verified in phase 2), not through the live creation's query (not
+   verified): at the start and every 5 minutes while the creation runs. Only
+   with the real runner. To confirm in the real run.
+9. **A phase 2 gap fixed on the way**: the `reason` of a streamed runner
+   denial was not redacted (only its summary was). It is now.

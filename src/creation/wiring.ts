@@ -3,6 +3,7 @@ import type { Lang } from '../i18n/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import { loadUsageContext, resolveActiveProfile } from '../usage/index.js';
 import { CreationManager } from './manager.js';
+import { planUsageReader } from './planUsage.js';
 import { SdkRunner } from './sdkRunner.js';
 import type { CreationRunner, RunnerProfile } from './types.js';
 
@@ -51,5 +52,7 @@ export async function createWebCreations(options: WebCreationOptions): Promise<C
     sessionsDir: paths.sessionsDir,
     policy: async () => permissionPolicyOf((await read()).config),
     profile: () => activeRunnerProfile(pathEnv),
+    // Only with the real runner: the fake one has no plan to read.
+    ...(options.runner === undefined ? { planUsage: planUsageReader({ pathEnv, repoDir }) } : {}),
   });
 }
