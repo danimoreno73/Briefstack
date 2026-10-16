@@ -140,7 +140,13 @@ from PowerShell in the repo, in this order:
    subagent's word reaches the main session, the guard denies nothing (so `SubagentHandback` goes through) and the main
    session runs no shell command while it waits. Added after the first H10
    run failed (`decisions.md`, "H10 run 1").
-6. H10, after the four checks pass and the user has seen their output:
+6. `npx tsx scripts/real/check-web-tools.ts --yes` — haiku, one tool call.
+   With the runner's options and the real `briefstack-web` server, checks
+   that the init message lists `approve_spec` and `grant_directory`, that the
+   main session calls `approve_spec` without a prompt and that the answer
+   comes back to it. Added after the second H10 run failed (`decisions.md`,
+   "H10 run 2").
+7. H10, after the five checks pass and the user has seen their output:
    - `npm run build`
    - `npm run briefstack -- web` (with `BRIEFSTACK_HOME` as the user has it
      set, i.e. the real data), open the printed address, and create one

@@ -67,6 +67,27 @@ describe('check-subagent: a report through the runner options', () => {
   });
 });
 
+describe('check-web-tools: approve_spec through the runner options', () => {
+  it('uses the runner options and the real briefstack-web server, and checks the tools, the call and the answer', async () => {
+    const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-web-tools.ts'), 'utf8');
+    expect(script).toContain('buildQueryOptions(');
+    expect(script).toContain('env: sessionEnv(box)');
+    expect(script).toContain('mcpServers: { [WEB_SERVER_NAME]: webTools }');
+    expect(script).toContain("sessionModel: 'haiku'");
+    // It writes only inside its own sandbox.
+    expect(script).toContain("path.join(box.sessions, 'check')");
+    for (const name of [
+      'the init message lists both browser tools',
+      'approve_spec reached the runner side with the two files',
+      'the decision came back to the main session',
+      'the guard denied nothing',
+      'approve_spec needed no permission prompt',
+    ]) {
+      expect(script).toMatch(new RegExp(`ok =\\s*report\\(\\s*'${name}'`));
+    }
+  });
+});
+
 describe('check-kill-tree: the one command it allows', () => {
   const expected = 'node "C:/Temp/briefstack-real-kill-abc123/sleeper.cjs"';
   const decide = onlyThisCommand(expected);
