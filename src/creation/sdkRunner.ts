@@ -19,6 +19,7 @@ import { redactSecretLines } from '../validate/secrets.js';
 import { findClaudeExecutable } from './claudeBinary.js';
 import { FLOW_BUILTIN_TOOLS, callerOf, guardHook, insideAny, parseBriefstackCommand, type GuardContext } from './guard.js';
 import { killProcessTree, spawnTracked, type TrackedSpawn } from './processTree.js';
+import { SHADOWED_WEB_TOOLS, filterKnownSdkWarnings } from './sdkWarnings.js';
 import type {
   CreationRunner,
   QuestionRequest,
@@ -110,7 +111,8 @@ export function buildQueryOptions(params: QueryOptionsParams): Options {
     strictMcpConfig: true,
     mcpServers: params.mcpServers,
     // The two tools are ours and need no prompt; everything else goes through the guard and `canUseTool`.
-    allowedTools: [APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL],
+    // Keep this list to `SHADOWED_WEB_TOOLS`: the SDK's shadowing warning is hidden only for exactly these.
+    allowedTools: [...SHADOWED_WEB_TOOLS],
     additionalDirectories: params.additionalDirectories,
     env: params.env,
     hooks: params.hooks,
@@ -411,6 +413,8 @@ class SdkRun {
         message: { role: 'user', content: `/${SKILL_COMMAND} ${this.options.idea}` },
         parent_tool_use_id: null,
       });
+      // The SDK warns that `canUseTool` is shadowed for our two web tools; that is on purpose (sdkWarnings.ts).
+      filterKnownSdkWarnings();
       this.query = (this.deps.query ?? (sdkQuery as QueryFn))({ prompt: this.input, options: queryOptions });
 
       for await (const message of this.query) {
