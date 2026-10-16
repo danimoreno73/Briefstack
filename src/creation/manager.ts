@@ -20,7 +20,7 @@ import {
   type SessionLifecycleEvent,
   type SessionOutcome,
 } from '../events/index.js';
-import { projectEvent } from '../panel/project.js';
+import { hideAbsolutePaths, projectEvent } from '../panel/project.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import type {
   CreationRunner,
@@ -614,7 +614,8 @@ export class CreationManager {
       ...(agentType === undefined ? {} : { agentType }),
       ...(extra.agentId === undefined ? {} : { agentId: extra.agentId }),
       ...(extra.toolUseId === undefined ? {} : { toolUseId: extra.toolUseId }),
-      ...(extra.reason === undefined || extra.reason === '' ? {} : { reason: redactSecretLines(extra.reason) }),
+      // A reason may quote a path from the command; the file keeps no absolute path, as the panel shows none.
+      ...(extra.reason === undefined || extra.reason === '' ? {} : { reason: hideAbsolutePaths(redactSecretLines(extra.reason)) }),
     });
   }
 

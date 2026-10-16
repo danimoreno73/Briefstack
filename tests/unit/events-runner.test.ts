@@ -6,6 +6,7 @@ import { guardHook, type GuardContext, type GuardDenial } from '../../src/creati
 import { CreationManager, type CreationState, type StreamEvent } from '../../src/creation/manager.js';
 import type { PermissionPolicy } from '../../src/creation/types.js';
 import { readEvents, runnerEvent, sessionEventsFile, summarizeSession, type SessionEvent } from '../../src/events/index.js';
+import { OUTSIDE_TEXT } from '../../src/panel/project.js';
 import { tempDir } from '../helpers.js';
 
 async function waitFor<T>(probe: () => T | undefined | false, timeoutMs = 5000): Promise<T> {
@@ -150,6 +151,21 @@ describe('the manager writes runner lines', () => {
     // They reach the stream as their own kind.
     expect(seen.filter((event) => event.kind === 'runner').map((event) => event.data.type)).toEqual(['session.profile', 'tool.denied', 'tool.denied']);
     expect(JSON.stringify(seen)).not.toContain(KEY);
+  });
+
+  it('writes a guard denial without the absolute paths its reason quotes', async () => {
+    const reason = 'The briefstack command `C:/Users/someone/private/app scaffold` is not allowed; see /home/someone/private/notes.md.';
+    const { m, id } = await start([
+      '{"do":"session","phase":"started"}',
+      JSON.stringify({ do: 'emit', event: { kind: 'denial', toolName: 'Bash', summary: 'x', agentType: 'generator', reason } }),
+      '{"do":"wait","ms":50}',
+      '{"do":"session","phase":"finished","outcome":"completed"}',
+    ]);
+    const final = await waitFor(() => (m.get(id).status === 'finished' ? m.get(id) : undefined));
+    const denial = (await lines(final)).find((event) => event.type === 'tool.denied') as { reason?: string } | undefined;
+    expect(denial?.reason).toContain('The briefstack command');
+    expect(denial?.reason).toContain(OUTSIDE_TEXT);
+    expect(denial?.reason).not.toContain('someone');
   });
 
   it('records a denial under the unattended policy', async () => {

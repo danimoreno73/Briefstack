@@ -41,7 +41,7 @@ The server redacts targets again before showing them.
 
 | type | fields |
 |---|---|
-| `tool.denied` | `tool`, `by`: `guard` \| `policy` \| `user`, `agentId?`, `agentType?`, `toolUseId?`, `reason?` (redacted) |
+| `tool.denied` | `tool`, `by`: `guard` \| `policy` \| `user`, `agentId?`, `agentType?`, `toolUseId?`, `reason?` (secrets redacted, absolute paths hidden) |
 | `session.profile` | `profile`, `model?`, `effort?` (the effort asked for) |
 | `usage` | `fiveHour`, `sevenDay`: percent of the plan window, or `null` |
 
