@@ -18,3 +18,5 @@ export * from './validate/index.js';
 export { formatFinding, formatFindingMessage } from './i18n/validate.js';
 export { PACKAGE_ROOT } from './packageRoot.js';
 export * from './server/index.js';
+export * from './panel/state.js';
+export { MAX_REASON_LENGTH, OUTSIDE_TEXT, projectEvent, projectReason, projectTarget, type PanelEvent } from './panel/project.js';

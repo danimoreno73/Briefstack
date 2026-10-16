@@ -26,10 +26,11 @@ Updated 2026-10-16. A new session reads `CLAUDE.md`,
 | P3 | `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` is hidden only when it names exactly `approve_spec` and `grant_directory` (`src/creation/sdkWarnings.ts`); `allowedTools` is pinned to those two; a test reads the installed SDK's wording |
 | P4 | `CLAUDE.md` names phase 3 and loads this brief |
 | M1 | Events: `docs/events.md`; hook lines get `toolUseId`, `target`, `effort`, `model`; the manager writes `source: "runner"` lines (`tool.denied` by guard, policy or user, `session.profile`) and streams them as kind `runner`; `GuardDenial` has `agentId` and `toolUseId`; runner lines are not activity in `summarizeSession`; the streamed `denied` reason is now redacted too; `FakeRunner` takes the new fields and a `burst` step. Fixture `tests/fixtures/sessions/h10-run3.jsonl` copied with placeholders (used from M2). The `usage` line type exists; writing it is M3 |
+| M2 | `src/panel/state.ts`: `buildPanelState(events, { now, live? })`, pure and browser-safe, exported from `src/index.ts`; `src/panel/project.ts`: what may leave the server (known fields only, redacted targets and reasons, absolute paths shown as `[outside allowed folders]`, 120/300 character limits). Tests on synthetic cases, a 40 000-line burst and the real H10 run 3 fixture |
 
 ### Left
 
-M2–M7 below (M2 next: `src/panel/state.ts`).
+M3–M7 below (M3 next: plan usage).
 
 ## 1. Approach
 
