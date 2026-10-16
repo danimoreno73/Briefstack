@@ -2,7 +2,10 @@ import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { configFilePath, permissionPolicyOf, readConfig, resolvePaths, toAbsolute, type PathEnv } from '../config/index.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
+import { readEvents, sessionEventsFile } from '../events/index.js';
 import { listSessions, sessionTimeline, type SessionTimeline } from '../events/sessions.js';
+import { projectEvent } from '../panel/project.js';
+import { buildPanelState } from '../panel/state.js';
 import { resolveLang, systemLocale, type Lang } from '../i18n/index.js';
 import {
   INDEX_FILE,
@@ -158,6 +161,23 @@ export function readRoutes(context: ReadContext): RouteTable {
       async (_req, res, params) => {
         const { paths } = await load();
         sendJson(res, 200, await sessionTimeline(paths.sessionsDir, params.id ?? ''));
+      },
+    ],
+    [
+      'GET /api/sessions/:id/events',
+      async (_req, res, params) => {
+        const { paths } = await load();
+        const id = params.id ?? '';
+        // `sessionEventsFile` validates the id (400); a missing file is a 404, as for the timeline.
+        const file = sessionEventsFile(paths.sessionsDir, id);
+        await sessionTimeline(paths.sessionsDir, id);
+        const { events, badLines } = await readEvents(file);
+        const projected = events.map((event, index) => projectEvent(event, index + 1));
+        sendJson(res, 200, {
+          events: projected,
+          badLines: badLines.length,
+          state: buildPanelState(projected, { now: new Date() }),
+        });
       },
     ],
     [

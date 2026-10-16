@@ -20,6 +20,7 @@ import {
   type SessionLifecycleEvent,
   type SessionOutcome,
 } from '../events/index.js';
+import { projectEvent } from '../panel/project.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import type {
   CreationRunner,
@@ -705,12 +706,14 @@ export class CreationManager {
     const { events } = await readEvents(sessionEventsFile(this.options.sessionsDir, sessionId));
     for (const event of events.slice(c.consumed)) {
       c.consumed += 1;
+      // Hook and runner lines leave the server projected: known fields only, targets and reasons redacted.
+      // `id` is the line's position among the file's valid lines, as `GET /api/sessions/:id/events` gives it.
       if (event.source === 'hook') {
-        this.push(c, { kind: 'hook', data: event });
+        this.push(c, { kind: 'hook', data: projectEvent(event, c.consumed) as unknown as HookEvent });
         continue;
       }
       if (event.source === 'runner') {
-        this.push(c, { kind: 'runner', data: event });
+        this.push(c, { kind: 'runner', data: projectEvent(event, c.consumed) as unknown as RunnerLineEvent });
         continue;
       }
       this.push(c, { kind: 'flow', data: event });

@@ -17,7 +17,9 @@ export const MAX_REASON_LENGTH = 300;
 export const OUTSIDE_TEXT = '[outside allowed folders]';
 
 const KEPT_FIELDS = [
+  'v',
   'ts',
+  'session',
   'source',
   'type',
   'step',
@@ -34,7 +36,7 @@ const KEPT_FIELDS = [
   'sevenDay',
 ] as const;
 
-/** A projected line, with its position in the file (1-based) or stream as `id`. */
+/** A projected line, with its position (1-based) among the file's valid lines as `id`. */
 export type PanelEvent = PanelEventInput & { id: number };
 
 const DRIVE_PATH_RE = /(?:[A-Za-z]:[\\/]|\\\\[^\\/\s]+[\\/])[^\s"'`<>|]*/g;
@@ -83,7 +85,7 @@ export function projectEvent(event: SessionEvent, id: number): PanelEvent {
     const value = source[field];
     if (typeof value === 'string') out[field] = clip(value, 200, false);
     else if (typeof value === 'number' || value === null) {
-      if (field === 'fiveHour' || field === 'sevenDay') out[field] = value;
+      if (field === 'fiveHour' || field === 'sevenDay' || field === 'v') out[field] = value;
     }
   }
   const target = projectTarget(source.target);

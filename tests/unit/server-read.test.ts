@@ -105,7 +105,7 @@ describe('read API', () => {
   });
 
   it('requires the token on every read route', async () => {
-    for (const route of ['projects', 'projects/garden', 'sessions', 'sessions/sess-1', 'library/index', 'library/notes', 'library/note?section=lessons', 'library/history', 'usage', 'paths', 'settings']) {
+    for (const route of ['projects', 'projects/garden', 'sessions', 'sessions/sess-1', `sessions/${SESSION}/events`, 'library/index', 'library/notes', 'library/note?section=lessons', 'library/history', 'usage', 'paths', 'settings']) {
       expect((await get(server, `/api/${route}`, null)).status, route).toBe(401);
     }
   });
@@ -173,6 +173,48 @@ describe('read API', () => {
     const detail = await json<{ timeline: unknown; nextSteps: unknown }>('/api/projects/orphan');
     expect(detail.timeline).toBeNull();
     expect(detail.nextSteps).toBeNull();
+  });
+
+  it('gives the lines of a session for the panel, projected, with the panel state', async () => {
+    const sessions = path.join(home, 'sessions');
+    await appendEvent(sessions, {
+      v: 1,
+      ts: '2026-10-12T09:31:00Z',
+      session: SESSION,
+      source: 'hook',
+      type: 'tool.pre',
+      tool: 'Write',
+      target: { root: 'projects', path: `garden/${FAKE_KEY}.md` },
+    });
+    await appendEvent(sessions, {
+      v: 1,
+      ts: '2026-10-12T09:31:01Z',
+      session: SESSION,
+      source: 'runner',
+      type: 'tool.denied',
+      tool: 'Write',
+      by: 'guard',
+      reason: 'Not inside C:/Users/someone/elsewhere.',
+    });
+    const reply = await json<{ events: { id: number; type: string }[]; badLines: number; state: { session: { status: string }; nodes: { id: string; denials: unknown[] }[] } }>(
+      `/api/sessions/${SESSION}/events`,
+    );
+    expect(reply.events.map((event) => [event.id, event.type])).toEqual([
+      [1, 'session.started'],
+      [2, 'step.started'],
+      [3, 'step.finished'],
+      [4, 'session.finished'],
+      [5, 'tool.pre'],
+      [6, 'tool.denied'],
+    ]);
+    expect(reply.badLines).toBe(0);
+    expect(reply.state.session.status).toBe('finished');
+    expect(reply.state.nodes[0]?.denials).toHaveLength(1);
+    const text = JSON.stringify(reply);
+    expect(text).not.toContain(FAKE_KEY);
+    expect(text).not.toContain('someone');
+    expect((await get(server, '/api/sessions/nope/events')).status).toBe(404);
+    expect((await get(server, '/api/sessions/..%2Fx/events')).status).toBe(400);
   });
 
   it('lists sessions newest first and gives one timeline', async () => {

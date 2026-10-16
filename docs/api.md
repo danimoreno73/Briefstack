@@ -99,6 +99,24 @@ lists `interrupted` and `cancelled` ones apart, with their `lastStep`.
 `200 { summary, steps: [{ step, startedAt, finishedAt?, outcome? }], agents: [{ agentId, agentType, startedAt, stoppedAt? }] }`.
 `404 events.sessionNotFound`, `400 events.invalidSession`.
 
+### `GET /api/sessions/:id/events`
+
+The session's lines for the agent panel (phase 3):
+`200 { "events": [ { "id", "v", "ts", "session", "source", "type", … } ], "badLines": <n>, "state": <PanelState> }`.
+
+- `events`: every valid line of `events.jsonl` in file order, projected
+  (`src/panel/project.ts`): known fields only (docs/events.md), targets and
+  denial reasons redacted, any absolute path shown as
+  `[outside allowed folders]`, a target at most 120 characters and a reason
+  at most 300. `id` is the line's position among the valid lines, from 1;
+  the creation stream gives `hook` and `runner` lines the same `id`.
+- `badLines`: how many lines could not be read.
+- `state`: `buildPanelState(events, { now })` (`src/panel/state.ts`): the
+  session, one node per agent (main session first), the timeline, the flow
+  steps and plan usage. For a creation still open, the page adds what the
+  creation stream knows (the pending request).
+- `404 events.sessionNotFound`, `400 events.invalidSession`.
+
 ### Library
 
 - `GET /api/library/index`: `{ "file": "INDEX.md", "text": "…" | null }`.
@@ -304,14 +322,16 @@ data: {"seq":12,"ts":"<ISO time>","kind":"flow","data":{…}}
 | kind | data |
 |---|---|
 | `flow` | an `events.jsonl` line from the flow: `step.started`/`step.finished` (`step`, `outcome`) or `session.started`/`session.finished` (`outcome`) |
-| `hook` | an `events.jsonl` line from the hooks: `subagent.start`/`subagent.stop` (`agentId`, `agentType`), `tool.pre`/`tool.post`/`tool.failure` (`tool`), `session.end` (`reason`) |
+| `hook` | an `events.jsonl` line from the hooks: `subagent.start`/`subagent.stop` (`agentId`, `agentType`, `model`?, `effort`?), `tool.pre`/`tool.post`/`tool.failure` (`tool`, `toolUseId`?, `target`?, `effort`?), `session.end` (`reason`). Projected and with `id`, as in `GET /api/sessions/:id/events` |
+| `runner` | a line the server wrote to `events.jsonl` itself: `tool.denied`, `session.profile`, `usage` (docs/events.md). Projected and with `id` |
 | `question`, `permission`, `spec`, `grant` | `{ "pendingId", "state": "pending", "payload" }` when shown, `{ "pendingId", "state": "answered", "answer" }` when answered (by the user or by a cancel) |
 | `status` | `{ "status", "outcome"?, "sessionId"?, "cancelling"?, "runner"? }`: a status change, or progress the runner reports itself in `runner`. Once per creation the real runner reports `runner: { "kind": "effort", "level", "requested"? }`: the effort Claude Code applied (from the first `PreToolUse` hook input) and the one the profile asked for |
 | `denied` | `{ "toolName", "summary", "agentType"?, "at", "by": "policy" \| "runner", "reason"? }` |
 
-`seq` starts at 1 and has no gaps within a creation. The `flow` and `hook`
-lines are the same objects `events.jsonl` holds (see `src/events`), so the
-phase 3 live panel can read either.
+`seq` starts at 1 and has no gaps within a creation. The `flow`, `hook`
+and `runner` lines are the lines `events.jsonl` holds (docs/events.md),
+projected as in `GET /api/sessions/:id/events`, so the agent panel reads
+either with the same `buildPanelState`.
 
 ## Appendix: fake runner recordings
 

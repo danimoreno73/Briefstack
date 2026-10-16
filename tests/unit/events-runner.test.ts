@@ -144,6 +144,9 @@ describe('the manager writes runner lines', () => {
     const guard = runner[1] as { reason?: string };
     expect(guard.reason).toContain('Writes only inside.');
     expect(guard.reason).not.toContain(KEY);
+    // Hook lines are streamed projected: with their position as id, nothing unknown.
+    const pre = seen.find((event) => event.kind === 'hook' && event.data.type === 'tool.pre');
+    expect(pre?.data).toMatchObject({ id: 4, tool: 'Write', toolUseId: 't1' });
     // They reach the stream as their own kind.
     expect(seen.filter((event) => event.kind === 'runner').map((event) => event.data.type)).toEqual(['session.profile', 'tool.denied', 'tool.denied']);
     expect(JSON.stringify(seen)).not.toContain(KEY);

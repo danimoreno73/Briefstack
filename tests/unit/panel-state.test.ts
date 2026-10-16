@@ -252,7 +252,7 @@ describe('projection for the panel', () => {
       { v: 1, ts: at(0), session: 's', source: 'hook', type: 'tool.pre', tool: 'Read', toolUseId: 't1', extra: 'x' } as unknown as SessionEvent,
       7,
     );
-    expect(projected).toEqual({ id: 7, ts: at(0), source: 'hook', type: 'tool.pre', tool: 'Read', toolUseId: 't1' });
+    expect(projected).toEqual({ id: 7, v: 1, ts: at(0), session: 's', source: 'hook', type: 'tool.pre', tool: 'Read', toolUseId: 't1' });
   });
 
   it('redacts targets, refuses absolute ones and unknown roots', () => {
