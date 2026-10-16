@@ -17,6 +17,7 @@ import {
   type HookEvent,
   type RunnerLineEvent,
   type RunnerLineFields,
+  type SessionEvent,
   type SessionLifecycleEvent,
   type SessionOutcome,
 } from '../events/index.js';
@@ -704,7 +705,21 @@ export class CreationManager {
   private async readNew(c: Creation): Promise<void> {
     const sessionId = c.state.sessionId;
     if (sessionId === undefined || this.isFinished(c)) return;
-    const { events } = await readEvents(sessionEventsFile(this.options.sessionsDir, sessionId));
+    const file = sessionEventsFile(this.options.sessionsDir, sessionId);
+    const outcome = this.pushLines(c, (await readEvents(file)).events);
+    if (outcome === undefined) return;
+    // One last read before the subscribers are closed: lines written just after the close
+    // (runner lines still queued, a late hook line) reach the live panel too, so it matches
+    // the panel rebuilt from the file.
+    await c.writeChain;
+    if (this.isFinished(c)) return;
+    this.pushLines(c, (await readEvents(file)).events);
+    this.finish(c, outcome);
+  }
+
+  /** Streams the lines after the ones consumed; returns the outcome of the first `session.finished` among them. */
+  private pushLines(c: Creation, events: readonly SessionEvent[]): CreationOutcome | undefined {
+    let outcome: CreationOutcome | undefined;
     for (const event of events.slice(c.consumed)) {
       c.consumed += 1;
       // Hook and runner lines leave the server projected: known fields only, targets and reasons redacted.
@@ -719,11 +734,9 @@ export class CreationManager {
       }
       this.push(c, { kind: 'flow', data: event });
       if ('step' in event) c.openStep = event.type === 'step.started' ? event.step : undefined;
-      else if (event.type === 'session.finished') {
-        this.finish(c, event.outcome ?? 'completed');
-        return;
-      }
+      else if (event.type === 'session.finished') outcome ??= event.outcome ?? 'completed';
     }
+    return outcome;
   }
 
   private finish(c: Creation, outcome: CreationOutcome): void {

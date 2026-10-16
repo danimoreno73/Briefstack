@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { appendFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeRunner, parseRecording } from '../../src/creation/fakeRunner.js';
@@ -166,6 +166,32 @@ describe('the manager writes runner lines', () => {
     expect(denial?.reason).toContain('The briefstack command');
     expect(denial?.reason).toContain(OUTSIDE_TEXT);
     expect(denial?.reason).not.toContain('someone');
+  });
+
+  it('streams the lines written right after session.finished, as the file keeps them', async () => {
+    const { m, id, seen } = await start([
+      '{"do":"session","phase":"started"}',
+      '{"do":"wait","ms":60000}',
+    ]);
+    const session = await waitFor(() => m.get(id).sessionId);
+    await waitFor(() => seen.some((event) => event.kind === 'flow'));
+    // The flow closes and a subagent stop lands right after it, in the same read.
+    const ts = new Date().toISOString();
+    await appendFile(
+      sessionEventsFile(sessionsDir, session),
+      [
+        { v: 1, ts, session, source: 'flow', type: 'session.finished', outcome: 'completed' },
+        { v: 1, ts, session, source: 'hook', type: 'subagent.stop', agentId: 'r1', agentType: 'reviewer' },
+      ]
+        .map((event) => `${JSON.stringify(event)}\n`)
+        .join(''),
+      'utf8',
+    );
+    const final = await waitFor(() => (m.get(id).status === 'finished' ? m.get(id) : undefined));
+    const written = (await lines(final)).filter((event) => event.source !== 'flow');
+    const streamed = seen.flatMap((event) => (event.kind === 'hook' || event.kind === 'runner' ? [event.data.type] : []));
+    expect(streamed).toEqual(written.map((event) => event.type));
+    expect(streamed).toContain('subagent.stop');
   });
 
   it('records a denial under the unattended policy', async () => {
