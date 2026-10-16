@@ -64,7 +64,11 @@ The idea, if given: $ARGUMENTS
   session runs in the web app and those two answers come from them. When they
   are not, you are in the terminal and the answers come from the user in
   plain text, as written below. The steps, the `event` calls and the order are
-  the same either way.
+  the same either way. Decide which once, in step 0, and keep it as `MODE`
+  (`web` or `terminal`). In the web app the user cannot type a reply to your
+  text: they answer only through AskUserQuestion, `approve_spec` and
+  `grant_directory`. So in `MODE` web never end a turn waiting for an answer
+  in plain text.
 - Do not show token or cost estimates. Profile levels are qualitative; point
   to `/usage` for real consumption.
 
@@ -86,6 +90,9 @@ The idea, if given: $ARGUMENTS
    or restart with `claude --model <sessionModel>`. You cannot change it
    yourself. Relay every `envWarnings` and `drift` item in one line each.
    Keep `profile`, `research` and `reviewRounds`.
+4. Set `MODE` (see "Where answers come from"): `web` if `approve_spec` and
+   `grant_directory` are among your tools, `terminal` otherwise. Say nothing
+   about it to the user.
 
 ## 1. Idea
 
@@ -166,20 +173,23 @@ Step `spec`.
    `npm run --silent briefstack -- spec check "WORK/spec.json"`.
    If it fails, send the errors back to `architect` for a corrected spec.
    After two failed corrections, close as `failed`.
-3. Show the user the architect's summary, plus the output folder, the target
-   (and the reason if the architect chose it) and the profile, and say in
-   one line that briefstack prepares the project and the work itself starts
-   afterwards, inside it. Ask them to approve, change something or cancel.
-   - **Terminal** (no `approve_spec` tool): ask in plain text, as above.
-   - **Web app** (`approve_spec` tool): write what you would have shown to
+3. Prepare what the user must see: the architect's summary, plus the output
+   folder, the target (and the reason if the architect chose it) and the
+   profile, and one line saying that briefstack prepares the project and the
+   work itself starts afterwards, inside it. Then, by `MODE`:
+   - **Web app** (`MODE` web): do not show it in your reply. Write it to
      `WORK/summary.md` and call `approve_spec` with `specFile` and
-     `summaryFile`, both absolute paths in the session folder. Its answer is
+     `summaryFile`, both absolute paths in the session folder, in the same
+     turn. That call is how the user sees the spec and answers. Its answer is
      the user's choice: `approve`, `change` with the text of the change, or
-     `cancel`. Do not ask in plain text as well.
+     `cancel`. Never ask in plain text and never end the turn instead.
+   - **Terminal** (`MODE` terminal): show it to the user in plain text. Ask
+     them to approve, change something or cancel.
    - Changes: apply them. Small, exact edits (a name, a list item) you may
      make in `WORK/spec.json` yourself; anything else goes back to
      `architect` with the request. Check the spec again and show what
-     changed. Repeat until approved.
+     changed (in `MODE` web, at the top of `WORK/summary.md`, and call
+     `approve_spec` again). Repeat until approved.
    - Cancel: close as `cancelled`.
 
 Nothing is created before the user approves.

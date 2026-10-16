@@ -21,6 +21,20 @@ describe('/new-project in the terminal and in the web app', () => {
     expect(text).toContain('briefstack-web');
   });
 
+  it('decides the mode once, and in the web app asks for the spec only through approve_spec', async () => {
+    const text = (await readFile(SKILL, 'utf8')).replace(/\s+/g, ' ');
+    expect(text).toContain('Set `MODE`');
+    expect(text).toContain('in `MODE` web never end a turn waiting for an answer in plain text');
+    const spec = text.slice(text.indexOf('## 5. Spec'), text.indexOf('## 6. Generate'));
+    const web = spec.indexOf('**Web app** (`MODE` web)');
+    const terminal = spec.indexOf('**Terminal** (`MODE` terminal)');
+    // The web branch comes first, and the plain-text question only under the terminal one.
+    expect(web).toBeGreaterThan(-1);
+    expect(terminal).toBeGreaterThan(web);
+    expect(spec.indexOf('Ask them to approve, change something or cancel.')).toBeGreaterThan(terminal);
+    expect(spec).toContain('Never ask in plain text and never end the turn instead.');
+  });
+
   it('keeps the terminal text exactly as it was', async () => {
     const text = (await readFile(SKILL, 'utf8')).replace(/\s+/g, ' ');
     for (const sentence of [
