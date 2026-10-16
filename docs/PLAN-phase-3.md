@@ -189,7 +189,7 @@ None of these was run while building phase 3.
    1. `npm run build`, then `npm run briefstack -- web`, and open the address
       it prints.
    2. Start a creation. While it runs, check in the panel: the main session
-      shows `opus`-like model and an effort; each subagent appears when it
+      shows its model (for example `opus`) and an effort; each subagent appears when it
       starts, with its model and effort; the tool in use shows a short
       target (a path under the projects or session folder, `briefstack
       <command>`, or "outside allowed folders"), never a full path; a
