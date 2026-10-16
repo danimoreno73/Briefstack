@@ -28,6 +28,7 @@
   ],
   "exclude": [
     "src/ui",
-    "tests/e2e"
+    "tests/e2e",
+    "tests/screenshots"
   ]
 }

@@ -10,7 +10,9 @@
   },
   "include": [
     "./**/*.ts",
-    "../../playwright.config.ts"
+    "../../playwright.config.ts",
+    "../../playwright.screenshots.config.ts",
+    "../screenshots/**/*.ts"
   ],
   "exclude": []
 }

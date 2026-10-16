@@ -181,3 +181,21 @@ test.describe('the text alternative', () => {
     await expect(page.getByTestId('panel-detail')).toContainText('Details: architect');
   });
 });
+
+test.describe('at a narrow width', () => {
+  test.use({ viewport: { width: 390, height: 844 }, appOptions: { recording: 'panel.jsonl' } });
+
+  test('the panel pages never scroll sideways', async ({ page, app }) => {
+    const sideways = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    await startCreation(page, app);
+    await expect(node(page, 'main').getByTestId('node-pending')).toBeVisible();
+    expect(await sideways()).toBeLessThanOrEqual(0);
+    await page.getByRole('button', { name: 'Send answers' }).click();
+    await expect(node(page, 'a1').getByTestId('denial-count')).toBeVisible();
+    await node(page, 'a1').getByRole('button', { name: /architect/ }).click();
+    expect(await sideways()).toBeLessThanOrEqual(0);
+    await page.evaluate((id) => (window.location.hash = `#/sessions/${id}`), SESSION_INTERRUPTED);
+    await expect(page.getByTestId('session-status')).toContainText('Interrupted');
+    expect(await sideways()).toBeLessThanOrEqual(0);
+  });
+});

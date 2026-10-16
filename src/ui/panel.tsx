@@ -86,8 +86,9 @@ export function AgentPanel({ state, showPendingLinks = false }: { state: PanelSt
           </span>
         </button>
         <div class="agent-meta muted">
-          {[item.model, item.effort].filter((value) => value !== undefined).join(' · ') || '—'} · {formatClock(item.startedAt, lang)} ·{' '}
-          {formatDuration(item.durationMs)}
+          {[item.model, item.effort, formatClock(item.startedAt, lang), formatDuration(item.durationMs)]
+            .filter((value) => value !== undefined)
+            .join(' · ')}
         </div>
         <div class="agent-now" data-testid="agent-now">
           {item.current === undefined ? (
@@ -95,7 +96,7 @@ export function AgentPanel({ state, showPendingLinks = false }: { state: PanelSt
           ) : (
             <>
               <strong>{item.current.tool}</strong>
-              {target !== undefined && <span class="target"> {target}</span>}
+              {target !== undefined && <span class={item.current.target?.root === 'outside' ? 'target-outside' : 'target'}> {target}</span>}
             </>
           )}
         </div>
@@ -202,7 +203,9 @@ export function AgentPanel({ state, showPendingLinks = false }: { state: PanelSt
               {node.denials.map((denial, index) => (
                 <li key={`${denial.at}-${index}`}>
                   <strong>{denial.tool}</strong> {t.denialBy(denial.by)} · {formatClock(denial.at, lang)}
-                  {denial.target !== undefined && <span class="target"> · {targetText(denial.target, labels)}</span>}
+                  {denial.target !== undefined && (
+                    <span class={denial.target.root === 'outside' ? 'target-outside' : 'target'}> · {targetText(denial.target, labels)}</span>
+                  )}
                   {denial.reason !== undefined && <div class="denial-reason">{denial.reason}</div>}
                 </li>
               ))}
@@ -219,7 +222,7 @@ export function AgentPanel({ state, showPendingLinks = false }: { state: PanelSt
           <dl>
             <dt>{t.panelUsageStart}</dt>
             <dd>{t.panelUsageLine(percent(state.usage.start.fiveHour), percent(state.usage.start.sevenDay))}</dd>
-            {state.usage.now !== undefined && (
+            {state.usage.now !== undefined && state.usage.now.at !== state.usage.start.at && (
               <>
                 <dt>{t.panelUsageNow}</dt>
                 <dd>

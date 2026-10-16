@@ -30,10 +30,11 @@ Updated 2026-10-16. A new session reads `CLAUDE.md`,
 | M3 | `src/creation/planUsage.ts` (the preflight's reading, now shared with `scripts/real/common.ts`); the manager reads it once the session id is known and every 5 minutes until the creation finishes, and writes `usage` lines; wired only with the real runner |
 | M4 | `GET /api/sessions/:id/events` (projected lines with `id`, `badLines`, `state`); the creation stream projects `hook` and `runner` lines the same way; `docs/api.md` updated |
 | M5 | `src/ui/panel.tsx` (agent tree, timeline as HTML rows with inline SVG bars, node detail with denials, plan usage, a text view in `<details>`; recomputed at most every 200 ms and every second while running), `src/ui/panelData.ts` (pure glue, tested); the creation page shows the panel under the pending control, which has id `pending-control` and is reached from the node that asked; `#/sessions/<id>` rebuilds a session from `GET /api/sessions/:id/events`, linked from the project detail and the interrupted and cancelled list; strings in English and Spanish |
+| M6 | `tests/e2e/panel.spec.ts` (live updates, requests on the asking node, a guard denial, reopening the tab, a 3000-pair burst, cancelled, interrupted and pre-phase-3 sessions, an agent with no stop, the text view with the keyboard, no sideways scroll at 390 px); recording `panel.jsonl`; `npm run screenshots` (`playwright.screenshots.config.ts`, `tests/screenshots/`) writes 12 screenshots at 1280 and 390 px to the git-ignored `screenshots/`. Looked at; fixed: a denial written after its agent stopped lost its target, the header scrolled sideways at 390 px, the pending note used the error color, an empty model showed as `—`, a single plan reading showed twice |
 
 ### Left
 
-M6–M7 below (M6 next: e2e tests and screenshots).
+M7 below (docs and hand-off), then the real run by the user.
 
 ## 1. Approach
 

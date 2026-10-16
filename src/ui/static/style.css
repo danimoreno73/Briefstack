@@ -36,6 +36,7 @@ main {
   --danger: #b91c1c;
   --ok-bg: #dcfce7;
   --err-bg: #fee2e2;
+  --warn-bg: #fef3c7;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -45,6 +46,7 @@ main {
     --danger: #fca5a5;
     --ok-bg: #14532d;
     --err-bg: #7f1d1d;
+    --warn-bg: #78350f;
   }
 }
 
@@ -54,7 +56,8 @@ a {
 
 header {
   display: flex;
-  gap: 2rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 2rem;
   align-items: baseline;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--line);
@@ -453,6 +456,21 @@ dialog.permission {
   font-size: 0.85em;
 }
 
+.target-outside {
+  font-style: italic;
+  color: var(--muted);
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
+}
+
+nav a {
+  white-space: nowrap;
+}
+
 .denied-count {
   color: var(--danger);
 }
@@ -461,7 +479,7 @@ dialog.permission {
   margin-top: 0.4rem;
   padding: 0.25rem 0.5rem;
   border-radius: 0.3rem;
-  background: var(--err-bg);
+  background: var(--warn-bg);
   font-size: 0.9em;
 }
 
@@ -482,7 +500,7 @@ dialog.permission {
 
 .timeline-row {
   display: grid;
-  grid-template-columns: 9rem 1fr 6rem;
+  grid-template-columns: 9rem 1fr 4.5rem;
   align-items: center;
   gap: 0.5rem;
   padding: 0.15rem 0.25rem;
