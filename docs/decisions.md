@@ -1630,5 +1630,102 @@ and moving its config would also move the login.
 | `check-guard-auto.ts` | `echo hello` (shell), a write outside the projects folder, a write inside, a web fetch of example.com from the main session, an `AskUserQuestion`, a write in a `.git` folder, a `Monitor` call (offered on purpose so the guard is what stops it) | outside: `<temp>/outside/x.txt`; inside: `<temp>/projects/ok.txt`; `.git`: `<temp>/projects/app/.git/hooks/pre-commit`; Monitor marker: `<temp>/monitor-ran.txt`; the shell runs with `<temp>/project` as its folder | the `echo` is harmless; the outside write would create `<temp>/outside/x.txt`, the `.git` write `<temp>/projects/app/.git/hooks/pre-commit` and Monitor would run `echo ran > <temp>/monitor-ran.txt`, all inside the temp folder. A tool that reaches `canUseTool` is denied, but the classifier may allow others without asking (H0 probe 7), so beyond those named paths containment is the prompt, `maxTurns: 14` and the temp working folder. The fetch is a read of one public page |
 | `check-kill-tree.ts` | one shell command: `node <temp>/sleeper.cjs`, which writes `<temp>/sleeper.pid` and sleeps two minutes | `<temp>/sleeper.cjs`, `<temp>/sleeper.pid` | this script has no guard, but its `canUseTool` allows that one command character for character and denies everything else, and only the shell tools exist (`tools: ['Bash', 'PowerShell']`); applied and tested without a session (`tests/unit/real-scripts.test.ts`). If the model words the command differently it is denied and the check reports that the command never started: harmless, run it again |
 | `check-effort.ts` | nothing: one word as the answer, twice | none | no tool is approved and `maxTurns` is 1 |
+| `check-subagent.ts` (added 2026-10-16) | one Agent call to a throwaway haiku agent that reports one word | none | the agent has only `Read`, `canUseTool` denies everything and `maxTurns` is 6; nothing is written outside the temp folder |
 
 The two changes proposed on 2026-10-15 (`--no-optional-locks` in the preflight, and the exact-command rule in `check-kill-tree.ts`) were applied the same day on the user's go-ahead.
+
+## H10 run 1: the interviewer's report never arrived (2026-10-16)
+
+The first H10 run, from the browser on the real library, ended `failed` in
+`gap-analysis`. Session `94048952-…` under `<home>/briefstack-data/sessions`;
+Claude Code 2.1.301, Agent SDK 0.3.286.
+
+**What happened** (session `events.jsonl` and the SDK transcript):
+
+1. The main session called Agent for the `interviewer`. The tool returned at
+   once ("Async agent launched … working in the background"): the subagent
+   ran in the background.
+2. The main session waited with `sleep 1; echo waiting`. The guard denied it
+   (`;`, and not the briefstack CLI). Harmless.
+3. The interviewer, done, called `SubagentHandback` to deliver its report.
+   The guard denied it: not in `FLOW_TOOLS`. Claude Code reminded it to
+   report three more times (`[handback-send-enforce]`, up to 3 in the binary),
+   each denied: 4 calls, then the run ended with no report.
+4. The main session relaunched it with `run_in_background: false`; same
+   four denials; the Agent result was "The subagent ended without delivering
+   a report through SubagentHandback, so no report was delivered".
+5. The skill closed `gap-analysis` and the session as `failed`, as it should.
+
+**State after the run** (checked read-only): the only files written are
+`idea.md` and `events.jsonl` in that session folder. The projects folder is
+unchanged (only `receipt-parser-api`, last modified 2026-10-13); the library
+has no commit after 2026-10-15 and a clean status; the repo is clean. The
+interviewer has only `Read`, `Grep`, `Glob`. Session outcome: `failed`.
+
+**Cause:** the closed tool list of the guard, plus subagents running in the
+background by default. No other cause was found.
+
+### `SubagentHandback` (verified 2026-10-16)
+
+Sources: https://code.claude.com/docs/en/tools-reference (table entry and
+"subagent tool lists"), https://code.claude.com/docs/en/permission-modes
+("How auto mode handles subagents"), and the strings of the bundled
+`claude.exe` of SDK 0.3.286.
+
+- "Delivers a subagent's final report to whichever conversation receives that
+  subagent's result. Provided only in auto mode, to subagents that the Agent
+  tool runs locally other than forks, and available in … the Agent SDK; the
+  classifier reviews the report before it's delivered. Requires Claude Code
+  v2.1.271 or later." Permission required: No.
+- Claude Code gives it to the subagent "even if you leave it out of `tools`
+  or list it in `disallowedTools`". That is why it was offered although
+  `query()` gets `tools: FLOW_BUILTIN_TOOLS` and the interviewer lists three.
+- The subagent's prompt says: "Only a SubagentHandback call reaches your
+  caller as your result; plain text you write at the end is not delivered."
+  So in `auto` mode, denying it means no subagent ever reports.
+- Input: `{ message }` (non-empty). Its `call` stores the report for the
+  recipient and ends the subagent's run; a second call is refused ("delivers
+  one report"). Called from a session that is not such a subagent it does
+  nothing ("Nothing was sent: … not active for this agent").
+
+**Why it is safe to allow:** it writes no file, runs no command, reaches no
+network and touches nothing outside the session; its one effect is that text
+reaches the parent session, which is exactly what the Agent tool's result is
+for. The auto classifier reviews the report on the way (flagged reports
+arrive with a security warning), so the guard returning `pass` keeps that
+review. **Who:** subagents only; the main session is denied (it has no
+caller). It is also passed after a cancel: denying it then only makes the
+subagent retry three times before stopping, while delivering ends its run.
+
+No other coordination tool is needed: with background tasks off (below) the
+main session never has to message, stop or read a running agent, so
+`SendMessage`, `TaskStop` and `ListAgents` stay denied (tests list them).
+
+### Subagents in the foreground (verified 2026-10-16)
+
+Sources: https://code.claude.com/docs/en/sub-agents ("Run subagents in
+foreground or background"), https://code.claude.com/docs/en/env-vars, and
+`sdk-tools.d.ts` of SDK 0.3.286 (`AgentInput.run_in_background`: "Agents run
+in the background by default").
+
+- With fork mode off, as in the Agent SDK, "Claude runs the subagent in the
+  background by default and in the foreground when it needs the result".
+- "If you set `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` to `1`, Claude Code runs
+  the subagent in the foreground, in every kind of session." The variable
+  "disable[s] all background task functionality, including the
+  `run_in_background` parameter on Bash and subagent tools, auto-backgrounding,
+  and the Ctrl+B shortcut".
+
+**Change:** `cleanEnvironment` (the environment of every creation) sets
+`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` after removing the server's own
+`CLAUDE_CODE_*`. It is code, so it does not depend on the model. The skill
+also says to pass `run_in_background: false` and, if an agent still runs in
+the background (a terminal session with fork mode on), to wait for the
+completion notification and never poll with `sleep` or any tool.
+
+**Real check:** `scripts/real/check-subagent.ts` runs a haiku main session
+with the runner's options, guard and environment and one throwaway haiku
+agent that reports a random word, and checks the word comes back as the
+Agent result in the foreground, the guard denies nothing and the main session
+runs no shell command. It writes nothing: the agent has only `Read`, and
+`canUseTool` denies everything; the temp folder is removed at the end.
