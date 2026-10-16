@@ -92,6 +92,12 @@ describe('buildQueryOptions', () => {
 });
 
 describe('cleanEnvironment', () => {
+  it('turns background tasks off even when the server environment sets them otherwise', () => {
+    const { env, removed } = cleanEnvironment({ CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '0', PATH: '/bin' }, '/home');
+    expect(env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe('1');
+    expect(removed).toEqual(['CLAUDE_CODE_DISABLE_BACKGROUND_TASKS']);
+  });
+
   it('drops credentials and Claude Code variables, reports only names, and fixes the home', () => {
     const { env, removed } = cleanEnvironment(
       {
@@ -107,7 +113,7 @@ describe('cleanEnvironment', () => {
     );
     expect(removed.sort()).toEqual(['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_OAUTH_TOKEN']);
     expect(JSON.stringify(removed)).not.toContain(FAKE_KEY);
-    expect(env).toEqual({ PATH: '/bin', BRIEFSTACK_HOME: '/new-home' });
+    expect(env).toEqual({ PATH: '/bin', BRIEFSTACK_HOME: '/new-home', CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1' });
   });
 });
 

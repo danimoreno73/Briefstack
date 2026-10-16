@@ -31,7 +31,11 @@ The idea, if given: $ARGUMENTS
   (the CLI refuses it).
 - **Agents.** Launch them with the Agent tool by `subagent_type` only. Never
   pass `model` or `effort`: the agent files hold the values of the active
-  usage profile, and a parameter would override them.
+  usage profile, and a parameter would override them. Pass
+  `run_in_background: false`: every step needs the agent's report before it
+  goes on. If an agent still runs in the background, end your turn and wait
+  for its completion notification; never wait with `sleep`, a shell command
+  or any other tool.
 - **Events.** `SESSION` below is `${CLAUDE_SESSION_ID}`. Record each step with
   `npm run --silent briefstack -- event <step> started --session SESSION`
   and `... event <step> finished --session SESSION --outcome ok|skipped|failed`.

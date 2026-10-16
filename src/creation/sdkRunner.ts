@@ -47,7 +47,10 @@ export interface CleanEnvironment {
   removed: string[];
 }
 
-/** The session's environment: the server's, without credentials or Claude Code's own `CLAUDE_CODE_*`. */
+/**
+ * The session's environment: the server's, without credentials or Claude
+ * Code's own `CLAUDE_CODE_*`, with background tasks turned off.
+ */
 export function cleanEnvironment(
   source: Readonly<Record<string, string | undefined>>,
   home: string,
@@ -64,6 +67,9 @@ export function cleanEnvironment(
   }
   // The skill, the CLI and the hooks must use the same home as the server.
   env.BRIEFSTACK_HOME = home;
+  // Subagents run in the foreground, so their report is the Agent call's result
+  // and the main session never waits by polling (docs/decisions.md, H10).
+  env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = '1';
   return { env, removed };
 }
 
