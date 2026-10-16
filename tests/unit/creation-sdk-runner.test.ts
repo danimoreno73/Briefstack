@@ -286,7 +286,15 @@ describe('SdkRunner', () => {
     r.start({ creationId: 'c1', idea: 'A garden planner', profile: { name: 'balanced', sessionModel: 'sonnet', effort: 'medium' }, sessionsDir, policy: 'ask', io: io() });
 
   const init = (extra: Record<string, unknown> = {}) =>
-    fake.push({ type: 'system', subtype: 'init', session_id: SESSION, slash_commands: ['new-project', 'usage'], ...extra });
+    fake.push({
+      type: 'system',
+      subtype: 'init',
+      session_id: SESSION,
+      slash_commands: ['new-project', 'usage'],
+      tools: ['Read', 'Agent', 'mcp__briefstack-web__approve_spec', 'mcp__briefstack-web__grant_directory'],
+      mcp_servers: [{ name: 'briefstack-web', status: 'connected' }],
+      ...extra,
+    });
   const options = (): Options => captured?.options ?? {};
   const canUse = (tool: string, input: Record<string, unknown>, agentID?: string) =>
     (options().canUseTool as CanUseTool)(tool, input, { signal: new AbortController().signal, toolUseID: 't', requestId: 'r', ...(agentID === undefined ? {} : { agentID }) });
@@ -473,6 +481,29 @@ describe('SdkRunner', () => {
     init({ slash_commands: ['usage'] });
     expect(await handle.done).toMatchObject({ kind: 'failed', error: expect.stringContaining('/new-project') });
     expect(fake.closed).toBe(true);
+  });
+
+  it('fails at once, before the flow runs, when the init message lacks the browser tools', async () => {
+    const handle = start();
+    init({ tools: ['Read', 'Agent', 'mcp__briefstack-web__grant_directory'], mcp_servers: [{ name: 'briefstack-web', status: 'failed' }] });
+    const outcome = await handle.done;
+    expect(outcome).toMatchObject({ kind: 'failed' });
+    const error = (outcome as { error: string }).error;
+    expect(error).toContain('mcp__briefstack-web__approve_spec');
+    expect(error).not.toContain('grant_directory');
+    expect(error).toContain('briefstack-web: failed');
+    expect(fake.closed).toBe(true);
+    expect(events).not.toContainEqual({ kind: 'status', status: 'running' });
+  });
+
+  it('checks the tools on the first init only: later turns may list them otherwise', async () => {
+    const handle = start();
+    init();
+    await handle.sessionId;
+    init({ tools: [] });
+    await tick();
+    expect(fake.closed).toBe(false);
+    await handle.stop();
   });
 
   it('ends as stopped on stop(), closes the query and kills the process tree', async () => {

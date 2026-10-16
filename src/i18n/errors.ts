@@ -135,6 +135,8 @@ const errors = defineCatalogue<ErrorMessages>({
       'Claude Code was not found. Install it (https://claude.com/claude-code), log in with `claude`, and start briefstack web again.',
     'creation.slashCommandMissing': (p) =>
       `Claude Code did not list /${p.command} among its commands, so the creation cannot start. Check that the briefstack repository is the working folder and has .claude/skills/${p.command}.`,
+    'creation.webToolsMissing': (p) =>
+      `Claude Code started without the browser tools (${p.tools}; MCP server ${p.server}: ${p.status}), so the spec approval could not reach this page. The creation was stopped before doing anything. Start briefstack web again; if it happens again, report it with this message.`,
     'creation.notFound': (p) => `No creation with id ${p.id}.`,
     'creation.noPending': (p) => `Creation ${p.id} is not waiting for an answer.`,
     'creation.wrongPending': (p) =>
@@ -228,6 +230,8 @@ const errors = defineCatalogue<ErrorMessages>({
       'No se encontró Claude Code. Instálalo (https://claude.com/claude-code), inicia sesión con `claude` y vuelve a arrancar briefstack web.',
     'creation.slashCommandMissing': (p) =>
       `Claude Code no ha listado /${p.command} entre sus comandos, así que la creación no puede empezar. Comprueba que el repositorio de briefstack es la carpeta de trabajo y tiene .claude/skills/${p.command}.`,
+    'creation.webToolsMissing': (p) =>
+      `Claude Code ha arrancado sin las herramientas del navegador (${p.tools}; servidor MCP ${p.server}: ${p.status}), así que la aprobación de la spec no podría llegar a esta página. La creación se ha parado antes de hacer nada. Vuelve a arrancar briefstack web; si se repite, avisa con este mensaje.`,
     'creation.notFound': (p) => `No hay ninguna creación con id ${p.id}.`,
     'creation.noPending': (p) => `La creación ${p.id} no está esperando ninguna respuesta.`,
     'creation.wrongPending': (p) =>

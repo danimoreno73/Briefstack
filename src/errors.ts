@@ -69,6 +69,7 @@ export interface ErrorParams {
   'creation.noSpec': { id: string };
   'creation.claudeNotFound': Record<string, never>;
   'creation.slashCommandMissing': { command: string };
+  'creation.webToolsMissing': { tools: string; server: string; status: string };
   'creation.notFound': { id: string };
   'creation.noPending': { id: string };
   'creation.wrongPending': { pendingId: string; expected: string };

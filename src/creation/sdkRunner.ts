@@ -265,6 +265,8 @@ class SdkRun {
   private requests = 0;
   /** Whether the applied effort was already reported. */
   private effortReported = false;
+  /** Whether the first init message, the one that lists the tools, was read. */
+  private initSeen = false;
   private readonly input = new InputQueue();
   private readonly abort = new AbortController();
   private readonly tracked: TrackedSpawn;
@@ -445,6 +447,17 @@ class SdkRun {
       if (commands !== undefined && !commands.includes(SKILL_COMMAND)) {
         this.fail(new BriefstackError('creation.slashCommandMissing', { command: SKILL_COMMAND }));
         return;
+      }
+      // Without the two browser tools the skill takes the terminal path and the spec never reaches the page.
+      if (!this.initSeen) {
+        this.initSeen = true;
+        const tools = message.tools ?? [];
+        const missing = [APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL].filter((tool) => !tools.includes(tool));
+        if (missing.length > 0) {
+          const status = message.mcp_servers?.find((server) => server.name === WEB_SERVER_NAME)?.status ?? 'not listed';
+          this.fail(new BriefstackError('creation.webToolsMissing', { tools: missing.join(', '), server: WEB_SERVER_NAME, status }));
+          return;
+        }
       }
       this.io.emit({ kind: 'status', status: 'running' });
       return;

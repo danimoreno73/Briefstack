@@ -92,6 +92,7 @@ describe('error catalogue', () => {
     'creation.noSpec': { id: 'c1' },
     'creation.claudeNotFound': {},
     'creation.slashCommandMissing': { command: 'new-project' },
+    'creation.webToolsMissing': { tools: 'mcp__briefstack-web__approve_spec', server: 'briefstack-web', status: 'failed' },
     'creation.notFound': { id: 'c1' },
     'creation.noPending': { id: 'c1' },
     'creation.wrongPending': { pendingId: 'p1', expected: 'p2' },
