@@ -349,6 +349,10 @@ export interface GuardDenial {
   toolName: string;
   summary: string;
   agentType?: string;
+  /** The subagent that made the call; absent for the main session. */
+  agentId?: string;
+  /** Claude Code's id for the call, which pairs the denial with its `tool.pre` line. */
+  toolUseId?: string;
   reason: string;
 }
 
@@ -374,6 +378,8 @@ export function guardHook(ctx: GuardContext, onDeny: (denial: GuardDenial) => vo
     }
     const denial: GuardDenial = { toolName: input.tool_name, summary: verdict.summary, reason: verdict.reason };
     if (input.agent_type !== undefined && input.agent_type !== '') denial.agentType = input.agent_type;
+    if (input.agent_id !== undefined && input.agent_id !== '') denial.agentId = input.agent_id;
+    if (input.tool_use_id !== '') denial.toolUseId = input.tool_use_id;
     onDeny(denial);
     return {
       hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: verdict.reason },

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import {
@@ -7,9 +7,11 @@ import {
   FLOW_STEPS,
   HOOK_EVENT_TYPES,
   SESSION_OUTCOMES,
+  TARGET_ROOTS,
   STEP_OUTCOMES,
   appendEvent,
   flowEvent,
+  sessionEventsFile,
   sessionLifecycleEvent,
   type FlowStep,
   type HookEvent,
@@ -30,7 +32,11 @@ import type { CreationRunner, RunnerHandle, RunnerOutcome, RunnerStartOptions } 
  *   `{"do":"flow","step":"spec","phase":"finished","outcome":"ok"}`: the
  *   skill's `briefstack event <step> …` calls.
  * - `{"do":"hook","type":"subagent.start","agentType":"architect"}`: a hook
- *   line (`agentId`, `agentType`, `tool`, `reason` optional).
+ *   line (`agentId`, `agentType`, `tool`, `toolUseId`, `target`, `effort`,
+ *   `model`, `reason` optional; docs/events.md).
+ * - `{"do":"burst","count":500,"agentId":"a1","agentType":"generator","tool":"Read"}`:
+ *   `count` pairs of `tool.pre`/`tool.post` lines written at once, to test
+ *   that the page keeps up.
  * - `{"do":"emit","event":{…}}`: a `RunnerEvent` sent through `io.emit`.
  * - `{"do":"question","questions":[…],"onCancel":"<label>"}`: an
  *   `AskUserQuestion` batch (1–4 questions).
@@ -53,6 +59,13 @@ import type { CreationRunner, RunnerHandle, RunnerOutcome, RunnerStartOptions } 
 
 const label = z.string().min(1);
 
+/** Many lines in one append, as a busy session's hooks would leave them. */
+async function appendEventLines(sessionsDir: string, session: string, lines: readonly string[]): Promise<void> {
+  const file = sessionEventsFile(sessionsDir, session);
+  await mkdir(path.dirname(file), { recursive: true });
+  await appendFile(file, lines.map((line) => `${line}\n`).join(''), 'utf8');
+}
+
 const questionSchema = z.object({
   question: z.string().min(1),
   header: z.string(),
@@ -66,6 +79,10 @@ const hookSchema = z.object({
   agentId: z.string().optional(),
   agentType: z.string().optional(),
   tool: z.string().optional(),
+  toolUseId: z.string().optional(),
+  target: z.strictObject({ root: z.enum(TARGET_ROOTS), path: z.string().optional() }).optional(),
+  effort: z.string().optional(),
+  model: z.string().optional(),
   reason: z.string().optional(),
 });
 
@@ -78,6 +95,13 @@ const stepSchema = z.discriminatedUnion('do', [
     outcome: z.enum(STEP_OUTCOMES).optional(),
   }),
   hookSchema,
+  z.object({
+    do: z.literal('burst'),
+    count: z.number().int().min(1).max(20_000),
+    agentId: z.string().optional(),
+    agentType: z.string().optional(),
+    tool: z.string().min(1),
+  }),
   z.object({ do: z.literal('emit'), event: z.looseObject({ kind: z.enum(['status', 'agent', 'step', 'denial']) }) }),
   z.object({ do: z.literal('question'), questions: z.array(questionSchema).min(1).max(4), onCancel: label.optional() }),
   z.object({
@@ -238,11 +262,29 @@ export class FakeRunner implements CreationRunner {
             break;
           case 'hook': {
             const event = hook({ type: step.type });
-            for (const key of ['agentId', 'agentType', 'tool', 'reason'] as const) {
+            for (const key of ['agentId', 'agentType', 'tool', 'toolUseId', 'effort', 'model', 'reason'] as const) {
               const value = step[key];
               if (value !== undefined) event[key] = value;
             }
+            if (step.target !== undefined) {
+              event.target = step.target.path === undefined ? { root: step.target.root } : { root: step.target.root, path: step.target.path };
+            }
             await appendEvent(sessionsDir, event);
+            break;
+          }
+          case 'burst': {
+            const lines: string[] = [];
+            for (let index = 1; index <= step.count; index += 1) {
+              for (const type of ['tool.pre', 'tool.post'] as const) {
+                const event = hook({ type });
+                if (step.agentId !== undefined) event.agentId = step.agentId;
+                if (step.agentType !== undefined) event.agentType = step.agentType;
+                event.tool = step.tool;
+                event.toolUseId = `burst-${index}`;
+                lines.push(JSON.stringify(event));
+              }
+            }
+            await appendEventLines(sessionsDir, session, lines);
             break;
           }
           case 'emit':

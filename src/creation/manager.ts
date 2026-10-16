@@ -8,11 +8,15 @@ import {
   appendEvent,
   flowEvent,
   readEvents,
+  runnerEvent,
   sessionEventsFile,
   sessionLifecycleEvent,
+  type DenialSource,
   type FlowEvent,
   type FlowStep,
   type HookEvent,
+  type RunnerLineEvent,
+  type RunnerLineFields,
   type SessionLifecycleEvent,
   type SessionOutcome,
 } from '../events/index.js';
@@ -146,6 +150,8 @@ export type StreamEvent = StreamBase &
   (
     | { kind: 'flow'; data: FlowEvent | SessionLifecycleEvent }
     | { kind: 'hook'; data: HookEvent }
+    /** Lines the server wrote to `events.jsonl` itself (`source: "runner"`): denials, profile, plan usage. */
+    | { kind: 'runner'; data: RunnerLineEvent }
     | { kind: PendingKind; data: PendingEventData }
     | { kind: 'status'; data: StatusEventData }
     | { kind: 'denied'; data: DeniedEventData }
@@ -195,6 +201,12 @@ interface Creation {
   subscribers: Set<Subscriber>;
   /** `events.jsonl` events already streamed. */
   consumed: number;
+  /** The profile the creation runs with, recorded once the session id is known. */
+  profile?: RunnerProfile;
+  /** Runner lines asked for before the session id was known, written once it is. */
+  unwritten: RunnerLineFields[];
+  /** Runner lines are appended one after another, in the order they were asked for. */
+  writeChain: Promise<void>;
   openStep?: FlowStep | undefined;
   pollTimer?: NodeJS.Timeout | undefined;
   pollChain: Promise<void>;
@@ -263,6 +275,8 @@ export class CreationManager {
       buffer: [],
       subscribers: new Set(),
       consumed: 0,
+      unwritten: [],
+      writeChain: Promise.resolve(),
       pollChain: Promise.resolve(),
     };
     // Registered before any await, so a second create sees it.
@@ -272,6 +286,7 @@ export class CreationManager {
       c.state.policy = await this.options.policy();
       const profile = await this.options.profile();
       c.state.profile = profile.name;
+      c.profile = profile;
       c.handle = this.options.runner.start({
         creationId: c.state.id,
         idea,
@@ -291,6 +306,8 @@ export class CreationManager {
     void handle.sessionId.then(
       (sessionId) => {
         c.state.sessionId = sessionId;
+        this.recordProfile(c);
+        for (const fields of c.unwritten.splice(0)) this.record(c, fields);
         this.pushStatus(c);
         this.schedulePoll(c);
       },
@@ -380,6 +397,9 @@ export class CreationManager {
       ];
       if (issues.length > 0) throw new BriefstackError('creation.invalidAnswer', { kind, issues });
       result = { decision: 'answer', answers } satisfies QuestionResult;
+    }
+    if (head.pending.kind === 'permission' && parsed.data === 'deny') {
+      this.recordDenial(c, 'user', head.pending.payload.toolName, head.pending.payload.agentType);
     }
     this.settle(c, result, parsed.data);
     return this.snapshot(c);
@@ -486,6 +506,7 @@ export class CreationManager {
         if (request.agentType !== undefined) denied.agentType = request.agentType;
         c.state.denied.push(denied);
         this.push(c, { kind: 'denied', data: { ...denied, by: 'policy' } });
+        this.recordDenial(c, 'policy', request.toolName, request.agentType);
         return 'deny';
       },
       approveSpec: (request) => {
@@ -500,10 +521,15 @@ export class CreationManager {
             summary: redactSecretLines(event.summary),
             at: this.now().toISOString(),
             by: 'runner',
-            reason: event.reason,
+            reason: redactSecretLines(event.reason),
           };
           if (event.agentType !== undefined) data.agentType = event.agentType;
           this.push(c, { kind: 'denied', data });
+          this.recordDenial(c, 'guard', event.toolName, event.agentType, {
+            reason: data.reason ?? '',
+            ...(event.agentId === undefined ? {} : { agentId: event.agentId }),
+            ...(event.toolUseId === undefined ? {} : { toolUseId: event.toolUseId }),
+          });
         } else {
           const runner = event.kind === 'status' && event.message !== undefined ? { ...event, message: redactSecretLines(event.message) } : event;
           if (runner.kind === 'status' && runner.status === 'turnEnded') {
@@ -516,6 +542,49 @@ export class CreationManager {
         }
       },
     };
+  }
+
+  /**
+   * Appends a runner line to the session's `events.jsonl`, after the ones
+   * asked for before it. Before the session id is known, it waits.
+   */
+  private record(c: Creation, fields: RunnerLineFields): void {
+    const session = c.state.sessionId;
+    if (session === undefined) {
+      c.unwritten.push(fields);
+      return;
+    }
+    const event = runnerEvent(session, fields, this.now());
+    c.writeChain = c.writeChain.then(() => appendEvent(this.options.sessionsDir, event).then(() => undefined)).catch(() => undefined);
+  }
+
+  private recordProfile(c: Creation): void {
+    const profile = c.profile;
+    if (profile === undefined) return;
+    this.record(c, {
+      type: 'session.profile',
+      profile: profile.name,
+      ...(profile.sessionModel === undefined ? {} : { model: profile.sessionModel }),
+      ...(profile.effort === undefined ? {} : { effort: profile.effort }),
+    });
+  }
+
+  private recordDenial(
+    c: Creation,
+    by: DenialSource,
+    tool: string,
+    agentType: string | undefined,
+    extra: { reason?: string; agentId?: string; toolUseId?: string } = {},
+  ): void {
+    this.record(c, {
+      type: 'tool.denied',
+      tool,
+      by,
+      ...(agentType === undefined ? {} : { agentType }),
+      ...(extra.agentId === undefined ? {} : { agentId: extra.agentId }),
+      ...(extra.toolUseId === undefined ? {} : { toolUseId: extra.toolUseId }),
+      ...(extra.reason === undefined || extra.reason === '' ? {} : { reason: redactSecretLines(extra.reason) }),
+    });
   }
 
   private async request<K extends PendingKind>(c: Creation, kind: K, payload: PendingPayloads[K]): Promise<PendingResults[K]> {
@@ -608,6 +677,10 @@ export class CreationManager {
       c.consumed += 1;
       if (event.source === 'hook') {
         this.push(c, { kind: 'hook', data: event });
+        continue;
+      }
+      if (event.source === 'runner') {
+        this.push(c, { kind: 'runner', data: event });
         continue;
       }
       this.push(c, { kind: 'flow', data: event });

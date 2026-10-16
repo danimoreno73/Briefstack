@@ -8,6 +8,10 @@ import { BriefstackError } from '../errors.js';
  * Flow steps come from `briefstack event`; subagent and tool events come
  * from `scripts/hook-event.mjs`, which writes the same format without
  * importing this module (it must start fast). A test keeps both in sync.
+ * Lines with `source: "runner"` are written by the web server for what
+ * neither of those sees (denials, the session's profile, plan usage).
+ * The format is documented in docs/events.md; every field added after
+ * phase 2 is optional, so older lines stay valid.
  */
 
 export const EVENTS_FILE = 'events.jsonl';
@@ -51,6 +55,20 @@ export const HOOK_EVENT_TYPES = [
 ] as const;
 export type HookEventType = (typeof HOOK_EVENT_TYPES)[number];
 
+/** Where a tool call's target lies. `cli` is a briefstack subcommand; `outside` has no path. */
+export const TARGET_ROOTS = ['session', 'projects', 'repo', 'cli', 'outside'] as const;
+export type TargetRoot = (typeof TARGET_ROOTS)[number];
+
+/** The short target of a tool call (docs/events.md, "Targets"). Never a tool input as such. */
+export interface EventTarget {
+  root: TargetRoot;
+  /** Relative path with `/`, or the subcommand; absent for `outside`. At most 120 characters. */
+  path?: string;
+}
+
+/** Longest target path written. */
+export const MAX_TARGET_LENGTH = 120;
+
 interface EventBase {
   v: typeof EVENT_FORMAT;
   /** ISO timestamp. */
@@ -78,11 +96,65 @@ export interface HookEvent extends EventBase {
   agentId?: string;
   agentType?: string;
   tool?: string;
+  /** `tool.*`: Claude Code's id for the call, which pairs `tool.pre` with its `tool.post` or `tool.failure`. */
+  toolUseId?: string;
+  /** `tool.pre`: what the call works on (a relative path or a CLI subcommand). */
+  target?: EventTarget;
+  /** `tool.pre` and `subagent.stop`: the effort level applied to the turn. */
+  effort?: string;
+  /** `subagent.start`: the model the agent file sets. */
+  model?: string;
   /** `session.end` only: Claude Code's reason, e.g. `clear`, `prompt_input_exit`, `other`. */
   reason?: string;
 }
 
-export type SessionEvent = FlowEvent | SessionLifecycleEvent | HookEvent;
+export const RUNNER_EVENT_TYPES = ['tool.denied', 'session.profile', 'usage'] as const;
+export type RunnerEventType = (typeof RUNNER_EVENT_TYPES)[number];
+
+/** Who refused a tool call: the guard hook, the `unattended` policy, or the user in the browser. */
+export const DENIAL_SOURCES = ['guard', 'policy', 'user'] as const;
+export type DenialSource = (typeof DENIAL_SOURCES)[number];
+
+interface RunnerLineBase extends EventBase {
+  source: 'runner';
+}
+
+/** A tool call that was refused. `reason` is the guard's message (already redacted by the writer). */
+export interface ToolDeniedEvent extends RunnerLineBase {
+  type: 'tool.denied';
+  tool: string;
+  by: DenialSource;
+  agentId?: string;
+  agentType?: string;
+  toolUseId?: string;
+  reason?: string;
+}
+
+/** The usage profile a creation runs with; written once the session id is known. */
+export interface SessionProfileEvent extends RunnerLineBase {
+  type: 'session.profile';
+  profile: string;
+  model?: string;
+  /** The effort the profile asks for (the applied one is on `tool.pre`). */
+  effort?: string;
+}
+
+/** Plan usage, as `/usage` shows it: percent of the 5-hour and 7-day windows, `null` when unknown. */
+export interface UsageEvent extends RunnerLineBase {
+  type: 'usage';
+  fiveHour: number | null;
+  sevenDay: number | null;
+}
+
+export type RunnerLineEvent = ToolDeniedEvent | SessionProfileEvent | UsageEvent;
+/** A runner line without the fields `runnerEvent` fills in, per type. */
+export type RunnerLineFields = RunnerLineEvent extends infer E
+  ? E extends RunnerLineEvent
+    ? Omit<E, 'v' | 'ts' | 'session' | 'source'>
+    : never
+  : never;
+
+export type SessionEvent = FlowEvent | SessionLifecycleEvent | HookEvent | RunnerLineEvent;
 
 /** Claude Code session ids are UUIDs; this also keeps the folder name safe. */
 export const SESSION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -154,7 +226,36 @@ function isSessionEvent(value: unknown): value is SessionEvent {
       isFlowStep(event.step)
     );
   }
+  if (event.source === 'runner') return isRunnerLine(event);
   return event.source === 'hook' && (HOOK_EVENT_TYPES as readonly unknown[]).includes(event.type);
+}
+
+const optionalText = (value: unknown): boolean => value === undefined || typeof value === 'string';
+const percent = (value: unknown): boolean => value === null || (typeof value === 'number' && Number.isFinite(value));
+
+function isRunnerLine(event: Record<string, unknown>): boolean {
+  switch (event.type) {
+    case 'tool.denied':
+      return (
+        typeof event.tool === 'string' &&
+        (DENIAL_SOURCES as readonly unknown[]).includes(event.by) &&
+        optionalText(event.agentId) &&
+        optionalText(event.agentType) &&
+        optionalText(event.toolUseId) &&
+        optionalText(event.reason)
+      );
+    case 'session.profile':
+      return typeof event.profile === 'string' && optionalText(event.model) && optionalText(event.effort);
+    case 'usage':
+      return percent(event.fiveHour) && percent(event.sevenDay);
+    default:
+      return false;
+  }
+}
+
+/** A runner line with `v`, `ts`, `session` and `source` filled in. */
+export function runnerEvent(session: string, fields: RunnerLineFields, now: Date = new Date()): RunnerLineEvent {
+  return { v: EVENT_FORMAT, ts: now.toISOString(), session, source: 'runner', ...fields } as RunnerLineEvent;
 }
 
 /** Reads a session's events; a missing file has none. Bad lines are reported, not fatal. */
@@ -223,6 +324,8 @@ export function summarizeSession(
   // The latest `session.end` that nothing but other ends followed, in file order.
   let openEnd: HookEvent | undefined;
   for (const event of events) {
+    // The server's own lines (denials, profile, plan usage) are not activity of the session.
+    if (event.source === 'runner') continue;
     const time = Date.parse(event.ts);
     if (Number.isFinite(time) && time >= last) {
       last = time;

@@ -167,12 +167,23 @@ export interface HookLine {
   agentId?: string;
   agentType?: string;
   tool?: string;
+  toolUseId?: string;
+  target?: { root: string; path?: string };
+  effort?: string;
+  model?: string;
   reason?: string;
+}
+
+/** A line the server wrote itself (`source: "runner"`): `tool.denied`, `session.profile`, `usage`. */
+export interface RunnerLine {
+  type: string;
+  [field: string]: unknown;
 }
 
 export type StreamEvent =
   | { seq: number; ts: string; kind: 'flow'; data: FlowLine }
   | { seq: number; ts: string; kind: 'hook'; data: HookLine }
+  | { seq: number; ts: string; kind: 'runner'; data: RunnerLine }
   | { seq: number; ts: string; kind: 'question' | 'permission' | 'spec' | 'grant'; data: { pendingId: string; state: 'pending' | 'answered' } }
   | { seq: number; ts: string; kind: 'status'; data: { status: string; outcome?: string; sessionId?: string; cancelling?: boolean } }
   | { seq: number; ts: string; kind: 'denied'; data: DeniedRequest & { by: 'policy' | 'runner'; reason?: string } };

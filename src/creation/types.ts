@@ -85,7 +85,7 @@ export type RunnerEvent =
   | { kind: 'agent'; phase: 'started' | 'stopped'; agentType: string; agentId?: string }
   | { kind: 'step'; step: FlowStep; phase: StepPhase }
   /** The runner refused a tool on its own, e.g. the guard hook after a cancel. */
-  | { kind: 'denial'; toolName: string; summary: string; agentType?: string; reason: string }
+  | { kind: 'denial'; toolName: string; summary: string; agentType?: string; agentId?: string; toolUseId?: string; reason: string }
   /**
    * The effort Claude Code applied, as the first `PreToolUse` hook input of
    * the session reports it (after any downgrade for the model), next to the

@@ -11,7 +11,8 @@ import type { CreationState, Pending, ProjectListing, SpecView, StreamEvent, UiQ
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Events that mean the creation's state (the pending request, the status) may have changed. */
-const changesState = (event: StreamEvent): boolean => event.kind !== 'flow' && event.kind !== 'hook' && event.kind !== 'denied';
+const changesState = (event: StreamEvent): boolean =>
+  event.kind !== 'flow' && event.kind !== 'hook' && event.kind !== 'runner' && event.kind !== 'denied';
 
 // ---------------------------------------------------------------------------
 // The page: an idea form, or the creation in progress
