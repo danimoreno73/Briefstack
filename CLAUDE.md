@@ -1,13 +1,15 @@
 # briefstack
 
 Local tool that turns an idea into a ready-to-use Claude project and learns from
-each one. Scope and requirements: @docs/BRIEF-phase-2.md — read it before planning.
+each one. Scope and requirements: @docs/BRIEF-phase-3.md — read it before planning.
 
 ## Current phase
 
-Phase 2: local web app over the phase 1 core. Anything listed in BRIEF section 7
-is out of scope; do not start it. Phase 1 is done (tag `phase-1-done`); its
-brief is `docs/BRIEF-phase-1.md`, open it only when needed.
+Phase 3: live agent panel in the web app. Anything listed in BRIEF section 8
+is out of scope; do not start it. The plan and its Status are in
+`docs/PLAN-phase-3.md`. Phases 1 and 2 are done (tags `phase-1-done`,
+`phase-2-done`); their briefs are `docs/BRIEF-phase-1.md` and
+`docs/BRIEF-phase-2.md`, open them only when needed.
 
 ## Commands
 
@@ -21,7 +23,7 @@ A task is not done until build, tests and lint pass. Run them; do not assume.
 ## Layout
 
 - `src/` — the `briefstack` CLI and its library code
-- `library/` — base library shipped with the repo (templates, skills, usage profiles)
+- `library/` — base library shipped with the repo (templates, skills, rules, usage profiles)
 - `.claude/skills/new-project/` — the entry-point skill
 - `.claude/agents/` — the five flow agents
 - `tests/` — unit tests and fixture specs
