@@ -24,6 +24,8 @@ import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './toolNames.js';
  * - after a cancel, nothing except the `briefstack event` calls that close
  *   the session;
  * - web access is allowed for the researcher and denied to everyone else;
+ * - `SubagentHandback` is left to the permission mode for subagents, also
+ *   after a cancel, and denied to the main session;
  * - a tool outside `FLOW_TOOLS` is denied.
  * Everything else is left to the permission mode and `canUseTool`.
  */
@@ -54,8 +56,22 @@ export const FLOW_BUILTIN_TOOLS = [
   'ToolSearch',
 ] as const;
 
-/** Every tool the guard knows: the built-ins above and the two `briefstack-web` tools. Anything else is denied. */
-export const FLOW_TOOLS: ReadonlySet<string> = new Set<string>([...FLOW_BUILTIN_TOOLS, APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL]);
+/**
+ * Coordination tools Claude Code itself gives a subagent, whatever `tools`
+ * says, and that a creation needs. `SubagentHandback` is how a subagent
+ * delivers its final report in `auto` mode: only that call reaches the
+ * caller. It sends text to the parent session and nothing else, and the
+ * classifier reviews the report (docs/decisions.md, H10). Subagents only.
+ */
+export const SUBAGENT_TOOLS: ReadonlySet<string> = new Set<string>(['SubagentHandback']);
+
+/** Every tool the guard knows: the built-ins above, the subagent tools and the two `briefstack-web` tools. Anything else is denied. */
+export const FLOW_TOOLS: ReadonlySet<string> = new Set<string>([
+  ...FLOW_BUILTIN_TOOLS,
+  ...SUBAGENT_TOOLS,
+  APPROVE_SPEC_TOOL,
+  GRANT_DIRECTORY_TOOL,
+]);
 
 export type Caller = 'main' | 'generator' | 'reviewer' | 'other';
 
@@ -294,6 +310,12 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
       }
     }
     return { verdict: 'allow', reason: 'a briefstack CLI command this caller needs' };
+  }
+
+  if (SUBAGENT_TOOLS.has(tool)) {
+    if (caller === 'main') return deny(`${tool} is only for subagents.`, tool);
+    // Also after a cancel: denying the report only makes the agent retry before it stops.
+    return { verdict: 'pass' };
   }
 
   if (ctx.cancelled()) return deny(CANCEL_MESSAGE, `${tool}`);

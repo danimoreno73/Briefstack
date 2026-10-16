@@ -348,6 +348,19 @@ describe('evaluateToolUse', () => {
     }
   });
 
+  it('leaves SubagentHandback to the permission mode for subagents only, also after a cancel', async () => {
+    const interviewer = { agent_id: 'a4', agent_type: 'interviewer' };
+    for (const who of [interviewer, generator, reviewer]) {
+      expect(await verdictOf('SubagentHandback', { message: 'report' }, who)).toBe('pass');
+    }
+    const verdict = await evaluateToolUse(ctx, input('SubagentHandback', { message: 'report' }));
+    expect(verdict.verdict).toBe('deny');
+    expect((verdict as { reason: string }).reason).toContain('only for subagents');
+    cancelled = true;
+    expect(await verdictOf('SubagentHandback', { message: 'report' }, interviewer)).toBe('pass');
+    expect(await verdictOf('SubagentHandback', { message: 'report' })).toBe('deny');
+  });
+
   it('denies any tool it does not know, whoever calls it', async () => {
     for (const tool of [
       'Monitor',
@@ -361,6 +374,9 @@ describe('evaluateToolUse', () => {
       'TaskCreate',
       'TodoWrite',
       'Skill',
+      'SendMessage',
+      'TaskStop',
+      'ListAgents',
       'mcp__other__run',
       'mcp__briefstack-web__something_else',
       'NoSuchTool',
