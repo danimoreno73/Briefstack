@@ -11,7 +11,7 @@ commits, one concern each.
 
 ## 0. Status
 
-Updated 2026-10-15 (H6 closed, verified in real runs). A new session reads `CLAUDE.md`,
+Updated 2026-10-16: **phase 2 is done** (H10 accepted by the user, tag `phase-2-done`). A new session reads `CLAUDE.md`,
 `docs/BRIEF-phase-2.md`, this file and `docs/decisions.md` from
 "# Phase 2" onwards before continuing.
 
@@ -29,19 +29,66 @@ Updated 2026-10-15 (H6 closed, verified in real runs). A new session reads `CLAU
 | H8 | Creation UI in `src/ui/creation.tsx` (`#/new`, `#/new/<id>`): idea form; live progress from the stream (`progress.ts`); question form with the recommended option preselected and free text (`answers.ts`); permission panel (not modal, so Cancel stays reachable); spec approval (approve, change with text, cancel) over `GET /api/creations/:id/spec`; folder grant confirmation; result with the project card (found by the session id), and denied requests; Cancel always visible and asks first; the active creation reopened on `#/new` and marked in the menu; one active creation, with a link to it. Settings says before saving that a missing projects folder will be created (`GET /api/paths/check`). Secrets are hidden in permission and denial summaries by the manager as well |
 | H9 | Playwright e2e over the fake runner, 38 tests: `ui.spec.ts` (start-up and F5, projects, library edit and revert, secrets, usage, settings), `creation.spec.ts` (whole creation, change at the spec, cancel in three places, close and reopen the tab, second start, permissions under `ask` and `unattended`, folder grant, secrets in a request, Spanish), `security.spec.ts` (wrong Host, missing or wrong token, cross-origin and cross-site writes, a page from another origin, framing). Recordings added: `working`, `permissions`, `grant` |
 | H6 | Guard, web MCP tools, `SdkRunner`, process-tree kill, wiring into `briefstack web`, skill and agent changes. After the guard review (`decisions.md`, "Guard review"): wider protected folders, no writes in `.git` and no git hooks or fsmonitor in `commit`, a closed tool list, web for the researcher only, `approve_spec` after symlinks, no hooks in a generated `settings.local.json`, effort read from hook inputs. **Verified in real runs** (2026-10-15): `check-guard-auto` 10 PASS, `check-kill-tree` PASS, `check-effort` PASS for `low` and `high` (see "H6 status") |
+| H10 | **Accepted by the user (2026-10-16).** `entrenador-examenes` was created entirely from the browser on the real library, every step `ok`, no denial. "Change" at the spec worked (the change is in the project's `docs/diseno-sesion.md`), and so did closing and reopening the tab; the cancel worked in run 2. Three runs, below |
 
-Build and lint are clean, 521 vitest tests and 38 e2e tests pass on
+Build and lint are clean, 533 vitest tests and 39 e2e tests pass on
 Windows. CI runs on Linux only for each push; the full matrix runs by
 hand. `npm run test:e2e` builds the UI first; `npm run build` also
 type-checks `tests/e2e`.
 
-### Left, in order
+### H10: the three runs (2026-10-16)
 
-H10 (section 5 has its verification). It spends the user's plan and is for
-the user to launch.
+Details, sources and transcripts in `decisions.md`, "H10 run 1" and "H10 run 2".
 
-**Next: H10**, the real run from the browser (step 5 of "Real runs" below).
-Nothing is pending in code.
+| Run | Result | Cause | Fix |
+|---|---|---|---|
+| 1 | `failed` in `gap-analysis`; nothing written outside the session folder | The guard's closed tool list denied `SubagentHandback`, the only way a subagent reports in `auto` mode, so the interviewer never reported. Subagents also ran in the background by default, and the main session polled with `sleep` (denied) | `SubagentHandback` passed to the permission mode for subagents only (also after a cancel), denied to the main session; `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` in every creation's environment; the skill passes `run_in_background: false` and never polls; real check `check-subagent.ts` (its first version wrongly wanted the report inside the Agent result, which in `auto` mode only says it went through `SubagentHandback`) |
+| 2 | Stuck after the spec: the page said "Working…" with nothing pending; cancelled by the user | Not tool visibility (both `briefstack-web` tools were loaded). The skill let the model infer web mode, and step 5.3 led with "show the user … ask them", so the main session wrote the spec summary as plain text and ended its turn | Skill: `MODE` set once in step 0, the web branch first in 5.3, never end a turn waiting for text in web mode. A runner-only `PostToolUse` reminder after `spec check` and `paths check`. The runner fails at once if the first `init` lacks the two tools. A turn that ends with nothing asked shows the last message (redacted) as `awaitingReply` instead of "Working…". Real check `check-web-tools.ts` |
+| 3 | `completed`, accepted | — | — |
+
+### Left
+
+Nothing in phase 2. The backlog below is for later phases and is not
+started.
+
+### Backlog for later phases (not built)
+
+1. **A free reply box when the session waits for text** (phase 4, with the
+   global chat). The `awaitingReply` panel (H10 run 2) shows the last
+   message but cannot answer it. A text field whose answer the runner pushes
+   as the next user message (`InputQueue` already takes more messages);
+   it needs a route or pending kind, the secret check on what is typed,
+   tests and an e2e case. The proposal is in `decisions.md`, "H10 run 2".
+2. **The `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` warning** in the server
+   console. The SDK warns that `canUseTool` will not be called for bare
+   names in `allowedTools`. Ours are only `approve_spec` and
+   `grant_directory`, on purpose: they are our own tools, and their handlers
+   ask the user in the browser themselves, so a `canUseTool` prompt would
+   only ask twice; every other tool still goes through the guard
+   (`PreToolUse`) and `canUseTool`. Filter exactly that code (and only
+   while `allowedTools` holds just those two names) with a one-line note in
+   the console saying why it is safe, and a test that keeps the list to two.
+3. **How the target is chosen.** In run 3 the user chose `claude-code` in
+   the interview, accepting the interviewer's recommended default ("reading
+   PDFs reliably and keeping progress per topic in files between sessions,
+   which an app project does not do reliably"); the architect then applied
+   its first rule, "if the user chose one, use it". For the same idea, run 2's
+   interviewer recommended `claude-app`. The architect's own rule
+   (conversation or learning → `claude-app`) is not in the interviewer, which
+   has no rule for which target to recommend, and the library context showed
+   one past project, `claude-code`, "accepted by default". Also,
+   `targetReason` reads as the architect's own reasoning although the user
+   chose. To decide: one rule for both agents (or the architect proposes and
+   the interviewer only asks), how to treat ideas that are learning but need
+   files (a study trainer with PDFs and saved progress), and saying in the
+   summary who chose the target.
+4. **AskUserQuestion refused for a question with one option.** In run 2
+   Claude Code rejected the first interview batch ("fewer than 2 options …
+   the person never saw it"); the model resent it with two and went on. The
+   interviewer should never return a one-option question (a known fact is
+   not a question), and the skill should drop or merge such a question
+   instead of sending it; a deterministic check could be part of the
+   interviewer's report format.
 The e2e fixture (`tests/e2e/fixtures.ts`) holds a `CreationManager` over the
 fake runner; `appOptions` picks the recording (or builds one at run time),
 the permission policy and the language.
@@ -111,9 +158,9 @@ and all passed:
 - `check-kill-tree.ts`: PASS (run before the review; nothing it uses changed).
 - `check-effort.ts`: PASS for `low` and `high`, read from a `Stop` hook.
 
-H10 is the real run from the browser.
+H10 is the real run from the browser; it was accepted on 2026-10-16 (above).
 
-#### Real runs (checks 2 to 4 passed on 2026-10-15; H10 is next)
+#### Real runs (checks 2 to 4 passed on 2026-10-15, checks 5 and 6 added on 2026-10-16; H10 accepted on 2026-10-16)
 
 Every script needs `--yes`, works in a temp folder it creates (with its own
 temp `BRIEFSTACK_HOME`) and deletes it, prints the plan usage (5-hour and
