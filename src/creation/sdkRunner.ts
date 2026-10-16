@@ -17,7 +17,7 @@ import type { Lang } from '../i18n/index.js';
 import { protectedDirs } from '../scaffold/outputDir.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { findClaudeExecutable } from './claudeBinary.js';
-import { FLOW_BUILTIN_TOOLS, guardHook, insideAny, type GuardContext } from './guard.js';
+import { FLOW_BUILTIN_TOOLS, callerOf, guardHook, insideAny, parseBriefstackCommand, type GuardContext } from './guard.js';
 import { killProcessTree, spawnTracked, type TrackedSpawn } from './processTree.js';
 import type {
   CreationRunner,
@@ -117,6 +117,35 @@ export function buildQueryOptions(params: QueryOptionsParams): Options {
     canUseTool: params.canUseTool,
     abortController: params.abortController,
     spawnClaudeCodeProcess: params.spawn,
+  };
+}
+
+/** What the main session is reminded of after the two CLI checks that come right before a web answer. */
+export const WEB_REMINDERS = {
+  specCheck:
+    `Web app: if the spec check passed, write the summary to summary.md in the session folder and call ${APPROVE_SPEC_TOOL} ` +
+    'with specFile and summaryFile now, in this turn. Do not show the summary in your reply and do not ask in plain text: ' +
+    'the user cannot reply to text here, only to that tool.',
+  pathsCheck:
+    `Web app: if "allowed" is false and the folder is not forbidden, call ${GRANT_DIRECTORY_TOOL} with dir. ` +
+    'Do not ask the user to run /add-dir: the user cannot reply to text here.',
+} as const;
+
+/**
+ * A `PostToolUse` callback that adds `WEB_REMINDERS` to the result of the main
+ * session's `spec check` and `paths check` calls (H10 run 2, docs/decisions.md):
+ * the reminder arrives when the model decides what to do next.
+ */
+export function webReminderHook(isOwnSession: (id: string) => boolean): HookCallback {
+  return async (input) => {
+    if (input.hook_event_name !== 'PostToolUse' || !isOwnSession(input.session_id)) return {};
+    if (callerOf(input) !== 'main' || (input.tool_name !== 'Bash' && input.tool_name !== 'PowerShell')) return {};
+    const command = (input.tool_input as { command?: unknown } | undefined)?.command;
+    const parsed = parseBriefstackCommand(typeof command === 'string' ? command : '');
+    if (!parsed.ok || parsed.argv[1] !== 'check') return {};
+    const reminder = parsed.argv[0] === 'spec' ? WEB_REMINDERS.specCheck : parsed.argv[0] === 'paths' ? WEB_REMINDERS.pathsCheck : undefined;
+    if (reminder === undefined) return {};
+    return { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: reminder } };
   };
 }
 
@@ -364,6 +393,7 @@ class SdkRun {
               ],
             },
           ],
+          PostToolUse: [{ hooks: [webReminderHook((id) => id === this.claimed)] }],
           SubagentStart: [{ hooks: [recordAgent] }],
           SubagentStop: [{ hooks: [recordAgent] }],
         },

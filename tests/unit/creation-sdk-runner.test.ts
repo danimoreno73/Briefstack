@@ -2,7 +2,15 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { CanUseTool, HookCallback, Options, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { SdkRunner, buildQueryOptions, cleanEnvironment, describeToolUse, type QueryFn } from '../../src/creation/sdkRunner.js';
+import {
+  SdkRunner,
+  WEB_REMINDERS,
+  buildQueryOptions,
+  cleanEnvironment,
+  describeToolUse,
+  webReminderHook,
+  type QueryFn,
+} from '../../src/creation/sdkRunner.js';
 import type { TrackedSpawn } from '../../src/creation/processTree.js';
 import type {
   PermissionRequest,
@@ -114,6 +122,42 @@ describe('cleanEnvironment', () => {
     expect(removed.sort()).toEqual(['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_OAUTH_TOKEN']);
     expect(JSON.stringify(removed)).not.toContain(FAKE_KEY);
     expect(env).toEqual({ PATH: '/bin', BRIEFSTACK_HOME: '/new-home', CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1' });
+  });
+});
+
+describe('webReminderHook', () => {
+  const hook = webReminderHook((id) => id === SESSION);
+  const run = (command: string, extra: Record<string, unknown> = {}) =>
+    hook(
+      {
+        hook_event_name: 'PostToolUse',
+        session_id: SESSION,
+        transcript_path: '',
+        cwd: '',
+        tool_name: 'Bash',
+        tool_input: { command },
+        tool_response: {},
+        tool_use_id: 't',
+        ...extra,
+      } as never,
+      't',
+      { signal: new AbortController().signal },
+    );
+  const context = (output: unknown) => (output as { hookSpecificOutput?: { additionalContext?: string } }).hookSpecificOutput?.additionalContext;
+
+  it('reminds the main session of approve_spec after spec check and of grant_directory after paths check', async () => {
+    expect(context(await run('npm run --silent briefstack -- spec check "C:/s/spec.json"'))).toBe(WEB_REMINDERS.specCheck);
+    expect(context(await run('npm run --silent briefstack -- paths check "C:/p/app" --json'))).toBe(WEB_REMINDERS.pathsCheck);
+    expect(WEB_REMINDERS.specCheck).toContain('mcp__briefstack-web__approve_spec');
+    expect(WEB_REMINDERS.pathsCheck).toContain('mcp__briefstack-web__grant_directory');
+  });
+
+  it('says nothing after other commands, for subagents or for other sessions', async () => {
+    expect(context(await run('npm run --silent briefstack -- paths --json'))).toBeUndefined();
+    expect(context(await run('npm run --silent briefstack -- validate "C:/p/app"'))).toBeUndefined();
+    expect(context(await run('npm run --silent briefstack -- spec check "C:/s/spec.json"', { agent_id: 'a1', agent_type: 'architect' }))).toBeUndefined();
+    expect(context(await run('npm run --silent briefstack -- spec check "C:/s/spec.json"', { session_id: 'other' }))).toBeUndefined();
+    expect(context(await run('spec check; echo'))).toBeUndefined();
   });
 });
 
@@ -355,6 +399,29 @@ describe('SdkRunner', () => {
     expect(events).toContainEqual(expect.objectContaining({ kind: 'denial', toolName: 'Bash', agentType: 'generator' }));
     // An ordinary session of this repo (another id) is not touched.
     expect(await preToolUse('Bash', { command: 'rm -rf /' }, { session_id: 'someone-else' })).toEqual({});
+    await handle.stop();
+  });
+
+  it('reminds its own main session of approve_spec after spec check', async () => {
+    const handle = start();
+    init();
+    await handle.sessionId;
+    const hook = options().hooks?.PostToolUse?.[0]?.hooks[0] as HookCallback;
+    const output = await hook(
+      {
+        hook_event_name: 'PostToolUse',
+        session_id: SESSION,
+        transcript_path: '',
+        cwd: '',
+        tool_name: 'Bash',
+        tool_input: { command: 'npm run --silent briefstack -- spec check "C:/s/spec.json"' },
+        tool_response: {},
+        tool_use_id: 't',
+      } as never,
+      't',
+      { signal: new AbortController().signal },
+    );
+    expect(output).toEqual({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: WEB_REMINDERS.specCheck } });
     await handle.stop();
   });
 
