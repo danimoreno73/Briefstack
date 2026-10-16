@@ -49,6 +49,24 @@ describe('check-guard-auto: the cases it tries', () => {
   });
 });
 
+describe('check-subagent: a report through the runner options', () => {
+  it('uses the runner options and environment, does not ask for the foreground, and checks the report and the waiting', async () => {
+    const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-subagent.ts'), 'utf8');
+    expect(script).toContain('buildQueryOptions(');
+    expect(script).toContain('env: sessionEnv(box)');
+    expect(script).toContain("model: 'haiku'");
+    expect(script).not.toContain('run_in_background');
+    for (const name of [
+      'the Agent call returned the report in the foreground',
+      'the main session answered with the word',
+      'the guard denied nothing',
+      'the main session ran no shell command',
+    ]) {
+      expect(script).toMatch(new RegExp(`ok =\\s*report\\(\\s*'${name}'`));
+    }
+  });
+});
+
 describe('check-kill-tree: the one command it allows', () => {
   const expected = 'node "C:/Temp/briefstack-real-kill-abc123/sleeper.cjs"';
   const decide = onlyThisCommand(expected);
