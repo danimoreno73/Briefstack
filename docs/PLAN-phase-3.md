@@ -31,10 +31,13 @@ Updated 2026-10-16. A new session reads `CLAUDE.md`,
 | M4 | `GET /api/sessions/:id/events` (projected lines with `id`, `badLines`, `state`); the creation stream projects `hook` and `runner` lines the same way; `docs/api.md` updated |
 | M5 | `src/ui/panel.tsx` (agent tree, timeline as HTML rows with inline SVG bars, node detail with denials, plan usage, a text view in `<details>`; recomputed at most every 200 ms and every second while running), `src/ui/panelData.ts` (pure glue, tested); the creation page shows the panel under the pending control, which has id `pending-control` and is reached from the node that asked; `#/sessions/<id>` rebuilds a session from `GET /api/sessions/:id/events`, linked from the project detail and the interrupted and cancelled list; strings in English and Spanish |
 | M6 | `tests/e2e/panel.spec.ts` (live updates, requests on the asking node, a guard denial, reopening the tab, a 3000-pair burst, cancelled, interrupted and pre-phase-3 sessions, an agent with no stop, the text view with the keyboard, no sideways scroll at 390 px); recording `panel.jsonl`; `npm run screenshots` (`playwright.screenshots.config.ts`, `tests/screenshots/`) writes 12 screenshots at 1280 and 390 px to the git-ignored `screenshots/`. Looked at; fixed: a denial written after its agent stopped lost its target, the header scrolled sideways at 390 px, the pending note used the error color, an empty model showed as `—`, a single plan reading showed twice |
+| M7 | Decisions 5–13 in `decisions.md`; this Status; the real-run steps below |
 
 ### Left
 
-M7 below (docs and hand-off), then the real run by the user.
+Only the real runs, by the user (section 3). Nothing else is open.
+
+Build, lint, 594 vitest tests and 47 e2e tests pass on Windows.
 
 ## 1. Approach
 
@@ -175,6 +178,30 @@ this Status updated.
 
 ## 3. Real runs (prepared, run by the user)
 
-1. `npx tsx scripts/real/check-interviewer-target.ts --yes` (P1).
-2. The phase 3 real run: one creation watched in the panel from the
-   browser, on the real library (steps in Status once M7 is done).
+None of these was run while building phase 3.
+
+1. **P1 check** (two short interviewer turns):
+   `npx tsx scripts/real/check-interviewer-target.ts --yes`. Expected: four
+   PASS lines, `claude-code` for the photo renamer, `claude-app` for the
+   conversation partner, and both reports citing `library/rules/target.md`.
+2. **Preflight** (reads only): `npx tsx scripts/real/preflight.ts`.
+3. **Phase 3 real run**, on the real library:
+   1. `npm run build`, then `npm run briefstack -- web`, and open the address
+      it prints.
+   2. Start a creation. While it runs, check in the panel: the main session
+      shows `opus`-like model and an effort; each subagent appears when it
+      starts, with its model and effort; the tool in use shows a short
+      target (a path under the projects or session folder, `briefstack
+      <command>`, or "outside allowed folders"), never a full path; a
+      question or the spec shows on the main session with "Go to the
+      answer"; plan usage shows a reading at the start and a later one after
+      about 5 minutes.
+   3. Reload the tab once mid-creation: the panel comes back with the same
+      counts.
+   4. At the end, open the project page and "Open the agent panel": the same
+      tree and timeline, rebuilt from `events.jsonl`.
+   5. In the server console: no `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` warning.
+   6. In the session's `events.jsonl`: `tool.pre` lines with `toolUseId`,
+      `target` and `effort`, `subagent.start` with `model`, a
+      `session.profile` line and `usage` lines.
+   7. Accept or reject the panel. Phase 3 is done only after acceptance.

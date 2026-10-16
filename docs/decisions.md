@@ -1875,3 +1875,22 @@ conservative reading of the brief. The user can revisit any of them.
    with the real runner. To confirm in the real run.
 9. **A phase 2 gap fixed on the way**: the `reason` of a streamed runner
    denial was not redacted (only its summary was). It is now.
+10. **Node statuses.** The brief lists waiting, running, done, failed and
+    cancelled. Subagents only report start and stop, so a subagent is
+    running, waiting (a permission it asked for is pending), done, or "no
+    end recorded" when the session is over without its stop. Failed and
+    cancelled describe the main session (the session's outcome), which can
+    also be interrupted. A pending question, spec or folder grant is put on
+    the main session, which is the one that calls those tools; a permission
+    on the latest running agent of the type that asked, else the main one.
+11. **Timeline as HTML rows with an inline SVG bar each**, not one SVG: each
+    row is a button (keyboard and screen reader for free) and the layout
+    works at 390 px. The text alternative is a list inside a `<details>`
+    ("Text view of the agents"), so it does not double the page for sighted
+    users; the agent tree itself is made of buttons with labels.
+12. **Live recomputation at most every 200 ms** and once a second while the
+    session runs (for durations). The final state may therefore appear up
+    to 200 ms after the result screen.
+13. **Screenshots** have their own Playwright config
+    (`playwright.screenshots.config.ts`, `npm run screenshots`) so they are
+    not part of the test suite, and land in the git-ignored `screenshots/`.
