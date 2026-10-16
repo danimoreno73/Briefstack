@@ -52,4 +52,14 @@ describe('/new-project skill', () => {
     expect(all).toHaveLength(allowed.length + 1);
     expect(text).not.toMatch(/npm run --silent briefstack[^`\n]*(&&|\|)/);
   });
+
+  it('never sends a question with fewer than two options, and the interviewer never returns one', async () => {
+    // Claude Code refuses an AskUserQuestion with one option (H10 run 2).
+    const text = await readFile(SKILL, 'utf8');
+    expect(text).toContain('Every question needs at least two\n   options');
+    expect(text).toContain('Never send it with one\n   option.');
+    const interviewer = await readFile(path.join(PACKAGE_ROOT, '.claude', 'agents', 'interviewer.md'), 'utf8');
+    expect(interviewer).toContain('at least two options in all');
+    expect(interviewer).toContain('Never return a question with fewer than two options.');
+  });
 });

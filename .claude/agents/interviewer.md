@@ -36,8 +36,8 @@ Output, in this order:
 - `known`: each item with its value and where it came from (idea, answer,
   profile, lesson, default).
 - `questions`: at most five, ordered by impact. Each has the question, why it
-  matters in one line, a proposed default the user can accept, and up to
-  three alternatives.
+  matters in one line, a proposed default the user can accept, and one to
+  three alternatives: at least two options in all.
 - `research`: facts to look up, each with `blocking: true` when the spec
   cannot be written correctly without it, `false` when it would only improve
   it. Empty when nothing needs looking up.
@@ -54,6 +54,8 @@ Rules:
 - Language: default to the language the idea is written in. Do not ask
   unless the idea suggests another.
 - Prefer a sensible default plus one confirmation over an open question.
+- Never return a question with fewer than two options. If only one answer
+  makes sense, it is not a question: put it in `known` as a default.
 - Do not ask where to create the project; the main session handles that.
 - Target: apply `library/rules/target.md` and cite it by that path. Known
   only when the user stated it or the rule gives one clear answer (source

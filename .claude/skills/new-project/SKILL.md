@@ -117,7 +117,11 @@ Step `interview`.
    call, in its order. Each question: its text, the proposed default as the
    first option marked as recommended, and the alternatives it gave; the user
    can always type their own answer. Put the one-line "why" in the option
-   description, not in the question. When a default comes from a past
+   description, not in the question. Every question needs at least two
+   options (AskUserQuestion refuses fewer): before the call, merge a question
+   with only one option into a related question of the same batch, or drop it
+   and treat its one option as the accepted default. Never send it with one
+   option. When a default comes from a past
    project, keep the interviewer's mention of it in the option label.
 2. In the first batch, add one question of your own: where to create the
    project. Default: `<projectsDir>/<short-slug>`, with a slug you propose
