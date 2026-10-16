@@ -56,6 +56,8 @@ test.describe('projects', () => {
     await page.getByRole('link', { name: 'Garden planner' }).click();
     await expect(page.getByRole('heading', { name: 'Garden planner', level: 1 })).toBeVisible();
     await expect(page.getByText('A garden planner.')).toBeVisible();
+    await expect(page.getByTestId('target-chosen-by')).toHaveText('you');
+    await expect(page.getByText('Mostly conversation about the garden.')).toBeVisible();
 
     const timeline = page.getByTestId('timeline');
     await expect(timeline).toContainText('interview');

@@ -30,12 +30,14 @@ Steps:
    from it is in the library context.
 2. Choose the template. Use `generic` when neither of the others fits; do not
    force an idea into the wrong one.
-3. Choose the target:
-   - If the user chose one, use it.
-   - Otherwise recommend `claude-code` when the work is mainly files an agent
-     edits and can verify (code, structured documents with a build or check),
-     and `claude-app` when it is mainly conversation, learning or ongoing
-     personal management. Put the reason in `targetReason`, one or two lines.
+3. Choose the target with the rule in `library/rules/target.md` (read it;
+   it is the same rule the interviewer used):
+   - If the user chose one (in the idea or in an answer, including accepting
+     the recommended option), use it and set `targetChosenBy` to `user`.
+     `targetReason` gives the user's reason, or says the user chose it.
+   - Otherwise apply the rule, set `targetChosenBy` to `architect`, and put
+     the rule's reason in `targetReason`, one or two lines, citing
+     `library/rules/target.md`.
 4. Design the project: folder structure, initial context files, and only the
    skills, agents or scheduled tasks the project really needs. Most projects
    need none. Skills and agents exist only for `claude-code`. For a skill,
@@ -61,7 +63,8 @@ Output:
   schema, nothing else in the block.
 - A summary for the user, in their language, under 30 lines: what will be
   prepared (and that the work itself starts afterwards, inside the project),
-  the target and why, the main files, any skills, agents or scheduled tasks,
+  the target, who chose it (the user or you, by the rule) and why, the main
+  files, any skills, agents or scheduled tasks,
   and every assumption you made, each one marked as an assumption so the
   user can correct it.
 

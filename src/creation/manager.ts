@@ -47,7 +47,7 @@ import type {
  */
 
 /** The fields of `spec.json` the approval screen shows. */
-const SPEC_FIELDS = ['name', 'slug', 'summary', 'type', 'target', 'profile', 'language'] as const;
+const SPEC_FIELDS = ['name', 'slug', 'summary', 'type', 'target', 'targetChosenBy', 'targetReason', 'profile', 'language'] as const;
 export type SpecFields = Partial<Record<(typeof SPEC_FIELDS)[number], string>>;
 const MAX_SPEC_FILE_BYTES = 256 * 1024;
 

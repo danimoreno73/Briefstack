@@ -77,7 +77,7 @@ export function ProjectView({ slug }: { slug: string }) {
       </p>
       <Loader loaded={loaded}>
         {(detail) => {
-          const { project, timeline, nextSteps, instructions, openCommand } = detail;
+          const { project, timeline, nextSteps, instructions, openCommand, targetChoice } = detail;
           const status = project.status;
           const projectPath = openCommand?.cwd ?? status?.path;
           const commands = openCommand === null ? undefined : openCommandLines(openCommand.cwd, openCommand.command);
@@ -97,6 +97,18 @@ export function ProjectView({ slug }: { slug: string }) {
                   <dl data-testid="status">
                     <dt>{t.colTarget}</dt>
                     <dd>{status.target}</dd>
+                    {targetChoice?.chosenBy !== undefined && (
+                      <>
+                        <dt>{t.targetChosenBy}</dt>
+                        <dd data-testid="target-chosen-by">{t.chooser(targetChoice.chosenBy)}</dd>
+                      </>
+                    )}
+                    {targetChoice?.reason !== undefined && (
+                      <>
+                        <dt>{t.targetReason}</dt>
+                        <dd>{targetChoice.reason}</dd>
+                      </>
+                    )}
                     <dt>{t.colStatus}</dt>
                     <dd>{status.status}</dd>
                     <dt>{t.colProfile}</dt>

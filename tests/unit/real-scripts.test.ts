@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
-import { GIT_STATUS_ARGS, effortRecorder, onlyThisCommand } from '../../scripts/real/common.js';
+import { GIT_STATUS_ARGS, effortRecorder, onlyThisCommand, parseInterviewerTarget } from '../../scripts/real/common.js';
 
 // These scripts start real Claude Code sessions and are never run by the tests;
 // what can be checked without one is checked here.
@@ -143,5 +143,35 @@ describe('preflight: nothing is written to the real repo or library', () => {
   it('does not write anywhere, in the script itself', async () => {
     const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'preflight.ts'), 'utf8');
     for (const forbidden of ['writeFile', 'appendFile', 'mkdir(', 'rm(', 'unlink', 'rename(']) expect(script, forbidden).not.toContain(forbidden);
+  });
+});
+
+describe('check-interviewer-target: runs only the interviewer on two fixed ideas', () => {
+  it('reads the last TARGET line of a report', () => {
+    expect(parseInterviewerTarget('known: …\nTARGET: claude-app | RULE: library/rules/target.md')).toEqual({
+      target: 'claude-app',
+      rule: 'library/rules/target.md',
+    });
+    expect(parseInterviewerTarget('TARGET: claude-app | RULE: x\n`TARGET: claude-code | RULE: none`\n')).toEqual({
+      target: 'claude-code',
+      rule: 'none',
+    });
+    expect(parseInterviewerTarget('TARGET: both | RULE: x')).toBeUndefined();
+    expect(parseInterviewerTarget('The target is claude-code.')).toBeUndefined();
+  });
+
+  it('uses the interviewer prompt and model, read-only tools, an empty context, and checks target and rule', async () => {
+    const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-interviewer-target.ts'), 'utf8');
+    expect(script).toContain("path.join(PACKAGE_ROOT, '.claude', 'agents', 'interviewer.md')");
+    expect(script).toContain('systemPrompt: body');
+    expect(script).toContain("tools: ['Read', 'Grep', 'Glob']");
+    expect(script).toContain('settingSources: []');
+    expect(script).toContain('cwd: box.project');
+    expect(script).toContain('Library context: none');
+    expect(script).toContain("expected: 'claude-code'");
+    expect(script).toContain("expected: 'claude-app'");
+    expect(script).not.toContain('bypassPermissions');
+    expect(script).toContain('ok = report(`${expected}: recommended target`');
+    expect(script).toContain('ok = report(`${expected}: cites the rule`');
   });
 });

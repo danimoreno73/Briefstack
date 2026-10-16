@@ -44,6 +44,14 @@
         "claude-app"
       ]
     },
+    "targetChosenBy": {
+      "description": "Who chose the target: `user` (stated it or answered the question) or `architect` (by library/rules/target.md).",
+      "type": "string",
+      "enum": [
+        "user",
+        "architect"
+      ]
+    },
     "targetReason": {
       "type": "string",
       "minLength": 1

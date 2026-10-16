@@ -53,6 +53,8 @@ export interface ProjectDetail {
   nextSteps: string | null;
   instructions: string | null;
   openCommand: { cwd: string; command: string } | null;
+  /** Who chose the target and why, from the project's spec; null for projects without one. */
+  targetChoice: { chosenBy?: string; reason?: string } | null;
 }
 
 export interface NoteSummary {
@@ -177,5 +179,7 @@ export type StreamEvent =
 
 export interface SpecView {
   summary: string | null;
-  spec: Partial<Record<'name' | 'slug' | 'summary' | 'type' | 'target' | 'profile' | 'language', string>> | null;
+  spec: Partial<
+    Record<'name' | 'slug' | 'summary' | 'type' | 'target' | 'targetChosenBy' | 'targetReason' | 'profile' | 'language', string>
+  > | null;
 }

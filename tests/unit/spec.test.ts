@@ -36,6 +36,13 @@ describe('parseSpec', () => {
     expect(spec.template).toBeUndefined();
   });
 
+  it('records who chose the target, optionally', () => {
+    expect(parseSpec({ ...specInput(), targetChosenBy: 'user' }, 'spec.json').targetChosenBy).toBe('user');
+    expect(parseSpec({ ...specInput(), targetChosenBy: 'architect' }, 'spec.json').targetChosenBy).toBe('architect');
+    expect(parseSpec(specInput(), 'spec.json').targetChosenBy).toBeUndefined();
+    expect(issuesOf({ ...specInput(), targetChosenBy: 'interviewer' }).map((issue) => issue.path)).toEqual(['targetChosenBy']);
+  });
+
   it('rejects unknown fields and missing required ones with zod messages', () => {
     const issues = issuesOf({ ...specInput(), extra: true, goal: undefined });
     expect(issues.map((issue) => issue.path).sort()).toEqual(['', 'goal']);

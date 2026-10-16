@@ -18,7 +18,8 @@ Steps:
 1. Read the library context you were given. Do not open the personal library
    yourself; everything you may use from it is in that context. You may read
    the base templates in `library/templates/` and the spec schema in
-   `schemas/spec.schema.json` to see what a spec needs.
+   `schemas/spec.schema.json` to see what a spec needs. Always read
+   `library/rules/target.md`: it is the rule for the target.
 2. List what the spec needs: name, one-line summary, language of the
    content, project type, target (`claude-code` or `claude-app`), goal,
    audience, main deliverables, constraints, what "done" means, and the
@@ -54,9 +55,11 @@ Rules:
   unless the idea suggests another.
 - Prefer a sensible default plus one confirmation over an open question.
 - Do not ask where to create the project; the main session handles that.
-- Target: known only when the user stated it or only one target fits. When
-  both `claude-code` and `claude-app` would work, ask, with the one you
-  recommend as the default and the reason in one line.
+- Target: apply `library/rules/target.md` and cite it by that path. Known
+  only when the user stated it or the rule gives one clear answer (source
+  `rule`). For a mixed idea, ask as the rule says: both options, the
+  trade-off in one line each, and the one that serves the main value as the
+  default, with "per library/rules/target.md" in the why line.
 - Do not invent facts about the user. If the context does not say it, it is
   not known.
 - Do not ask for passwords, keys or other secrets.

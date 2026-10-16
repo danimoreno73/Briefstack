@@ -69,7 +69,8 @@ note's frontmatter (`target`, `path`, `status`, `profile`, `updated`,
   "timeline": { "summary": {}, "steps": [], "agents": [] },
   "nextSteps": "…",
   "instructions": "…",
-  "openCommand": { "cwd": "<project path>", "command": "claude" }
+  "openCommand": { "cwd": "<project path>", "command": "claude" },
+  "targetChoice": { "chosenBy": "user", "reason": "…" }
 }
 ```
 
@@ -80,6 +81,10 @@ note's frontmatter (`target`, `path`, `status`, `profile`, `updated`,
   oversized (over 256 KB) file is `null` too.
 - `openCommand` is where to run `claude`; `null` when the note has no valid
   status block.
+- `targetChoice` comes from the project's `.briefstack/spec.json`:
+  `chosenBy` (`user | architect`) and `reason` (the spec's `targetReason`,
+  redacted), each optional. `null` when the spec is missing, unreadable or
+  has neither field (projects created before the field existed).
 - `404 library.noteNotFound` for an unknown slug; `400` for an invalid one.
 
 ### `GET /api/sessions`
@@ -244,7 +249,7 @@ Starts a creation session, which runs the `/new-project` flow.
 ### `GET /api/creations/:id/spec`
 
 The spec the flow last asked the user to approve, for the approval screen:
-`{ "summary": "<markdown or null>", "spec": { "name"?, "slug"?, "summary"?, "type"?, "target"?, "profile"?, "language"? } | null }`.
+`{ "summary": "<markdown or null>", "spec": { "name"?, "slug"?, "summary"?, "type"?, "target"?, "targetChosenBy"?, "targetReason"?, "profile"?, "language"? } | null }`.
 Both files must be inside the creation's session folder, and lines that look
 like a secret come back as `[redacted]`. `404 creation.noSpec` before the
 flow has shown a spec.

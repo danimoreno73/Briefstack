@@ -174,7 +174,8 @@ Step `spec`.
    If it fails, send the errors back to `architect` for a corrected spec.
    After two failed corrections, close as `failed`.
 3. Prepare what the user must see: the architect's summary, plus the output
-   folder, the target (and the reason if the architect chose it) and the
+   folder, the target with who chose it (the user, or the architect by
+   `library/rules/target.md`) and why, and the
    profile, and one line saying that briefstack prepares the project and the
    work itself starts afterwards, inside it. Then, by `MODE`:
    - **Web app** (`MODE` web): do not show it in your reply. Write it to

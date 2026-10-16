@@ -161,3 +161,21 @@ export function oneShot(text: string): AsyncIterable<{
     }),
   };
 }
+
+/** The line the interviewer check asks for at the end of the report. */
+export interface InterviewerTarget {
+  target: 'claude-code' | 'claude-app';
+  rule: string;
+}
+
+/**
+ * Reads the last `TARGET: <target> | RULE: <cited rule>` line of an
+ * interviewer report. Undefined when there is none or the target is not one
+ * of the two.
+ */
+export function parseInterviewerTarget(report: string): InterviewerTarget | undefined {
+  const lines = [...report.matchAll(/^\s*`?TARGET:\s*(claude-code|claude-app)\s*\|\s*RULE:\s*(.+?)`?\s*$/gm)];
+  const last = lines.at(-1);
+  if (last === undefined) return undefined;
+  return { target: last[1] as InterviewerTarget['target'], rule: (last[2] ?? '').trim() };
+}

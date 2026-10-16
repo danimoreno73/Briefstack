@@ -16,9 +16,10 @@ import {
 } from '../library/index.js';
 import { readTextIfExists } from '../library/notes.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
+import { TARGET_CHOOSERS, type TargetChooser } from '../spec/schema.js';
 import { inspectOutputDir, protectedDirs } from '../scaffold/outputDir.js';
 import { loadUsageContext, usageShow } from '../usage/index.js';
-import { redactSecretLines } from '../validate/index.js';
+import { SPEC_FILE, redactSecretLines } from '../validate/index.js';
 import { sendJson } from './http.js';
 import type { RouteTable } from './router.js';
 
@@ -38,12 +39,42 @@ const MAX_HISTORY_LIMIT = 200;
 /** Secrets never reach the UI: a line that looks like one is replaced. */
 export const redactSecrets = redactSecretLines;
 
-async function readProjectFile(projectDir: string, name: string): Promise<string | null> {
+async function readProjectFileRaw(projectDir: string, name: string): Promise<string | null> {
   const file = path.join(projectDir, name);
   try {
     const info = await stat(file);
     if (!info.isFile() || info.size > MAX_PROJECT_FILE_BYTES) return null;
-    return redactSecrets(await readFile(file, 'utf8'));
+    return await readFile(file, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+async function readProjectFile(projectDir: string, name: string): Promise<string | null> {
+  const text = await readProjectFileRaw(projectDir, name);
+  return text === null ? null : redactSecrets(text);
+}
+
+/** Who chose a project's target and why, from its `.briefstack/spec.json`. */
+export interface TargetChoice {
+  chosenBy?: TargetChooser;
+  reason?: string;
+}
+
+async function readTargetChoice(projectDir: string): Promise<TargetChoice | null> {
+  // Parsed before redaction (a redacted line would break the JSON); only the
+  // reason reaches the UI, and it is redacted on its own.
+  const text = await readProjectFileRaw(projectDir, SPEC_FILE);
+  if (text === null) return null;
+  try {
+    const spec = JSON.parse(text) as Record<string, unknown>;
+    const choice: TargetChoice = {};
+    const chosenBy = spec.targetChosenBy;
+    if (typeof chosenBy === 'string' && (TARGET_CHOOSERS as readonly string[]).includes(chosenBy)) {
+      choice.chosenBy = chosenBy as TargetChooser;
+    }
+    if (typeof spec.targetReason === 'string' && spec.targetReason.trim() !== '') choice.reason = redactSecrets(spec.targetReason);
+    return choice.chosenBy === undefined && choice.reason === undefined ? null : choice;
   } catch {
     return null;
   }
@@ -111,6 +142,7 @@ export function readRoutes(context: ReadContext): RouteTable {
           nextSteps: isApp ? await readProjectFile(projectDir, 'NEXT_STEPS.md') : null,
           instructions: isApp ? await readProjectFile(projectDir, 'INSTRUCTIONS.md') : null,
           openCommand: projectDir === undefined ? null : { cwd: projectDir, command: 'claude' },
+          targetChoice: projectDir === undefined ? null : await readTargetChoice(projectDir),
         });
       },
     ],

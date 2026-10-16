@@ -496,6 +496,18 @@ function SpecApproval({ id, pending, answer }: { id: string; pending: Extract<Pe
                     <dd>{view.spec.target}</dd>
                   </>
                 )}
+                {view.spec.targetChosenBy !== undefined && (
+                  <>
+                    <dt>{t.targetChosenBy}</dt>
+                    <dd data-testid="spec-target-chosen-by">{t.chooser(view.spec.targetChosenBy)}</dd>
+                  </>
+                )}
+                {view.spec.targetReason !== undefined && (
+                  <>
+                    <dt>{t.targetReason}</dt>
+                    <dd>{view.spec.targetReason}</dd>
+                  </>
+                )}
                 {view.spec.profile !== undefined && (
                   <>
                     <dt>{t.colProfile}</dt>

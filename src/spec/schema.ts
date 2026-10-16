@@ -9,6 +9,8 @@ import { isDocumentPath } from './preparation.js';
 export const PROJECT_TYPES = ['software', 'learning-or-management', 'generic'] as const;
 export const TARGETS = ['claude-code', 'claude-app'] as const;
 export const TIERS = ['light', 'standard', 'heavy'] as const;
+/** Who chose the target: the user, or the architect by `library/rules/target.md`. */
+export const TARGET_CHOOSERS = ['user', 'architect'] as const;
 
 /**
  * Rules of our own. Issues that break one carry the rule name so the i18n
@@ -140,7 +142,12 @@ export const SpecSchema = z
     /** Template name; defaults to `type`. Personal templates win over base ones. */
     template: slug.optional(),
     target: z.enum(TARGETS),
-    /** Why the architect chose this target, when the user did not. */
+    /** Who chose the target. Optional so specs written before it stay valid. */
+    targetChosenBy: z
+      .enum(TARGET_CHOOSERS)
+      .optional()
+      .describe('Who chose the target: `user` (stated it or answered the question) or `architect` (by library/rules/target.md).'),
+    /** Why this target: the user's reason when they chose, the rule's when the architect did. */
     targetReason: text.optional(),
     /** Usage profile the project is created with. */
     profile: text,
@@ -204,3 +211,4 @@ export type AgentSpec = z.output<typeof AgentSpecSchema>;
 export type SkillSpec = z.output<typeof SkillSpecSchema>;
 export type Tier = (typeof TIERS)[number];
 export type Target = (typeof TARGETS)[number];
+export type TargetChooser = (typeof TARGET_CHOOSERS)[number];

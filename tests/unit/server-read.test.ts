@@ -135,6 +135,26 @@ describe('read API', () => {
     expect(detail.openCommand).toEqual({ cwd: appDir.replaceAll('\\', '/'), command: 'claude' });
   });
 
+  it('says who chose the target and why, from the project spec, redacted', async () => {
+    const choice = async () => (await json<{ targetChoice: unknown }>('/api/projects/garden')).targetChoice;
+    // No spec: a project created before the field, or not by briefstack.
+    expect(await choice()).toBeNull();
+    await writeTree(appDir, { '.briefstack/spec.json': '{ "target": "claude-app" }' });
+    expect(await choice()).toBeNull();
+    await writeTree(appDir, { '.briefstack/spec.json': 'not json' });
+    expect(await choice()).toBeNull();
+    await writeTree(appDir, {
+      '.briefstack/spec.json': JSON.stringify({ targetChosenBy: 'user', targetReason: 'Chosen by the user.' }),
+    });
+    expect(await choice()).toEqual({ chosenBy: 'user', reason: 'Chosen by the user.' });
+    await writeTree(appDir, {
+      '.briefstack/spec.json': JSON.stringify({ targetChosenBy: 'someone', targetReason: `Key ${FAKE_KEY}` }),
+    });
+    const redacted = (await choice()) as { chosenBy?: string; reason?: string };
+    expect(redacted.chosenBy).toBeUndefined();
+    expect(redacted.reason).not.toContain(FAKE_KEY);
+  });
+
   it('answers 404 for an unknown project and 400 for a bad slug', async () => {
     const missing = await get(server, '/api/projects/nope');
     expect(missing.status).toBe(404);

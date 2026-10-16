@@ -94,6 +94,12 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   await mkdir(gardenDir, { recursive: true });
   await writeFile(path.join(gardenDir, 'NEXT_STEPS.md'), '# Next steps\n\n1. Open the Claude app.\n', 'utf8');
   await writeFile(path.join(gardenDir, 'INSTRUCTIONS.md'), '# Instructions\n\nBe brief.\n', 'utf8');
+  await mkdir(path.join(gardenDir, '.briefstack'), { recursive: true });
+  await writeFile(
+    path.join(gardenDir, '.briefstack', 'spec.json'),
+    JSON.stringify({ target: 'claude-app', targetChosenBy: 'user', targetReason: 'Mostly conversation about the garden.' }),
+    'utf8',
+  );
   await mkdir(path.join(dir, 'in'), { recursive: true });
   const noteFile = path.join(dir, 'in', 'garden.md');
   await writeFile(
