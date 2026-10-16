@@ -1740,3 +1740,84 @@ it. The check was wrong, not the flow, and now asks only for the above.
 Nothing in briefstack reads the Agent result: `SdkRunner` reads only the
 `init` and `result` messages, the event hook records only tool and agent
 names, and the progress list uses `subagent.start` and `subagent.stop`.
+
+## H10 run 2: the spec approval never reached the page (2026-10-16)
+
+Session `a787026c-…`; Claude Code 2.1.301, Agent SDK 0.3.286, profile
+`balanced` (main session Sonnet). The run went through idea, gap analysis
+(the interviewer reported through `SubagentHandback`, in the foreground),
+interview, research and the architect. The main session wrote `spec.json`
+and `spec check` passed (12:02:26 local). Its next message was the spec
+summary as plain text ending in "¿Lo apruebas, quieres cambiar algo o
+cancelas?", and the turn ended (`end_turn`). No `approve_spec` call, no
+`summary.md`, no `briefstack-web` tool in `events.jsonl`. The page stayed on
+"Working…" with nothing pending. Nothing was created; the projects folder and
+the library were not touched.
+
+**Were the tools there?** Yes (SDK transcript in
+`<home>/.claude/projects/<repo>/`): the request's tool list
+(`api-request-shape`) has `mcp__briefstack-web__approve_spec` and
+`mcp__briefstack-web__grant_directory` loaded in full, not deferred; the only
+deferred tools were `WebFetch` and `WebSearch`, and there was no pending or
+failed MCP server. `ToolSearch` was not needed.
+
+**Root cause: the skill.** Web mode was something the model had to infer
+("when the tools … are among your tools"), and step 5.3 led with "Show the
+user the architect's summary … Ask them to approve, change something or
+cancel", with the web branch as a sub-bullet below. The model did what the
+leading sentence said. Nothing in the web app can answer plain text, so the
+flow stopped.
+
+**Fixes:**
+
+1. *Skill.* `MODE` is set once in step 0 from the tool list; the ground
+   rules say that in `MODE` web the user cannot reply to text, so a turn never
+   ends waiting for a plain-text answer. Step 5.3 prepares the summary first
+   and then branches, the web branch first: write `summary.md`, call
+   `approve_spec` in the same turn, never show it as text. The terminal
+   branch keeps its words. A change in web mode goes back through
+   `approve_spec`.
+2. *Reminder at the decision point.* A `PostToolUse` hook that only
+   `SdkRunner` registers adds a short reminder to the result of the main
+   session's `spec check` (call `approve_spec` now) and `paths check` (call
+   `grant_directory` if not allowed). It is code, it reaches the model right
+   when it chooses the next step, and the terminal never sees it.
+   `additionalContext` of `PostToolUse` is the documented way to add context
+   to a tool result (https://code.claude.com/docs/en/hooks, "PostToolUse
+   decision control").
+3. *Fail early.* On the first `init` message the runner checks that `tools`
+   lists both browser tools; if not, it stops before the flow runs, with an
+   error that names the missing tools and the MCP server status. Later inits
+   are not checked.
+4. *A turn with nothing asked.* The runner sends the main session's last
+   text (from the `result` message, at most 4000 characters) with
+   `turnEnded`; the manager redacts it and keeps it as `awaitingReply` until
+   a turn starts, something is asked, or the creation ends. The page shows
+   "The session is waiting for a reply", the message and that it can be
+   cancelled, instead of "Working…" (docs/api.md).
+
+**Proposed, not built: a free reply box.** On the `awaitingReply` panel, a
+text field whose answer the runner pushes as the next user message (the
+`InputQueue` already exists and the SDK accepts more messages on the same
+stream). It would make any plain-text question answerable instead of a dead
+end. Costs: a new route and pending kind (or a new answer on
+`awaitingReply`), the secret check on what the user types, tests and an
+E2E case, and the reply becomes a second channel into the flow besides the
+three tools. Waiting for the user's decision.
+
+**A real check that walks the skill to the spec** would cost about what
+the part of a real H10 run up to the spec costs: run 2 took five minutes to
+reach the spec, with the main session (Sonnet) doing most of the work
+(about 1M cached input tokens read over 33 requests), the interviewer
+twice, the researcher (Haiku) and the architect (Opus). The agents' models
+come from the agent files, which only `briefstack usage set` writes, so the
+check cannot make it cheaper on its own; under the `saver` profile it would
+be cheaper. It would also need scripted answers to the interview. My view:
+not worth it as a routine check; `check-web-tools.ts` covers the tool
+wiring and H10 itself is that walk.
+
+**Seen in passing, not changed:** the first AskUserQuestion of the
+interview was rejected by Claude Code because one question had a single
+option ("fewer than 2 options … the person never saw it"); the model resent
+it with two and went on. If it happens again, the skill or the interviewer
+should never offer a one-option question.
