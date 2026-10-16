@@ -1783,8 +1783,10 @@ flow stopped.
    `grant_directory` if not allowed). It is code, it reaches the model right
    when it chooses the next step, and the terminal never sees it.
    `additionalContext` of `PostToolUse` is the documented way to add context
-   to a tool result (https://code.claude.com/docs/en/hooks, "PostToolUse
-   decision control").
+   next to a tool result (https://code.claude.com/docs/en/hooks, "Add
+   context for Claude", read 2026-10-16: Claude Code "wraps the string in a
+   system reminder and inserts it into the conversation at the point where
+   the hook fired"; for `PostToolUse`, "next to the tool result").
 3. *Fail early.* On the first `init` message the runner checks that `tools`
    lists both browser tools; if not, it stops before the flow runs, with an
    error that names the missing tools and the MCP server status. Later inits
