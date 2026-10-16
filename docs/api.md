@@ -206,6 +206,7 @@ Starts a creation session, which runs the `/new-project` flow.
   "outcome": "completed | cancelled | failed | interrupted",
   "pending": { "id": "p3", "kind": "question | permission | spec | grant", "payload": {} },
   "cancelling": true,
+  "awaitingReply": { "lastMessage": "…", "at": "<ISO time>" },
   "denied": [{ "toolName": "Bash", "summary": "…", "agentType": "generator", "at": "<ISO time>" }],
   "error": "…",
   "startedAt": "<ISO time>",
@@ -222,6 +223,12 @@ Starts a creation session, which runs the `/new-project` flow.
   it: `interrupted` after a server stop or when the runner ended without
   closing the flow.
 - `cancelling` is set between a cancel and the end.
+- `awaitingReply` is set when the session ended a turn with nothing
+  pending: it waits for a reply the page cannot send. `lastMessage` is the
+  main session's last text (at most 4000 characters, secrets redacted). It
+  is cleared when a new turn starts, when something is asked, and at the end.
+  The `status` event of that moment carries `runner: { "kind": "status",
+  "status": "turnEnded", "message"? }` with the same redacted text.
 - `denied` lists the requests denied without asking under the
   `unattended` policy, for the result screen.
 
