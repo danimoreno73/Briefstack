@@ -29,10 +29,11 @@ Updated 2026-10-16. A new session reads `CLAUDE.md`,
 | M2 | `src/panel/state.ts`: `buildPanelState(events, { now, live? })`, pure and browser-safe, exported from `src/index.ts`; `src/panel/project.ts`: what may leave the server (known fields only, redacted targets and reasons, absolute paths shown as `[outside allowed folders]`, 120/300 character limits). Tests on synthetic cases, a 40 000-line burst and the real H10 run 3 fixture |
 | M3 | `src/creation/planUsage.ts` (the preflight's reading, now shared with `scripts/real/common.ts`); the manager reads it once the session id is known and every 5 minutes until the creation finishes, and writes `usage` lines; wired only with the real runner |
 | M4 | `GET /api/sessions/:id/events` (projected lines with `id`, `badLines`, `state`); the creation stream projects `hook` and `runner` lines the same way; `docs/api.md` updated |
+| M5 | `src/ui/panel.tsx` (agent tree, timeline as HTML rows with inline SVG bars, node detail with denials, plan usage, a text view in `<details>`; recomputed at most every 200 ms and every second while running), `src/ui/panelData.ts` (pure glue, tested); the creation page shows the panel under the pending control, which has id `pending-control` and is reached from the node that asked; `#/sessions/<id>` rebuilds a session from `GET /api/sessions/:id/events`, linked from the project detail and the interrupted and cancelled list; strings in English and Spanish |
 
 ### Left
 
-M5–M7 below (M5 next: the panel UI).
+M6–M7 below (M6 next: e2e tests and screenshots).
 
 ## 1. Approach
 

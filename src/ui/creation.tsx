@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import { ApiError, TOKEN_HEADER } from './api.js';
 import { answersFor, defaultSelection, type Selection } from './answers.js';
 import { ConfirmDialog, CopyButton, ErrorBanner, Loader, Markdown, Notice } from './common.js';
 import { formatWhen } from './format.js';
 import { useApp, useLoad, useSend } from './hooks.js';
+import { AgentPanel, PENDING_CONTROL_ID, usePanelState } from './panel.js';
+import { liveFromState, panelEventsFromStream } from './panelData.js';
 import { STEPS, deriveProgress, parseSse, type Progress } from './progress.js';
 import { routeHash } from './route.js';
 import type { CreationState, Pending, ProjectListing, SpecView, StreamEvent, UiQuestion } from './types.js';
@@ -182,6 +184,10 @@ function CreationView({ id }: { id: string }) {
   const [asking, setAsking] = useState(false);
   const [problem, setProblem] = useState<unknown>(undefined);
   const [stale, setStale] = useState(false);
+  // The agent panel reads the same stream: the events.jsonl lines, plus what the state says live.
+  const panelEvents = useMemo(() => panelEventsFromStream(events), [events]);
+  const live = useMemo(() => (state === undefined ? undefined : liveFromState(state)), [state]);
+  const panel = usePanelState(panelEvents, live);
 
   /** Answers the pending request. A request that is no longer the one shown means the page is stale. */
   const answer = async (pending: Pending, value: unknown): Promise<boolean> => {
@@ -255,11 +261,12 @@ function CreationView({ id }: { id: string }) {
               {state.cancelling ? t.cancellingNote : t.statusWorking}
             </p>
           ) : (
-            <>
+            <div id={PENDING_CONTROL_ID} tabIndex={-1}>
               {state.cancelling && <p role="status">{t.cancellingNote}</p>}
               <PendingPanel key={pending.id} id={id} pending={pending} answer={answer} />
-            </>
+            </div>
           )}
+          <AgentPanel state={panel} showPendingLinks={!finished} />
         </div>
       </div>
 

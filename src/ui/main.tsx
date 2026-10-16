@@ -6,6 +6,7 @@ import { ApiError, api, takeToken } from './api.js';
 import { NewProjectPage } from './creation.js';
 import { AppCtx, type AppContext } from './hooks.js';
 import { LibraryView } from './library.js';
+import { SessionPanelPage } from './panel.js';
 import { ProjectView, ProjectsView } from './projects.js';
 import { parseRoute, routeHash, type Route } from './route.js';
 import { SettingsPage } from './settings.js';
@@ -42,6 +43,8 @@ function Page({ route }: { route: Route }) {
       return <ProjectView key={route.slug} slug={route.slug} />;
     case 'new':
       return <NewProjectPage id={route.id} />;
+    case 'session':
+      return <SessionPanelPage key={route.id} id={route.id} />;
     case 'library':
       return <LibraryView section={route.section} name={route.name} />;
     case 'usage':
@@ -126,7 +129,7 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
         <strong>{t.title}</strong>
         <nav aria-label={t.navLabel}>
           {NAV.map((item) => (
-            <a key={item.page} href={routeHash(item.route)} aria-current={route.page === item.page || (item.page === 'projects' && route.page === 'project') ? 'page' : undefined}>
+            <a key={item.page} href={routeHash(item.route)} aria-current={route.page === item.page || (item.page === 'projects' && (route.page === 'project' || route.page === 'session')) ? 'page' : undefined}>
               {t[item.label]}
               {item.page === 'new' && activeCreation !== undefined && (
                 <span class="dot" role="img" aria-label={t.creationInProgress} title={t.creationInProgress}>

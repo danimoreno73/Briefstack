@@ -55,7 +55,10 @@ export function ProjectsView() {
             <ul data-testid="unfinished">
               {unfinished.map((session) => (
                 <li key={session.id}>
-                  <code>{session.id}</code> · {t.outcome(session.outcome ?? session.status)} ·{' '}
+                  <a href={routeHash({ page: 'session', id: session.id })}>
+                    <code>{session.id}</code>
+                  </a>{' '}
+                  · {t.outcome(session.outcome ?? session.status)} ·{' '}
                   {formatWhen(session.lastEventAt ?? session.startedAt, lang)} · {t.lastStep(session.lastStep?.step)}
                 </li>
               ))}
@@ -138,6 +141,13 @@ export function ProjectView({ slug }: { slug: string }) {
               )}
 
               <h2>{t.timelineTitle}</h2>
+              {project.session !== undefined && timeline !== null && (
+                <p>
+                  <a href={routeHash({ page: 'session', id: project.session })} data-testid="open-panel">
+                    {t.panelOpen}
+                  </a>
+                </p>
+              )}
               {timeline === null || timeline.steps.length === 0 ? (
                 <p>{t.timelineEmpty}</p>
               ) : (

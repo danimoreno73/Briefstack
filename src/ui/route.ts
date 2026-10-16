@@ -4,6 +4,8 @@ export type Route =
   | { page: 'projects' }
   | { page: 'new'; id: string | undefined }
   | { page: 'project'; slug: string }
+  /** A creation session's agent panel, rebuilt from its recorded events. */
+  | { page: 'session'; id: string }
   | { page: 'library'; section: string | undefined; name: string | undefined }
   | { page: 'usage' }
   | { page: 'settings' };
@@ -31,6 +33,8 @@ export function parseRoute(hash: string): Route {
       return { page: 'library', section: first, name: rest.length === 0 ? undefined : rest.join('/') };
     case 'new':
       return { page: 'new', id: first };
+    case 'sessions':
+      return first === undefined ? DEFAULT_ROUTE : { page: 'session', id: first };
     case 'usage':
       return { page: 'usage' };
     case 'settings':
@@ -50,6 +54,8 @@ export function routeHash(route: Route): string {
       return `#/projects/${enc(route.slug)}`;
     case 'new':
       return route.id === undefined ? '#/new' : `#/new/${enc(route.id)}`;
+    case 'session':
+      return `#/sessions/${enc(route.id)}`;
     case 'library': {
       if (route.section === undefined) return '#/library';
       const name = route.name === undefined ? '' : `/${route.name.split('/').map(enc).join('/')}`;

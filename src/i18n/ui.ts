@@ -63,6 +63,63 @@ export const uiMessages = defineCatalogue({
     targetChosenBy: 'Target chosen by',
     chooser: (who: string): string => (who === 'user' ? 'you' : who === 'architect' ? 'the architect, by the target rule' : who),
     targetReason: 'Why this target',
+
+    panelTitle: 'Agents',
+    panelMain: 'Main session',
+    nodeStatus: (status: string): string =>
+      ({
+        waiting: 'Waiting for you',
+        running: 'Running',
+        done: 'Done',
+        failed: 'Failed',
+        cancelled: 'Cancelled',
+        interrupted: 'Interrupted',
+        noEnd: 'No end recorded',
+      })[status] ?? status,
+    panelModel: 'Model',
+    panelEffort: 'Effort',
+    panelStarted: 'Started',
+    panelDuration: 'Duration',
+    panelNow: 'Now',
+    panelNoTool: 'No tool in use',
+    panelToolCalls: (n: number): string => (n === 1 ? '1 tool call' : `${n} tool calls`),
+    panelDenialCount: (n: number): string => (n === 1 ? '1 denied' : `${n} denied`),
+    panelAsks: (kind: string): string =>
+      ({
+        question: 'Asks you a question',
+        permission: 'Asks for a permission',
+        spec: 'Asks you to approve the spec',
+        grant: 'Asks for a folder',
+      })[kind] ?? 'Asks you something',
+    panelGoToControl: 'Go to the answer',
+    panelNoAgents: 'No subagent has started yet.',
+    panelTimeline: 'Timeline',
+    panelTimelineHint: 'One row per agent. Select a row to see its details.',
+    panelDetail: 'Details',
+    panelDenials: 'Denied calls',
+    panelNoDenials: 'Nothing was denied.',
+    denialBy: (by: string): string =>
+      ({ guard: 'by the guard', policy: 'by the unattended setting', user: 'by you' })[by] ?? by,
+    panelTextView: 'Text view of the agents',
+    panelUsage: 'Plan usage',
+    panelUsageStart: 'At the start',
+    panelUsageNow: 'Latest reading',
+    panelUsageLine: (fiveHour: string, sevenDay: string): string => `5-hour window ${fiveHour} · 7-day window ${sevenDay}`,
+    panelUsageNone: 'Not available for this session.',
+    panelUsageHint: 'From the same reading as /usage. No token or cost figures.',
+    targetOutside: 'outside allowed folders',
+    targetRoot: (root: string): string =>
+      ({ session: 'session folder', projects: 'projects folder', repo: 'briefstack' })[root] ?? root,
+    panelSessionTitle: 'Creation session',
+    panelSessionStatus: (status: string, outcome: string | undefined): string =>
+      status === 'running'
+        ? 'In progress'
+        : status === 'interrupted'
+          ? 'Interrupted'
+          : ({ completed: 'Completed', cancelled: 'Cancelled', failed: 'Failed' })[outcome ?? ''] ?? 'Finished',
+    panelBadLines: (n: number): string => `${n} recorded line(s) could not be read and are left out.`,
+    panelOpen: 'Open the agent panel',
+    panelBack: 'Back to the projects',
     sessionId: 'Creation session',
     timelineTitle: 'Creation history',
     timelineEmpty: 'There is no history for this project.',
@@ -334,6 +391,63 @@ export const uiMessages = defineCatalogue({
     targetChosenBy: 'Destino elegido por',
     chooser: (who: string): string => (who === 'user' ? 'ti' : who === 'architect' ? 'el arquitecto, según la regla del destino' : who),
     targetReason: 'Por qué este destino',
+
+    panelTitle: 'Agentes',
+    panelMain: 'Sesión principal',
+    nodeStatus: (status: string): string =>
+      ({
+        waiting: 'Esperándote',
+        running: 'En marcha',
+        done: 'Terminado',
+        failed: 'Falló',
+        cancelled: 'Cancelado',
+        interrupted: 'Interrumpido',
+        noEnd: 'Sin final registrado',
+      })[status] ?? status,
+    panelModel: 'Modelo',
+    panelEffort: 'Esfuerzo',
+    panelStarted: 'Empezó',
+    panelDuration: 'Duración',
+    panelNow: 'Ahora',
+    panelNoTool: 'Ninguna herramienta en uso',
+    panelToolCalls: (n: number): string => (n === 1 ? '1 llamada a herramienta' : `${n} llamadas a herramientas`),
+    panelDenialCount: (n: number): string => (n === 1 ? '1 denegada' : `${n} denegadas`),
+    panelAsks: (kind: string): string =>
+      ({
+        question: 'Te hace una pregunta',
+        permission: 'Pide un permiso',
+        spec: 'Te pide aprobar la spec',
+        grant: 'Pide una carpeta',
+      })[kind] ?? 'Te pide algo',
+    panelGoToControl: 'Ir a la respuesta',
+    panelNoAgents: 'Todavía no ha empezado ningún subagente.',
+    panelTimeline: 'Línea de tiempo',
+    panelTimelineHint: 'Una fila por agente. Elige una fila para ver sus detalles.',
+    panelDetail: 'Detalles',
+    panelDenials: 'Llamadas denegadas',
+    panelNoDenials: 'No se denegó nada.',
+    denialBy: (by: string): string =>
+      ({ guard: 'por el guardián', policy: 'por el ajuste desatendido', user: 'por ti' })[by] ?? by,
+    panelTextView: 'Vista de texto de los agentes',
+    panelUsage: 'Uso del plan',
+    panelUsageStart: 'Al empezar',
+    panelUsageNow: 'Última lectura',
+    panelUsageLine: (fiveHour: string, sevenDay: string): string => `Ventana de 5 horas ${fiveHour} · ventana de 7 días ${sevenDay}`,
+    panelUsageNone: 'No disponible para esta sesión.',
+    panelUsageHint: 'De la misma lectura que /usage. Sin cifras de tokens ni de coste.',
+    targetOutside: 'fuera de las carpetas permitidas',
+    targetRoot: (root: string): string =>
+      ({ session: 'carpeta de la sesión', projects: 'carpeta de proyectos', repo: 'briefstack' })[root] ?? root,
+    panelSessionTitle: 'Sesión de creación',
+    panelSessionStatus: (status: string, outcome: string | undefined): string =>
+      status === 'running'
+        ? 'En curso'
+        : status === 'interrupted'
+          ? 'Interrumpida'
+          : ({ completed: 'Completada', cancelled: 'Cancelada', failed: 'Falló' })[outcome ?? ''] ?? 'Terminada',
+    panelBadLines: (n: number): string => `${n} línea(s) registradas no se pudieron leer y se omiten.`,
+    panelOpen: 'Abrir el panel de agentes',
+    panelBack: 'Volver a los proyectos',
     sessionId: 'Sesión de creación',
     timelineTitle: 'Historial de creación',
     timelineEmpty: 'Este proyecto no tiene historial.',

@@ -347,3 +347,223 @@ dialog.permission {
   border-radius: 0.8rem;
   font-size: 0.85em;
 }
+
+/* Agent panel (phase 3) */
+
+.agent-panel {
+  margin-top: 1.5rem;
+  min-width: 0;
+}
+
+.creation-main {
+  min-width: 0;
+}
+
+.agent-tree,
+.agent-children {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.agent-children {
+  margin: 0.5rem 0 0 1rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.5rem;
+}
+
+.agent-none {
+  margin: 0.5rem 0 0 1.75rem;
+}
+
+.agent-card {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: 0.4rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.agent-card[data-status='running'] {
+  border-left-color: var(--accent);
+}
+
+.agent-card[data-status='waiting'] {
+  border-left-color: #d97706;
+}
+
+.agent-card[data-status='done'] {
+  border-left-color: #16a34a;
+}
+
+.agent-card[data-status='failed'],
+.agent-card[data-status='interrupted'] {
+  border-left-color: var(--danger);
+}
+
+.agent-card[data-status='noEnd'],
+.agent-card[data-status='cancelled'] {
+  border-left-style: dashed;
+}
+
+.agent-select {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-select[aria-pressed='true'] .agent-name {
+  text-decoration: underline;
+}
+
+.agent-name {
+  font-weight: 700;
+}
+
+.node-status {
+  font-size: 0.85em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.agent-meta,
+.agent-counts {
+  font-size: 0.85em;
+}
+
+.agent-now {
+  margin: 0.25rem 0;
+}
+
+.target {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+}
+
+.denied-count {
+  color: var(--danger);
+}
+
+.agent-pending {
+  margin-top: 0.4rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.3rem;
+  background: var(--err-bg);
+  font-size: 0.9em;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+  font: inherit;
+  cursor: pointer;
+}
+
+.timeline {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: 9rem 1fr 6rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.15rem 0.25rem;
+  border: 1px solid transparent;
+  border-radius: 0.3rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.timeline-row[aria-pressed='true'] {
+  border-color: var(--line);
+}
+
+.timeline-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-track svg {
+  display: block;
+  width: 100%;
+  height: 0.9rem;
+}
+
+.timeline-track .bar {
+  fill: var(--muted);
+}
+
+.timeline-row[data-status='running'] .bar,
+.timeline-row[data-status='waiting'] .bar {
+  fill: var(--accent);
+}
+
+.timeline-row[data-status='done'] .bar {
+  fill: #16a34a;
+}
+
+.timeline-row[data-status='failed'] .bar,
+.timeline-row[data-status='interrupted'] .bar {
+  fill: var(--danger);
+}
+
+.timeline-time {
+  text-align: right;
+  font-size: 0.85em;
+}
+
+.agent-detail,
+.plan-usage,
+.panel-text {
+  margin-top: 1rem;
+}
+
+.denials {
+  padding-left: 1.2rem;
+}
+
+.denial-reason {
+  color: var(--muted);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+.steps-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 36rem) {
+  .agent-children {
+    margin-left: 0.25rem;
+    grid-template-columns: 1fr;
+  }
+
+  .timeline-row {
+    grid-template-columns: 6rem 1fr 4.5rem;
+  }
+}
