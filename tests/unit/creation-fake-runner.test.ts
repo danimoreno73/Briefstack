@@ -64,7 +64,7 @@ describe('FakeRunner', () => {
 
   const start = async (recording: string, io: RunnerIO, extra: { ignoreCancel?: boolean } = {}) => {
     const runner = await FakeRunner.fromFile(path.join(RECORDINGS, recording), { sessionId: () => SESSION, ...extra });
-    return runner.start({ creationId: 'c1', idea: 'x', profile: { name: 'balanced' }, sessionsDir, policy: 'ask', io });
+    return runner.start({ creationId: 'c1', idea: 'x', profile: { name: 'balanced', sessionModel: 'sonnet' }, sessionsDir, policy: 'ask', io });
   };
   const events = async () => (await readEvents(sessionEventsFile(sessionsDir, SESSION))).events;
 
@@ -159,7 +159,7 @@ describe('FakeRunner', () => {
       new FakeRunner({ steps: parseRecording(recording), sessionId: () => SESSION, ignoreCancel }).start({
         creationId: 'c',
         idea: 'x',
-        profile: { name: 'saver' },
+        profile: { name: 'saver', sessionModel: 'sonnet' },
         sessionsDir,
         policy: 'ask',
         io: scriptedIO().io,
@@ -218,7 +218,7 @@ describe('FakeRunner', () => {
     const handle = new FakeRunner({ steps: recording, sessionId: () => SESSION }).start({
       creationId: 'c',
       idea: 'x',
-      profile: { name: 'max' },
+      profile: { name: 'max', sessionModel: 'sonnet' },
       sessionsDir,
       policy: 'ask',
       io: { ...io, grantDirectory: async ({ dir }) => (dirs.push(dir), true) },

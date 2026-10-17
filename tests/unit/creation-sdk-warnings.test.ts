@@ -71,7 +71,7 @@ describe('the known SDK warning about shadowed canUseTool', () => {
     const options = buildQueryOptions({
       repoDir: 'repo',
       executable: 'claude',
-      profile: { name: 'balanced' },
+      profile: { name: 'balanced', sessionModel: 'sonnet' },
       env: {},
       additionalDirectories: [],
       hooks: {},

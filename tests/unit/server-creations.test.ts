@@ -105,7 +105,7 @@ describe('creation API', () => {
         runner,
         sessionsDir: path.join(dir, 'sessions'),
         policy: () => 'ask',
-        profile: () => ({ name: 'balanced' }),
+        profile: () => ({ name: 'balanced', sessionModel: 'sonnet' }),
         pollMs: 10,
       });
     }

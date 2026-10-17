@@ -103,10 +103,14 @@ export interface RunnerIO {
   emit(event: RunnerEvent): void;
 }
 
-/** The session model and effort of the active usage profile. */
+/**
+ * The session model and effort of the active usage profile. The model is
+ * always set: it is passed to every SDK session, so neither `ANTHROPIC_MODEL`
+ * nor the user's own settings can choose it.
+ */
 export interface RunnerProfile {
   name: string;
-  sessionModel?: string;
+  sessionModel: string;
   effort?: string;
 }
 

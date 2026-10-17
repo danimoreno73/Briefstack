@@ -1963,3 +1963,13 @@ as the fallback when a resume fails.
 
 Decisions taken while the user was away (2026-10-17), each the most
 conservative reading of the brief. The user can revisit any of them.
+
+1. **Explicit model (backlog).** Every SDK session gets `model` from the
+   profile (`RunnerProfile.sessionModel` is now required), and
+   `ANTHROPIC_MODEL` is also removed from the session environment. Source:
+   Claude Code "Model configuration" (`code.claude.com/docs/en/model-config`,
+   read 2026-10-17): the order is `/model`, `--model`, `ANTHROPIC_MODEL`,
+   settings `model`, and "project and managed settings take precedence over
+   your own selections". So a test also checks that the repo's
+   `.claude/settings.json` names no model. `ANTHROPIC_DEFAULT_*_MODEL` (which
+   pin what an alias such as `sonnet` means) are left as the user set them.

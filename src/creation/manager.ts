@@ -596,7 +596,7 @@ export class CreationManager {
     this.record(c, {
       type: 'session.profile',
       profile: profile.name,
-      ...(profile.sessionModel === undefined ? {} : { model: profile.sessionModel }),
+      model: profile.sessionModel,
       ...(profile.effort === undefined ? {} : { effort: profile.effort }),
     });
   }

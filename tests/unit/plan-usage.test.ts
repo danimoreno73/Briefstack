@@ -72,7 +72,7 @@ describe('the manager records plan usage', () => {
       }),
       sessionsDir,
       policy: () => 'ask',
-      profile: () => ({ name: 'balanced' }),
+      profile: () => ({ name: 'balanced', sessionModel: 'sonnet' }),
       pollMs: 10,
       planUsage,
       usageEveryMs: 60,

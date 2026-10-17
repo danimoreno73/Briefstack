@@ -79,11 +79,31 @@ describe('buildQueryOptions', () => {
     expect(Object.keys(options)).not.toContain('dangerouslySkipPermissions');
   });
 
-  it('leaves model and effort out when the profile has none or an unknown one', () => {
+  it('always passes the profile model, and ANTHROPIC_MODEL from the server never reaches the session', () => {
+    const { env } = cleanEnvironment({ ANTHROPIC_MODEL: 'claude-opus-4-1', PATH: '/bin' }, '/home');
     const options = buildQueryOptions({
       repoDir: '/repo',
       executable: '/bin/claude',
-      profile: { name: 'x', effort: 'turbo' },
+      profile: { name: 'saver', sessionModel: 'haiku', effort: 'low' },
+      env,
+      additionalDirectories: [],
+      hooks: {},
+      canUseTool: async () => ({ behavior: 'deny', message: 'x' }),
+      mcpServers: {},
+      abortController: new AbortController(),
+      spawn: () => {
+        throw new Error('not used');
+      },
+    });
+    expect(options.model).toBe('haiku');
+    expect(options.env).not.toHaveProperty('ANTHROPIC_MODEL');
+  });
+
+  it('leaves the effort out when the profile has an unknown one', () => {
+    const options = buildQueryOptions({
+      repoDir: '/repo',
+      executable: '/bin/claude',
+      profile: { name: 'x', sessionModel: 'sonnet', effort: 'turbo' },
       env: {},
       additionalDirectories: [],
       hooks: {},
@@ -94,7 +114,7 @@ describe('buildQueryOptions', () => {
         throw new Error('not used');
       },
     });
-    expect(options).not.toHaveProperty('model');
+    expect(options.model).toBe('sonnet');
     expect(options).not.toHaveProperty('effort');
   });
 });
@@ -111,6 +131,7 @@ describe('cleanEnvironment', () => {
       {
         ANTHROPIC_API_KEY: FAKE_KEY,
         ANTHROPIC_AUTH_TOKEN: 'token-value',
+        ANTHROPIC_MODEL: 'opus',
         CLAUDE_CODE_OAUTH_TOKEN: 'oauth-value',
         CLAUDECODE: '1',
         CLAUDE_CODE_ENTRYPOINT: 'cli',
@@ -119,7 +140,14 @@ describe('cleanEnvironment', () => {
       },
       '/new-home',
     );
-    expect(removed.sort()).toEqual(['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_OAUTH_TOKEN']);
+    expect(removed.sort()).toEqual([
+      'ANTHROPIC_API_KEY',
+      'ANTHROPIC_AUTH_TOKEN',
+      'ANTHROPIC_MODEL',
+      'CLAUDECODE',
+      'CLAUDE_CODE_ENTRYPOINT',
+      'CLAUDE_CODE_OAUTH_TOKEN',
+    ]);
     expect(JSON.stringify(removed)).not.toContain(FAKE_KEY);
     expect(env).toEqual({ PATH: '/bin', BRIEFSTACK_HOME: '/new-home', CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1' });
   });

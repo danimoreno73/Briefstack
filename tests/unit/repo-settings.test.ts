@@ -14,4 +14,11 @@ describe('repo permission rules', () => {
       allow: ['Bash(npm run --silent briefstack *)', 'PowerShell(npm run --silent briefstack *)'],
     });
   });
+
+  it('sets no model: the session model comes only from the usage profile', async () => {
+    // Project settings rank above `--model` in Claude Code's model order, so they must not name one.
+    const settings = JSON.parse(await readFile(path.join(PACKAGE_ROOT, '.claude', 'settings.json'), 'utf8')) as Record<string, unknown>;
+    expect(settings).not.toHaveProperty('model');
+    expect((settings.env as Record<string, unknown> | undefined) ?? {}).not.toHaveProperty('ANTHROPIC_MODEL');
+  });
 });

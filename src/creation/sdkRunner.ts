@@ -39,8 +39,12 @@ import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL, WEB_SERVER_NAME, createWebTool
 
 export const SKILL_COMMAND = 'new-project';
 
-/** Environment variables that would make Claude Code bill an API key or change how it runs. */
-const REMOVED_ENV = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDECODE'];
+/**
+ * Environment variables that would make Claude Code bill an API key or change
+ * how it runs. `ANTHROPIC_MODEL` too: the model is always passed as an option,
+ * and the variable is not left to compete with it.
+ */
+const REMOVED_ENV = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_MODEL', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDECODE'];
 
 export interface CleanEnvironment {
   env: Record<string, string | undefined>;
@@ -103,7 +107,8 @@ export function buildQueryOptions(params: QueryOptionsParams): Options {
     settingSources: ['project', 'local'],
     pathToClaudeCodeExecutable: params.executable,
     permissionMode: 'auto',
-    ...(profile.sessionModel === undefined ? {} : { model: profile.sessionModel }),
+    // Always explicit: the option wins over `ANTHROPIC_MODEL` and any settings file.
+    model: profile.sessionModel,
     ...(isEffort(profile.effort) ? { effort: profile.effort } : {}),
     // Only the built-in tools the flow uses (`--tools`); the guard denies any other tool name too.
     tools: [...FLOW_BUILTIN_TOOLS],
