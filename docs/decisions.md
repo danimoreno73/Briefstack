@@ -1894,3 +1894,72 @@ conservative reading of the brief. The user can revisit any of them.
 13. **Screenshots** have their own Playwright config
     (`playwright.screenshots.config.ts`, `npm run screenshots`) so they are
     not part of the test suite, and land in the git-ignored `screenshots/`.
+
+# Phase 4
+
+## H0 (2026-10-17, SDK 0.3.286, Claude Code 2.1.302, Windows 11)
+
+Run by Claude with the user's go-ahead (BRIEF-phase-4 §7), with
+`scripts/real/probe-h0-phase4.ts --yes --probe <n>` from PowerShell: `haiku`,
+`effort: low`, `maxTurns` 1–6, `settingSources: []`, `strictMcpConfig`, a
+temp `BRIEFSTACK_HOME` and temp working folders, the same environment
+cleaning as a creation (no `ANTHROPIC_API_KEY`, `CLAUDE_CODE_*`,
+`CLAUDECODE`). The real library and projects were not touched. Plan usage
+was read before and after every probe, with a stop above 70% of the 5-hour
+window: 37% / 27% (5-hour / 7-day) before the first probe and 37% / 27%
+after the last.
+
+Docs read the same day: Agent SDK "Work with sessions"
+(`code.claude.com/docs/en/agent-sdk/sessions`), "Streaming Input"
+(`…/agent-sdk/streaming-vs-single-mode`), and the SDK's own `sdk.d.ts`
+(`tools: []` "Disable all built-in tools"; `resume`, `persistSession`).
+
+1. **A session with only MCP tools works; the closed list holds. PASS.**
+   `tools: []` plus one in-process MCP server: the init message listed
+   exactly the two MCP tools (`mcp__probe__get_word`,
+   `mcp__probe__propose_action`), nothing else (no Read, Bash, Agent,
+   ToolSearch…). Asked to read a file and run `echo hi`, the model answered
+   that it has no file or shell tool; `PreToolUse` saw only the two MCP
+   tools and `canUseTool` was never called. An MCP tool that waited 5 s
+   before answering (as a UI confirmation will) returned normally. With the
+   MCP tools in `allowedTools`, the SDK prints
+   `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` for them, as for the creation's two
+   web tools: the chat's filter must name its own exact set.
+2. **Several sessions at once on Windows, one process. PASS.** Three
+   queries started together (overlapping for ~7 s), each with its own
+   working folder, its own `PROBE_TAG` environment value, its own callback
+   hooks and its own in-process MCP server. Each hook saw only its own
+   session id and its own `cwd`; each MCP server was called only by its
+   own session; each PowerShell call printed only its own `PROBE_TAG`.
+   Callback hooks only (`settingSources: []`): the settings command hooks
+   of a creation write to `<sessionsDir>/<session id>/events.jsonl`, keyed
+   by session id, so they are separate by construction.
+3. **Resume by session id after a restart. PASS.** A first query (no
+   tools) was told a word and closed; its `claude` process ended. A second
+   query in a new `claude` process with `resume: <id>` kept the same
+   session id and answered the word. Cost: the resumed turn sends the whole
+   history again: on this two-line conversation, 671 input tokens written
+   to the cache on resume against 621 on the first turn (no cache read: the
+   new process does not reuse the old cache). So a resumed chat costs one
+   uncached read of its history on the first message after a restart, then
+   behaves as before. Resume needs the transcript, which Claude Code keeps
+   under `~/.claude/projects/<encoded working folder>/`; with the chat's
+   working folder in the briefstack home, that is
+   `~/.claude/projects/<encoded briefstack home>/`. The probe's own
+   transcript stays in `<home>/.claude/projects/<encoded temp folder>/`
+   (not deleted: it is outside the temp folders the probes may clean).
+4. **A user message after the turn ended. PASS.** On the same streaming
+   input queue the runner uses, a first message got its `result`; 3 s later
+   a second message pushed into the same queue was answered in the same
+   session (a second `init` message arrives before the second turn, which
+   the runner already tolerates).
+
+Conclusion: the design in `docs/PLAN-phase-4.md` can rely on all four. The
+chat keeps its model context across a restart with `resume`; the
+alternative in the brief (new conversation, old one readable) is kept only
+as the fallback when a resume fails.
+
+## Decisiones sin Dani (fase 4)
+
+Decisions taken while the user was away (2026-10-17), each the most
+conservative reading of the brief. The user can revisit any of them.
