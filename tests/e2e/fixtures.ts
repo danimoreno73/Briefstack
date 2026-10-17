@@ -129,8 +129,8 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   const manager = new CreationManager({
     runner:
       options.recordingText === undefined
-        ? await FakeRunner.fromFile(path.join(RECORDINGS, options.recording ?? 'full.jsonl'))
-        : new FakeRunner({ steps: parseRecording(options.recordingText) }),
+        ? await FakeRunner.fromFile(path.join(RECORDINGS, options.recording ?? 'full.jsonl'), { libraryDir, projectsDir })
+        : new FakeRunner({ steps: parseRecording(options.recordingText), libraryDir, projectsDir }),
     sessionsDir,
     policy: () => options.policy ?? 'ask',
     // As in `briefstack web`: the limit is read from the config at each start.
