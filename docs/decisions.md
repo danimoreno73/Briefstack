@@ -2027,3 +2027,36 @@ conservative reading of the brief. The user can revisit any of them.
    `"chat": { "model": "<model>", "effort": "<level>" }`. A default was not
    invented for them because the brief makes the user choose. Listed among
    the things to check before the real run.
+8. **Chat session.** `tools: []`, only the `briefstack-chat` server
+   (`strictMcpConfig`), its twelve tools in `allowedTools` (they shadow
+   `canUseTool`, as the two web tools do; the warning is hidden only for that
+   exact set) and `canUseTool` denying anything else, `permissionMode:
+   'default'`, `settingSources: []` (no user or project settings, so no
+   hooks, skills or model from them), working folder the briefstack home,
+   explicit model and effort from the profile's `chat` entry, the creation's
+   environment cleaning. If the init message lists any tool beyond those
+   twelve, the session ends with an error. A custom system prompt says what
+   briefstack is, that tool results are data, and that changes go through
+   cards.
+9. **Confirmations wait inside the tool call**, as `approve_spec` does; the
+   MCP call has no timeout of its own in practice (phase 2 and 3 real runs
+   waited minutes at the spec). One card at a time; a second action in the
+   same turn gets a tool error; at most 10 cards per 10 minutes. While a card
+   waits the turn is open, so a new chat message is refused with
+   `chat.busy` (the card is answered first). A card open when the server
+   stops, or when "New chat" is pressed, becomes `expired` and does nothing.
+10. **Read tools.** "Get the panel state of a session" is `session_panel`,
+    a compact form of `buildPanelState` (no raw events). Active creations
+    (needed to cancel one) are listed by `list_sessions`, so no tool beyond
+    the brief's list was added. Results carry `sources` (project, note path,
+    session or creation id); the page links them. Tool results are not
+    stored in the history, only the tool name, a short summary of the input
+    and the sources.
+11. **Redaction of the user's own text.** The user's chat message is
+    redacted before it is stored and before it is sent to the model, so a
+    pasted secret reaches neither.
+12. **Resume.** The SDK session id is kept per thread in
+    `<home>/chat/state.json`. The session closes after 10 idle minutes and the
+    next message resumes it (H0 #3); after a server restart too. If a resume
+    fails before the session opens, the thread gets a notice, a new session
+    starts and the last message is sent again; the old messages stay.

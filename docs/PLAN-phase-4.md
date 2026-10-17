@@ -30,9 +30,11 @@ Updated 2026-10-17. A new session reads `CLAUDE.md`,
 
 | M4 | `chat: { model, effort }` required in every preset (`ChatSettingSchema`); base presets saver → haiku/low, balanced → sonnet/medium, max → opus/high; shown by `usage show`, `GET /api/usage` and the Usage page |
 
+| M5 | `src/chat/`: `toolNames.ts`, `tools.ts` (registry of 8 read and 4 action tools, `resultText` wraps and redacts), `diff.ts`, `store.ts` (`<home>/chat/state.json`, `threads/<id>.jsonl`), `manager.ts` (`ChatManager`: one active thread, confirmations one at a time, 10 per 10 minutes, idle close and resume, `resumeFailed` fallback, "New chat"), `fakeChatRunner.ts` (scripts of `say`/`call`/`sayResult`/`echo`/`fail`), `sdkChatRunner.ts`, `wiring.ts`; routes `src/server/chat.ts`; `briefstack web` starts the chat; the SDK warning filter knows the chat's exact set; `docs/api.md` documents routes and every tool |
+
 ### Left
 
-Everything from M5 on. Before the real run the user checks that any preset
+Everything from M6 on. Before the real run the user checks that any preset
 in `<home>/usage-profiles.json` has a `chat` entry (decisions.md, phase 4,
 item 7).
 
