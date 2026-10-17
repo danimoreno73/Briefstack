@@ -54,6 +54,7 @@ export interface ErrorParams {
   'library.dirtyTree': { dir: string };
   'library.revertConflict': { sha: string; files: string[] };
   'library.revertFailed': { sha: string; detail: string };
+  'library.busy': { waitedMs: number };
   'events.invalidSession': { session: string };
   'events.sessionNotFound': { session: string };
   'web.invalidPort': { value: string };

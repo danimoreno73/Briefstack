@@ -1,0 +1,129 @@
+import { execFileSync, spawn } from 'node:child_process';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { addNote, initLibrary, libraryLockDir, saveNote, withLibraryLock } from '../../src/library/index.js';
+import { tempDir, useHermeticGit } from '../helpers.js';
+
+useHermeticGit();
+
+const git = (cwd: string, args: string[]): string => execFileSync('git', args, { cwd, encoding: 'utf8' });
+const exists = (file: string) =>
+  stat(file).then(
+    () => true,
+    () => false,
+  );
+
+describe('library queue', () => {
+  let dir: string;
+  let cleanup: () => Promise<void>;
+  let lockRoot: string;
+  beforeEach(async () => {
+    ({ dir, cleanup } = await tempDir('library-lock'));
+    lockRoot = path.join(dir, 'locks');
+  });
+  afterEach(() => cleanup());
+
+  it('names one lock per library, the same for every spelling of its path, outside the library', () => {
+    const a = libraryLockDir(path.join(dir, 'lib'), lockRoot);
+    expect(libraryLockDir(path.join(dir, 'x', '..', 'lib'), lockRoot)).toBe(a);
+    expect(libraryLockDir(path.join(dir, 'other'), lockRoot)).not.toBe(a);
+    expect(path.dirname(a)).toBe(lockRoot);
+    if (process.platform === 'win32') expect(libraryLockDir(path.join(dir, 'LIB'), lockRoot)).toBe(a);
+  });
+
+  it('runs changes one after another inside one process, and frees the lock after an error', async () => {
+    const library = path.join(dir, 'lib');
+    const order: string[] = [];
+    const step = (name: string, ms: number, fail = false) =>
+      withLibraryLock(
+        library,
+        async () => {
+          order.push(`${name}:start`);
+          await new Promise((resolve) => setTimeout(resolve, ms));
+          order.push(`${name}:end`);
+          if (fail) throw new Error(name);
+          return name;
+        },
+        { lockRoot },
+      );
+    const results = await Promise.allSettled([step('a', 40), step('b', 5, true), step('c', 5)]);
+    expect(order).toEqual(['a:start', 'a:end', 'b:start', 'b:end', 'c:start', 'c:end']);
+    expect(results.map((r) => r.status)).toEqual(['fulfilled', 'rejected', 'fulfilled']);
+    expect(await exists(libraryLockDir(library, lockRoot))).toBe(false);
+  });
+
+  it('waits for a lock another live process holds, then takes it', async () => {
+    const library = path.join(dir, 'lib');
+    const lock = libraryLockDir(library, lockRoot);
+    // A real other process owns it.
+    const other = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], { stdio: 'ignore' });
+    try {
+      await mkdir(lock, { recursive: true });
+      await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: other.pid, at: new Date().toISOString() }));
+      let ran = false;
+      const waiting = withLibraryLock(library, async () => (ran = true), { lockRoot, retryMs: 10 });
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(ran).toBe(false);
+      await import('node:fs/promises').then((fs) => fs.rm(lock, { recursive: true, force: true }));
+      await waiting;
+      expect(ran).toBe(true);
+    } finally {
+      other.kill();
+    }
+  });
+
+  it('takes over a lock whose process is gone, or that is too old', async () => {
+    const library = path.join(dir, 'lib');
+    const lock = libraryLockDir(library, lockRoot);
+    const gone = spawn(process.execPath, ['-e', ''], { stdio: 'ignore' });
+    await new Promise((resolve) => gone.once('exit', resolve));
+    await mkdir(lock, { recursive: true });
+    await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: gone.pid }));
+    expect(await withLibraryLock(library, async () => 'taken', { lockRoot, retryMs: 10, timeoutMs: 2000 })).toBe('taken');
+
+    await mkdir(lock, { recursive: true });
+    await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: process.pid }));
+    expect(await withLibraryLock(library, async () => 'old', { lockRoot, retryMs: 10, staleMs: 0, timeoutMs: 2000 })).toBe('old');
+  });
+
+  it('gives up with library.busy and runs nothing when the lock stays taken', async () => {
+    const library = path.join(dir, 'lib');
+    const lock = libraryLockDir(library, lockRoot);
+    await mkdir(lock, { recursive: true });
+    await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: process.pid }));
+    let ran = false;
+    await expect(withLibraryLock(library, async () => (ran = true), { lockRoot, retryMs: 10, timeoutMs: 80 })).rejects.toMatchObject({
+      code: 'library.busy',
+    });
+    expect(ran).toBe(false);
+  });
+
+  it('two creations finishing together: every note, every index line and every commit is there', async () => {
+    const libraryDir = path.join(dir, 'home', 'library');
+    await initLibrary({ libraryDir, projectsDir: path.join(dir, 'projects'), sessionsDir: path.join(dir, 'home', 'sessions'), repoDir: path.join(dir, 'repo') });
+    const now = new Date('2026-10-17T10:00:00Z');
+    const notes = ['alpha', 'bravo', 'charlie', 'delta'];
+    await Promise.all([
+      ...notes.map((name) =>
+        addNote({
+          libraryDir,
+          section: 'projects',
+          name,
+          text: `---\ntarget: claude-code\npath: /projects/${name}\nstatus: created\nprofile: saver\nsummary: ${name} project.\n---\n# ${name}\n`,
+          now,
+        }),
+      ),
+      addNote({ libraryDir, section: 'lessons', text: 'Do not ask twice.\n', now }),
+      saveNote({ libraryDir, section: 'profile', name: 'preferences', text: '# Preferences\n\nShort.\n', now }),
+    ]);
+    const index = await readFile(path.join(libraryDir, 'INDEX.md'), 'utf8');
+    for (const name of notes) expect(index).toContain(`projects/${name}`);
+    expect(index).toContain('profile/preferences');
+    const log = git(libraryDir, ['log', '--format=%s']);
+    for (const name of notes) expect(log).toContain(`library: add projects/${name}`);
+    expect(log).toContain('library: add profile/preferences');
+    expect(log).toContain('library: update lessons');
+    expect(git(libraryDir, ['status', '--porcelain']).trim()).toBe('');
+  });
+});

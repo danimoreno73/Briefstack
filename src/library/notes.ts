@@ -7,6 +7,7 @@ import { SLUG_RE } from '../spec/schema.js';
 import { findSecrets } from '../validate/text.js';
 import { gitCommit, type GitWarning } from './git.js';
 import { cleanSummary, parseIndexEntries, prependIndexEntry, upsertIndexEntry } from './indexFile.js';
+import { withLibraryLock } from './lock.js';
 import {
   INDEX_FILE,
   INDEX_HEADINGS,
@@ -376,19 +377,22 @@ export async function addNote(options: AddNoteOptions): Promise<AddNoteResult> {
     throw new BriefstackError('library.emptyContent', { file: label });
   }
 
-  const existing = await readTextIfExists(toNative(libraryDir, relative));
-  const change = appendChange(ref, relative, existing, data, body, now, label, options.session);
-  const applied = await applyChange(libraryDir, change);
-  return {
-    section: ref.section,
-    name: ref.name,
-    file: relative,
-    action: existing === undefined ? 'created' : 'appended',
-    indexUpdated: applied.indexUpdated,
-    committed: applied.committed,
-    ...(change.status !== undefined ? { status: change.status } : {}),
-    warnings: applied.warnings,
-  };
+  // From the read of the note to its commit, one change at a time per library (lock.ts).
+  return withLibraryLock(libraryDir, async () => {
+    const existing = await readTextIfExists(toNative(libraryDir, relative));
+    const change = appendChange(ref, relative, existing, data, body, now, label, options.session);
+    const applied = await applyChange(libraryDir, change);
+    return {
+      section: ref.section,
+      name: ref.name,
+      file: relative,
+      action: existing === undefined ? 'created' : 'appended',
+      indexUpdated: applied.indexUpdated,
+      committed: applied.committed,
+      ...(change.status !== undefined ? { status: change.status } : {}),
+      warnings: applied.warnings,
+    };
+  });
 }
 
 export interface SaveNoteOptions {
@@ -463,9 +467,14 @@ function rewriteChange(
  * one commit. Identical text (trailing whitespace aside) changes nothing.
  */
 export async function saveNote(options: SaveNoteOptions): Promise<SaveNoteResult> {
-  const { libraryDir, text } = options;
   const ref = noteRef(options.section, options.name);
-  await assertLibrary(libraryDir);
+  await assertLibrary(options.libraryDir);
+  // From the read of the note to its commit, one change at a time per library (lock.ts).
+  return withLibraryLock(options.libraryDir, () => saveNoteLocked(options, ref));
+}
+
+async function saveNoteLocked(options: SaveNoteOptions, ref: NoteRef): Promise<SaveNoteResult> {
+  const { libraryDir, text } = options;
   const now = options.now ?? new Date();
   const relative = noteRelativePath(ref.section, ref.name);
   const existing = await readTextIfExists(toNative(libraryDir, relative));

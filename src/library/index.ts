@@ -38,3 +38,4 @@ export * from './projects.js';
 export * from './projectsDir.js';
 export * from './projectStatus.js';
 export * from './settings.js';
+export * from './lock.js';

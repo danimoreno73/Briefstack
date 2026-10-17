@@ -77,6 +77,7 @@ describe('error catalogue', () => {
     'library.dirtyTree': { dir: 'd' },
     'library.revertConflict': { sha: 'abc1234', files: ['lessons.md'] },
     'library.revertFailed': { sha: 'abc1234', detail: 'd' },
+    'library.busy': { waitedMs: 60000 },
     'events.invalidSession': { session: '../x' },
     'events.sessionNotFound': { session: 's' },
     'web.invalidPort': { value: 'abc' },

@@ -2,6 +2,7 @@ import { mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { PathEnv } from '../config/paths.js';
 import { gitCommit, gitInit, type GitWarning } from './git.js';
+import { withLibraryLock } from './lock.js';
 import {
   INDEX_FILE,
   INDEX_TEMPLATE,
@@ -92,14 +93,15 @@ export async function initLibrary(options: InitOptions): Promise<InitResult> {
   }
   created.push(...createdFiles);
 
-  const git = await gitInit(libraryDir);
-  if (git.warning !== undefined) warnings.push(git.warning);
-  let committed = false;
-  if (git.warning === undefined) {
+  // One change at a time per library (lock.ts).
+  const { git, committed } = await withLibraryLock(libraryDir, async () => {
+    const init = await gitInit(libraryDir);
+    if (init.warning !== undefined) warnings.push(init.warning);
+    if (init.warning !== undefined) return { git: init, committed: false };
     const commit = await gitCommit(libraryDir, createdFiles, 'library: initialise');
-    committed = commit.committed;
     if (commit.warning !== undefined) warnings.push(commit.warning);
-  }
+    return { git: init, committed: commit.committed };
+  });
 
   const projectsDirCreated = await ensureDir(projectsDir);
   const sessionsDirCreated = await ensureDir(sessionsDir);

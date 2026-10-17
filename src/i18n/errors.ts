@@ -116,6 +116,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'library.revertConflict': (p) =>
       `Undoing ${p.sha.slice(0, 12)} clashes with later changes to:${bullets(p.files)}\nNothing was changed.`,
     'library.revertFailed': (p) => `Could not undo ${p.sha.slice(0, 12)}; nothing was changed: ${p.detail}`,
+    'library.busy': (p) =>
+      `Another change to the library is still running after ${Math.round(p.waitedMs / 1000)} s; nothing was written. Try again.`,
     'events.invalidSession': (p) =>
       `"${p.session}" is not a valid session id (letters, digits, ".", "_" and "-" only).`,
     'events.sessionNotFound': (p) => `No creation session "${p.session}" (it has no events.jsonl).`,
@@ -211,6 +213,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'library.revertConflict': (p) =>
       `Deshacer ${p.sha.slice(0, 12)} choca con cambios posteriores en:${bullets(p.files)}\nNo se ha cambiado nada.`,
     'library.revertFailed': (p) => `No se ha podido deshacer ${p.sha.slice(0, 12)}; no se ha cambiado nada: ${p.detail}`,
+    'library.busy': (p) =>
+      `Otro cambio en la biblioteca sigue en curso tras ${Math.round(p.waitedMs / 1000)} s; no se ha escrito nada. Inténtalo de nuevo.`,
     'events.invalidSession': (p) =>
       `"${p.session}" no es un id de sesión válido (solo letras, dígitos, ".", "_" y "-").`,
     'events.sessionNotFound': (p) => `No hay ninguna sesión de creación "${p.session}" (no tiene events.jsonl).`,

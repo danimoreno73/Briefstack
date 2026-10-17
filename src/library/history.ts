@@ -2,6 +2,7 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { BriefstackError } from '../errors.js';
 import { git, identityArgs, isGitRepo } from './git.js';
+import { withLibraryLock } from './lock.js';
 
 /**
  * The personal library's git history, and undoing one change with
@@ -101,6 +102,11 @@ function gitDetail(error: unknown): string {
  * the library is left as it was.
  */
 export async function revertLibraryCommit(libraryDir: string, sha: string): Promise<string> {
+  // One change at a time per library (lock.ts).
+  return withLibraryLock(libraryDir, () => revertLocked(libraryDir, sha));
+}
+
+async function revertLocked(libraryDir: string, sha: string): Promise<string> {
   const full = await resolveCommit(libraryDir, sha);
   const status = await git(libraryDir, ['status', '--porcelain', '--untracked-files=no']);
   if (status.trim() !== '') throw new BriefstackError('library.dirtyTree', { dir: libraryDir });
