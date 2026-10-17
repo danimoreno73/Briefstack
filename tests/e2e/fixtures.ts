@@ -3,6 +3,10 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { FakeRunner, parseRecording } from '../../src/creation/fakeRunner.js';
+import { FakeChatRunner, type ChatScript } from '../../src/chat/fakeChatRunner.js';
+import { ChatManager } from '../../src/chat/manager.js';
+import { ChatStore } from '../../src/chat/store.js';
+import { activeChatProfile } from '../../src/chat/wiring.js';
 import { CreationManager } from '../../src/creation/manager.js';
 import type { PermissionPolicy } from '../../src/creation/types.js';
 import { maxActiveCreationsOf, readConfig, updateConfig } from '../../src/config/index.js';
@@ -33,6 +37,10 @@ export interface App {
   server: WebServer;
   /** The creation manager the server uses, over the fake runner. */
   manager: CreationManager;
+  /** The chat the server uses, over the fake chat runner. */
+  chat: ChatManager;
+  chatRunner: FakeChatRunner;
+  pathEnv: PathEnv;
   dir: string;
   home: string;
   libraryDir: string;
@@ -54,6 +62,8 @@ export interface AppOptions {
   lang?: 'en' | 'es';
   /** Plan usage readings to record (5-hour and 7-day percent), one per reading; none by default. */
   planUsage?: { fiveHour: number | null; sevenDay: number | null }[];
+  /** The fake chat's script; no turns by default. */
+  chatScript?: ChatScript;
 }
 
 async function emptyGitConfig(dir: string): Promise<void> {
@@ -149,15 +159,40 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
           usageEveryMs: 300,
         }),
   });
-  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager });
+  const chatRunner = new FakeChatRunner(options.chatScript ?? { turns: [] });
+  const chat = await openChat(pathEnv, repoDir, manager, chatRunner);
+  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat });
 
-  const app: App = { url: server.url, server, manager, dir, home, libraryDir, projectsDir, sessionsDir, repoDir, gardenDir };
+  const app: App = { url: server.url, server, manager, chat, chatRunner, pathEnv, dir, home, libraryDir, projectsDir, sessionsDir, repoDir, gardenDir };
   const stop = async () => {
+    await app.chat.shutdown();
     await manager.shutdown();
-    await server.close();
+    await app.server.close();
     await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   };
   return { app, stop };
+}
+
+async function openChat(pathEnv: PathEnv, repoDir: string, creations: CreationManager, runner: FakeChatRunner): Promise<ChatManager> {
+  return ChatManager.open({
+    store: new ChatStore(path.join(pathEnv.env.BRIEFSTACK_HOME ?? '', 'chat')),
+    runner,
+    tools: { pathEnv, repoDir, lang: 'en', creations, planUsage: async () => ({ fiveHour: 21, sevenDay: 34 }) },
+    profile: () => activeChatProfile(pathEnv),
+  });
+}
+
+/**
+ * A server restart for the chat: the chat and the server stop, and new ones
+ * start on the same home with a new chat script. `app` points to the new server.
+ */
+export async function restartChatServer(app: App, script: ChatScript): Promise<void> {
+  await app.chat.shutdown();
+  await app.server.close();
+  app.chatRunner = new FakeChatRunner(script);
+  app.chat = await openChat(app.pathEnv, app.repoDir, app.manager, app.chatRunner);
+  app.server = await startWebServer({ port: 0, pathEnv: app.pathEnv, repoDir: app.repoDir, creations: app.manager, chat: app.chat });
+  app.url = app.server.url;
 }
 
 /** `app` starts a fresh server and temp folders for every test. */
