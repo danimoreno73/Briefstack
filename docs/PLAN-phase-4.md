@@ -34,9 +34,25 @@ Updated 2026-10-17. A new session reads `CLAUDE.md`,
 
 | M6 | `src/ui/chat.tsx` (`#/chat` page with the model in use, messages, tool lines with links to their sources, confirmation cards with Confirm/Decline and the note diff, notices, `ReplyBox`, "New chat", past chats read-only at `#/chat/<id>`; `ChatDrawer` on every other page, closed with its own button or Escape), `src/ui/chatData.ts` (pure: source links, stream events applied once each); strings in English and Spanish; e2e `tests/e2e/chat.spec.ts` (answer from data with a source link; start, profile and note change each declined then confirmed; cancel declined then confirmed; an injected instruction in a note; reload and server restart with resume; "New chat" and past chats; the drawer; 390 px). The project tables now scroll inside their box at 390 px |
 
+| M7 | `scripts/real/check-chat-read.ts`, `check-chat-start-creation.ts`, `check-two-creations.ts` (and `sandboxLibrary` in `common.ts`); static checks in `tests/unit/real-scripts.test.ts`. Prepared, **not run** |
+| M8 | Decisions 1–13 in `decisions.md` ("Decisiones sin Dani (fase 4)"), `docs/api.md` and `docs/events.md` updated, this Status, the real-run steps below |
+
 ### Left
 
-M7 (real scripts) and M8 (docs and hand-off). Before the real run the user checks that any preset
+The real checks and the real run (section 3), run by the user. Phase 4 is
+not done before the real run is accepted.
+
+Before the real run: if `<home>/usage-profiles.json` has user presets, each
+needs a `chat` entry (decisions.md, phase 4, item 7).
+
+### Backlog (not phase 4, not started)
+
+- Folder claims live in the server's memory: a creation started from the
+  terminal (`/new-project` in Claude Code) is not seen by them.
+- The chat's MCP tool waits for a confirmation without a timeout of its own,
+  as `approve_spec` does; a card left open for hours keeps the chat's turn
+  open until it is answered or "New chat" is pressed.
+- The UI and UX pass over the whole app (after phase 4, before publishing). Before the real run the user checks that any preset
 in `<home>/usage-profiles.json` has a `chat` entry (decisions.md, phase 4,
 item 7).
 
@@ -169,4 +185,37 @@ this Status updated.
 
 ## 3. Real runs (prepared, run by the user)
 
-Filled in at M8.
+None was run while building phase 4 (only the H0 probes). In order:
+
+1. **Preflight** (reads only): `npx tsx scripts/real/preflight.ts`.
+2. **Chat answers from its read tools** (a few short haiku turns, temp home):
+   `npx tsx scripts/real/check-chat-read.ts --yes`. Expected: five PASS
+   lines; the answer names "Seed tracker".
+3. **Chat starts a creation through the confirmation** (haiku; the creation
+   behind it is fake): `npx tsx scripts/real/check-chat-start-creation.ts --yes`.
+   Expected: a card declined (no creation), a card confirmed (one creation
+   with the idea), no error notice.
+4. **Two real creations at once** (saver, temp home, up to 40 minutes):
+   1. `npm run briefstack -- usage set saver` (the script never rewrites the
+      agent files; it stops if they do not hold saver);
+   2. `npx tsx scripts/real/check-two-creations.ts --yes`. Expected: both
+      `completed`, two project folders, a clean temp library, overlapping
+      times;
+   3. `npm run briefstack -- usage set <your profile>` to go back.
+5. **P1 check from phase 3**, still pending:
+   `npx tsx scripts/real/check-interviewer-target.ts --yes`.
+6. **Phase 4 real run**, on the real library:
+   1. Check `<home>/usage-profiles.json` (user presets need `chat`).
+   2. `npm run build`, then `npm run briefstack -- web`, and open the
+      address it prints.
+   3. Settings: the limit of creations at once (2 by default).
+   4. Chat: ask which projects you have and where a note says something;
+      the answer names its source, and the link opens it.
+   5. From the chat, start two creations (two cards, each confirmed). The
+      Creations page lists both; each panel shows its own agents; each
+      question and the spec say which creation they belong to.
+   6. Finish both. The library has both project notes and its git log both
+      commits; `git status` in the library is clean.
+   7. Reload the chat page, then stop and start `briefstack web` again: the
+      chat history is there and the chat still remembers the conversation.
+   8. Accept or reject phase 4. It is done only after acceptance.

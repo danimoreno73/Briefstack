@@ -41,7 +41,7 @@ The server redacts targets again before showing them.
 
 | type | fields |
 |---|---|
-| `tool.denied` | `tool`, `by`: `guard` \| `policy` \| `user`, `agentId?`, `agentType?`, `toolUseId?`, `reason?` (secrets redacted, absolute paths hidden) |
+| `tool.denied` | `tool`, `by`: `guard` \| `policy` \| `user`, `agentId?`, `agentType?`, `toolUseId?`, `reason?` (secrets redacted, absolute paths hidden). Since phase 4, `guard` also covers the folder claim hook (a project folder another active creation holds); its reason says so |
 | `session.profile` | `profile`, `model?`, `effort?` (the effort asked for) |
 | `usage` | `fiveHour`, `sevenDay`: percent of the plan window, or `null` |
 

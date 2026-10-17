@@ -2060,3 +2060,13 @@ conservative reading of the brief. The user can revisit any of them.
     next message resumes it (H0 #3); after a server restart too. If a resume
     fails before the session opens, the thread gets a notice, a new session
     starts and the last message is sent again; the old messages stay.
+13. **Real checks.** The chat start check runs the real chat but a fake
+    creation behind it, so it costs a few haiku turns, not a creation. The
+    two-creations check never rewrites the repo's agent files: it stops
+    unless they already hold the saver models (the user runs `usage set
+    saver` and back), and it plays the browser conservatively (recommended
+    options, spec approved, every permission and folder grant refused).
+14. **Small fixes on the way.** The New project page no longer jumps to a
+    running creation (several may run); the menu shows the count of active
+    creations on "Creations". The project tables scroll inside their box at
+    390 px (found by the chat's narrow-screen e2e test).
