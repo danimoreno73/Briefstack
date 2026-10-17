@@ -9,7 +9,8 @@ import type { DiffHunk, DiffLine } from './types.js';
 
 const MAX_LINES = 3000;
 
-const splitLines = (text: string): string[] => {
+/** A text's lines, CRLF read as LF, without the empty string after a final newline. */
+export const splitLines = (text: string): string[] => {
   if (text === '') return [];
   const lines = text.replace(/\r\n/g, '\n').split('\n');
   if (lines.at(-1) === '') lines.pop();
@@ -17,8 +18,11 @@ const splitLines = (text: string): string[] => {
 };
 
 export function diffLines(before: string, after: string): DiffLine[] {
-  const a = splitLines(before);
-  const b = splitLines(after);
+  return diffLineArrays(splitLines(before), splitLines(after));
+}
+
+/** The same diff over lines already split. */
+export function diffLineArrays(a: readonly string[], b: readonly string[]): DiffLine[] {
   if (a.length > MAX_LINES || b.length > MAX_LINES) {
     return [...a.map((text): DiffLine => ({ op: '-', text })), ...b.map((text): DiffLine => ({ op: '+', text }))];
   }

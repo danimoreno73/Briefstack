@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { diffHunks, diffLines } from '../../src/chat/diff.js';
+import { hasRedactionMarker, restoreRedactedLines } from '../../src/chat/restore.js';
 import { CHAT_ACTION_TOOLS, CHAT_READ_TOOLS, CHAT_TOOL_NAMES } from '../../src/chat/toolNames.js';
 import {
   CHAT_TOOLS,
@@ -52,6 +53,31 @@ describe('line diff', () => {
     const lines = diffLines(big, `${big}\nmore`);
     expect(lines.filter((line) => line.op === '-')).toHaveLength(3500);
     expect(lines.filter((line) => line.op === '+')).toHaveLength(3501);
+  });
+});
+
+describe('restoring lines from the redacted view', () => {
+  const redact = (line: string) => line.replace('SECRET', '[redacted]').replace('/abs/', '[outside allowed folders]/');
+
+  it('gives kept lines their own text back, in place or moved when unambiguous', () => {
+    const original = 'a\nkey SECRET\npath /abs/x\nb\n';
+    expect(restoreRedactedLines(original, 'a\nkey [redacted]\npath [outside allowed folders]/x\nB\n', redact)).toEqual({ text: 'a\nkey SECRET\npath /abs/x\nB\n', markers: [] });
+    expect(restoreRedactedLines(original, 'path [outside allowed folders]/x\na\nb\n', redact)).toEqual({ text: 'path /abs/x\na\nb\n', markers: [] });
+  });
+
+  it('lists placeholders left in new or changed lines', () => {
+    expect(restoreRedactedLines('a\n', 'a\nsee [redacted]\n~/x\nok\n', redact).markers).toEqual([2, 3]);
+    // Two different lines with the same redacted form: a moved one cannot be told apart.
+    expect(restoreRedactedLines('key SECRET\nkey SECRET2\nz\n', 'z\nkey [redacted]\n', (line) => line.replace(/SECRET\d?/, '[redacted]')).markers).toEqual([2]);
+    // A line the note already holds as it is, moved, is not new text.
+    expect(restoreRedactedLines('home ~/x\nz\n', 'z\nhome ~/x\n', (line) => line).markers).toEqual([]);
+  });
+
+  it('knows the placeholders', () => {
+    expect(hasRedactionMarker('[redacted]')).toBe(true);
+    expect(hasRedactionMarker('in [outside allowed folders].')).toBe(true);
+    expect(hasRedactionMarker('cd ~/projects')).toBe(true);
+    expect(hasRedactionMarker('about 3~4 days, a~/b')).toBe(false);
   });
 });
 
@@ -213,6 +239,39 @@ describe('the tools', () => {
     await expect(proposal.perform()).rejects.toBeInstanceOf(StaleProposalError);
     expect(await readFile(file, 'utf8')).toBe(after);
     expect(after).toContain('Show the plan usage early.');
+  });
+
+  it('propose_note_change gives lines kept from the redacted view their real text back, and refuses placeholders in new lines', async () => {
+    // What the model reads: the project's absolute path is hidden.
+    const seen = (JSON.parse(resultText(await read('read_note', { section: 'projects', name: 'garden' }), world.pathEnv.homedir)) as { data: { text: string } }).data.text;
+    expect(seen).toContain('path: [outside allowed folders]');
+    const file = path.join(world.libraryDir, 'projects', 'garden.md');
+    const before = await readFile(file, 'utf8');
+    const realPath = path.join(world.projectsDir, 'garden').replaceAll('\\', '/');
+    expect(before).toContain(`path: ${realPath}`);
+
+    // An edit elsewhere keeps the real path: the card does not show the path line as changed, and the save keeps it.
+    const edit = await propose('propose_note_change', { section: 'projects', name: 'garden', text: seen.replace('Plans a vegetable garden by season.', 'Plans a garden by month.') });
+    const changed = (edit.card as { hunks: { lines: { op: string; text: string }[] }[] }).hunks.flatMap((hunk) => hunk.lines).filter((line) => line.op !== ' ');
+    expect(changed.map((line) => line.text)).toEqual(['Plans a vegetable garden by season.', 'Plans a garden by month.']);
+    await edit.perform();
+    const after = await readFile(file, 'utf8');
+    expect(after).toContain(`path: ${realPath}`);
+    expect(after).not.toContain('[outside allowed folders]');
+    expect(after).toContain('Plans a garden by month.');
+
+    // A placeholder in a new or changed line is refused: it stands for text the model never saw.
+    const now = (JSON.parse(resultText(await read('read_note', { section: 'projects', name: 'garden' }), world.pathEnv.homedir)) as { data: { text: string } }).data.text;
+    for (const line of ['Copy of [outside allowed folders] too.', 'Lives in ~/garden-copy.', `Old key: [redacted]`]) {
+      await expect(propose('propose_note_change', { section: 'projects', name: 'garden', text: `${now}\n${line}\n` })).rejects.toThrow(/placeholder/);
+    }
+    await expect(propose('propose_note_change', { section: 'projects', name: 'garden', text: now.replace(`path: [outside allowed folders]`, 'path: [outside allowed folders]/x') })).rejects.toThrow(/placeholder/);
+
+    // A note with a secret line kept as read cannot be edited from the chat; leaving the line out can.
+    const legacy = (JSON.parse(resultText(await read('read_note', { section: 'profile', name: 'legacy' }))) as { data: { text: string } }).data.text;
+    await expect(propose('propose_note_change', { section: 'profile', name: 'legacy', text: `${legacy}More.\n` })).rejects.toThrow(/looks like a secret/);
+    const dropped = await propose('propose_note_change', { section: 'profile', name: 'legacy', text: '# Legacy\n\nKeep this line.\n' });
+    expect(dropped.card).toMatchObject({ mode: 'rewrite', removed: 1, added: 0 });
   });
 
   it('set_usage_profile shows from and to, and switches only when performed', async () => {

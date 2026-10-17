@@ -2096,3 +2096,15 @@ conservative reading of the brief. The user can revisit any of them.
     result screen (phase 2 design).
     `gh` is not installed on this machine; CI is read from GitHub's public
     API until it is. The rule is now in `CLAUDE.md`.
+16. **Fixes from the phase 4 review (2026-10-18).**
+    - A note change is saved only if the note still holds the text its diff
+      was made from (`expectedHash`, checked under the library lock);
+      otherwise nothing is saved and the card reads `stale`.
+    - The chat reads notes redacted, so a proposed note is written from
+      that view. A proposed line that is exactly the redacted form of a line
+      of the note gets the note's line back (in place, or moved when only
+      one line has that form). This is done when the card is built, not only
+      at confirmation, so the diff shows what will be saved. A placeholder
+      left in any other new or changed line refuses the proposal, and so
+      does a kept line that looks like a secret (the user edits that note
+      in the Library page).

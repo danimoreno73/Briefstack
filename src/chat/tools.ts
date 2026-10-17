@@ -25,6 +25,7 @@ import { buildPanelState, type PanelLive, type PanelTarget, type PendingKind } f
 import { getPreset, loadUsageContext, resolveActiveProfile, usageSet, usageShow } from '../usage/index.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { diffHunks, diffLines } from './diff.js';
+import { restoreRedactedLines } from './restore.js';
 import type { ChatToolName } from './toolNames.js';
 import type { ChatSource, ConfirmationCard } from './types.js';
 
@@ -426,9 +427,20 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
       const existing = await readTextIfExists(toNative(paths.libraryDir, file));
       // The diff is shown against this text; saveNote saves only if the note still holds it.
       const expectedHash = noteTextHash(existing);
-      const mode = saveModeOf(existing, args.text);
+      // The model wrote from the redacted view: lines it kept get the note's own text back (restore.ts).
+      const restored = restoreRedactedLines(existing ?? '', args.text, (line) => redactDeep(line, ctx.pathEnv.homedir) as string);
+      if (restored.markers.length > 0) {
+        throw new ChatToolError(
+          `Line ${restored.markers.join(', ')} of the proposed text holds a placeholder from the redacted view of the note ([redacted], [outside allowed folders] or a ~/ path). It stands for text you cannot see: keep such lines exactly as you read them, or leave them out, and propose again. Nothing was proposed.`,
+        );
+      }
+      const text = restored.text;
+      if (secretLines(text).length > 0) {
+        throw new ChatToolError('The note has a line that looks like a secret, so it cannot be changed from the chat. The user can edit it in the Library page. Nothing was proposed.');
+      }
+      const mode = saveModeOf(existing, text);
       if (mode === 'unchanged') throw new ChatToolError('That is the note as it is now: there is nothing to change.');
-      const lines = diffLines(existing ?? '', args.text);
+      const lines = diffLines(existing ?? '', text);
       return {
         card: {
           kind: 'noteChange',
@@ -443,7 +455,7 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
         perform: async () => {
           let saved;
           try {
-            saved = await saveNote({ libraryDir: paths.libraryDir, section: ref.section, name: ref.name, text: args.text, expectedHash });
+            saved = await saveNote({ libraryDir: paths.libraryDir, section: ref.section, name: ref.name, text, expectedHash });
           } catch (error) {
             if (isBriefstackError(error) && error.code === 'library.noteChanged') {
               throw new StaleProposalError(`${file} changed after the card was shown, so nothing was saved. Read the note again and propose a new change if the user still wants it.`);
