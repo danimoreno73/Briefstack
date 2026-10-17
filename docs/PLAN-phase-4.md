@@ -22,10 +22,11 @@ Updated 2026-10-17. A new session reads `CLAUDE.md`,
 | # | What exists now |
 |---|---|
 | H0 | All four checks PASS (decisions.md, "# Phase 4", "H0"); probe script `scripts/real/probe-h0-phase4.ts` |
+| M1 | Backlog: explicit `model` on every SDK session and `ANTHROPIC_MODEL` removed from its environment (test; the repo settings name no model); `usageReading` in the creation state and "Reading the plan usage…" in the panel; a finished creation's stream closes only after the runner is done and two more reads of `events.jsonl` (`tailMs`), so a late `session.end` reaches the live panel |
 
 ### Left
 
-Everything from M1 on.
+Everything from M2 on.
 
 ## 1. Approach
 

@@ -1973,3 +1973,12 @@ conservative reading of the brief. The user can revisit any of them.
    your own selections". So a test also checks that the repo's
    `.claude/settings.json` names no model. `ANTHROPIC_DEFAULT_*_MODEL` (which
    pin what an alias such as `sonnet` means) are left as the user set them.
+2. **Plan usage race (backlog).** The creation state carries `usageReading`
+   from the start until the first reading has been written (and streamed)
+   or has failed; meanwhile the panel says "Reading the plan usage…". A
+   failure still writes nothing, and the panel then says "not available".
+3. **Late end line (backlog).** A finished creation's stream now stays open
+   until its runner is done (it ends by itself, or the grace stop after 30
+   s), then reads `events.jsonl` once, waits 1 s, reads it again and only
+   then closes. A line written later than that is still only in the file;
+   a reload shows it.
