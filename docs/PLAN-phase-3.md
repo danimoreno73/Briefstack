@@ -13,7 +13,7 @@ in small commits, one concern each.
 
 ## 0. Status
 
-Updated 2026-10-16. A new session reads `CLAUDE.md`,
+Updated 2026-10-17. A new session reads `CLAUDE.md`,
 `docs/BRIEF-phase-3.md`, this file and `docs/decisions.md` from
 "# Phase 3" onwards before continuing.
 
@@ -33,11 +33,51 @@ Updated 2026-10-16. A new session reads `CLAUDE.md`,
 | M6 | `tests/e2e/panel.spec.ts` (live updates, requests on the asking node, a guard denial, reopening the tab, a 3000-pair burst, cancelled, interrupted and pre-phase-3 sessions, an agent with no stop, the text view with the keyboard, no sideways scroll at 390 px); recording `panel.jsonl`; `npm run screenshots` (`playwright.screenshots.config.ts`, `tests/screenshots/`) writes 12 screenshots at 1280 and 390 px to the git-ignored `screenshots/`. Looked at; fixed: a denial written after its agent stopped lost its target, the header scrolled sideways at 390 px, the pending note used the error color, an empty model showed as `—`, a single plan reading showed twice |
 | M7 | Decisions 5–13 in `decisions.md`; this Status; the real-run steps below |
 
+### Real run (2026-10-17) — accepted
+
+Run by Claude over the real library, driven with Playwright against `npm run
+briefstack -- web`; session `62a0ad02`, project `photo-exif-renamer`, outcome
+`completed`, no permission dialog and no guard denial. Phase 3 accepted by the
+user as to function. Screenshots are in the git-ignored `screenshots/phase-3-real/`.
+
+| Point | Result |
+|---|---|
+| Build, server up on `127.0.0.1` | PASS |
+| Creation: recommended interview answers, one "Request changes" (`--undo`), approve | PASS; the new summary included `--undo` |
+| Models, efforts and states on the nodes | PASS |
+| Short targets, no full paths (0 absolute paths in 95 `target` fields) | PASS |
+| Pending question marked on the main session node | PASS |
+| Timeline: click on a row selects the node | PASS |
+| Plan usage at start and after ~5 min | PASS (13%/26% then 22%/26%); see backlog for the first second |
+| Who chose the target, in the spec | PASS (architect, by `library/rules/target.md`) |
+| Reload mid-creation | PASS: `events.jsonl` 159 lines before and after; same panel text |
+| Panel of the finished session from the project page | PASS: same as the live final state, except durations |
+| `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` in the server output | PASS: none |
+| New fields in `events.jsonl` | PASS: `toolUseId`, `effort`, `target` on `tool.pre`; `model` on 9/9 `subagent.start`; `session.profile`; 2 `usage` lines. `reason` of a guard denial not exercised (no denial); covered by tests |
+| Server stopped | PASS |
+
 ### Left
 
-Only the real runs, by the user (section 3). Nothing else is open.
+Nothing in phase 3. The P1 check (`scripts/real/check-interviewer-target.ts`)
+was not part of this run and stays prepared for the user.
 
-Build, lint, 594 vitest tests and 47 e2e tests pass on Windows.
+### Backlog (not phase 3, not started)
+
+- Plan usage shows "Not available for this session" during the first second of
+  a creation, before the first reading arrives; it shows the reading a moment
+  later.
+- A late `session.finished` (or end event) can fail to reach the live panel;
+  the stream closes after one more read of `events.jsonl`, but a line written
+  later is missed until the page is reloaded.
+- Session model when no usage profile resolves: `buildQueryOptions` passes
+  `model` only if the profile has `sessionModel`. With a profile, the option
+  wins over `ANTHROPIC_MODEL` and user settings are not loaded
+  (`settingSources: ['project', 'local']`). Without one, the model would come
+  from `ANTHROPIC_MODEL` (not removed from the session env) or the CLI default.
+  To check against the official docs and decide (always pass a model, or drop
+  `ANTHROPIC_MODEL` from the env); record it in `decisions.md`.
+- A UI and UX pass over the whole app, after phase 4 and before publishing,
+  using an external design repository the user will choose.
 
 ## 1. Approach
 
