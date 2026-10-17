@@ -597,6 +597,24 @@ describe('SdkRunner', () => {
     expect(events).toContainEqual({ kind: 'status', status: 'turnEnded' });
   });
 
+  it('sends a free-text reply into the same input queue, and the idle stop no longer applies to that turn', async () => {
+    const handle = start(runner({ idleAfterResultMs: 60 }));
+    init();
+    await handle.sessionId;
+    fake.push({ type: 'result', subtype: 'success', result: 'Which name do you want?' });
+    await tick();
+    const iterator = (captured?.prompt as AsyncIterable<unknown>)[Symbol.asyncIterator]();
+    handle.sendMessage('Call it Seedling');
+    expect((await iterator.next()).value).toEqual({ type: 'user', message: { role: 'user', content: 'Call it Seedling' }, parent_tool_use_id: null });
+    // The idle stop is off until the next turn ends.
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    let settled = false;
+    void handle.done.then(() => (settled = true));
+    await tick();
+    expect(settled).toBe(false);
+    await handle.stop();
+  });
+
   it('sends the main session last text with the end of a turn, trimmed and cut', async () => {
     const handle = start();
     init();

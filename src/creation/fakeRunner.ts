@@ -55,6 +55,9 @@ import type { CreationRunner, RunnerHandle, RunnerOutcome, RunnerStartOptions } 
  *   runner's hook would, and the flow goes on at `onRefused` (or the next line).
  * - `{"do":"library","section":"projects","name":"garden","text":"…"}`: the
  *   learn step's `library add` (needs the `libraryDir` option).
+ * - `{"do":"turnEnd","message":"Which name do you want?"}`: the main session ends
+ *   its turn with that text and nothing asked; the run waits for the user's
+ *   free-text reply (`sendMessage`), keeps it in `received` (an option), and goes on.
  * - `{"do":"label","name":"revise"}` and `{"do":"goto","label":"revise"}`.
  * - `{"do":"wait","ms":50}`: a pause (cut short by a cancel or a stop).
  * - `{"do":"exit"}`: the runner ends without closing the session, like a crash.
@@ -129,6 +132,7 @@ const stepSchema = z.discriminatedUnion('do', [
   }),
   z.object({ do: z.literal('grant'), dir: z.string().min(1), onDeny: label.optional() }),
   z.object({ do: z.literal('claim'), dir: z.string().min(1), onRefused: label.optional() }),
+  z.object({ do: z.literal('turnEnd'), message: z.string() }),
   z.object({ do: z.literal('library'), section: z.string().min(1), name: z.string().min(1).optional(), text: z.string().min(1) }),
   z.object({ do: z.literal('label'), name: label }),
   z.object({ do: z.literal('goto'), label }),
@@ -185,6 +189,8 @@ export interface FakeRunnerOptions {
   projectsDir?: string;
   /** The library the `library` steps write to. */
   libraryDir?: string;
+  /** Free-text replies the user sent, in order (`turnEnd`). */
+  received?: string[];
 }
 
 const STOPPED = Symbol('stopped');
@@ -233,6 +239,7 @@ export class FakeRunner implements CreationRunner {
       });
 
     let openStep: FlowStep | undefined;
+    let replyWaiter: ((text: string) => void) | undefined;
     const hook = (fields: Omit<HookEvent, 'v' | 'ts' | 'session' | 'source'>): HookEvent => ({
       v: EVENT_FORMAT,
       ts: now().toISOString(),
@@ -365,6 +372,25 @@ export class FakeRunner implements CreationRunner {
             }
             break;
           }
+          case 'turnEnd': {
+            io.emit({ kind: 'status', status: 'turnEnded', message: step.message });
+            let onWake: () => void = () => undefined;
+            const reply = await untilStopped(
+              new Promise<string | undefined>((resolve) => {
+                replyWaiter = resolve;
+                // A cancel ends the wait too.
+                onWake = () => resolve(undefined);
+                wakers.add(onWake);
+              }),
+            );
+            wakers.delete(onWake);
+            replyWaiter = undefined;
+            if (reply === STOPPED) return { kind: 'stopped' };
+            if (reply === undefined) break;
+            this.options.received?.push(reply);
+            io.emit({ kind: 'status', status: 'running' });
+            break;
+          }
           case 'library': {
             const libraryDir = this.options.libraryDir;
             if (libraryDir === undefined) throw new Error('recording: a library step needs the libraryDir option');
@@ -397,6 +423,7 @@ export class FakeRunner implements CreationRunner {
         cancelRequested = true;
         if (!ignoreCancel) wake();
       },
+      sendMessage: (text) => replyWaiter?.(text),
       stop: async () => {
         stopped = true;
         resolveStop();

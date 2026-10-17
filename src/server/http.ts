@@ -40,6 +40,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'creation.limit': 409,
   'creation.notFound': 404,
   'creation.noPending': 409,
+  'creation.noReply': 409,
   'creation.wrongPending': 409,
   'creation.noSpec': 404,
 };

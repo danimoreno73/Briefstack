@@ -444,6 +444,23 @@ export class CreationManager {
   }
 
   /**
+   * Sends the user's free-text reply (BRIEF-phase-4 §3.3). Only while the
+   * session ended a turn with nothing asked and is not being cancelled;
+   * otherwise creation.noReply. The text goes to the session as a user
+   * message and is not stored.
+   */
+  reply(id: string, text: string): CreationState {
+    const c = this.find(id);
+    if (this.isFinished(c) || c.state.cancelling || c.queue.length > 0 || c.state.awaitingReply === undefined || c.handle === undefined) {
+      throw new BriefstackError('creation.noReply', { id });
+    }
+    delete c.state.awaitingReply;
+    this.pushStatus(c);
+    c.handle.sendMessage(text);
+    return this.snapshot(c);
+  }
+
+  /**
    * Cancels through the flow (BRIEF-phase-2 §3.2): a pending question or
    * spec is answered "cancel" (a permission "deny", a grant "no"), the
    * runner is asked to close at its next step, and if the session is still

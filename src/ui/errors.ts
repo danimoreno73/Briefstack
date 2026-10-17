@@ -39,6 +39,12 @@ export function describeError(error: unknown, t: Messages): string {
       return t.errInvalidBody;
     case 'creation.invalidAnswer':
       return t.errInvalidAnswer;
+    case 'creation.noReply':
+      return t.errNoReply;
+    case 'creation.limit':
+      return t.limitMessage;
+    case 'library.busy':
+      return t.errLibraryBusy;
     default:
       return t.errGeneric(error.code);
   }

@@ -7,6 +7,7 @@ import { useApp, useLoad, useSend } from './hooks.js';
 import { AgentPanel, PENDING_CONTROL_ID, usePanelState } from './panel.js';
 import { liveFromState, panelEventsFromStream } from './panelData.js';
 import { STEPS, deriveProgress, parseSse, type Progress } from './progress.js';
+import { ReplyBox } from './reply.js';
 import { routeHash } from './route.js';
 import type { CreationState, Pending, ProjectListing, SpecView, StreamEvent, UiQuestion } from './types.js';
 
@@ -208,6 +209,23 @@ function CreationView({ id }: { id: string }) {
     }
   };
 
+  /** Sends the free-text reply. A session that no longer waits for one means the page is stale. */
+  const reply = async (text: string): Promise<boolean> => {
+    setProblem(undefined);
+    setStale(false);
+    try {
+      await send('POST', `/api/creations/${encodeURIComponent(id)}/reply`, { text });
+      void refresh();
+      return true;
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.code === 'creation.noReply') {
+        setStale(true);
+        void refresh();
+      } else setProblem(failure);
+      return false;
+    }
+  };
+
   const cancel = async () => {
     setAsking(false);
     setProblem(undefined);
@@ -255,8 +273,10 @@ function CreationView({ id }: { id: string }) {
           ) : pending === undefined && state.awaitingReply !== undefined && !state.cancelling ? (
             <div class="panel" data-testid="awaiting-reply">
               <h2>{t.awaitingReplyTitle}</h2>
+              <p class="pending-for">{t.pendingFor(state.idea.length > 80 ? `${state.idea.slice(0, 80)}…` : state.idea)}</p>
               <p role="status">{t.awaitingReplyBody}</p>
               <Markdown text={state.awaitingReply.lastMessage} />
+              <ReplyBox id="creation-reply" onSend={reply} />
             </div>
           ) : pending === undefined ? (
             <p role="status" data-testid="working">

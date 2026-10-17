@@ -304,6 +304,30 @@ describe('creation API', () => {
     expect(final.outcome).toBe('cancelled');
   });
 
+  it('takes a free-text reply only while the session waits for one', async () => {
+    const received: string[] = [];
+    const s = await start({
+      runner: new FakeRunner({
+        steps: parseRecording(['{"do":"session","phase":"started"}', '{"do":"turnEnd","message":"Which name?"}', '{"do":"wait","ms":5000}'].join('\n')),
+        received,
+      }),
+    });
+    const id = await create(s);
+    await waitFor(async () => (await state(s, id)).awaitingReply);
+    for (const body of [{}, { text: '   ' }, { text: 'x'.repeat(10_001) }, { text: 'ok', extra: 1 }]) {
+      expect((await post(s, `/api/creations/${id}/reply`, body)).status, JSON.stringify(body).slice(0, 40)).toBe(400);
+    }
+    const reply = await post(s, `/api/creations/${id}/reply`, { text: '  Seedling  ' });
+    expect(reply.status).toBe(200);
+    expect(JSON.parse(reply.body)).not.toHaveProperty('awaitingReply');
+    await waitFor(async () => (received.length > 0 ? true : undefined));
+    expect(received).toEqual(['Seedling']);
+    const again = await post(s, `/api/creations/${id}/reply`, { text: 'again' });
+    expect(again.status).toBe(409);
+    expect(JSON.parse(again.body)).toMatchObject({ code: 'creation.noReply' });
+    expect((await post(s, '/api/creations/nope/reply', { text: 'x' })).status).toBe(404);
+  });
+
   it('checks answers: unknown creation, wrong pending id, bad shape', async () => {
     const s = await start();
     const id = await create(s);

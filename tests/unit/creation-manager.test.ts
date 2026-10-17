@@ -325,7 +325,7 @@ describe('CreationManager', () => {
           await appendEvent(options.sessionsDir, sessionEndEvent(session, 'other', new Date()));
           return { kind: 'ended' as const };
         })();
-        return { sessionId: Promise.resolve(session), requestCancel: () => undefined, stop: async () => undefined, done };
+        return { sessionId: Promise.resolve(session), requestCancel: () => undefined, sendMessage: () => undefined, stop: async () => undefined, done };
       },
     };
     const m = await make(runner);
@@ -343,6 +343,32 @@ describe('CreationManager', () => {
     const replay: StreamEvent[] = [];
     m.subscribe(id, 0, (event) => replay.push(event));
     expect(replay).toEqual(seen);
+  });
+
+  it('sends a free-text reply only while the session waits for one, and the flow goes on', async () => {
+    const received: string[] = [];
+    const steps = parseRecording(
+      [
+        '{"do":"session","phase":"started"}',
+        '{"do":"turnEnd","message":"Which name?"}',
+        '{"do":"question","questions":[{"question":"Next?","header":"","options":[{"label":"Yes","description":""},{"label":"No","description":""}],"multiSelect":false}]}',
+        '{"do":"session","phase":"finished"}',
+      ].join('\n'),
+    );
+    const m = await make(new FakeRunner({ steps, received }));
+    const { id } = await m.create('x');
+    await waitFor(() => m.get(id).awaitingReply);
+    expect(m.get(id).awaitingReply?.lastMessage).toBe('Which name?');
+    const state = m.reply(id, 'Seedling');
+    expect(state.awaitingReply).toBeUndefined();
+    const pending = await waitFor(() => m.get(id).pending);
+    expect(received).toEqual(['Seedling']);
+    // Not while something is asked, nor once finished.
+    expect(() => m.reply(id, 'again')).toThrow(expect.objectContaining({ code: 'creation.noReply' }));
+    m.answer(id, pending.id, { 'Next?': 'Yes' });
+    await waitFor(() => (m.get(id).status === 'finished' ? true : undefined));
+    expect(() => m.reply(id, 'late')).toThrow(expect.objectContaining({ code: 'creation.noReply' }));
+    expect(received).toEqual(['Seedling']);
   });
 
   it('marks the session interrupted when the runner ends without closing it', async () => {

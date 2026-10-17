@@ -308,6 +308,7 @@ class SdkRun {
       requestCancel: () => {
         this.cancelled = true;
       },
+      sendMessage: (text) => this.sendMessage(text),
       stop: () => this.stop(),
       done: this.donePromise,
     };
@@ -536,6 +537,14 @@ class SdkRun {
   private clearIdle(): void {
     if (this.idleTimer !== undefined) clearTimeout(this.idleTimer);
     this.idleTimer = undefined;
+  }
+
+  /** The user's reply goes into the same input queue as the first message (H0 #4, phase 4); a new turn starts. */
+  private sendMessage(text: string): void {
+    if (this.stopped) return;
+    this.afterResult = false;
+    this.clearIdle();
+    this.input.push({ type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null });
   }
 
   async stop(): Promise<void> {

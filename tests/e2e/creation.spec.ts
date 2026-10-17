@@ -198,6 +198,36 @@ test.describe('cancelling', () => {
   });
 });
 
+test.describe('a turn that ends with nothing asked', () => {
+  test.use({
+    appOptions: {
+      recordingText: [
+        '{"do":"session","phase":"started"}',
+        '{"do":"flow","step":"interview","phase":"started"}',
+        '{"do":"turnEnd","message":"Which **name** do you want for the project?"}',
+        '{"do":"question","questions":[{"question":"Shall I go on with that name?","header":"Name","options":[{"label":"Yes","description":""},{"label":"No","description":""}],"multiSelect":false}]}',
+        '{"do":"session","phase":"finished","outcome":"completed"}',
+      ].join('\n'),
+    },
+  });
+
+  test('the user replies in free text from the page and the flow goes on', async ({ page, app }) => {
+    await startCreation(page, app);
+    const waiting = page.getByTestId('awaiting-reply');
+    await expect(waiting).toContainText('Which name do you want for the project?');
+    await expect(waiting.getByTestId('pending-for')).toHaveCount(0);
+    await expect(waiting.locator('.pending-for')).toHaveText('For the creation: A garden planner');
+    const box = waiting.getByLabel('Your reply');
+    await expect(waiting.getByRole('button', { name: 'Send reply' })).toBeDisabled();
+    await box.fill('Call it Seedling');
+    // Ctrl+Enter sends, as the hint says.
+    await box.press('Control+Enter');
+    await expect(page.getByText('Shall I go on with that name?')).toBeVisible();
+    await expect(page.getByTestId('awaiting-reply')).toHaveCount(0);
+    expect(app.manager.list()[0]?.awaitingReply).toBeUndefined();
+  });
+});
+
 test.describe('closing and reopening the tab', () => {
   test('the creation goes on, and the app shows it again', async ({ page, app, context }) => {
     await startCreation(page, app);

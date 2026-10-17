@@ -10,6 +10,9 @@ export const HEARTBEAT_MS = 15_000;
 
 const createBody = z.strictObject({ idea: z.string().trim().min(1).max(20_000) });
 const answerBody = z.strictObject({ pendingId: z.string().min(1), answer: z.unknown() });
+/** The same limit as a chat message. */
+export const MAX_REPLY_CHARS = 10_000;
+const replyBody = z.strictObject({ text: z.string().trim().min(1).max(MAX_REPLY_CHARS) });
 
 /** One stream event in SSE format: `id` is the seq, `event` the kind, `data` the whole event as JSON. */
 export function formatSse(event: StreamEvent): string {
@@ -88,6 +91,14 @@ export function creationRoutes(manager: CreationManager | undefined, options: { 
     ],
     ['GET /api/creations/:id/spec', async (_req, res, params) => sendJson(res, 200, await need().readSpec(id(params)))],
     ['POST /api/creations/:id/cancel', (_req, res, params) => sendJson(res, 200, need().cancel(id(params)))],
+    [
+      'POST /api/creations/:id/reply',
+      async (req, res, params) => {
+        const m = need();
+        const { text } = await readJsonBody(req, replyBody);
+        sendJson(res, 200, m.reply(id(params), text));
+      },
+    ],
     [
       'GET /api/creations/:id/stream',
       async (req, res, params) => {

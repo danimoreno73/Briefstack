@@ -115,6 +115,53 @@ describe('FakeRunner', () => {
     expect(await readFile(specs[0]?.summaryFile ?? '', 'utf8')).toContain('# Garden planner');
   });
 
+  it('ends a turn with a message, waits for the free-text reply, keeps it and goes on', async () => {
+    const { io, emitted } = scriptedIO();
+    const received: string[] = [];
+    const runner = new FakeRunner({
+      steps: parseRecording(['{"do":"session","phase":"started"}', '{"do":"turnEnd","message":"Which name?"}', '{"do":"session","phase":"finished"}'].join('\n')),
+      sessionId: () => SESSION,
+      received,
+    });
+    const handle = runner.start({ creationId: 'c1', idea: 'x', profile: { name: 'balanced', sessionModel: 'sonnet' }, sessionsDir, policy: 'ask', io });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(emitted.at(-1)).toEqual({ kind: 'status', status: 'turnEnded', message: 'Which name?' });
+    handle.sendMessage('Seedling');
+    expect(await handle.done).toEqual({ kind: 'ended' });
+    expect(received).toEqual(['Seedling']);
+    expect(emitted.at(-1)).toEqual({ kind: 'status', status: 'running' });
+  });
+
+  it('claims folders and writes library notes as the flow would', async () => {
+    const { io, asked, emitted } = scriptedIO({ claims: [{ ok: false, holder: 'Other idea' }] });
+    const projectsDir = path.join(sessionsDir, '..', 'projects');
+    const runner = new FakeRunner({
+      steps: parseRecording(
+        [
+          '{"do":"session","phase":"started"}',
+          '{"do":"claim","dir":"garden","onRefused":"taken"}',
+          '{"do":"session","phase":"finished"}',
+          '{"do":"label","name":"taken"}',
+          '{"do":"claim","dir":"garden-2"}',
+          '{"do":"session","phase":"finished"}',
+        ].join('\n'),
+      ),
+      sessionId: () => SESSION,
+      projectsDir,
+    });
+    const handle = runner.start({ creationId: 'c1', idea: 'x', profile: { name: 'balanced', sessionModel: 'sonnet' }, sessionsDir, policy: 'ask', io });
+    expect(await handle.done).toEqual({ kind: 'ended' });
+    expect(asked).toEqual([`claim:${path.join(projectsDir, 'garden')}`, `claim:${path.join(projectsDir, 'garden-2')}`]);
+    expect(emitted).toContainEqual(expect.objectContaining({ kind: 'denial', toolName: 'Bash', reason: expect.stringContaining('"Other idea"') }));
+  });
+
+  it('refuses a recording whose library step has no library', async () => {
+    const { io } = scriptedIO();
+    const runner = new FakeRunner({ steps: parseRecording('{"do":"library","section":"lessons","text":"x"}'), sessionId: () => SESSION });
+    const handle = runner.start({ creationId: 'c1', idea: 'x', profile: { name: 'balanced', sessionModel: 'sonnet' }, sessionsDir, policy: 'ask', io });
+    expect(await handle.done).toMatchObject({ kind: 'failed', error: expect.stringContaining('libraryDir') });
+  });
+
   it('goes back to the architect on a change at the spec', async () => {
     const { io, asked } = scriptedIO({ specs: [{ decision: 'change', text: 'Add a sequel' }, { decision: 'approve' }] });
     const handle = await start('change-at-spec.jsonl', io);

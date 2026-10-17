@@ -146,6 +146,7 @@ const errors = defineCatalogue<ErrorMessages>({
     'creation.wrongPending': (p) =>
       `That answer is for ${p.pendingId}, but the creation is waiting for ${p.expected}. Reload and try again.`,
     'creation.invalidAnswer': (p) => `The answer to this ${p.kind} is not valid:${bullets(p.issues)}`,
+    'creation.noReply': (p) => `Creation ${p.id} is not waiting for a reply.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -243,6 +244,7 @@ const errors = defineCatalogue<ErrorMessages>({
     'creation.wrongPending': (p) =>
       `Esa respuesta es para ${p.pendingId}, pero la creación espera ${p.expected}. Recarga e inténtalo de nuevo.`,
     'creation.invalidAnswer': (p) => `La respuesta a esta petición (${p.kind}) no es válida:${bullets(p.issues)}`,
+    'creation.noReply': (p) => `La creación ${p.id} no está esperando una respuesta.`,
   },
 });
 

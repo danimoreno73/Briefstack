@@ -75,6 +75,7 @@ export interface ErrorParams {
   'creation.noPending': { id: string };
   'creation.wrongPending': { pendingId: string; expected: string };
   'creation.invalidAnswer': { kind: string; issues: string[] };
+  'creation.noReply': { id: string };
 }
 
 export type ErrorCode = keyof ErrorParams;

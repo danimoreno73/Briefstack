@@ -150,6 +150,12 @@ export interface RunnerHandle {
    * open step as `skipped`. Never kills anything mid-write.
    */
   requestCancel(): void;
+  /**
+   * Sends the user's free-text reply as a user message, after the session
+   * ended a turn with nothing asked (BRIEF-phase-4 §3.3). The manager only
+   * calls it then.
+   */
+  sendMessage(text: string): void;
   /** Ends the run now (server stop, or a cancel that timed out). Writes nothing to `events.jsonl`. */
   stop(): Promise<void>;
   done: Promise<RunnerOutcome>;

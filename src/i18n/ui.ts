@@ -310,7 +310,7 @@ export const uiMessages = defineCatalogue({
     statusWorking: 'Working…',
     awaitingReplyTitle: 'The session is waiting for a reply',
     awaitingReplyBody:
-      'Claude ended its turn without asking anything on this page, so nothing here can answer it. This is its last message. You can cancel the creation; replying from the page is not available yet.',
+      'Claude ended its turn without asking anything on this page. This is its last message. Reply below, or cancel the creation.',
     cancellingNote: 'Cancelling: the flow is closing the session at its next step. Nothing is cut halfway.',
     streamLost: 'Connection lost. Reconnecting…',
     cancelCreation: 'Cancel creation',
@@ -357,6 +357,11 @@ export const uiMessages = defineCatalogue({
     startAnother: 'Start another project',
     folderWillBeCreated: 'This folder does not exist yet. It will be created when you save.',
     errInvalidAnswer: 'That answer was not accepted.',
+    errNoReply: 'The session is no longer waiting for a reply. The page has been refreshed.',
+    errLibraryBusy: 'Another change to the library is still running. Try again in a moment.',
+    replyLabel: 'Your reply',
+    replyHint: 'Sent to the session as your message. Ctrl+Enter sends.',
+    replySend: 'Send reply',
   },
   es: {
     title: 'briefstack',
@@ -665,7 +670,7 @@ export const uiMessages = defineCatalogue({
     statusWorking: 'Trabajando…',
     awaitingReplyTitle: 'La sesión espera una respuesta',
     awaitingReplyBody:
-      'Claude ha terminado su turno sin preguntar nada en esta página, así que desde aquí no se le puede contestar. Este es su último mensaje. Puedes cancelar la creación; responder desde la página aún no está disponible.',
+      'Claude ha terminado su turno sin preguntar nada en esta página. Este es su último mensaje. Contesta abajo o cancela la creación.',
     cancellingNote: 'Cancelando: el flujo cierra la sesión en su próximo paso. Nada se corta a medias.',
     streamLost: 'Se perdió la conexión. Reconectando…',
     cancelCreation: 'Cancelar creación',
@@ -712,5 +717,10 @@ export const uiMessages = defineCatalogue({
     startAnother: 'Empezar otro proyecto',
     folderWillBeCreated: 'Esta carpeta aún no existe. Se creará al guardar.',
     errInvalidAnswer: 'Esa respuesta no se ha aceptado.',
+    errNoReply: 'La sesión ya no espera una respuesta. La página se ha actualizado.',
+    errLibraryBusy: 'Otro cambio en la biblioteca sigue en curso. Inténtalo de nuevo en un momento.',
+    replyLabel: 'Tu respuesta',
+    replyHint: 'Se envía a la sesión como mensaje tuyo. Ctrl+Intro la envía.',
+    replySend: 'Enviar respuesta',
   },
 });
