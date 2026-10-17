@@ -106,6 +106,7 @@ describe('creation API', () => {
         sessionsDir: path.join(dir, 'sessions'),
         policy: () => 'ask',
         profile: () => ({ name: 'balanced', sessionModel: 'sonnet' }),
+        maxActive: () => 1,
         pollMs: 10,
         tailMs: 20,
       });
@@ -178,9 +179,9 @@ describe('creation API', () => {
     const busy = await post(s, '/api/creations', { idea: 'Another' });
     expect(busy.status).toBe(409);
     expect(JSON.parse(busy.body)).toEqual({
-      code: 'creation.busy',
-      params: { active: id },
-      message: `A creation is already running (${id}). Finish or cancel it before starting another one.`,
+      code: 'creation.limit',
+      params: { limit: 1, active: [id] },
+      message: 'The limit of active creations is reached (1 of 1). Finish or cancel one, or raise the limit in Settings.',
     });
 
     const final = await driveToEnd(s, id);

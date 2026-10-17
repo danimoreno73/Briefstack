@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { z } from 'zod';
+import { DEFAULT_MAX_ACTIVE_CREATIONS } from '../config/limits.js';
 import { isPathInside, systemPathEnv } from '../config/paths.js';
 import { BriefstackError } from '../errors.js';
 import {
@@ -170,6 +171,8 @@ export interface CreationManagerOptions {
   policy: () => PermissionPolicy | Promise<PermissionPolicy>;
   /** The active usage profile's session model and effort. */
   profile: () => RunnerProfile | Promise<RunnerProfile>;
+  /** How many creations may be active at once (config `maxActiveCreations`), read at each start. Default 2. */
+  maxActive?: () => number | Promise<number>;
   now?: () => Date;
   /** How often `events.jsonl` is read. Default 300 ms. */
   pollMs?: number;
@@ -277,10 +280,12 @@ export class CreationManager {
     this.tailMs = options.tailMs ?? 1000;
   }
 
-  /** Starts a creation. Throws `creation.busy` while another one is active. */
+  /** Starts a creation. Throws `creation.limit` when as many as the limit are active. */
   async create(idea: string): Promise<CreationState> {
-    const active = [...this.creations.values()].find((c) => c.state.status !== 'finished');
-    if (active !== undefined) throw new BriefstackError('creation.busy', { active: active.state.id });
+    const limit = (await this.options.maxActive?.()) ?? DEFAULT_MAX_ACTIVE_CREATIONS;
+    // From here to the registration below there is no await, so two starts at once both count.
+    const active = [...this.creations.values()].filter((c) => c.state.status !== 'finished').map((c) => c.state.id);
+    if (active.length >= limit) throw new BriefstackError('creation.limit', { limit, active });
 
     const c: Creation = {
       state: {

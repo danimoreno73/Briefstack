@@ -99,6 +99,7 @@ export interface SettingsView {
   lang: 'en' | 'es';
   configLang: 'en' | 'es' | null;
   permissionPolicy: 'ask' | 'unattended';
+  maxActiveCreations: number;
 }
 
 export interface PathsView {

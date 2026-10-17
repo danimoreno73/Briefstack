@@ -231,14 +231,35 @@ describe('CreationManager', () => {
     expect(final.awaitingReply).toBeUndefined();
   });
 
-  it('allows one active creation at a time', async () => {
+  it('allows two active creations by default, and refuses a third, even when started together', async () => {
     const m = await make('full.jsonl');
-    const first = await m.create('one');
-    await expect(m.create('two')).rejects.toMatchObject({ code: 'creation.busy', params: { active: first.id } });
+    const [first, second] = await Promise.all([m.create('one'), m.create('two')]);
+    await expect(m.create('three')).rejects.toMatchObject({ code: 'creation.limit', params: { limit: 2, active: [first.id, second.id] } });
     await runToEnd(m, first.id);
-    const second = await m.create('two');
-    expect(second.id).not.toBe(first.id);
-    expect(m.list().map((c) => c.id)).toEqual([first.id, second.id]);
+    const third = await m.create('three');
+    expect(third.id).not.toBe(first.id);
+    expect(m.list().filter((c) => c.status !== 'finished').map((c) => c.idea)).toEqual(['two', 'three']);
+  });
+
+  it('reads the limit at each start', async () => {
+    let limit = 1;
+    manager = new CreationManager({
+      runner: await FakeRunner.fromFile(path.join(RECORDINGS, 'full.jsonl')),
+      sessionsDir,
+      policy: () => 'ask',
+      profile: () => ({ name: 'balanced', sessionModel: 'opus' }),
+      maxActive: () => limit,
+      pollMs: 10,
+      tailMs: 20,
+    });
+    const m = manager;
+    await m.create('one');
+    await expect(m.create('two')).rejects.toMatchObject({ code: 'creation.limit', params: { limit: 1 } });
+    limit = 3;
+    await m.create('two');
+    await m.create('three');
+    await expect(m.create('four')).rejects.toMatchObject({ code: 'creation.limit', params: { limit: 3 } });
+    expect(m.list().map((c) => c.idea)).toEqual(['one', 'two', 'three']);
   });
 
   it('denies permission requests under the unattended policy and lists them in the final state', async () => {

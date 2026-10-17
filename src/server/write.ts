@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   configFilePath,
   PERMISSION_POLICIES,
+  maxActiveCreationsOf,
   permissionPolicyOf,
   type PermissionPolicy,
   readConfig,
@@ -38,6 +39,7 @@ const settingsBody = z
     /** `null` removes the saved language, so the OS locale decides again. */
     lang: z.enum(LANGS).nullable().optional(),
     permissionPolicy: z.enum(PERMISSION_POLICIES).optional(),
+    maxActiveCreations: z.int().min(1).optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'at least one setting' });
 
@@ -64,6 +66,7 @@ export function writeRoutes(context: WriteContext): RouteTable {
       lang,
       configLang: config.lang ?? null,
       permissionPolicy: permissionPolicyOf(config),
+      maxActiveCreations: maxActiveCreationsOf(config),
     };
   };
 
@@ -102,9 +105,10 @@ export function writeRoutes(context: WriteContext): RouteTable {
       'PUT /api/settings',
       async (req, res) => {
         const body = await readJsonBody(req, settingsBody);
-        const patch: { lang?: Lang | undefined; permissionPolicy?: PermissionPolicy } = {};
+        const patch: { lang?: Lang | undefined; permissionPolicy?: PermissionPolicy; maxActiveCreations?: number } = {};
         if (body.lang !== undefined) patch.lang = body.lang ?? undefined;
         if (body.permissionPolicy !== undefined) patch.permissionPolicy = body.permissionPolicy;
+        if (body.maxActiveCreations !== undefined) patch.maxActiveCreations = body.maxActiveCreations;
         // The projects folder goes first: it validates the path before anything is written.
         if (body.projectsDir !== undefined) await setProjectsDir({ pathEnv, repoDir, dir: body.projectsDir });
         if (Object.keys(patch).length > 0) await updateConfig(configFilePath(pathEnv), patch);

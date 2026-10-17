@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   parseConfig,
+  maxActiveCreationsOf,
   permissionPolicyOf,
   readConfig,
   resolveHome,
@@ -114,6 +115,17 @@ describe('parseConfig', () => {
     });
     expect(formatError(caught as BriefstackError, 'en')).toContain('one of: ask, unattended');
     expect(formatError(caught as BriefstackError, 'es')).toContain('uno de: ask, unattended');
+  });
+
+  it('reads the limit of active creations, 2 by default, any whole number from 1', () => {
+    expect(maxActiveCreationsOf(parseConfig('{}', 'c.json'))).toBe(2);
+    expect(maxActiveCreationsOf(parseConfig('{"maxActiveCreations":1}', 'c.json'))).toBe(1);
+    expect(maxActiveCreationsOf(parseConfig('{"maxActiveCreations":12}', 'c.json'))).toBe(12);
+    for (const bad of ['0', '-1', '1.5', '"2"', 'null', 'true']) {
+      expect(() => parseConfig(`{"maxActiveCreations":${bad}}`, 'c.json'), bad).toThrow(
+        expect.objectContaining({ code: 'config.invalidField', params: expect.objectContaining({ field: 'maxActiveCreations', expected: 'positiveInteger' }) }),
+      );
+    }
   });
 });
 

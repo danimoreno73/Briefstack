@@ -36,7 +36,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'library.revertConflict': 409,
   'events.sessionNotFound': 404,
   'creation.unavailable': 503,
-  'creation.busy': 409,
+  'creation.limit': 409,
   'creation.notFound': 404,
   'creation.noPending': 409,
   'creation.wrongPending': 409,

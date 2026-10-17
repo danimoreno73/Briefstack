@@ -24,7 +24,7 @@ UI uses it; phase 4's global chat and phase 5 can call it too.
 Route errors come back as:
 
 ```json
-{ "code": "creation.busy", "params": { "active": "<id>" }, "message": "A creation is already running (…)." }
+{ "code": "creation.limit", "params": { "limit": 2, "active": ["<id>", "<id>"] }, "message": "The limit of active creations is reached (…)." }
 ```
 
 `message` is in the server's language (`BRIEFSTACK_LANG`, config `lang`,
@@ -35,7 +35,7 @@ text use those. The security rejections above send `{ "code" }` only.
 |---|---|
 | 400 | `web.invalidJson`, `web.invalidBody`, `web.invalidQuery`, `creation.invalidAnswer`, any other coded error |
 | 404 | `web.notFound`, `creation.notFound`, `creation.noSpec`, `library.noteNotFound`, `library.commitNotFound`, `events.sessionNotFound` |
-| 409 | `creation.busy`, `creation.noPending`, `creation.wrongPending`, `library.dirtyTree`, `library.revertConflict` |
+| 409 | `creation.limit`, `creation.noPending`, `creation.wrongPending`, `library.dirtyTree`, `library.revertConflict` |
 | 413 | `web.bodyTooLarge` |
 | 415 | `web.unsupportedMediaType` |
 | 503 | `creation.unavailable` (the server was started without a creation manager; `briefstack web` always has one) |
@@ -153,7 +153,7 @@ will be created.
 
 ### `GET /api/settings`
 
-`{ "projectsDir", "lang", "configLang": "en" | "es" | null, "permissionPolicy": "ask" | "unattended" }`.
+`{ "projectsDir", "lang", "configLang": "en" | "es" | null, "permissionPolicy": "ask" | "unattended", "maxActiveCreations": 2 }`.
 `lang` is the language in use; `configLang` the one saved in the config.
 
 ## Write routes
@@ -196,6 +196,8 @@ Body with at least one of:
   A relative path is a 400 `config.relativePath`.
 - `lang`: `"en"`, `"es"`, or `null` to clear it.
 - `permissionPolicy`: `"ask"` or `"unattended"`.
+- `maxActiveCreations`: a whole number from 1 up (default 2): how many
+  creations may be active at once.
 
 Answers the same as `GET /api/settings`.
 
@@ -207,8 +209,8 @@ Starts a creation session, which runs the `/new-project` flow.
 
 - Body: `{ "idea": "<free text, 1–20000 chars>" }`
 - `201 { "id": "<creation id>" }`
-- `409 creation.busy` while another creation is active (phase 2 runs one at
-  a time).
+- `409 creation.limit` when as many creations as config `maxActiveCreations`
+  (default 2) are active.
 
 ### `GET /api/creations`
 

@@ -201,6 +201,12 @@ describe('write API', () => {
       expect(await ok('GET', '/api/settings')).toMatchObject({ configLang: null, permissionPolicy: 'unattended' });
     });
 
+    it('changes the limit of active creations, 2 until set', async () => {
+      expect(await ok('GET', '/api/settings')).toMatchObject({ maxActiveCreations: 2 });
+      expect(await ok('PUT', '/api/settings', { maxActiveCreations: 4 })).toMatchObject({ maxActiveCreations: 4 });
+      expect(await ok('GET', '/api/settings')).toMatchObject({ maxActiveCreations: 4 });
+    });
+
     it('changes projectsDir, creates it and allows it in the repo settings', async () => {
       const target = path.join(dir, 'elsewhere', 'projects');
       const result = await ok<{ projectsDir: string }>('PUT', '/api/settings', { projectsDir: target });
@@ -217,6 +223,7 @@ describe('write API', () => {
       expect(JSON.parse(relative.body)).toMatchObject({ code: 'config.relativePath' });
       expect((await send('PUT', '/api/settings', { lang: 'fr' })).status).toBe(400);
       expect((await send('PUT', '/api/settings', { permissionPolicy: 'bypass' })).status).toBe(400);
+      for (const value of [0, 1.5, '3', null]) expect((await send('PUT', '/api/settings', { maxActiveCreations: value })).status).toBe(400);
       expect((await send('PUT', '/api/settings', {})).status).toBe(400);
       expect(await ok('GET', '/api/settings')).toEqual(before);
     });

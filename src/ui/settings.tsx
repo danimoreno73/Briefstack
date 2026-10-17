@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { MANY_CREATIONS_NOTE_ABOVE } from '../config/limits.js';
 import { isLang } from '../i18n/index.js';
 import { api } from './api.js';
 import { ErrorBanner, Loader, Notice } from './common.js';
@@ -14,6 +15,7 @@ export function SettingsPage() {
   const [projectsDir, setProjectsDir] = useState('');
   const [language, setLanguage] = useState('');
   const [policy, setPolicy] = useState<'ask' | 'unattended'>('ask');
+  const [maxActive, setMaxActive] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
   const [saved, setSaved] = useState(false);
@@ -24,6 +26,7 @@ export function SettingsPage() {
     setProjectsDir(settings.projectsDir);
     setLanguage(settings.configLang ?? '');
     setPolicy(settings.permissionPolicy);
+    setMaxActive(String(settings.maxActiveCreations));
   }, [settings]);
 
   // Before saving, say whether the folder exists: a missing one is created by the save.
@@ -52,6 +55,7 @@ export function SettingsPage() {
     if (projectsDir !== settings.projectsDir) body.projectsDir = projectsDir;
     if (language !== (settings.configLang ?? '')) body.lang = language === '' ? null : language;
     if (policy !== settings.permissionPolicy) body.permissionPolicy = policy;
+    if (maxActive.trim() !== String(settings.maxActiveCreations)) body.maxActiveCreations = Number(maxActive.trim());
     if (Object.keys(body).length === 0) return;
     setBusy(true);
     setError(undefined);
@@ -113,6 +117,24 @@ export function SettingsPage() {
                 <span class="muted"> — {t.policyUnattendedHint}</span>
               </label>
             </fieldset>
+            <p>
+              <label for="max-active">{t.maxActiveLabel}</label>
+              <input
+                id="max-active"
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                value={maxActive}
+                onInput={(event) => setMaxActive(event.currentTarget.value)}
+              />
+              <span class="muted">{t.maxActiveHint}</span>
+              {Number(maxActive) > MANY_CREATIONS_NOTE_ABOVE && (
+                <span class="banner banner-warn" role="status" data-testid="max-active-note">
+                  {t.maxActiveNote}
+                </span>
+              )}
+            </p>
             <div class="actions">
               <button type="submit" disabled={busy}>
                 {busy ? t.saving : t.save}

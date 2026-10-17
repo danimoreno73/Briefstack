@@ -1,7 +1,7 @@
 import type { SpecIssue } from './spec/index.js';
 
 /** What a config field should have been; rendered by the i18n catalogue. */
-export type FieldExpectation = 'text' | 'lang' | 'permissionPolicy';
+export type FieldExpectation = 'text' | 'lang' | 'permissionPolicy' | 'positiveInteger';
 
 /** Folders an output directory must stay out of. */
 export type ProtectedRoot = 'repo' | 'library' | 'home' | 'claudeConfig' | 'appData' | 'localAppData';
@@ -65,7 +65,7 @@ export interface ErrorParams {
   'web.bodyTooLarge': { limit: number };
   'web.unsupportedMediaType': { contentType: string };
   'creation.unavailable': Record<string, never>;
-  'creation.busy': { active: string };
+  'creation.limit': { limit: number; active: string[] };
   'creation.noSpec': { id: string };
   'creation.claudeNotFound': Record<string, never>;
   'creation.slashCommandMissing': { command: string };

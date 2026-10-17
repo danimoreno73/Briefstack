@@ -13,11 +13,13 @@ const expectationEn: Record<FieldExpectation, string> = {
   text: 'a non-empty text',
   lang: 'one of: en, es',
   permissionPolicy: 'one of: ask, unattended',
+  positiveInteger: 'a whole number from 1 up',
 };
 const expectationEs: Record<FieldExpectation, string> = {
   text: 'un texto no vacío',
   lang: 'uno de: en, es',
   permissionPolicy: 'uno de: ask, unattended',
+  positiveInteger: 'un número entero desde 1',
 };
 
 const rootEn: Record<ProtectedRoot, string> = {
@@ -128,8 +130,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'web.unsupportedMediaType': (p) =>
       `The request body must be JSON (Content-Type: application/json), not "${p.contentType}".`,
     'creation.unavailable': () => 'Creating projects is not available in this server.',
-    'creation.busy': (p) =>
-      `A creation is already running (${p.active}). Finish or cancel it before starting another one.`,
+    'creation.limit': (p) =>
+      `The limit of active creations is reached (${p.active.length} of ${p.limit}). Finish or cancel one, or raise the limit in Settings.`,
     'creation.noSpec': (p) => `Creation ${p.id} has not shown a spec yet.`,
     'creation.claudeNotFound': () =>
       'Claude Code was not found. Install it (https://claude.com/claude-code), log in with `claude`, and start briefstack web again.',
@@ -223,8 +225,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'web.unsupportedMediaType': (p) =>
       `El cuerpo de la petición debe ser JSON (Content-Type: application/json), no "${p.contentType}".`,
     'creation.unavailable': () => 'Este servidor no permite crear proyectos.',
-    'creation.busy': (p) =>
-      `Ya hay una creación en marcha (${p.active}). Termínala o cancélala antes de empezar otra.`,
+    'creation.limit': (p) =>
+      `Se ha llegado al límite de creaciones activas (${p.active.length} de ${p.limit}). Termina o cancela una, o sube el límite en Ajustes.`,
     'creation.noSpec': (p) => `La creación ${p.id} aún no ha mostrado ninguna spec.`,
     'creation.claudeNotFound': () =>
       'No se encontró Claude Code. Instálalo (https://claude.com/claude-code), inicia sesión con `claude` y vuelve a arrancar briefstack web.',

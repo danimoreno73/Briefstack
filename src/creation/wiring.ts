@@ -1,4 +1,4 @@
-import { permissionPolicyOf, type PathEnv } from '../config/index.js';
+import { maxActiveCreationsOf, permissionPolicyOf, type PathEnv } from '../config/index.js';
 import type { Lang } from '../i18n/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import { loadUsageContext, resolveActiveProfile } from '../usage/index.js';
@@ -51,6 +51,7 @@ export async function createWebCreations(options: WebCreationOptions): Promise<C
     runner,
     sessionsDir: paths.sessionsDir,
     policy: async () => permissionPolicyOf((await read()).config),
+    maxActive: async () => maxActiveCreationsOf((await read()).config),
     profile: () => activeRunnerProfile(pathEnv),
     // Only with the real runner: the fake one has no plan to read.
     ...(options.runner === undefined ? { planUsage: planUsageReader({ pathEnv, repoDir }) } : {}),

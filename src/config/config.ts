@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { BriefstackError, type FieldExpectation } from '../errors.js';
 import { isLang, type Lang } from '../i18n/index.js';
+import { DEFAULT_MAX_ACTIVE_CREATIONS } from './limits.js';
 import { toAbsolute, type PathEnv } from './paths.js';
 
 /**
@@ -16,6 +17,9 @@ export function isPermissionPolicy(value: unknown): value is PermissionPolicy {
   return typeof value === 'string' && (PERMISSION_POLICIES as readonly string[]).includes(value);
 }
 
+export { DEFAULT_MAX_ACTIVE_CREATIONS, MANY_CREATIONS_NOTE_ABOVE } from './limits.js';
+
+
 /** Contents of `<briefstack home>/config.json`. Every field is optional. */
 export interface BriefstackConfig {
   activeProfile?: string;
@@ -24,11 +28,22 @@ export interface BriefstackConfig {
   lang?: Lang;
   /** Absent means `ask`. */
   permissionPolicy?: PermissionPolicy;
+  /** A whole number from 1 up; absent means `DEFAULT_MAX_ACTIVE_CREATIONS`. */
+  maxActiveCreations?: number;
 }
 
 /** The config's permission policy, `ask` when it sets none. */
 export function permissionPolicyOf(config: BriefstackConfig): PermissionPolicy {
   return config.permissionPolicy ?? DEFAULT_PERMISSION_POLICY;
+}
+
+/** The config's limit of active creations, the default when it sets none. */
+export function maxActiveCreationsOf(config: BriefstackConfig): number {
+  return config.maxActiveCreations ?? DEFAULT_MAX_ACTIVE_CREATIONS;
+}
+
+export function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
 }
 
 export interface ResolvedPaths {
@@ -138,6 +153,10 @@ export function parseConfig(text: string, file: string): BriefstackConfig {
   if (raw.permissionPolicy !== undefined) {
     if (!isPermissionPolicy(raw.permissionPolicy)) invalid('permissionPolicy', 'permissionPolicy');
     config.permissionPolicy = raw.permissionPolicy as PermissionPolicy;
+  }
+  if (raw.maxActiveCreations !== undefined) {
+    if (!isPositiveInteger(raw.maxActiveCreations)) invalid('maxActiveCreations', 'positiveInteger');
+    config.maxActiveCreations = raw.maxActiveCreations as number;
   }
   return config;
 }
