@@ -4,6 +4,7 @@ import { langFromLocale, type Lang } from '../i18n/index.js';
 import { uiMessages } from '../i18n/ui.js';
 import { ApiError, api, takeToken } from './api.js';
 import { NewProjectPage } from './creation.js';
+import { CreationsPage } from './creations.js';
 import { AppCtx, type AppContext } from './hooks.js';
 import { LibraryView } from './library.js';
 import { SessionPanelPage } from './panel.js';
@@ -16,9 +17,10 @@ import { UsageView } from './usage.js';
 
 type Gate = 'connecting' | 'ready' | 'noToken' | 'rejected' | 'unreachable';
 
-const NAV: { page: Route['page']; route: Route; label: 'navProjects' | 'navNew' | 'navLibrary' | 'navUsage' | 'navSettings' }[] = [
+const NAV: { page: Route['page']; route: Route; label: 'navProjects' | 'navNew' | 'navCreations' | 'navLibrary' | 'navUsage' | 'navSettings' }[] = [
   { page: 'projects', route: { page: 'projects' }, label: 'navProjects' },
   { page: 'new', route: { page: 'new', id: undefined }, label: 'navNew' },
+  { page: 'creations', route: { page: 'creations' }, label: 'navCreations' },
   { page: 'library', route: { page: 'library', section: undefined, name: undefined }, label: 'navLibrary' },
   { page: 'usage', route: { page: 'usage' }, label: 'navUsage' },
   { page: 'settings', route: { page: 'settings' }, label: 'navSettings' },
@@ -43,6 +45,8 @@ function Page({ route }: { route: Route }) {
       return <ProjectView key={route.slug} slug={route.slug} />;
     case 'new':
       return <NewProjectPage id={route.id} />;
+    case 'creations':
+      return <CreationsPage />;
     case 'session':
       return <SessionPanelPage key={route.id} id={route.id} />;
     case 'library':
@@ -77,15 +81,15 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
     document.documentElement.lang = lang;
   }, [lang]);
 
-  // Whether a creation is running, so the menu can say so wherever the user is. Checked on every move and every few seconds.
-  const [activeCreation, setActiveCreation] = useState<string | undefined>(undefined);
+  // How many creations are running, so the menu can say so wherever the user is. Checked on every move and every few seconds.
+  const [activeCreations, setActiveCreations] = useState(0);
   useEffect(() => {
     if (gate !== 'ready' || token === undefined) return;
     let stopped = false;
     const check = () => {
       api<{ creations: { id: string; status: string }[] }>(token, 'GET', '/api/creations').then(
         (result) => {
-          if (!stopped) setActiveCreation(result.creations.find((creation) => creation.status !== 'finished')?.id);
+          if (!stopped) setActiveCreations(result.creations.filter((creation) => creation.status !== 'finished').length);
         },
         () => undefined,
       );
@@ -131,10 +135,10 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
           {NAV.map((item) => (
             <a key={item.page} href={routeHash(item.route)} aria-current={route.page === item.page || (item.page === 'projects' && (route.page === 'project' || route.page === 'session')) ? 'page' : undefined}>
               {t[item.label]}
-              {item.page === 'new' && activeCreation !== undefined && (
+              {item.page === 'creations' && activeCreations > 0 && (
                 <span class="dot" role="img" aria-label={t.creationInProgress} title={t.creationInProgress}>
                   {' '}
-                  ●
+                  ● {activeCreations}
                 </span>
               )}
             </a>

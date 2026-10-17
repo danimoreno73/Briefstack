@@ -5,7 +5,7 @@ import path from 'node:path';
 import { FakeRunner, parseRecording } from '../../src/creation/fakeRunner.js';
 import { CreationManager } from '../../src/creation/manager.js';
 import type { PermissionPolicy } from '../../src/creation/types.js';
-import { updateConfig } from '../../src/config/index.js';
+import { maxActiveCreationsOf, readConfig, updateConfig } from '../../src/config/index.js';
 import type { PathEnv } from '../../src/config/index.js';
 import { appendEvent, flowEvent, sessionEndEvent, sessionLifecycleEvent } from '../../src/events/index.js';
 import { addNote, initLibrary, saveNote } from '../../src/library/index.js';
@@ -133,6 +133,8 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
         : new FakeRunner({ steps: parseRecording(options.recordingText) }),
     sessionsDir,
     policy: () => options.policy ?? 'ask',
+    // As in `briefstack web`: the limit is read from the config at each start.
+    maxActive: async () => maxActiveCreationsOf(await readConfig(path.join(home, 'config.json'))),
     profile: () => ({ name: 'balanced', sessionModel: 'opus', effort: 'medium' }),
     pollMs: 20,
     tailMs: 20,

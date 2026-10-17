@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
+import { updateConfig } from '../../src/config/index.js';
 import type { StreamEvent } from '../../src/creation/manager.js';
 import { FAKE_KEY, expect, recordProject, test, type App } from './fixtures.js';
 
@@ -209,8 +210,10 @@ test.describe('closing and reopening the tab', () => {
 
     const reopened = await context.newPage();
     await reopened.goto(app.url);
-    await expect(reopened.getByRole('link', { name: /New project/ }).getByRole('img', { name: 'Creation in progress' })).toBeVisible();
-    await reopened.getByRole('link', { name: /New project/ }).click();
+    await expect(reopened.getByRole('link', { name: /Creations/ }).getByRole('img', { name: 'Creation in progress' })).toBeVisible();
+    await reopened.getByRole('link', { name: /Creations/ }).click();
+    await expect(reopened.getByTestId('creations').getByTestId('waiting')).toHaveText('your answers');
+    await reopened.getByTestId('creations').getByRole('link', { name: 'Open' }).click();
     // The creation in progress, not an empty form, with what was already done.
     await expect(reopened.getByTestId('idea')).toHaveText('A garden planner');
     await expect(reopened.getByText('Which seasons should it cover?')).toBeVisible();
@@ -225,23 +228,28 @@ test.describe('closing and reopening the tab', () => {
     await expect(reopened.getByRole('heading', { name: 'Approve the spec' })).toBeVisible();
   });
 
-  test('opening the form while one is running goes to it, and a stale form says so', async ({ page, app, context }) => {
+  test('the form says plan usage adds up while one runs, and a stale form over the limit says so', async ({ page, app, context }) => {
+    await updateConfig(path.join(app.home, 'config.json'), { maxActiveCreations: 1 });
     // This tab has the empty form open.
     await page.goto(app.url);
     await page.getByRole('link', { name: 'New project' }).click();
     await page.getByLabel('Describe your idea').fill('A second idea');
     await expect(page.getByRole('button', { name: 'Start' })).toBeEnabled();
+    await expect(page.getByTestId('usage-adds-up')).toHaveCount(0);
 
     // Another tab starts a creation.
     const other = await context.newPage();
     await startCreation(other, app, 'The first idea');
     await expect(other.getByRole('heading', { name: 'The flow needs your answers' })).toBeVisible();
+    await other.getByRole('link', { name: 'New project' }).click();
+    await expect(other.getByTestId('usage-adds-up')).toContainText('One creation is already running.');
 
     await page.getByRole('button', { name: 'Start' }).click();
-    const busy = page.getByRole('alert');
-    await expect(busy).toContainText('A creation is already running.');
-    await busy.getByRole('link', { name: 'Open it' }).click();
-    await expect(page.getByTestId('idea')).toHaveText('The first idea');
+    const limit = page.getByTestId('limit-reached');
+    await expect(limit).toContainText('The limit of creations at the same time is reached.');
+    await limit.getByRole('link', { name: 'See the creations' }).click();
+    await expect(page.getByTestId('creations')).toContainText('The first idea');
+    await expect(page.getByTestId('creations-count')).toHaveText('1 of 1 at the same time.');
     expect(app.manager.list()).toHaveLength(1);
   });
 });

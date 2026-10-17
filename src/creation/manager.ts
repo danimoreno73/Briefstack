@@ -115,6 +115,8 @@ export interface CreationState {
    */
   awaitingReply?: { lastMessage: string; at: string };
   denied: DeniedRequest[];
+  /** The flow step open now, from `events.jsonl`. */
+  currentStep?: FlowStep;
   /** Set from the start until the first plan usage reading arrived or failed. */
   usageReading?: true;
   /** Why the runner failed, when it did. Never contains tool inputs. */
@@ -528,6 +530,7 @@ export class CreationManager {
     const head = c.queue[0];
     if (head !== undefined && c.state.status !== 'finished') state.pending = structuredClone(head.pending);
     else delete state.pending;
+    if (c.openStep !== undefined && c.state.status !== 'finished') state.currentStep = c.openStep;
     return state;
   }
 

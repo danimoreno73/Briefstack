@@ -256,8 +256,31 @@ export const uiMessages = defineCatalogue({
     ideaHint: 'In your own words. briefstack asks for whatever else it needs.',
     ideaStart: 'Start',
     ideaStarting: 'Starting…',
-    busyMessage: 'A creation is already running.',
-    busyOpen: 'Open it',
+    limitMessage: 'The limit of creations at the same time is reached. Finish or cancel one, or raise the limit in Settings.',
+    creationsOpen: 'See the creations',
+    usageAddsUp: (running: number) =>
+      `${running === 1 ? 'One creation is' : `${running} creations are`} already running. Each one uses your plan, so usage adds up.`,
+    navCreations: 'Creations',
+    creationsTitle: 'Creations in progress',
+    creationsEmpty: 'No creation is running.',
+    creationsCount: (active: number, limit: number) => `${active} of ${limit} at the same time.`,
+    colIdea: 'Idea',
+    colStep: 'Step',
+    colWaiting: 'Waiting for',
+    waitingFor: (kind: string): string => {
+      const labels: Record<string, string> = {
+        question: 'your answers',
+        permission: 'a permission',
+        spec: 'the spec approval',
+        grant: 'an output folder',
+        reply: 'your reply',
+        cancelling: 'cancelling',
+        working: 'nothing: working',
+      };
+      return labels[kind] ?? kind;
+    },
+    openCreation: 'Open',
+    pendingFor: (idea: string) => `For the creation: ${idea}`,
     recentTitle: 'Recent creations',
     recentEmpty: 'None since the app started.',
     policyShown: (policy: string) =>
@@ -588,8 +611,31 @@ export const uiMessages = defineCatalogue({
     ideaHint: 'Con tus palabras. briefstack pregunta lo que le falte.',
     ideaStart: 'Empezar',
     ideaStarting: 'Empezando…',
-    busyMessage: 'Ya hay una creación en marcha.',
-    busyOpen: 'Abrirla',
+    limitMessage: 'Se ha llegado al límite de creaciones a la vez. Termina o cancela una, o sube el límite en Ajustes.',
+    creationsOpen: 'Ver las creaciones',
+    usageAddsUp: (running: number) =>
+      `${running === 1 ? 'Ya hay una creación' : `Ya hay ${running} creaciones`} en marcha. Cada una usa tu plan, así que el consumo se suma.`,
+    navCreations: 'Creaciones',
+    creationsTitle: 'Creaciones en curso',
+    creationsEmpty: 'No hay ninguna creación en marcha.',
+    creationsCount: (active: number, limit: number) => `${active} de ${limit} a la vez.`,
+    colIdea: 'Idea',
+    colStep: 'Paso',
+    colWaiting: 'Espera',
+    waitingFor: (kind: string): string => {
+      const labels: Record<string, string> = {
+        question: 'tus respuestas',
+        permission: 'un permiso',
+        spec: 'que apruebes la spec',
+        grant: 'una carpeta de salida',
+        reply: 'tu respuesta',
+        cancelling: 'cancelándose',
+        working: 'nada: trabajando',
+      };
+      return labels[kind] ?? kind;
+    },
+    openCreation: 'Abrir',
+    pendingFor: (idea: string) => `Para la creación: ${idea}`,
     recentTitle: 'Creaciones recientes',
     recentEmpty: 'Ninguna desde que arrancó la app.',
     policyShown: (policy: string) =>

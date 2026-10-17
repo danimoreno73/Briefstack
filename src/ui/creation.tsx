@@ -31,24 +31,21 @@ function StartPage() {
   const [idea, setIdea] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
-  const [active, setActive] = useState<string | undefined>(undefined);
+  const [atLimit, setAtLimit] = useState(false);
 
-  const running = list.data?.creations.find((creation) => creation.status !== 'finished');
-  // Reopening the app: the creation in progress is shown, not a blank form.
-  useEffect(() => {
-    if (running !== undefined) window.location.replace(routeHash({ page: 'new', id: running.id }));
-  }, [running?.id]);
+  // Several creations may run at once: the form stays, with a note that plan usage adds up.
+  const running = list.data?.creations.filter((creation) => creation.status !== 'finished').length ?? 0;
 
   const start = async (event: Event) => {
     event.preventDefault();
     setBusy(true);
     setError(undefined);
-    setActive(undefined);
+    setAtLimit(false);
     try {
       const { id } = await send<{ id: string }>('POST', '/api/creations', { idea });
       window.location.hash = routeHash({ page: 'new', id });
     } catch (failure) {
-      if (failure instanceof ApiError && failure.code === 'creation.busy') setActive(String(failure.params.active));
+      if (failure instanceof ApiError && failure.code === 'creation.limit') setAtLimit(true);
       else setError(failure);
     } finally {
       setBusy(false);
@@ -60,9 +57,14 @@ function StartPage() {
       <h1>{t.newTitle}</h1>
       <form onSubmit={(event) => void start(event)}>
         {error !== undefined && <ErrorBanner error={error} />}
-        {active !== undefined && (
-          <p class="banner banner-error" role="alert">
-            {t.busyMessage} <a href={routeHash({ page: 'new', id: active })}>{t.busyOpen}</a>
+        {atLimit && (
+          <p class="banner banner-error" role="alert" data-testid="limit-reached">
+            {t.limitMessage} <a href={routeHash({ page: 'creations' })}>{t.creationsOpen}</a>
+          </p>
+        )}
+        {running > 0 && !atLimit && (
+          <p class="banner banner-warn" role="status" data-testid="usage-adds-up">
+            {t.usageAddsUp(running)} <a href={routeHash({ page: 'creations' })}>{t.creationsOpen}</a>
           </p>
         )}
         <p>
@@ -262,6 +264,10 @@ function CreationView({ id }: { id: string }) {
             </p>
           ) : (
             <div id={PENDING_CONTROL_ID} tabIndex={-1}>
+              {/* Several creations may ask at once: each control says which one it answers. */}
+              <p class="pending-for" data-testid="pending-for">
+                {t.pendingFor(state.idea.length > 80 ? `${state.idea.slice(0, 80)}…` : state.idea)}
+              </p>
               {state.cancelling && <p role="status">{t.cancellingNote}</p>}
               <PendingPanel key={pending.id} id={id} pending={pending} answer={answer} />
             </div>
