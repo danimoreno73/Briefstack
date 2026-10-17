@@ -24,9 +24,11 @@ Updated 2026-10-17. A new session reads `CLAUDE.md`,
 | H0 | All four checks PASS (decisions.md, "# Phase 4", "H0"); probe script `scripts/real/probe-h0-phase4.ts` |
 | M1 | Backlog: explicit `model` on every SDK session and `ANTHROPIC_MODEL` removed from its environment (test; the repo settings name no model); `usageReading` in the creation state and "Reading the plan usage…" in the panel; a finished creation's stream closes only after the runner is done and two more reads of `events.jsonl` (`tailMs`), so a late `session.end` reaches the live panel |
 
+| M2 | Config `maxActiveCreations` (default 2, whole number ≥ 1; Settings field with a note above 3; `creation.limit`, 409); library queue `src/library/lock.ts` around `addNote`, `saveNote`, `revertLibraryCommit` and the `init` commit (`library.busy` after 60 s); folder claims `src/creation/folderClaims.ts` (manager registry, `RunnerIO.claimFolder`/`folderHeldByOther`, a `PreToolUse` hook of its own, `grant_directory` refuses a held folder); fake runner steps `claim` and `library`; `#/creations` page (idea, step, what it waits for, link), a count in the menu, the "plan usage adds up" note on the form, "For the creation: …" on every pending control; e2e `tests/e2e/several.spec.ts` (questions kept apart, two finishing with both commits, the folder collision) and the limit in `creation.spec.ts` |
+
 ### Left
 
-Everything from M2 on.
+Everything from M3 on.
 
 ## 1. Approach
 
