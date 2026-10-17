@@ -346,6 +346,7 @@ describe('cli usage', () => {
       label: { en: 'Mine', es: 'Mío' },
       sessionModel: 'inherit',
       effort: 'low',
+      chat: { model: 'haiku', effort: 'low' },
       agents: { interviewer: 'haiku', researcher: 'haiku', architect: 'haiku', generator: 'haiku', reviewer: 'haiku' },
       tiers: { light: 'haiku', standard: 'haiku', heavy: 'haiku' },
       research: 'required-only',

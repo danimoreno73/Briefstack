@@ -46,6 +46,8 @@ export interface UsageShowResult {
   label: string;
   fromConfig: boolean;
   sessionModel: string;
+  /** The global chat's model and effort. */
+  chat: UsagePreset['chat'];
   agents: Record<string, AgentSetting>;
   tiers: UsagePreset['tiers'];
   research: UsagePreset['research'];
@@ -81,6 +83,7 @@ export async function usageShow(options: UsageShowOptions): Promise<UsageShowRes
     label: preset.label[lang],
     fromConfig: active.fromConfig,
     sessionModel: preset.sessionModel,
+    chat: preset.chat,
     agents,
     tiers: preset.tiers,
     research: preset.research,

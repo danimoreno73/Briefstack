@@ -70,6 +70,7 @@ export function UsageView() {
                 {t.usageActive(usage.label)}
                 {activeLevel === undefined && ` · ${t.usageCustomActive}`}
               </p>
+              <p data-testid="chat-model">{t.usageChatModel(usage.chat.model, usage.chat.effort)}</p>
 
               {userPresets.length > 0 && (
                 <p>

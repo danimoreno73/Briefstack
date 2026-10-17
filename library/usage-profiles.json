@@ -8,6 +8,7 @@
       },
       "sessionModel": "sonnet",
       "effort": "low",
+      "chat": { "model": "haiku", "effort": "low" },
       "agents": {
         "interviewer": "haiku",
         "researcher": "haiku",
@@ -30,6 +31,7 @@
       },
       "sessionModel": "sonnet",
       "effort": "medium",
+      "chat": { "model": "sonnet", "effort": "medium" },
       "agents": {
         "interviewer": "sonnet",
         "researcher": "haiku",
@@ -52,6 +54,7 @@
       },
       "sessionModel": "opus",
       "effort": "high",
+      "chat": { "model": "opus", "effort": "high" },
       "agents": {
         "interviewer": "opus",
         "researcher": "sonnet",

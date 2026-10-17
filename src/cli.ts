@@ -270,6 +270,7 @@ async function runUsageShow(args: readonly string[], io: CliIO, lang: Lang): Pro
   io.out(messages.activeProfile(shown.profile, shown.label));
   if (!shown.fromConfig) io.out(messages.defaultProfileNote);
   io.out(messages.sessionModel(shown.sessionModel));
+  io.out(messages.chatModel(shown.chat.model, shown.chat.effort));
   io.out(messages.agentsHeader);
   for (const [agent, setting] of Object.entries(shown.agents)) {
     io.out(messages.agentLine(agent, setting.model, setting.effort));

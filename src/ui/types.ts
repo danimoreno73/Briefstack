@@ -89,6 +89,7 @@ export interface UsageView {
   profile: string;
   label: string;
   sessionModel: string;
+  chat: { model: string; effort: string };
   drift: { file: string; field: string; committed: string | null; current: string | null }[];
   envWarnings: { field: string; variable: string; value: string }[];
   presets: UsagePreset[];

@@ -32,6 +32,7 @@ const CUSTOM_PRESET: UsagePresetInput = {
   label: { en: 'Custom', es: 'Propio' },
   sessionModel: 'claude-sonnet-4-5',
   effort: 'xhigh',
+  chat: { model: 'haiku', effort: 'low' },
   agents: {
     interviewer: 'inherit',
     researcher: { model: 'haiku', effort: 'low' },
@@ -119,6 +120,33 @@ describe('usage profiles data', () => {
     const issues = (error as { params: { issues: string[] } }).params.issues;
     expect(issues.some((issue) => issue.startsWith('profiles.mine.effort'))).toBe(true);
     expect(issues.some((issue) => issue.startsWith('profiles.mine.agents.reviewer'))).toBe(true);
+  });
+
+  it('gives every base preset the chat model and effort of BRIEF-phase-4 §8.3', async () => {
+    const profiles = await loadUsageProfiles({ baseFile: baseProfilesFile() });
+    expect(profiles.presets.saver?.chat).toEqual({ model: 'haiku', effort: 'low' });
+    expect(profiles.presets.balanced?.chat).toEqual({ model: 'sonnet', effort: 'medium' });
+    expect(profiles.presets.max?.chat).toEqual({ model: 'opus', effort: 'high' });
+  });
+
+  it('refuses a user preset without the chat model and effort, and names the field', () => {
+    const withoutChat: Partial<UsagePresetInput> = { ...CUSTOM_PRESET };
+    delete withoutChat.chat;
+    const error = (() => {
+      try {
+        parseProfilesFile(JSON.stringify({ profiles: { mine: withoutChat } }), 'f');
+      } catch (caught) {
+        return caught;
+      }
+      return undefined;
+    })();
+    expect(error).toMatchObject({ code: 'usage.invalidProfiles' });
+    expect((error as { params: { issues: string[] } }).params.issues.some((issue) => issue.startsWith('profiles.mine.chat'))).toBe(true);
+    for (const chat of [{ model: 'haiku' }, { model: 'two words', effort: 'low' }, { model: 'haiku', effort: 'extreme' }, { model: 'haiku', effort: 'low', extra: 1 }]) {
+      expect(() => parseProfilesFile(JSON.stringify({ profiles: { mine: { ...CUSTOM_PRESET, chat } } }), 'f'), JSON.stringify(chat)).toThrow(
+        expect.objectContaining({ code: 'usage.invalidProfiles' }),
+      );
+    }
   });
 
   it('rejects bad profile names and model values', () => {

@@ -44,13 +44,21 @@ const tiersShape = Object.fromEntries(TIERS.map((tier) => [tier, AgentModelSchem
 >;
 
 /**
+ * The global chat's session (BRIEF-phase-4 §8.3): its model and effort come
+ * from the profile, never from the user's own Claude Code settings.
+ */
+export const ChatSettingSchema = z.strictObject({ model: ModelSchema, effort: z.enum(EFFORT_LEVELS) });
+
+/**
  * One preset. `agents` must cover the five flow agents and may name more;
  * each entry is a model or `{ model, effort }` to override the global effort.
+ * `chat` is required in every preset, user presets included.
  */
 export const UsagePresetSchema = z.strictObject({
   label: z.strictObject(labelShape),
   sessionModel: ModelSchema,
   effort: z.enum(EFFORT_LEVELS),
+  chat: ChatSettingSchema,
   agents: z.object(agentsShape).catchall(AgentEntrySchema),
   tiers: z.strictObject(tiersShape),
   research: z.enum(RESEARCH_MODES),
