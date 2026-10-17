@@ -64,6 +64,8 @@ export interface PanelLive {
   cancelling?: boolean;
   /** The request the user is asked now. A permission names the agent type that asked, if a subagent did. */
   pending?: { id: string; kind: PendingKind; agentType?: string };
+  /** The first plan usage reading is on its way (it takes a few seconds). */
+  usageReading?: boolean;
 }
 
 export interface PanelOptions {
@@ -137,8 +139,11 @@ export interface PanelState {
   nodes: PanelNode[];
   timeline: { startedAt?: string; spanMs: number; rows: TimelineRow[] };
   steps: { step: PanelStep; state: PanelStepState }[];
-  /** First and last plan usage reading; absent when none was recorded. */
-  usage: { start?: UsageReading; now?: UsageReading };
+  /**
+   * First and last plan usage reading; absent when none was recorded.
+   * `reading`: none yet, and the first one is on its way in a running session.
+   */
+  usage: { start?: UsageReading; now?: UsageReading; reading?: true };
   /** How many lines went in. */
   eventCount: number;
 }
@@ -394,6 +399,7 @@ export function buildPanelState(events: readonly PanelEventInput[], options: Pan
 
   const timeline: PanelState['timeline'] = { spanMs, rows };
   if (sessionStart !== undefined) timeline.startedAt = sessionStart;
+  if (usage.start === undefined && !ended && live?.usageReading === true) usage.reading = true;
 
   return {
     session,

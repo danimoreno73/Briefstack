@@ -217,7 +217,9 @@ export function AgentPanel({ state, showPendingLinks = false }: { state: PanelSt
       <div class="plan-usage" data-testid="panel-usage">
         <h3>{t.panelUsage}</h3>
         {state.usage.start === undefined ? (
-          <p class="muted">{t.panelUsageNone}</p>
+          <p class="muted" role="status">
+            {state.usage.reading === true ? t.panelUsageReading : t.panelUsageNone}
+          </p>
         ) : (
           <dl>
             <dt>{t.panelUsageStart}</dt>

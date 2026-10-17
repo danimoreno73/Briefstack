@@ -98,6 +98,46 @@ describe('the manager records plan usage', () => {
     expect(reading).toBe(after);
   });
 
+  it('says the first reading is on its way until it arrives, and the line is streamed before that ends', async () => {
+    let release: (value: { fiveHour: number; sevenDay: number }) => void = () => undefined;
+    manager = new CreationManager({
+      runner: new FakeRunner({ steps: parseRecording(['{"do":"session","phase":"started"}', '{"do":"wait","ms":5000}'].join('\n')) }),
+      sessionsDir,
+      policy: () => 'ask',
+      profile: () => ({ name: 'balanced', sessionModel: 'sonnet' }),
+      pollMs: 10,
+      planUsage: () => new Promise((resolve) => (release = resolve)),
+    });
+    const { id } = await manager.create('idea');
+    const m = manager;
+    expect(m.get(id).usageReading).toBe(true);
+    const seen: string[] = [];
+    m.subscribe(id, 0, (event) => {
+      if (event.kind === 'runner' && event.data.type === 'usage') seen.push('line');
+      if (event.kind === 'status' && m.get(id).usageReading === undefined && !seen.includes('cleared')) seen.push('cleared');
+    });
+    await waitFor(() => (m.get(id).sessionId === undefined ? undefined : true));
+    release({ fiveHour: 12, sevenDay: 30 });
+    await waitFor(() => (m.get(id).usageReading === undefined ? true : undefined));
+    expect(seen).toEqual(['line', 'cleared']);
+  });
+
+  it('stops saying it is reading once a reading failed', async () => {
+    manager = new CreationManager({
+      runner: new FakeRunner({ steps: parseRecording(['{"do":"session","phase":"started"}', '{"do":"wait","ms":5000}'].join('\n')) }),
+      sessionsDir,
+      policy: () => 'ask',
+      profile: () => ({ name: 'balanced', sessionModel: 'sonnet' }),
+      pollMs: 10,
+      planUsage: async () => {
+        throw new Error('no');
+      },
+    });
+    const { id } = await manager.create('idea');
+    const m = manager;
+    await waitFor(() => (m.get(id).usageReading === undefined ? true : undefined));
+  });
+
   it('writes nothing for a reading that failed or had nothing', async () => {
     let calls = 0;
     const usage = await run(async () => {

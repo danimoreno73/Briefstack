@@ -202,6 +202,17 @@ describe('buildPanelState', () => {
     expect(buildPanelState(events, { now: late, live: { finished: true, outcome: 'cancelled' } }).session).toMatchObject({ status: 'finished', outcome: 'cancelled' });
   });
 
+  it('says the plan usage is being read only while live, running and with no reading yet', () => {
+    const now = new Date(T0 + 2000);
+    const started = [flow(0, 'session.started')];
+    const reading = { finished: false, usageReading: true };
+    expect(buildPanelState(started, { now, live: reading }).usage).toEqual({ reading: true });
+    expect(buildPanelState(started, { now, live: { finished: false } }).usage).toEqual({});
+    expect(buildPanelState(started, { now, live: { ...reading, finished: true, outcome: 'cancelled' } }).usage).toEqual({});
+    const read = [...started, runner(1, 'usage', { fiveHour: 5, sevenDay: 6 })];
+    expect(buildPanelState(read, { now, live: reading }).usage).toEqual({ start: { at: at(1), fiveHour: 5, sevenDay: 6 }, now: { at: at(1), fiveHour: 5, sevenDay: 6 } });
+  });
+
   it('copes with nothing, odd lines and a burst', () => {
     expect(buildPanelState([], { now: new Date(T0) })).toMatchObject({ session: { status: 'interrupted' }, nodes: [{ id: 'main' }], eventCount: 0 });
     const odd = buildPanelState(

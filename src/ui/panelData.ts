@@ -26,6 +26,7 @@ export function liveFromState(state: CreationState): PanelLive {
   const live: PanelLive = { finished: state.status === 'finished' };
   if (state.outcome !== undefined) live.outcome = state.outcome;
   if (state.cancelling === true) live.cancelling = true;
+  if (state.usageReading === true) live.usageReading = true;
   const pending = state.pending;
   if (pending !== undefined && state.status !== 'finished') {
     const agentType = pending.kind === 'permission' ? pending.payload.agentType : undefined;

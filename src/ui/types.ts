@@ -150,6 +150,7 @@ export interface CreationState {
   cancelling?: true;
   /** The session ended a turn with nothing asked here; `lastMessage` is redacted by the server. */
   awaitingReply?: { lastMessage: string; at: string };
+  usageReading?: true;
   denied: DeniedRequest[];
   error?: string;
   startedAt: string;

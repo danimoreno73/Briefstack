@@ -113,6 +113,8 @@ export interface CreationState {
    */
   awaitingReply?: { lastMessage: string; at: string };
   denied: DeniedRequest[];
+  /** Set from the start until the first plan usage reading arrived or failed. */
+  usageReading?: true;
   /** Why the runner failed, when it did. Never contains tool inputs. */
   error?: string;
   startedAt: string;
@@ -277,6 +279,8 @@ export class CreationManager {
         policy: 'ask',
         status: 'running',
         denied: [],
+        // The first reading takes a few seconds: until then the panel says it is on its way, not "not available".
+        ...(this.options.planUsage === undefined ? {} : { usageReading: true as const }),
         startedAt: this.now().toISOString(),
       },
       runnerDone: false,
@@ -584,6 +588,13 @@ export class CreationManager {
       } catch {
         // Plan usage is a nice-to-have; the panel says it is not available.
       }
+      if (c.state.usageReading === true) {
+        // After the line is in the file, so the page never shows "not available" in between.
+        await c.writeChain;
+        await this.flush(c);
+        delete c.state.usageReading;
+        if (!this.isFinished(c)) this.pushStatus(c);
+      }
     };
     void once();
     c.usageTimer = setInterval(() => void once(), this.options.usageEveryMs ?? 300_000);
@@ -751,6 +762,7 @@ export class CreationManager {
     c.state.finishedAt = this.now().toISOString();
     delete c.state.cancelling;
     delete c.state.awaitingReply;
+    delete c.state.usageReading;
     for (const timer of [c.pollTimer, c.cancelTimer]) if (timer !== undefined) clearTimeout(timer);
     if (c.usageTimer !== undefined) clearInterval(c.usageTimer);
     c.usageTimer = undefined;

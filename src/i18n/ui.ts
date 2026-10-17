@@ -106,6 +106,7 @@ export const uiMessages = defineCatalogue({
     panelUsageNow: 'Latest reading',
     panelUsageLine: (fiveHour: string, sevenDay: string): string => `5-hour window ${fiveHour} · 7-day window ${sevenDay}`,
     panelUsageNone: 'Not available for this session.',
+    panelUsageReading: 'Reading the plan usage…',
     panelUsageHint: 'From the same reading as /usage. No token or cost figures.',
     targetOutside: 'outside allowed folders',
     targetRoot: (root: string): string =>
@@ -434,6 +435,7 @@ export const uiMessages = defineCatalogue({
     panelUsageNow: 'Última lectura',
     panelUsageLine: (fiveHour: string, sevenDay: string): string => `Ventana de 5 horas ${fiveHour} · ventana de 7 días ${sevenDay}`,
     panelUsageNone: 'No disponible para esta sesión.',
+    panelUsageReading: 'Leyendo el uso del plan…',
     panelUsageHint: 'De la misma lectura que /usage. Sin cifras de tokens ni de coste.',
     targetOutside: 'fuera de las carpetas permitidas',
     targetRoot: (root: string): string =>
