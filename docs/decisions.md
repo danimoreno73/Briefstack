@@ -2127,3 +2127,5 @@ conservative reading of the brief. The user can revisit any of them.
     - `start_creation` refuses an idea with something that looks like a
       secret and asks for it without, instead of showing it redacted on the
       card and starting the creation with the whole text.
+    - The lines of a note-change card go through the secret redactor, so a
+      secret line the change removes is never kept in the chat history.

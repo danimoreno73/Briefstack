@@ -279,6 +279,15 @@ describe('the tools', () => {
     expect(dropped.card).toMatchObject({ mode: 'rewrite', removed: 1, added: 0 });
   });
 
+  it('propose_note_change shows a dropped secret line redacted on the card (the card is what the history keeps)', async () => {
+    const dropped = await propose('propose_note_change', { section: 'profile', name: 'legacy', text: '# Legacy\n\nKeep this line.\n' });
+    expect(JSON.stringify(dropped.card)).not.toContain(FAKE_KEY);
+    const lines = (dropped.card as { hunks: { lines: { op: string; text: string }[] }[] }).hunks.flatMap((hunk) => hunk.lines);
+    expect(lines).toContainEqual({ op: '-', text: '[redacted]' });
+    await dropped.perform();
+    expect(await readFile(path.join(world.libraryDir, 'profile', 'legacy.md'), 'utf8')).toBe('# Legacy\n\nKeep this line.\n');
+  });
+
   it('set_usage_profile shows from and to, and switches only when performed', async () => {
     const proposal = await propose('set_usage_profile', { profile: 'saver' });
     expect(proposal.card).toMatchObject({ kind: 'usageProfile', from: 'balanced', to: 'saver' });

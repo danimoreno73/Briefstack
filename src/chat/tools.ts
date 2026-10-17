@@ -455,7 +455,8 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
           ...(ref.name === undefined ? {} : { name: ref.name }),
           file,
           mode,
-          hunks: diffHunks(lines),
+          // The card is kept in the chat history: a line the note held with a secret (one it drops) is shown redacted.
+          hunks: diffHunks(lines).map((hunk) => ({ ...hunk, lines: hunk.lines.map((line) => ({ ...line, text: redactSecretLines(line.text) })) })),
           added: lines.filter((line) => line.op === '+').length,
           removed: lines.filter((line) => line.op === '-').length,
         },
