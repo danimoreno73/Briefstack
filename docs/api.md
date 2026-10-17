@@ -429,7 +429,7 @@ string redacted.
 | `session_panel` | read | `sessionId` | `buildPanelState` of the session, compact: agents, status, current tool, denials, steps, plan usage |
 | `show_usage` | read | — | the active profile (session, chat and agent models), the profiles, the plan usage now |
 | `show_settings` | read | — | language, permission policy, limit of creations, resolved folders |
-| `start_creation` | action | `idea` | card, then starts a creation as the New project page does |
+| `start_creation` | action | `idea` | card, then starts a creation as the New project page does; an idea with something that looks like a secret is refused, so the card always shows the idea exactly as it will start |
 | `cancel_creation` | action | `creationId` | card, then cancels through the flow |
 | `propose_note_change` | action | `section`, `name`?, `text` (the whole note) | lines kept from the redacted view get the note's own text back, and a placeholder (`[redacted]`, `[outside allowed folders]`, `~/…`) in a new or changed line is refused; card with the diff, then `saveNote` (secret check, dates, INDEX, one commit) only if the note still holds the text the diff was made from; otherwise nothing is saved and the card becomes `stale` |
 | `set_usage_profile` | action | `profile` | card, then `usage set` |

@@ -2124,3 +2124,6 @@ conservative reading of the brief. The user can revisit any of them.
       its proposal fails. A second action in the same turn, even one called
       in parallel, gets a tool error at once; it can no longer replace the
       waiting card and leave the first call hanging.
+    - `start_creation` refuses an idea with something that looks like a
+      secret and asks for it without, instead of showing it redacted on the
+      card and starting the creation with the whole text.

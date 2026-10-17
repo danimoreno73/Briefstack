@@ -363,6 +363,13 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
     input: { idea: z.string().trim().min(1).max(MAX_IDEA_CHARS) },
     summary: (args) => short(args.idea, 80),
     propose: async (ctx, args) => {
+      // The card must show the idea exactly as it would start, so one with a secret is refused, not shown redacted.
+      const leaked = secretLines(args.idea);
+      if (leaked.length > 0) {
+        throw new ChatToolError(
+          `The idea has something that looks like a secret on line ${leaked.join(', ')}. Ask the user to remove it and give the idea again. Nothing was proposed.`,
+        );
+      }
       const creations = needCreations(ctx);
       const limit = await creations.limit();
       const active = creations.list().filter((creation) => creation.status !== 'finished').length;
@@ -372,7 +379,7 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
       const { config, profiles } = await loadUsageContext(ctx.pathEnv);
       const profile = resolveActiveProfile(config, profiles).name;
       return {
-        card: { kind: 'startCreation', idea: redactSecretLines(args.idea), profile, active, limit },
+        card: { kind: 'startCreation', idea: args.idea, profile, active, limit },
         perform: async () => {
           const state = await creations.create(args.idea);
           return { data: { started: true, creationId: state.id }, sources: [{ kind: 'creation', ref: state.id, label: short(args.idea, 60) }] };

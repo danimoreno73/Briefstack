@@ -196,6 +196,11 @@ describe('the tools', () => {
     await expect(propose('start_creation', { idea: 'Third' })).rejects.toBeInstanceOf(ChatToolError);
   });
 
+  it('start_creation refuses an idea with a secret instead of showing it redacted and starting it whole', async () => {
+    await expect(propose('start_creation', { idea: `A deploy bot\nkey ${FAKE_KEY}` })).rejects.toThrow(/looks like a secret on line 2.*remove it/);
+    expect(world.creations.list()).toHaveLength(0);
+  });
+
   it('cancel_creation names the creation and cancels only when performed', async () => {
     const state = await world.creations.create('A recipe box');
     const proposal = await propose('cancel_creation', { creationId: state.id });
