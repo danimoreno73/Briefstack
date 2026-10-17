@@ -1982,3 +1982,32 @@ conservative reading of the brief. The user can revisit any of them.
    s), then reads `events.jsonl` once, waits 1 s, reads it again and only
    then closes. A line written later than that is still only in the file;
    a reload shows it.
+4. **Library queue across processes.** Library writes during a creation run
+   in the CLI (`library add`), one process per creation, so an in-process
+   queue alone would not serialise them. `withLibraryLock` (`src/library/lock.ts`)
+   chains calls in one process and, across processes, holds a lock folder
+   created with `mkdir` in `<os temp>/briefstack-locks/`, named by a hash of
+   the library path. Nothing is written in the library. It covers
+   `addNote`, `saveNote`, `revertLibraryCommit` and the commit of
+   `initLibrary`, from the read of the note to the end of its commit (so an
+   `INDEX.md` line is never lost either). A lock whose process is gone, or
+   older than 2 minutes, is taken over; after 60 s of waiting the change is
+   refused with `library.busy` and nothing is written.
+5. **Folder collision: where and how.** The output folder appears first in
+   the skill's `paths check "<dir>"` (interview step 3), then in
+   `grant_directory` (outside the projects folder) and the generator's
+   `scaffold`. Each of those claims it for the creation; a folder that
+   overlaps another active creation's claim is refused there, before
+   anything is written, with a reason that tells the flow to ask the user
+   for another folder. Writes, `scaffold` and `commit` into a folder another
+   creation holds are denied too. It is a `PreToolUse` hook of its own
+   (`src/creation/folderClaims.ts`), not a change to the guard: Claude Code
+   applies the strictest answer among matching hooks, "`deny` > `defer` >
+   `ask` > `allow`" (Claude Code hooks reference, "PreToolUse decision
+   control", `code.claude.com/docs/en/hooks`, read 2026-10-17), so its deny
+   wins over the guard's allow. Its refusals are recorded like guard
+   denials (`tool.denied`, `by: "guard"`) so the panel shows them on the
+   node with the reason; no new event value was added. A claim is released
+   when the creation finishes. Claims live in the server's memory: they
+   cover creations started from the web app, which is where several run at
+   once.

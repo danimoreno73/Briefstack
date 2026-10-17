@@ -100,8 +100,18 @@ export interface RunnerIO {
   approveSpec(request: SpecApprovalRequest): Promise<SpecDecision>;
   /** `true` once the user confirmed; the runner then allows writes there for this session only. */
   grantDirectory(request: GrantRequest): Promise<boolean>;
+  /**
+   * Claims the creation's output folder (`folderClaims.ts`): refused when
+   * another active creation holds an overlapping one. A new claim replaces
+   * this creation's earlier one.
+   */
+  claimFolder(dir: string): ClaimResult;
+  /** The start of the idea of another active creation whose folder holds `target`, if any. */
+  folderHeldByOther(target: string): string | undefined;
   emit(event: RunnerEvent): void;
 }
+
+export type ClaimResult = { ok: true } | { ok: false; holder: string };
 
 /**
  * The session model and effort of the active usage profile. The model is

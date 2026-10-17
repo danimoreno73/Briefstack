@@ -2,7 +2,7 @@ import { mkdir, stat, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { approveSpec, grantDirectory, type WebToolsDeps } from '../../src/creation/webTools.js';
-import type { GrantRequest, SpecApprovalRequest, SpecDecision } from '../../src/creation/types.js';
+import type { ClaimResult, GrantRequest, SpecApprovalRequest, SpecDecision } from '../../src/creation/types.js';
 import type { PathEnv } from '../../src/config/paths.js';
 import { protectedDirs } from '../../src/scaffold/outputDir.js';
 import { tempDir } from '../helpers.js';
@@ -16,6 +16,8 @@ describe('web tools', () => {
   let grantRequests: GrantRequest[];
   let spec: SpecDecision;
   let grantAnswer: boolean;
+  let claims: string[];
+  let claimAnswer: ClaimResult;
   let sessionDir: string | undefined;
   const parse = (reply: { content: { text: string }[] }): Record<string, unknown> => JSON.parse(reply.content[0]?.text ?? '{}') as Record<string, unknown>;
 
@@ -28,6 +30,8 @@ describe('web tools', () => {
     grantRequests = [];
     spec = { decision: 'approve' };
     grantAnswer = true;
+    claims = [];
+    claimAnswer = { ok: true };
     deps = {
       io: {
         approveSpec: async (request) => {
@@ -38,6 +42,7 @@ describe('web tools', () => {
           grantRequests.push(request);
           return grantAnswer;
         },
+        claimFolder: (claimedDir) => (claims.push(claimedDir), claimAnswer),
       },
       sessionDir: () => sessionDir,
       protectedDirs: [
@@ -99,6 +104,18 @@ describe('web tools', () => {
       expect(parse(await grantDirectory(deps, { dir: target }))).toEqual({ granted: false });
       expect(granted).toEqual([]);
       await expect(stat(target)).rejects.toThrow();
+    });
+
+    it('claims the folder before asking, and refuses one another creation holds without asking', async () => {
+      const target = path.join(dir, 'chosen', 'out');
+      expect(parse(await grantDirectory(deps, { dir: target }))).toEqual({ granted: true });
+      expect(claims).toEqual([path.resolve(target)]);
+      claimAnswer = { ok: false, holder: 'A recipe box' };
+      grantRequests = [];
+      const reply = await grantDirectory(deps, { dir: path.join(dir, 'chosen', 'other') });
+      expect(reply.isError).toBe(true);
+      expect(parse(reply).error).toContain('Another creation in progress ("A recipe box")');
+      expect(grantRequests).toEqual([]);
     });
 
     it('does not ask for a folder inside the projects folder', async () => {

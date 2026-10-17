@@ -3,6 +3,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeRunner, loadRecording, parseRecording } from '../../src/creation/fakeRunner.js';
 import type {
+  ClaimResult,
   PermissionDecision,
   QuestionRequest,
   QuestionResult,
@@ -20,7 +21,13 @@ const SESSION = 'fake-session-1';
 
 /** An io that answers from queues and logs what it was asked. */
 function scriptedIO(
-  script: { questions?: QuestionResult[]; permissions?: PermissionDecision[]; specs?: SpecDecision[]; grants?: boolean[] } = {},
+  script: {
+    questions?: QuestionResult[];
+    permissions?: PermissionDecision[];
+    specs?: SpecDecision[];
+    grants?: boolean[];
+    claims?: ClaimResult[];
+  } = {},
 ) {
   const asked: string[] = [];
   const emitted: RunnerEvent[] = [];
@@ -44,6 +51,8 @@ function scriptedIO(
       asked.push('grant');
       return script.grants?.shift() ?? true;
     },
+    claimFolder: (dir) => (asked.push(`claim:${dir}`), script.claims?.shift() ?? { ok: true }),
+    folderHeldByOther: () => undefined,
     emit: (event) => emitted.push(event),
   };
   return { io, asked, emitted, specs };

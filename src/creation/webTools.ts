@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { z } from 'zod';
 import { isFullyAbsolute, isPathInside, systemPathEnv, type PathEnv } from '../config/paths.js';
 import { inspectOutputDir, type ProtectedDir } from '../scaffold/outputDir.js';
+import { claimRefusedMessage } from './folderClaims.js';
 import { insideAny } from './guard.js';
 import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL, WEB_SERVER_NAME } from './toolNames.js';
 import type { RunnerIO } from './types.js';
@@ -18,7 +19,7 @@ import type { RunnerIO } from './types.js';
 export { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL, WEB_SERVER_NAME };
 
 export interface WebToolsDeps {
-  io: Pick<RunnerIO, 'approveSpec' | 'grantDirectory'>;
+  io: Pick<RunnerIO, 'approveSpec' | 'grantDirectory' | 'claimFolder'>;
   /** The session folder, once the session id is known. Spec files must be inside it. */
   sessionDir(): string | undefined;
   /** Folders a granted output folder must not overlap (`protectedDirs`). */
@@ -78,6 +79,9 @@ export async function grantDirectory(deps: WebToolsDeps, args: { dir: string }):
     );
   }
   if (report.status === 'notADirectory') return fail('That path is a file, not a folder.');
+  // Before the user is asked: a folder another creation in progress holds is refused outright.
+  const claim = deps.io.claimFolder(dir);
+  if (!claim.ok) return fail(claimRefusedMessage(dir, claim.holder));
 
   const granted = await deps.io.grantDirectory({ dir });
   if (!granted) return reply({ granted: false });

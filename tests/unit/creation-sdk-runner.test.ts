@@ -13,6 +13,7 @@ import {
 } from '../../src/creation/sdkRunner.js';
 import type { TrackedSpawn } from '../../src/creation/processTree.js';
 import type {
+  ClaimResult,
   PermissionRequest,
   QuestionRequest,
   QuestionResult,
@@ -255,6 +256,9 @@ describe('SdkRunner', () => {
   let permissionAnswer: 'allow' | 'deny';
   let specAnswer: SpecDecision;
   let grantAnswer: boolean;
+  let claimed: string[] = [];
+  let claimAnswer: ClaimResult = { ok: true };
+  let heldBy: (target: string) => string | undefined = () => undefined;
   /** While set, questions and the spec wait for it: the user is thinking. */
   let gate: Promise<void> | undefined;
 
@@ -274,6 +278,8 @@ describe('SdkRunner', () => {
       return specAnswer;
     },
     grantDirectory: async () => grantAnswer,
+    claimFolder: (dir) => (claimed.push(dir), claimAnswer),
+    folderHeldByOther: (target) => heldBy(target),
     emit: (event) => events.push(event),
   });
 
@@ -353,6 +359,9 @@ describe('SdkRunner', () => {
     permissionAnswer = 'allow';
     specAnswer = { decision: 'approve' };
     grantAnswer = true;
+    claimed = [];
+    claimAnswer = { ok: true };
+    heldBy = () => undefined;
     gate = undefined;
   });
   afterEach(() => cleanup());
@@ -392,6 +401,41 @@ describe('SdkRunner', () => {
     await fire({ effort: { level: 'low' } });
     await fire({ effort: { level: 'high' } });
     expect(events.filter((event) => event.kind === 'effort')).toEqual([{ kind: 'effort', level: 'low', requested: 'medium' }]);
+    await handle.stop();
+  });
+
+  it('registers the folder claim hook next to the guard: it claims at paths check and its deny wins', async () => {
+    const handle = start();
+    init();
+    await handle.sessionId;
+    const hooks = options().hooks?.PreToolUse?.flatMap((matcher) => matcher.hooks) ?? [];
+    expect(hooks).toHaveLength(3);
+    const claimHook = hooks[1] as HookCallback;
+    const fire = (tool: string, input: Record<string, unknown>) =>
+      claimHook(
+        { hook_event_name: 'PreToolUse', session_id: SESSION, transcript_path: '', cwd: '', tool_name: tool, tool_input: input, tool_use_id: 'u1' } as never,
+        'u1',
+        { signal: new AbortController().signal },
+      );
+    const garden = path.join(projectsDir, 'garden');
+    const slash = (value: string) => value.replaceAll('\\', '/');
+    expect(await fire('Bash', { command: `npm run --silent briefstack -- paths check "${slash(garden)}" --json` })).toEqual({});
+    expect(claimed).toEqual([slash(garden)]);
+
+    claimAnswer = { ok: false, holder: 'A recipe box' };
+    const refused = (await fire('Bash', { command: `npm run --silent briefstack -- paths check "${slash(garden)}" --json` })) as {
+      hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string };
+    };
+    expect(refused.hookSpecificOutput?.permissionDecision).toBe('deny');
+    expect(refused.hookSpecificOutput?.permissionDecisionReason).toContain('Ask the user for another folder');
+    expect(events.filter((event) => event.kind === 'denial')).toEqual([
+      expect.objectContaining({ kind: 'denial', toolName: 'Bash', toolUseId: 'u1', reason: expect.stringContaining('A recipe box') }),
+    ]);
+
+    heldBy = (target) => (target.startsWith(garden) ? 'A recipe box' : undefined);
+    const write = (await fire('Write', { file_path: path.join(garden, 'README.md'), content: 'x' })) as { hookSpecificOutput?: { permissionDecision?: string } };
+    expect(write.hookSpecificOutput?.permissionDecision).toBe('deny');
+    expect(await fire('Write', { file_path: path.join(projectsDir, 'other', 'README.md'), content: 'x' })).toEqual({});
     await handle.stop();
   });
 

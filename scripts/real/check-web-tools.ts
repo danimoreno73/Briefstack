@@ -70,6 +70,7 @@ try {
         return { decision: 'change', text: `Rename it to ${word}` };
       },
       grantDirectory: async () => false,
+      claimFolder: () => ({ ok: true }),
     },
     sessionDir: () => sessionDir,
     protectedDirs: protectedDirs(path.join(box.home, 'library'), box.project, pathEnv),

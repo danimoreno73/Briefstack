@@ -18,6 +18,7 @@ import { protectedDirs } from '../scaffold/outputDir.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { findClaudeExecutable } from './claudeBinary.js';
 import { FLOW_BUILTIN_TOOLS, callerOf, guardHook, insideAny, parseBriefstackCommand, type GuardContext } from './guard.js';
+import { folderClaimHook } from './folderClaims.js';
 import { killProcessTree, spawnTracked, type TrackedSpawn } from './processTree.js';
 import { SHADOWED_WEB_TOOLS, filterKnownSdkWarnings } from './sdkWarnings.js';
 import type {
@@ -380,6 +381,7 @@ class SdkRun {
         io: {
           approveSpec: (request) => this.whileAsking(() => this.io.approveSpec(request)),
           grantDirectory: (request) => this.whileAsking(() => this.io.grantDirectory(request)),
+          claimFolder: (dir) => this.io.claimFolder(dir),
         },
         sessionDir: () => (this.claimed === undefined ? undefined : this.sessionDir(this.claimed)),
         protectedDirs: protectedDirs(libraryDir, this.deps.repoDir, this.deps.pathEnv),
@@ -399,6 +401,16 @@ class SdkRun {
             {
               hooks: [
                 guardHook(guardContext, (denial) => this.io.emit({ kind: 'denial', ...denial })),
+                // Its own hook, not the guard: a deny from either wins (docs/decisions.md, phase 4).
+                folderClaimHook(
+                  {
+                    isOwnSession: guardContext.isOwnSession,
+                    claim: (dir) => this.io.claimFolder(dir),
+                    heldByOther: (target) => this.io.folderHeldByOther(target),
+                    pathEnv: this.deps.pathEnv,
+                  },
+                  (denial) => this.io.emit({ kind: 'denial', ...denial }),
+                ),
                 recordEffort,
               ],
             },

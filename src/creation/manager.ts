@@ -23,6 +23,7 @@ import {
   type SessionOutcome,
 } from '../events/index.js';
 import { hideAbsolutePaths, projectEvent } from '../panel/project.js';
+import { FolderClaims } from './folderClaims.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import type {
   CreationRunner,
@@ -264,6 +265,8 @@ const issuesOf = (error: z.ZodError): string[] =>
 
 export class CreationManager {
   private readonly creations = new Map<string, Creation>();
+  /** The output folder of each active creation: two never share one. */
+  private readonly claims = new FolderClaims();
   private readonly options: CreationManagerOptions;
   private readonly now: () => Date;
   private readonly pollMs: number;
@@ -548,6 +551,8 @@ export class CreationManager {
         return this.request(c, 'spec', request);
       },
       grantDirectory: (request) => this.request(c, 'grant', request),
+      claimFolder: (dir) => (this.isFinished(c) ? { ok: true } : this.claims.claim(c.state.id, dir, c.state.idea)),
+      folderHeldByOther: (target) => this.claims.heldByOther(c.state.id, target),
       emit: (event) => {
         if (event.kind === 'denial') {
           const data: DeniedEventData = {
@@ -777,6 +782,7 @@ export class CreationManager {
     }
     c.state.status = 'finished';
     c.state.outcome = outcome;
+    this.claims.release(c.state.id);
     c.state.finishedAt = this.now().toISOString();
     delete c.state.cancelling;
     delete c.state.awaitingReply;

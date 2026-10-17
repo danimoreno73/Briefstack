@@ -16,6 +16,8 @@ import {
   type FlowStep,
   type HookEvent,
 } from '../events/index.js';
+import { addNote } from '../library/notes.js';
+import { claimRefusedMessage } from './folderClaims.js';
 import type { CreationRunner, RunnerHandle, RunnerOutcome, RunnerStartOptions } from './types.js';
 
 /**
@@ -46,6 +48,13 @@ import type { CreationRunner, RunnerHandle, RunnerOutcome, RunnerStartOptions } 
  *   `spec.json` and `spec-summary.md` in the session folder first.
  * - `{"do":"grant","dir":"out/x","onDeny":"<label>"}`: a folder grant; a
  *   relative `dir` is resolved against the session folder.
+ * - `{"do":"claim","dir":"garden","onRefused":"<label>"}`: the flow names its
+ *   output folder (`paths check`), which claims it; a relative `dir` is
+ *   resolved against `projectsDir` (an option), else the session folder.
+ *   When another active creation holds it, a denial is reported as the
+ *   runner's hook would, and the flow goes on at `onRefused` (or the next line).
+ * - `{"do":"library","section":"projects","name":"garden","text":"…"}`: the
+ *   learn step's `library add` (needs the `libraryDir` option).
  * - `{"do":"label","name":"revise"}` and `{"do":"goto","label":"revise"}`.
  * - `{"do":"wait","ms":50}`: a pause (cut short by a cancel or a stop).
  * - `{"do":"exit"}`: the runner ends without closing the session, like a crash.
@@ -119,6 +128,8 @@ const stepSchema = z.discriminatedUnion('do', [
     summary: z.string().optional(),
   }),
   z.object({ do: z.literal('grant'), dir: z.string().min(1), onDeny: label.optional() }),
+  z.object({ do: z.literal('claim'), dir: z.string().min(1), onRefused: label.optional() }),
+  z.object({ do: z.literal('library'), section: z.string().min(1), name: z.string().min(1).optional(), text: z.string().min(1) }),
   z.object({ do: z.literal('label'), name: label }),
   z.object({ do: z.literal('goto'), label }),
   z.object({ do: z.literal('wait'), ms: z.number().int().min(0) }),
@@ -150,6 +161,7 @@ export function parseRecording(text: string): RecordingStep[] {
       'onCancel' in step ? step.onCancel : undefined,
       'onChange' in step ? step.onChange : undefined,
       'onDeny' in step ? step.onDeny : undefined,
+      'onRefused' in step ? step.onRefused : undefined,
     ];
     for (const target of targets) {
       if (target !== undefined && !labels.has(target)) throw new Error(`recording: unknown label "${target}"`);
@@ -169,6 +181,10 @@ export interface FakeRunnerOptions {
   now?: () => Date;
   /** Simulates a flow that never honours `requestCancel()` (tests the manager's fallback). */
   ignoreCancel?: boolean;
+  /** Where a relative `claim` folder is resolved. */
+  projectsDir?: string;
+  /** The library the `library` steps write to. */
+  libraryDir?: string;
 }
 
 const STOPPED = Symbol('stopped');
@@ -333,6 +349,26 @@ export class FakeRunner implements CreationRunner {
             const granted = await untilStopped(io.grantDirectory({ dir: path.resolve(sessionDir, step.dir) }));
             if (granted === STOPPED) return { kind: 'stopped' };
             if (!granted && step.onDeny !== undefined) pc = jump(step.onDeny);
+            break;
+          }
+          case 'claim': {
+            const dir = path.resolve(this.options.projectsDir ?? sessionDir, step.dir);
+            const result = io.claimFolder(dir);
+            if (!result.ok) {
+              io.emit({
+                kind: 'denial',
+                toolName: 'Bash',
+                summary: `npm run --silent briefstack -- paths check "${dir.replaceAll('\\', '/')}" --json`,
+                reason: claimRefusedMessage(dir, result.holder),
+              });
+              if (step.onRefused !== undefined) pc = jump(step.onRefused);
+            }
+            break;
+          }
+          case 'library': {
+            const libraryDir = this.options.libraryDir;
+            if (libraryDir === undefined) throw new Error('recording: a library step needs the libraryDir option');
+            await addNote({ libraryDir, section: step.section, ...(step.name === undefined ? {} : { name: step.name }), text: step.text, session });
             break;
           }
           case 'label':
