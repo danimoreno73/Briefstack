@@ -20,6 +20,11 @@ them only when needed.
 
 A task is not done until build, tests and lint pass. Run them; do not assume.
 
+CI runs on GitHub (Linux). After every push, check it with `gh run list` and
+`gh run watch` (if `gh` is not available, say so and read the public API,
+`https://api.github.com/repos/danimoreno73/Briefstack/actions/runs`). A
+milestone is not done while CI is red; local Windows runs do not stand in for it.
+
 ## Layout
 
 - `src/` — the `briefstack` CLI and its library code

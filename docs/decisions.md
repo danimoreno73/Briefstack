@@ -2070,3 +2070,29 @@ conservative reading of the brief. The user can revisit any of them.
     running creation (several may run); the menu shows the count of active
     creations on "Creations". The project tables scroll inside their box at
     390 px (found by the chat's narrow-screen e2e test).
+15. **CI failure on Linux (2026-10-17, reported by the user).** Every phase
+    4 commit failed `tests/unit/folder-claims.test.ts` on GitHub CI: the
+    folder-collision reason held `/tmp/briefstack-folder-claims-…/projects/garden`.
+    Two causes, both fixed:
+    - the reason built the message from the absolute folder path; it now
+      names the folder against the projects folder (`the folder "garden"
+      in the projects folder`) or as "that folder (outside the projects
+      folder)" (`folderLabel` in `src/creation/folderClaims.ts`);
+    - `hideAbsolutePaths` relied on `findAbsolutePaths`, a check written
+      for generated files that only knows the home folder, drive letters,
+      `/Users/<name>` and `/home/<name>`, so `/tmp/…` passed on Linux. It
+      now has its own pattern: any POSIX path with two segments or more, or
+      one of the usual top folders (`/tmp`, `/var`, `/mnt`…), Windows paths
+      with `\`, `/` or JSON-escaped `\\`, UNC paths with either slash, and
+      `file:` URLs. Slash commands (`/add-dir`) and web URLs stay.
+    Other places that could carry an absolute path, now through it: the
+    streamed `denied` reason (only `events.jsonl` was covered), a
+    creation's `error`, the chat's tool errors, its `sessionError` notice
+    detail, and every string of a chat tool result. In tool results a path
+    under the user's home is written `~/…` first, so `show_settings` still
+    says where the folders are; any other absolute path is hidden. Kept as
+    they were: the command shown in a permission dialog (the user must see
+    exactly what is allowed) and a denied request's command summary on the
+    result screen (phase 2 design).
+    `gh` is not installed on this machine; CI is read from GitHub's public
+    API until it is. The rule is now in `CLAUDE.md`.
