@@ -32,9 +32,11 @@ Updated 2026-10-17. A new session reads `CLAUDE.md`,
 
 | M5 | `src/chat/`: `toolNames.ts`, `tools.ts` (registry of 8 read and 4 action tools, `resultText` wraps and redacts), `diff.ts`, `store.ts` (`<home>/chat/state.json`, `threads/<id>.jsonl`), `manager.ts` (`ChatManager`: one active thread, confirmations one at a time, 10 per 10 minutes, idle close and resume, `resumeFailed` fallback, "New chat"), `fakeChatRunner.ts` (scripts of `say`/`call`/`sayResult`/`echo`/`fail`), `sdkChatRunner.ts`, `wiring.ts`; routes `src/server/chat.ts`; `briefstack web` starts the chat; the SDK warning filter knows the chat's exact set; `docs/api.md` documents routes and every tool |
 
+| M6 | `src/ui/chat.tsx` (`#/chat` page with the model in use, messages, tool lines with links to their sources, confirmation cards with Confirm/Decline and the note diff, notices, `ReplyBox`, "New chat", past chats read-only at `#/chat/<id>`; `ChatDrawer` on every other page, closed with its own button or Escape), `src/ui/chatData.ts` (pure: source links, stream events applied once each); strings in English and Spanish; e2e `tests/e2e/chat.spec.ts` (answer from data with a source link; start, profile and note change each declined then confirmed; cancel declined then confirmed; an injected instruction in a note; reload and server restart with resume; "New chat" and past chats; the drawer; 390 px). The project tables now scroll inside their box at 390 px |
+
 ### Left
 
-Everything from M6 on. Before the real run the user checks that any preset
+M7 (real scripts) and M8 (docs and hand-off). Before the real run the user checks that any preset
 in `<home>/usage-profiles.json` has a `chat` entry (decisions.md, phase 4,
 item 7).
 
