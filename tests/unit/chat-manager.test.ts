@@ -185,6 +185,24 @@ describe('ChatManager', () => {
     expect(await settle(third)).toMatchObject({ content: [{ text: expect.stringContaining('declined') }] });
   });
 
+  it('a card expires before its tool call times out, or when the call is given up, and then does nothing', async () => {
+    const { chat: c } = await open({ turns: [] }, { confirmationTimeoutMs: 100 });
+    const timed = await c.execute('set_usage_profile', { profile: 'saver' });
+    expect(timed).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('expired') }] });
+    const first = (await c.view()).messages.find((message) => message.role === 'confirmation')?.confirmation;
+    expect(first?.state).toBe('expired');
+    expect(() => c.confirm(first?.id ?? '', 'confirm')).toThrow(expect.objectContaining({ code: 'chat.noConfirmation' }));
+
+    const controller = new AbortController();
+    const given = c.execute('set_usage_profile', { profile: 'saver' }, controller.signal);
+    const card = await pendingOf(c);
+    controller.abort();
+    expect(await given).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('expired') }] });
+    expect((await c.view()).pending).toBeUndefined();
+    expect(() => c.confirm(card.id, 'confirm')).toThrow(expect.objectContaining({ code: 'chat.noConfirmation' }));
+    expect(await readConfigProfile(world)).toBeUndefined();
+  });
+
   it('stores the history redacted, and shows it again after a restart, resuming the same session', async () => {
     const script = { turns: [[{ echo: true as const }], [{ say: 'Welcome back.' }]] };
     const { chat: c } = await open(script);

@@ -132,8 +132,12 @@ export interface ChatRunnerStart {
   resume?: string;
   model: string;
   effort: string;
-  /** Runs one chat tool: validation, confirmation, redaction. Both runners call it. */
-  execute(name: string, args: unknown): Promise<ToolReply>;
+  /**
+   * Runs one chat tool: validation, confirmation, redaction. Both runners
+   * call it. `signal` aborts when Claude Code gives up on the call (its
+   * timeout); a card still waiting then expires.
+   */
+  execute(name: string, args: unknown, signal?: AbortSignal): Promise<ToolReply>;
   emit(event: ChatRunnerEvent): void;
 }
 

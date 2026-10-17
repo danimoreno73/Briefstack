@@ -23,6 +23,16 @@ export type ChatToolName = (typeof CHAT_READ_TOOLS)[number] | (typeof CHAT_ACTIO
 
 export const CHAT_TOOL_NAMES: readonly ChatToolName[] = [...CHAT_READ_TOOLS, ...CHAT_ACTION_TOOLS];
 
+/**
+ * The chat server's own tool-call timeout (the SDK `timeout` of the server),
+ * so an `MCP_TOOL_TIMEOUT` in the user's environment cannot cut a waiting
+ * card short. One hour (docs/decisions.md).
+ */
+export const CHAT_TOOL_TIMEOUT_MS = 60 * 60_000;
+
+/** A card expires by itself this long after it is shown: a minute before the call would time out. */
+export const CHAT_CONFIRMATION_TIMEOUT_MS = CHAT_TOOL_TIMEOUT_MS - 60_000;
+
 /** The name Claude Code gives an MCP tool: `mcp__<server>__<tool>`. */
 export const chatToolId = (name: string): string => `mcp__${CHAT_SERVER_NAME}__${name}`;
 

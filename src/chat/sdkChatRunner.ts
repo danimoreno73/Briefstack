@@ -4,7 +4,7 @@ import { findClaudeExecutable } from '../creation/claudeBinary.js';
 import { killProcessTree, spawnTracked, type TrackedSpawn } from '../creation/processTree.js';
 import { cleanEnvironment, type QueryFn } from '../creation/sdkRunner.js';
 import { filterKnownSdkWarnings } from '../creation/sdkWarnings.js';
-import { CHAT_SERVER_NAME, CHAT_TOOL_IDS } from './toolNames.js';
+import { CHAT_SERVER_NAME, CHAT_TOOL_IDS, CHAT_TOOL_TIMEOUT_MS } from './toolNames.js';
 import { CHAT_TOOLS } from './tools.js';
 import type { ChatRunner, ChatRunnerStart, ChatSession } from './types.js';
 
@@ -107,6 +107,12 @@ export function buildChatOptions(params: {
   };
 }
 
+/** The MCP request's abort signal, when the SDK passes one. */
+export function signalOf(extra: unknown): AbortSignal | undefined {
+  const signal = (extra as { signal?: unknown } | null | undefined)?.signal;
+  return signal instanceof AbortSignal ? signal : undefined;
+}
+
 /** The text blocks of an assistant message. */
 function assistantText(message: SDKMessage): string {
   if (message.type !== 'assistant') return '';
@@ -132,8 +138,12 @@ export class SdkChatRunner implements ChatRunner {
     const server = createSdkMcpServer({
       name: CHAT_SERVER_NAME,
       version: '1.0.0',
+      // Our own limit, not MCP_TOOL_TIMEOUT from the user's environment: a card waits inside the call.
+      timeout: CHAT_TOOL_TIMEOUT_MS,
       tools: CHAT_TOOLS.map((definition) =>
-        tool(definition.name, definition.description, definition.input, async (args) => options.execute(definition.name, args), { alwaysLoad: true }),
+        tool(definition.name, definition.description, definition.input, async (args, extra) => options.execute(definition.name, args, signalOf(extra)), {
+          alwaysLoad: true,
+        }),
       ),
     });
 

@@ -1,8 +1,8 @@
 import type { Options, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CHAT_SYSTEM_PROMPT, SdkChatRunner, buildChatOptions } from '../../src/chat/sdkChatRunner.js';
-import { CHAT_SERVER_NAME, CHAT_TOOL_IDS } from '../../src/chat/toolNames.js';
+import { CHAT_SYSTEM_PROMPT, SdkChatRunner, buildChatOptions, signalOf } from '../../src/chat/sdkChatRunner.js';
+import { CHAT_CONFIRMATION_TIMEOUT_MS, CHAT_SERVER_NAME, CHAT_TOOL_IDS, CHAT_TOOL_TIMEOUT_MS } from '../../src/chat/toolNames.js';
 import type { ChatRunnerEvent, ToolReply } from '../../src/chat/types.js';
 import type { TrackedSpawn } from '../../src/creation/processTree.js';
 import type { QueryFn } from '../../src/creation/sdkRunner.js';
@@ -115,6 +115,18 @@ describe('the chat session options', () => {
     expect(await (o.canUseTool as NonNullable<Options['canUseTool']>)('Bash', {}, { signal: new AbortController().signal, toolUseID: 't', requestId: 'r' })).toMatchObject({
       behavior: 'deny',
     });
+    await session.stop();
+  });
+
+  it('give the chat server its own tool-call timeout, so MCP_TOOL_TIMEOUT from the environment cannot cut a card short', async () => {
+    const { session, options } = setup();
+    await tick();
+    const server = options().mcpServers?.[CHAT_SERVER_NAME] as { timeout?: number };
+    expect(server.timeout).toBe(CHAT_TOOL_TIMEOUT_MS);
+    expect(CHAT_CONFIRMATION_TIMEOUT_MS).toBeLessThan(CHAT_TOOL_TIMEOUT_MS);
+    const controller = new AbortController();
+    expect(signalOf({ signal: controller.signal })).toBe(controller.signal);
+    expect(signalOf(undefined)).toBeUndefined();
     await session.stop();
   });
 

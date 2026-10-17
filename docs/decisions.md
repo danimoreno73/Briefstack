@@ -2129,3 +2129,22 @@ conservative reading of the brief. The user can revisit any of them.
       card and starting the creation with the whole text.
     - The lines of a note-change card go through the secret redactor, so a
       secret line the change removes is never kept in the chat history.
+    - **MCP tool-call timeout.** Source: Claude Code "Environment
+      variables" (`code.claude.com/docs/en/env-vars`, read 2026-10-18):
+      `MCP_TOOL_TIMEOUT` is "Timeout in milliseconds for MCP tool execution
+      (default: 100000000, about 28 hours)", and a per-server `timeout`
+      overrides it for that server; the idle timeout
+      (`CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT`) names stdio, HTTP, SSE,
+      WebSocket and claude.ai servers only. The installed SDK (0.3.286,
+      `sdk.d.ts`, `createSdkMcpServer`) says the same for in-process
+      servers: `options.timeout`, else `MCP_TOOL_TIMEOUT`, "effectively
+      unbounded by default". So item 9 held only while the user's
+      environment set no `MCP_TOOL_TIMEOUT`, which the environment cleaning
+      keeps. Now the chat server sets its own `timeout` of 1 hour
+      (`CHAT_TOOL_TIMEOUT_MS`), and a card not answered within 59 minutes
+      (`CHAT_CONFIRMATION_TIMEOUT_MS`) expires by itself, so the tool call
+      always returns "expired, nothing was done" before Claude Code could
+      time it out; a confirmation after that is refused
+      (`chat.noConfirmation`). If the SDK passes the call's abort signal
+      (the handler's `extra.signal`) and Claude Code gives up the call, the
+      card expires at once too.

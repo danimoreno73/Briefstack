@@ -3,6 +3,7 @@ import { BriefstackError } from '../errors.js';
 import { hideAbsolutePaths } from '../panel/project.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import type { ChatStore, ChatStoreState, ChatThreadRecord } from './store.js';
+import { CHAT_CONFIRMATION_TIMEOUT_MS } from './toolNames.js';
 import {
   ChatToolError,
   StaleProposalError,
@@ -52,6 +53,8 @@ export interface ChatManagerOptions {
   now?: () => Date;
   /** A session with nothing to do for this long is closed; the next message resumes it. Default 10 minutes. */
   idleMs?: number;
+  /** A card not answered for this long expires, before the tool call itself times out. Default `CHAT_CONFIRMATION_TIMEOUT_MS`. */
+  confirmationTimeoutMs?: number;
   /** Default 10 cards per 10 minutes. */
   maxProposals?: number;
   proposalWindowMs?: number;
@@ -322,7 +325,7 @@ export class ChatManager {
   // ---- tools
 
   /** Runs one tool call for the session. Errors come back as tool errors the model can read. */
-  async execute(name: string, args: unknown): Promise<ToolReply> {
+  async execute(name: string, args: unknown, signal?: AbortSignal): Promise<ToolReply> {
     const reply = (text: string, isError = false): ToolReply => ({ content: [{ type: 'text', text }], ...(isError ? { isError: true } : {}) });
     const definition = findChatTool(name);
     if (definition === undefined) return reply(`There is no tool ${name}.`, true);
@@ -359,7 +362,7 @@ export class ChatManager {
     // Taken before any await, so a second call in the same turn is refused instead of replacing this card.
     this.acting = true;
     try {
-      return await this.act(name, definition, parsed, summary, now, reply);
+      return await this.act(name, definition, parsed, summary, now, reply, signal);
     } finally {
       this.acting = false;
     }
@@ -372,6 +375,7 @@ export class ChatManager {
     summary: string,
     now: number,
     reply: (text: string, isError?: boolean) => ToolReply,
+    signal: AbortSignal | undefined,
   ): Promise<ToolReply> {
     let proposal;
     try {
@@ -385,9 +389,25 @@ export class ChatManager {
     const confirmation: Confirmation = { id: randomUUID(), tool: name, card: proposal.card, state: 'pending' };
     const message = this.add({ role: 'confirmation', confirmation });
     this.clearIdle();
+    // A card never outlives its tool call: it expires a little before the call's own timeout, or when the call is given up.
+    let timer: NodeJS.Timeout | undefined;
+    let onAbort: (() => void) | undefined;
     const decision = await new Promise<'confirmed' | 'declined' | 'expired'>((resolve) => {
-      this.waiting = { confirmation, messageId: message.id, resolve };
+      const waiting: Waiting = { confirmation, messageId: message.id, resolve };
+      this.waiting = waiting;
+      const expire = () => {
+        if (this.waiting !== waiting) return;
+        this.waiting = undefined;
+        resolve('expired');
+      };
+      timer = setTimeout(expire, this.options.confirmationTimeoutMs ?? CHAT_CONFIRMATION_TIMEOUT_MS);
+      timer.unref();
+      if (signal?.aborted === true) expire();
+      onAbort = expire;
+      signal?.addEventListener('abort', onAbort, { once: true });
     });
+    clearTimeout(timer);
+    if (onAbort !== undefined) signal?.removeEventListener('abort', onAbort);
     this.waiting = undefined;
     if (decision === 'declined') {
       this.updateConfirmation(message, 'declined');

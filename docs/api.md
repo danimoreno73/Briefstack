@@ -368,6 +368,9 @@ A message: `{ id, ts, role: "user" | "assistant" | "tool" | "confirmation" | "no
 `confirmation` is `{ id, tool, card, state: "pending" | "confirmed" | "declined" | "failed" | "expired" | "stale", result?, sources? }`.
 `stale` means the user confirmed but what the card showed no longer held
 (the note changed in between), so nothing was done.
+A card not answered within 59 minutes expires (`expired`), a minute before
+the chat server's own one-hour tool-call timeout, so a late confirmation can
+never run an action the chat was told had failed.
 `notice` is `resumeFailed` (the model context could not be restored: a new
 session started, the old messages stay) or `sessionError` (`detail` says
 what). Every text is stored and sent redacted.
