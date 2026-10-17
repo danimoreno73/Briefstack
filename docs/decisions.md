@@ -2108,3 +2108,14 @@ conservative reading of the brief. The user can revisit any of them.
       left in any other new or changed line refuses the proposal, and so
       does a kept line that looks like a secret (the user edits that note
       in the Library page).
+    - Library lock (item 4): each lock names its owner with a token. A stale
+      lock is renamed to a name of the taker's own before it is removed, so
+      only one process takes it; if the renamed lock is not the one judged
+      stale (another process took it over in between), it is put back. At
+      the end a holder removes the lock only while `owner.json` is still
+      its own. A removal that fails after the change is saved is a process
+      warning (`BRIEFSTACK_LIBRARY_LOCK`), not an error, and the lock left
+      behind is taken over at once by the next change in the same process
+      (it holds no call) or by the stale rules in another. A change longer
+      than 2 minutes can still lose its lock to the age rule; library
+      changes take seconds, so the lock is not refreshed while held.

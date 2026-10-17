@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { addNote, initLibrary, libraryLockDir, saveNote, withLibraryLock } from '../../src/library/index.js';
@@ -97,6 +97,70 @@ describe('library queue', () => {
       code: 'library.busy',
     });
     expect(ran).toBe(false);
+  });
+
+  it('never takes a lock another process took over first: a fresh lock found in place of the stale one is put back', async () => {
+    const library = path.join(dir, 'lib');
+    const lock = libraryLockDir(library, lockRoot);
+    const gone = spawn(process.execPath, ['-e', ''], { stdio: 'ignore' });
+    await new Promise((resolve) => gone.once('exit', resolve));
+    const other = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], { stdio: 'ignore' });
+    try {
+      await mkdir(lock, { recursive: true });
+      await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: gone.pid, token: 'dead' }));
+      // Between our look and our take-over, another process takes the stale lock and holds it.
+      const onStale = async () => {
+        await rm(lock, { recursive: true, force: true });
+        await mkdir(lock);
+        await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: other.pid, token: 'fresh' }));
+      };
+      let ran = false;
+      await expect(withLibraryLock(library, async () => (ran = true), { lockRoot, retryMs: 10, timeoutMs: 150, onStale })).rejects.toMatchObject({
+        code: 'library.busy',
+      });
+      expect(ran).toBe(false);
+      expect(JSON.parse(await readFile(path.join(lock, 'owner.json'), 'utf8'))).toMatchObject({ token: 'fresh' });
+    } finally {
+      other.kill();
+    }
+  });
+
+  it('removes the lock at the end only while it is still its own', async () => {
+    const library = path.join(dir, 'lib');
+    const lock = libraryLockDir(library, lockRoot);
+    const result = await withLibraryLock(
+      library,
+      async () => {
+        // The change ran past the stale age and another process took the lock over.
+        await rm(lock, { recursive: true, force: true });
+        await mkdir(lock);
+        await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: process.pid + 1, token: 'other' }));
+        return 'saved';
+      },
+      { lockRoot },
+    );
+    expect(result).toBe('saved');
+    expect(JSON.parse(await readFile(path.join(lock, 'owner.json'), 'utf8'))).toMatchObject({ token: 'other' });
+  });
+
+  it('a lock that cannot be removed after a good change is reported, keeps the result, and does not block the next change', async () => {
+    const library = path.join(dir, 'lib');
+    const warnings: string[] = [];
+    const onWarning = (warning: Error) => warnings.push(warning.message);
+    process.on('warning', onWarning);
+    try {
+      const failing = async () => {
+        throw Object.assign(new Error('busy'), { code: 'EPERM' });
+      };
+      expect(await withLibraryLock(library, async () => 'saved', { lockRoot, removeLock: failing })).toBe('saved');
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(warnings.some((message) => message.includes('could not be removed') && message.includes('(EPERM)'))).toBe(true);
+      // The lock left behind is this process's own, held by no call: the next change takes it over at once.
+      expect(await withLibraryLock(library, async () => 'next', { lockRoot, retryMs: 10, timeoutMs: 500 })).toBe('next');
+      expect(await exists(libraryLockDir(library, lockRoot))).toBe(false);
+    } finally {
+      process.off('warning', onWarning);
+    }
   });
 
   it('two creations finishing together: every note, every index line and every commit is there', async () => {
