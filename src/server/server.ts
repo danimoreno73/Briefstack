@@ -1,10 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import type { ChatManager } from '../chat/manager.js';
 import type { CreationManager } from '../creation/manager.js';
 import { systemPathEnv, type PathEnv } from '../config/index.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
 import { DEFAULT_LANG, type Lang } from '../i18n/index.js';
 import { VERSION } from '../version.js';
+import { chatRoutes } from './chat.js';
 import { creationRoutes } from './creations.js';
 import { BASE_HEADERS, header, sendError, sendJson } from './http.js';
 import { readRoutes } from './read.js';
@@ -33,6 +35,8 @@ export interface WebServerOptions {
    * `creation.unavailable`. The caller owns it and calls its `shutdown()`.
    */
   creations?: CreationManager;
+  /** The global chat. Without one, the chat routes answer 503 `chat.unavailable`. The caller owns it. */
+  chat?: ChatManager;
   /** Where the user's files live; the real machine by default. Tests pass a temp home. */
   pathEnv?: PathEnv;
   /** The briefstack repo the usage and paths routes report on; the package by default. */
@@ -60,6 +64,7 @@ function apiRoutes(options: WebServerOptions): RouteTable {
     ...readRoutes({ pathEnv, repoDir: options.repoDir, lang: options.lang }),
     ...writeRoutes({ pathEnv, repoDir: options.repoDir }),
     ...creationRoutes(options.creations, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
+    ...chatRoutes(options.chat, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
   ];
 }
 

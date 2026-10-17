@@ -52,7 +52,9 @@ import { validateProject } from './validate/index.js';
 import { DEFAULT_WEB_PORT, startWebServer } from './server/index.js';
 import { webMessages } from './i18n/web.js';
 import { checkClaudeCode, formatVersion, type ClaudeCheck } from './creation/claudeBinary.js';
+import type { ChatRunner } from './chat/types.js';
 import type { CreationRunner } from './creation/types.js';
+import { createWebChat } from './chat/wiring.js';
 import { createWebCreations } from './creation/wiring.js';
 
 /** Argument parsing only; all real work lives in the library. */
@@ -79,6 +81,8 @@ export interface CliIO {
   checkClaude?: () => Promise<ClaudeCheck>;
   /** The runner `web` creates projects with: the real SDK runner unless a test passes the fake one. */
   creationRunner?: CreationRunner;
+  /** The runner of the global chat: the real SDK one unless a test passes the fake one. */
+  chatRunner?: ChatRunner;
 }
 
 const defaultIO = (): CliIO => ({
@@ -541,18 +545,22 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     lang,
     runner: io.creationRunner,
   });
+  let chat;
   let server;
   try {
+    chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner });
     server = await startWebServer({
       port,
       lang,
       log: io.err,
       pathEnv: io.pathEnv,
       creations,
+      chat,
       ...(io.repoDir === undefined ? {} : { repoDir: io.repoDir }),
       ...(io.uiDir === undefined ? {} : { uiDir: io.uiDir }),
     });
   } catch (error) {
+    await chat?.shutdown();
     await creations.shutdown();
     throw error;
   }
@@ -564,7 +572,8 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   const warning = claudeWarning(claude, lang);
   if (warning !== undefined) io.err(warning);
   await (io.untilStopped ?? untilSignal)();
-  // Creations first: a running one is closed as interrupted before the server goes.
+  // The chat and the creations first: a running creation is closed as interrupted before the server goes.
+  await chat.shutdown();
   await creations.shutdown();
   await server.close();
   io.out(messages.stopped);
