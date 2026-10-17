@@ -2,8 +2,15 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeRunner, parseRecording } from '../../src/creation/fakeRunner.js';
 import { CreationManager, type CreationState, type StreamEvent } from '../../src/creation/manager.js';
-import type { PermissionPolicy } from '../../src/creation/types.js';
-import { readEvents, sessionEventsFile, summarizeSession } from '../../src/events/index.js';
+import type { CreationRunner, PermissionPolicy } from '../../src/creation/types.js';
+import {
+  appendEvent,
+  readEvents,
+  sessionEndEvent,
+  sessionEventsFile,
+  sessionLifecycleEvent,
+  summarizeSession,
+} from '../../src/events/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { tempDir } from '../helpers.js';
 
@@ -51,7 +58,7 @@ describe('CreationManager', () => {
   });
 
   const make = async (
-    recording: string | FakeRunner,
+    recording: string | CreationRunner,
     options: { policy?: PermissionPolicy; cancelTimeoutMs?: number } = {},
   ): Promise<CreationManager> => {
     const runner =
@@ -62,6 +69,7 @@ describe('CreationManager', () => {
       policy: () => options.policy ?? 'ask',
       profile: () => ({ name: 'balanced', sessionModel: 'opus', effort: 'medium' }),
       pollMs: 10,
+      tailMs: 20,
       cancelTimeoutMs: options.cancelTimeoutMs ?? 5000,
     });
     return manager;
@@ -93,7 +101,8 @@ describe('CreationManager', () => {
     expect(final).toMatchObject({ status: 'finished', outcome: 'completed', idea: 'A garden planner', profile: 'balanced' });
     expect(final.pending).toBeUndefined();
     expect(final.finishedAt).toBeDefined();
-    expect(ended).toBe(true);
+    // The stream ends once the runner is done and the file was read a last time.
+    await waitFor(() => ended);
     expect(seen.map((e) => e.seq)).toEqual(seen.map((_, i) => i + 1));
     const kinds = seen.map((e) => e.kind);
     expect(kinds.filter((k) => k === 'question')).toHaveLength(4); // two batches, pending + answered
@@ -266,7 +275,8 @@ describe('CreationManager', () => {
     m.subscribe(id, lastSeen, (e) => after.push(e), () => (ended = true));
     expect(after[0]?.seq).toBe(lastSeen + 1);
     await runToEnd(m, id);
-    expect(ended).toBe(true);
+    // The stream ends once the runner is done and the file was read a last time.
+    await waitFor(() => ended);
     expect([...before, ...after]).toEqual(all);
   });
 
@@ -280,6 +290,38 @@ describe('CreationManager', () => {
     const events = await fileEvents(final);
     expect(events.at(-1)).toMatchObject({ source: 'hook', type: 'session.end', reason: 'server_stop' });
     expect(summarizeSession(events)).toMatchObject({ status: 'interrupted', endReason: 'server_stop' });
+  });
+
+  it('streams the session.end Claude Code writes as it exits, after session.finished', async () => {
+    const session = 'late-end';
+    const runner: CreationRunner = {
+      start: (options) => {
+        const done = (async () => {
+          await appendEvent(options.sessionsDir, sessionLifecycleEvent(session, 'started', undefined, new Date()));
+          await appendEvent(options.sessionsDir, sessionLifecycleEvent(session, 'finished', 'completed', new Date()));
+          // The manager sees `session.finished` and finishes before this line exists.
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          await appendEvent(options.sessionsDir, sessionEndEvent(session, 'other', new Date()));
+          return { kind: 'ended' as const };
+        })();
+        return { sessionId: Promise.resolve(session), requestCancel: () => undefined, stop: async () => undefined, done };
+      },
+    };
+    const m = await make(runner);
+    const { id } = await m.create('x');
+    const seen: StreamEvent[] = [];
+    let ended = false;
+    m.subscribe(id, 0, (event) => seen.push(event), () => (ended = true));
+    await waitFor(() => (m.get(id).status === 'finished' ? true : undefined));
+    await waitFor(() => ended);
+    const finishedAt = seen.findIndex((e) => e.kind === 'status' && e.data.status === 'finished');
+    const end = seen.findIndex((e) => e.kind === 'hook' && e.data.type === 'session.end');
+    expect(finishedAt).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(finishedAt);
+    // A tab opened afterwards gets the same lines, once each.
+    const replay: StreamEvent[] = [];
+    m.subscribe(id, 0, (event) => replay.push(event));
+    expect(replay).toEqual(seen);
   });
 
   it('marks the session interrupted when the runner ends without closing it', async () => {

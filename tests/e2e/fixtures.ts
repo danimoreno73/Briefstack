@@ -135,6 +135,7 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     policy: () => options.policy ?? 'ask',
     profile: () => ({ name: 'balanced', sessionModel: 'opus', effort: 'medium' }),
     pollMs: 20,
+    tailMs: 20,
     ...(options.planUsage === undefined
       ? {}
       : {

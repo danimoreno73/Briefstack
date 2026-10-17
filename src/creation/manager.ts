@@ -178,6 +178,12 @@ export interface CreationManagerOptions {
   /** After `session.finished`, how long the runner has to end by itself before it is stopped. Default 30 s. */
   finishGraceMs?: number;
   /**
+   * Once the creation finished and its runner is done, the wait before the
+   * last read of `events.jsonl` that closes the stream, so a line Claude Code
+   * writes as it exits (the hook's `session.end`) still reaches it. Default 1 s.
+   */
+  tailMs?: number;
+  /**
    * Reads the plan usage (`src/creation/planUsage.ts`). Called once the
    * session id is known and every `usageEveryMs` while the creation runs;
    * each reading becomes a `usage` line. Without it, nothing is read.
@@ -225,6 +231,9 @@ interface Creation {
   cancelTimer?: NodeJS.Timeout | undefined;
   graceTimer?: NodeJS.Timeout | undefined;
   usageTimer?: NodeJS.Timeout | undefined;
+  /** The stream ended: subscribers were closed after the last read of `events.jsonl`. */
+  streamClosed: boolean;
+  closing?: Promise<void>;
 }
 
 const questionAnswerSchema = z.record(z.string(), z.string().trim().min(1));
@@ -257,6 +266,7 @@ export class CreationManager {
   private readonly pollMs: number;
   private readonly cancelTimeoutMs: number;
   private readonly finishGraceMs: number;
+  private readonly tailMs: number;
 
   constructor(options: CreationManagerOptions) {
     this.options = options;
@@ -264,6 +274,7 @@ export class CreationManager {
     this.pollMs = options.pollMs ?? 300;
     this.cancelTimeoutMs = options.cancelTimeoutMs ?? 60_000;
     this.finishGraceMs = options.finishGraceMs ?? 30_000;
+    this.tailMs = options.tailMs ?? 1000;
   }
 
   /** Starts a creation. Throws `creation.busy` while another one is active. */
@@ -293,6 +304,7 @@ export class CreationManager {
       unwritten: [],
       writeChain: Promise.resolve(),
       pollChain: Promise.resolve(),
+      streamClosed: false,
     };
     // Registered before any await, so a second create sees it.
     this.creations.set(c.state.id, c);
@@ -448,7 +460,7 @@ export class CreationManager {
   subscribe(id: string, fromSeq: number, listener: Listener, onEnd: () => void = () => undefined): () => void {
     const c = this.find(id);
     for (const event of c.buffer) if (event.seq > fromSeq) listener(event);
-    if (this.isFinished(c)) {
+    if (c.streamClosed) {
       onEnd();
       return () => undefined;
     }
@@ -487,6 +499,7 @@ export class CreationManager {
       this.finish(c, 'interrupted');
     });
     await Promise.all(work);
+    await Promise.all([...this.creations.values()].map((c) => this.closeStream(c)));
   }
 
   // ---- internals ----
@@ -769,13 +782,42 @@ export class CreationManager {
     c.pollTimer = undefined;
     c.cancelTimer = undefined;
     this.pushStatus(c);
-    const subscribers = [...c.subscribers];
-    c.subscribers.clear();
-    for (const subscriber of subscribers) subscriber.onEnd();
-    if (!c.runnerDone && !c.stopping && c.handle !== undefined) {
+    // The stream stays open until the runner is done: Claude Code writes `session.end` as it exits.
+    if (c.runnerDone || c.handle === undefined) void this.closeStream(c);
+    else if (!c.stopping) {
       c.graceTimer = setTimeout(() => void this.stopRunner(c), this.finishGraceMs);
       c.graceTimer.unref();
     }
+  }
+
+  /**
+   * The end of a finished creation's stream: the lines written after the
+   * close (runner lines still queued, the hook's `session.end` on exit) are
+   * read and streamed, then the subscribers are closed. So the live panel
+   * matches the panel rebuilt from the file.
+   */
+  private async closeStream(c: Creation): Promise<void> {
+    if (c.streamClosed || c.closing !== undefined) return c.closing;
+    c.closing = (async () => {
+      const tail = async () => {
+        await c.writeChain;
+        const session = c.state.sessionId;
+        if (session === undefined) return;
+        try {
+          this.pushLines(c, (await readEvents(sessionEventsFile(this.options.sessionsDir, session))).events);
+        } catch {
+          // Nothing more to stream.
+        }
+      };
+      await (c.pollChain = c.pollChain.then(tail).catch(() => undefined));
+      await new Promise((resolve) => setTimeout(resolve, this.tailMs).unref());
+      await (c.pollChain = c.pollChain.then(tail).catch(() => undefined));
+      c.streamClosed = true;
+      const subscribers = [...c.subscribers];
+      c.subscribers.clear();
+      for (const subscriber of subscribers) subscriber.onEnd();
+    })();
+    return c.closing;
   }
 
   private async stopRunner(c: Creation): Promise<void> {
@@ -790,8 +832,12 @@ export class CreationManager {
     if (c.graceTimer !== undefined) clearTimeout(c.graceTimer);
     if (outcome.kind === 'failed') c.state.error = outcome.error;
     await this.flush(c);
+    if (this.isFinished(c)) {
+      void this.closeStream(c);
+      return;
+    }
     // The server is ending it (stop or cancel fallback) and writes the end itself.
-    if (this.isFinished(c) || c.stopping) return;
+    if (c.stopping) return;
     // The runner ended without closing the flow: the session is interrupted.
     if (c.state.sessionId !== undefined) {
       const end: HookEvent = {

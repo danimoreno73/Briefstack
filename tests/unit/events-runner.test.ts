@@ -110,6 +110,7 @@ describe('the manager writes runner lines', () => {
       policy: () => policy,
       profile: () => ({ name: 'balanced', sessionModel: 'opus', effort: 'medium' }),
       pollMs: 10,
+      tailMs: 20,
     });
     const { id } = await manager.create('idea');
     const seen: StreamEvent[] = [];

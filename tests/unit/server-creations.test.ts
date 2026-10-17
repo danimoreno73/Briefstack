@@ -107,6 +107,7 @@ describe('creation API', () => {
         policy: () => 'ask',
         profile: () => ({ name: 'balanced', sessionModel: 'sonnet' }),
         pollMs: 10,
+        tailMs: 20,
       });
     }
     server = await startWebServer({

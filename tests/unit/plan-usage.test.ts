@@ -74,6 +74,7 @@ describe('the manager records plan usage', () => {
       policy: () => 'ask',
       profile: () => ({ name: 'balanced', sessionModel: 'sonnet' }),
       pollMs: 10,
+      tailMs: 20,
       planUsage,
       usageEveryMs: 60,
     });
@@ -106,6 +107,7 @@ describe('the manager records plan usage', () => {
       policy: () => 'ask',
       profile: () => ({ name: 'balanced', sessionModel: 'sonnet' }),
       pollMs: 10,
+      tailMs: 20,
       planUsage: () => new Promise((resolve) => (release = resolve)),
     });
     const { id } = await manager.create('idea');
@@ -129,6 +131,7 @@ describe('the manager records plan usage', () => {
       policy: () => 'ask',
       profile: () => ({ name: 'balanced', sessionModel: 'sonnet' }),
       pollMs: 10,
+      tailMs: 20,
       planUsage: async () => {
         throw new Error('no');
       },
