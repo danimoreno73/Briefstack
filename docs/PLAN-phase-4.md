@@ -26,9 +26,11 @@ Updated 2026-10-17. A new session reads `CLAUDE.md`,
 
 | M2 | Config `maxActiveCreations` (default 2, whole number ≥ 1; Settings field with a note above 3; `creation.limit`, 409); library queue `src/library/lock.ts` around `addNote`, `saveNote`, `revertLibraryCommit` and the `init` commit (`library.busy` after 60 s); folder claims `src/creation/folderClaims.ts` (manager registry, `RunnerIO.claimFolder`/`folderHeldByOther`, a `PreToolUse` hook of its own, `grant_directory` refuses a held folder); fake runner steps `claim` and `library`; `#/creations` page (idea, step, what it waits for, link), a count in the menu, the "plan usage adds up" note on the form, "For the creation: …" on every pending control; e2e `tests/e2e/several.spec.ts` (questions kept apart, two finishing with both commits, the folder collision) and the limit in `creation.spec.ts` |
 
+| M3 | `RunnerHandle.sendMessage` (SDK runner: same input queue; fake runner: step `turnEnd`, option `received`), `CreationManager.reply`, `POST /api/creations/:id/reply` (`creation.noReply`, 409), `ReplyBox` (`src/ui/reply.tsx`, Ctrl+Enter sends) in the "waiting for a reply" panel; unit tests and an e2e |
+
 ### Left
 
-Everything from M3 on.
+Everything from M4 on.
 
 ## 1. Approach
 

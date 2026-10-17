@@ -35,7 +35,7 @@ text use those. The security rejections above send `{ "code" }` only.
 |---|---|
 | 400 | `web.invalidJson`, `web.invalidBody`, `web.invalidQuery`, `creation.invalidAnswer`, any other coded error |
 | 404 | `web.notFound`, `creation.notFound`, `creation.noSpec`, `library.noteNotFound`, `library.commitNotFound`, `events.sessionNotFound` |
-| 409 | `creation.limit`, `creation.noPending`, `creation.wrongPending`, `library.dirtyTree`, `library.revertConflict` |
+| 409 | `creation.limit`, `creation.noReply`, `library.busy`, `creation.noPending`, `creation.wrongPending`, `library.dirtyTree`, `library.revertConflict` |
 | 413 | `web.bodyTooLarge` |
 | 415 | `web.unsupportedMediaType` |
 | 503 | `creation.unavailable` (the server was started without a creation manager; `briefstack web` always has one) |
@@ -300,6 +300,16 @@ the open step as `skipped` and the session as `cancelled`. If it has not
 done so within 60 s, the server stops the runner and writes those two
 events itself. `200 CreationState` (with `cancelling: true`). Cancelling a
 finished creation changes nothing.
+
+### `POST /api/creations/:id/reply`
+
+Body `{ "text": "<1–10000 characters, trimmed>" }`. The free-text reply
+(BRIEF-phase-4 §3.3): only while the creation has `awaitingReply` (the
+session ended a turn with nothing asked in the browser) and is neither
+cancelling nor asking something; otherwise `409 creation.noReply`. The text
+is sent to the session as a user message, through the same input queue as
+the first one, and is not stored by briefstack. `200 CreationState`
+(without `awaitingReply`).
 
 ### `GET /api/creations/:id/stream?from=<seq>`
 

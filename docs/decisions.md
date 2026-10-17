@@ -2011,3 +2011,11 @@ conservative reading of the brief. The user can revisit any of them.
    when the creation finishes. Claims live in the server's memory: they
    cover creations started from the web app, which is where several run at
    once.
+6. **Free-text reply.** The box appears only in the existing "waiting for a
+   reply" panel (a turn ended with nothing asked). The skill still says
+   never to end a turn waiting for plain text in the web app; the reply is
+   the way out when it does anyway, not a new path of the flow. The text is
+   sent as a user message through the runner's input queue (H0 #4) and is
+   not stored by briefstack (the panel shows no model or user text). The
+   idle stop of the runner is off from the reply until the next turn ends.
+   Limit 10 000 characters, the same as a chat message.
