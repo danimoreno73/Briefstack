@@ -28,9 +28,13 @@ Updated 2026-10-17. A new session reads `CLAUDE.md`,
 
 | M3 | `RunnerHandle.sendMessage` (SDK runner: same input queue; fake runner: step `turnEnd`, option `received`), `CreationManager.reply`, `POST /api/creations/:id/reply` (`creation.noReply`, 409), `ReplyBox` (`src/ui/reply.tsx`, Ctrl+Enter sends) in the "waiting for a reply" panel; unit tests and an e2e |
 
+| M4 | `chat: { model, effort }` required in every preset (`ChatSettingSchema`); base presets saver → haiku/low, balanced → sonnet/medium, max → opus/high; shown by `usage show`, `GET /api/usage` and the Usage page |
+
 ### Left
 
-Everything from M4 on.
+Everything from M5 on. Before the real run the user checks that any preset
+in `<home>/usage-profiles.json` has a `chat` entry (decisions.md, phase 4,
+item 7).
 
 ## 1. Approach
 

@@ -2019,3 +2019,11 @@ conservative reading of the brief. The user can revisit any of them.
    not stored by briefstack (the panel shows no model or user text). The
    idle stop of the runner is off from the reply until the next turn ends.
    Limit 10 000 characters, the same as a chat message.
+7. **`chat` is required in every preset**, as BRIEF §8.3 says, so a user
+   presets file (`<home>/usage-profiles.json`) written before phase 4 no
+   longer loads: `usage show`, `usage set`, the Usage page and new
+   creations stop with `usage.invalidProfiles`, whose issue names
+   `profiles.<name>.chat`. The fix is one line per user preset,
+   `"chat": { "model": "<model>", "effort": "<level>" }`. A default was not
+   invented for them because the brief makes the user choose. Listed among
+   the things to check before the real run.

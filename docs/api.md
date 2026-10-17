@@ -131,8 +131,8 @@ The session's lines for the agent panel (phase 3):
 ### `GET /api/usage`
 
 What `briefstack usage show --json` prints (`profile`, `label`, `fromConfig`,
-`sessionModel`, `agents`, `tiers`, `research`, `reviewRounds`, `available`,
-`drift`, `envWarnings`) plus `presets`: `[{ name, source: "base" | "user", label: { en, es }, sessionModel, effort, tiers, research, reviewRounds }, …]`.
+`sessionModel`, `chat: { model, effort }`, `agents`, `tiers`, `research`, `reviewRounds`, `available`,
+`drift`, `envWarnings`) plus `presets`: `[{ name, source: "base" | "user", label: { en, es }, sessionModel, effort, chat, tiers, research, reviewRounds }, …]`.
 No token or cost figures.
 
 ### `GET /api/paths`
