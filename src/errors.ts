@@ -76,6 +76,10 @@ export interface ErrorParams {
   'creation.wrongPending': { pendingId: string; expected: string };
   'creation.invalidAnswer': { kind: string; issues: string[] };
   'creation.noReply': { id: string };
+  'chat.unavailable': Record<string, never>;
+  'chat.threadNotFound': { id: string };
+  'chat.busy': Record<string, never>;
+  'chat.noConfirmation': { id: string };
 }
 
 export type ErrorCode = keyof ErrorParams;

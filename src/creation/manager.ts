@@ -285,9 +285,14 @@ export class CreationManager {
     this.tailMs = options.tailMs ?? 1000;
   }
 
+  /** How many creations may be active at once now (config `maxActiveCreations`). */
+  async limit(): Promise<number> {
+    return (await this.options.maxActive?.()) ?? DEFAULT_MAX_ACTIVE_CREATIONS;
+  }
+
   /** Starts a creation. Throws `creation.limit` when as many as the limit are active. */
   async create(idea: string): Promise<CreationState> {
-    const limit = (await this.options.maxActive?.()) ?? DEFAULT_MAX_ACTIVE_CREATIONS;
+    const limit = await this.limit();
     // From here to the registration below there is no await, so two starts at once both count.
     const active = [...this.creations.values()].filter((c) => c.state.status !== 'finished').map((c) => c.state.id);
     if (active.length >= limit) throw new BriefstackError('creation.limit', { limit, active });

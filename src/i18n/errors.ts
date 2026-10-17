@@ -147,6 +147,10 @@ const errors = defineCatalogue<ErrorMessages>({
       `That answer is for ${p.pendingId}, but the creation is waiting for ${p.expected}. Reload and try again.`,
     'creation.invalidAnswer': (p) => `The answer to this ${p.kind} is not valid:${bullets(p.issues)}`,
     'creation.noReply': (p) => `Creation ${p.id} is not waiting for a reply.`,
+    'chat.unavailable': () => 'The chat is not available in this server.',
+    'chat.threadNotFound': (p) => `There is no chat ${p.id}.`,
+    'chat.busy': () => 'The chat is still answering the last message. Wait for it to finish.',
+    'chat.noConfirmation': (p) => `Nothing with id ${p.id} is waiting for a confirmation.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -245,6 +249,10 @@ const errors = defineCatalogue<ErrorMessages>({
       `Esa respuesta es para ${p.pendingId}, pero la creación espera ${p.expected}. Recarga e inténtalo de nuevo.`,
     'creation.invalidAnswer': (p) => `La respuesta a esta petición (${p.kind}) no es válida:${bullets(p.issues)}`,
     'creation.noReply': (p) => `La creación ${p.id} no está esperando una respuesta.`,
+    'chat.unavailable': () => 'El chat no está disponible en este servidor.',
+    'chat.threadNotFound': (p) => `No existe el chat ${p.id}.`,
+    'chat.busy': () => 'El chat aún está respondiendo al último mensaje. Espera a que termine.',
+    'chat.noConfirmation': (p) => `No hay nada con el id ${p.id} esperando confirmación.`,
   },
 });
 

@@ -2,8 +2,10 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { CHAT_TOOL_IDS } from '../../src/chat/toolNames.js';
 import { buildQueryOptions } from '../../src/creation/sdkRunner.js';
 import {
+  SHADOWED_CHAT_TOOLS,
   SHADOWED_WARNING_CODE,
   SHADOWED_WEB_TOOLS,
   filterKnownSdkWarnings,
@@ -83,6 +85,14 @@ describe('the known SDK warning about shadowed canUseTool', () => {
       },
     });
     expect(options.allowedTools).toEqual([APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL]);
+  });
+
+  it('is recognised for exactly the chat tool list too, and the chat session pre-approves exactly that list', () => {
+    expect(SHADOWED_CHAT_TOOLS).toEqual(CHAT_TOOL_IDS);
+    expect(isKnownShadowedWarning([message([...CHAT_TOOL_IDS].reverse()), { code: SHADOWED_WARNING_CODE }])).toBe(true);
+    expect(isKnownShadowedWarning([message([...CHAT_TOOL_IDS, 'Bash']), { code: SHADOWED_WARNING_CODE }])).toBe(false);
+    expect(isKnownShadowedWarning([message(CHAT_TOOL_IDS.slice(1)), { code: SHADOWED_WARNING_CODE }])).toBe(false);
+    expect(isKnownShadowedWarning([message([...CHAT_TOOL_IDS, APPROVE_SPEC_TOOL]), { code: SHADOWED_WARNING_CODE }])).toBe(false);
   });
 
   it('matches what the installed SDK emits (an upgrade that changes it shows the warning again)', async () => {

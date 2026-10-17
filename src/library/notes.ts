@@ -423,6 +423,13 @@ function addedAtEnd(existing: string, text: string): string | undefined {
   return /^\r?\n/.test(added) ? added.replace(/^\s*\n/, '') : undefined;
 }
 
+/** What `saveNote` does with `text` for a note that now holds `existing` (`undefined`: no note yet). */
+export function saveModeOf(existing: string | undefined, text: string): SaveMode {
+  if (existing === undefined) return 'create';
+  if (existing.replace(/\s+$/, '') === text.replace(/\s+$/, '')) return 'unchanged';
+  return addedAtEnd(existing, text) === undefined ? 'rewrite' : 'append';
+}
+
 /** A whole new text for a note (doubt 4: any edit that is not an addition at the end). */
 function rewriteChange(
   ref: NoteRef,

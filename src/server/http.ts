@@ -41,6 +41,10 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'creation.notFound': 404,
   'creation.noPending': 409,
   'creation.noReply': 409,
+  'chat.unavailable': 503,
+  'chat.threadNotFound': 404,
+  'chat.busy': 409,
+  'chat.noConfirmation': 409,
   'creation.wrongPending': 409,
   'creation.noSpec': 404,
 };

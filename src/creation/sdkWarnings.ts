@@ -1,3 +1,4 @@
+import { CHAT_TOOL_IDS } from '../chat/toolNames.js';
 import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './toolNames.js';
 
 /**
@@ -15,6 +16,17 @@ export const SHADOWED_WARNING_CODE = 'CLAUDE_SDK_CAN_USE_TOOL_SHADOWED';
  */
 export const SHADOWED_WEB_TOOLS: readonly string[] = [APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL];
 
+/**
+ * The chat session (phase 4) pre-approves its whole tool list the same way:
+ * they are all our own `briefstack-chat` tools, the read ones change
+ * nothing, and the action ones wait for the user's confirmation in the
+ * browser in their handler. Its `canUseTool` denies every other tool.
+ */
+export const SHADOWED_CHAT_TOOLS: readonly string[] = CHAT_TOOL_IDS;
+
+/** The exact sets whose shadowing warning is expected. */
+export const SHADOWED_TOOL_SETS: readonly (readonly string[])[] = [SHADOWED_WEB_TOOLS, SHADOWED_CHAT_TOOLS];
+
 const LISTED_RE = /canUseTool will not be invoked for: (.+?)\. /;
 
 function codeOf(args: readonly unknown[]): string | undefined {
@@ -28,7 +40,7 @@ function codeOf(args: readonly unknown[]): string | undefined {
 
 /**
  * True only for the shadowing warning when the tools it names are exactly
- * the two `briefstack-web` tools. A warning naming any other tool, a
+ * one of `SHADOWED_TOOL_SETS`. A warning naming any other tool, a
  * different code, or a message in a shape we do not recognise is not ours to
  * hide.
  */
@@ -39,10 +51,7 @@ export function isKnownShadowedWarning(args: readonly unknown[]): boolean {
   const listed = message === undefined ? undefined : LISTED_RE.exec(message)?.[1];
   if (listed === undefined) return false;
   const names = listed.split(',').map((name) => name.trim());
-  return (
-    names.length === SHADOWED_WEB_TOOLS.length &&
-    SHADOWED_WEB_TOOLS.every((name) => names.includes(name))
-  );
+  return SHADOWED_TOOL_SETS.some((set) => names.length === set.length && set.every((name) => names.includes(name)));
 }
 
 interface WarningTarget {
@@ -52,7 +61,7 @@ interface WarningTarget {
 const installed = new WeakSet<object>();
 
 /**
- * Drops the known shadowing warning (see `SHADOWED_WEB_TOOLS`) and passes
+ * Drops the known shadowing warnings (see `SHADOWED_TOOL_SETS`) and passes
  * every other warning through unchanged. Installed once per process; calling
  * it again does nothing.
  */
