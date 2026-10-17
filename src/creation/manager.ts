@@ -338,7 +338,7 @@ export class CreationManager {
         io: this.io(c),
       });
     } catch (error) {
-      c.state.error = error instanceof Error ? error.message : String(error);
+      c.state.error = hideAbsolutePaths(redactSecretLines(error instanceof Error ? error.message : String(error)));
       this.finish(c, 'failed');
       throw error;
     }
@@ -585,7 +585,8 @@ export class CreationManager {
             summary: redactSecretLines(event.summary),
             at: this.now().toISOString(),
             by: 'runner',
-            reason: redactSecretLines(event.reason),
+            // The page shows it as is: no secret and no absolute path, as in events.jsonl.
+            reason: hideAbsolutePaths(redactSecretLines(event.reason)),
           };
           if (event.agentType !== undefined) data.agentType = event.agentType;
           this.push(c, { kind: 'denied', data });
@@ -866,7 +867,7 @@ export class CreationManager {
   private async onRunnerDone(c: Creation, outcome: RunnerOutcome): Promise<void> {
     c.runnerDone = true;
     if (c.graceTimer !== undefined) clearTimeout(c.graceTimer);
-    if (outcome.kind === 'failed') c.state.error = outcome.error;
+    if (outcome.kind === 'failed') c.state.error = hideAbsolutePaths(redactSecretLines(outcome.error));
     await this.flush(c);
     if (this.isFinished(c)) {
       void this.closeStream(c);

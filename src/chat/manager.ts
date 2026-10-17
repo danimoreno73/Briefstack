@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { BriefstackError } from '../errors.js';
+import { hideAbsolutePaths } from '../panel/project.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import type { ChatStore, ChatStoreState, ChatThreadRecord } from './store.js';
 import { ChatToolError, errorText, findChatTool, parseArgs, resultText, type ChatToolContext, type ToolOutcome } from './tools.js';
@@ -182,7 +183,7 @@ export class ChatManager {
   }
 
   private notice(notice: ChatNotice, detail?: string): void {
-    this.add({ role: 'notice', notice, ...(detail === undefined ? {} : { detail: redactSecretLines(detail).slice(0, 500) }) });
+    this.add({ role: 'notice', notice, ...(detail === undefined ? {} : { detail: hideAbsolutePaths(redactSecretLines(detail)).slice(0, 500) }) });
   }
 
   private async saveThread(patch: Partial<ChatThreadRecord>): Promise<void> {
@@ -325,7 +326,7 @@ export class ChatManager {
       try {
         const outcome = await (definition.run as (ctx: ChatToolContext, input: unknown) => Promise<ToolOutcome>)(this.options.tools, parsed);
         this.add({ role: 'tool', tool: { name, summary, sources: outcome.sources.slice(0, 20) } });
-        return reply(resultText(outcome));
+        return reply(resultText(outcome, this.options.tools.pathEnv.homedir));
       } catch (error) {
         const text = errorText(error);
         this.add({ role: 'tool', tool: { name, summary, sources: [], error: text } });
@@ -370,7 +371,7 @@ export class ChatManager {
     try {
       const outcome = await proposal.perform();
       this.updateConfirmation(message, 'confirmed', undefined, outcome.sources);
-      return reply(resultText({ ...outcome, data: { confirmedByUser: true, result: outcome.data } }));
+      return reply(resultText({ ...outcome, data: { confirmedByUser: true, result: outcome.data } }, this.options.tools.pathEnv.homedir));
     } catch (error) {
       const text = errorText(error);
       this.updateConfirmation(message, 'failed', text);

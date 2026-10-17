@@ -1,7 +1,5 @@
-import path from 'node:path';
-import { systemPathEnv } from '../config/paths.js';
 import { MAX_TARGET_LENGTH, TARGET_ROOTS, type SessionEvent } from '../events/index.js';
-import { findAbsolutePaths, redactSecretLines } from '../validate/text.js';
+import { redactSecretLines } from '../validate/text.js';
 import type { PanelEventInput, PanelTarget } from './state.js';
 
 /**
@@ -39,19 +37,40 @@ const KEPT_FIELDS = [
 /** A projected line, with its position (1-based) among the file's valid lines as `id`. */
 export type PanelEvent = PanelEventInput & { id: number };
 
-const DRIVE_PATH_RE = /(?:[A-Za-z]:[\\/]|\\\\[^\\/\s]+[\\/])[^\s"'`<>|]*/g;
+/** The rest of a path once its start is found: anything but spaces, quotes and brackets. */
+const TAIL = '[^\\s"\'`<>|()\\[\\]{}]*';
+/** Top folders that make even a one-segment POSIX path absolute: `/tmp`, `/home`… */
+const POSIX_ROOTS = 'tmp|var|Users|home|mnt|opt|etc|usr|root|private|Volumes|srv|media|run|proc|dev|bin|sbin|lib|boot|nix|snap|data|workspace';
+const ABSOLUTE_PATH_RE = new RegExp(
+  [
+    // `file:` URLs are paths (hidden); other URLs come next, so they are skipped as a whole (group 1).
+    `[Ff][Ii][Ll][Ee]:${TAIL}`,
+    '([A-Za-z][A-Za-z0-9+.-]*://[^\\s<>"\'`]*)',
+    // Windows drive paths, with `\`, `/` or JSON-escaped `\\`: `C:\x`, `C:/x`.
+    `(?<![\\p{L}\\p{N}_])[A-Za-z]:[\\\\/]${TAIL}`,
+    // UNC paths, with either slash: `\\server\share`, `//server/share`.
+    `(?<![\\p{L}\\p{N}_:/\\\\])(?:\\\\\\\\|//)[\\p{L}\\p{N}._$-]+[\\\\/]${TAIL}`,
+    // POSIX paths with two segments or more (`/a/b`), or one of the usual top folders (`/tmp`).
+    // A slash command such as `/add-dir` is one segment and stays.
+    `(?<![\\p{L}\\p{N}_.~:/\\\\-])/[\\p{L}\\p{N}._$@+-]+/${TAIL}`,
+    `(?<![\\p{L}\\p{N}_.~:/\\\\-])/(?:${POSIX_ROOTS})(?![\\p{L}\\p{N}_.-])`,
+  ].join('|'),
+  'gu',
+);
 
-/** Replaces every absolute path in a text with `OUTSIDE_TEXT`. */
+/**
+ * Replaces every absolute path in a text with `OUTSIDE_TEXT`: POSIX paths
+ * (`/tmp/x`, `/home/me`, `/Users/me/x`), Windows paths with either slash
+ * (`C:\x`, `C:/x`) and UNC paths (`\\server\share`). URLs are left alone,
+ * and so is a slash command (`/add-dir`). A sentence's final punctuation
+ * stays out of the path.
+ */
 export function hideAbsolutePaths(text: string): string {
-  let result = text.replace(DRIVE_PATH_RE, OUTSIDE_TEXT);
-  for (const pathApi of [path.posix, path.win32]) {
-    const env = { homedir: systemPathEnv().homedir, pathApi, caseInsensitive: false };
-    const matches = findAbsolutePaths(result, env).sort((a, b) => b.index - a.index);
-    for (const match of matches) {
-      result = `${result.slice(0, match.index)}${OUTSIDE_TEXT}${result.slice(match.index + match.match.length)}`;
-    }
-  }
-  return result;
+  return text.replace(ABSOLUTE_PATH_RE, (match: string, url: string | undefined) => {
+    if (url !== undefined) return match;
+    const trailing = /[.,;:!?]+$/.exec(match)?.[0] ?? '';
+    return `${OUTSIDE_TEXT}${trailing}`;
+  });
 }
 
 function clip(text: string, max: number, keepEnd: boolean): string {

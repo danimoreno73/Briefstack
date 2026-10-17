@@ -136,6 +136,20 @@ describe('the tools', () => {
     await expect(read('session_panel', { sessionId: '../x' })).rejects.toBeInstanceOf(BriefstackError);
   });
 
+  it('gives the model no absolute path: folders under the home as ~/…, anything else hidden', async () => {
+    const settings = await read('show_settings');
+    const text = resultText(settings, world.pathEnv.homedir);
+    expect(text).toContain('~/.briefstack/library');
+    expect(text).not.toContain(world.dir.replaceAll('\\', '/'));
+    expect(text).not.toContain(world.dir);
+    expect(text).not.toContain(JSON.stringify(world.dir).slice(1, -1));
+    // The projects folder is outside the home in this world: hidden.
+    expect(text).toContain('[outside allowed folders]');
+    expect(resultText({ data: { a: '/tmp/x/y', b: 'C:\\x\\y', c: '\\\\srv\\share' }, sources: [] })).not.toMatch(/\/tmp|C:|srv/);
+    expect(errorText(new BriefstackError('library.notInitialised', { dir: world.libraryDir }))).not.toContain(world.libraryDir);
+    expect(errorText(new ChatToolError('No folder /home/someone/x'))).toBe('No folder [outside allowed folders]');
+  });
+
   it('show_usage and show_settings', async () => {
     const usage = await read('show_usage');
     expect(usage.data).toMatchObject({ profile: 'balanced', chat: { model: 'sonnet', effort: 'medium' }, planUsage: { fiveHourPercent: 21, sevenDayPercent: 34 } });

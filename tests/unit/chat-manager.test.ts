@@ -207,10 +207,10 @@ describe('ChatManager', () => {
   });
 
   it('a session error is a notice, and the chat stays usable', async () => {
-    const { chat: c } = await open({ turns: [[{ fail: 'The model is unavailable.' }], [{ say: 'Back.' }]] });
+    const { chat: c } = await open({ turns: [[{ fail: 'The model is unavailable at /home/someone/.claude/x.' }], [{ say: 'Back.' }]] });
     await c.send('Hi');
     await idle(c);
-    expect((await c.view()).messages.at(-1)).toMatchObject({ role: 'notice', notice: 'sessionError', detail: 'The model is unavailable.' });
+    expect((await c.view()).messages.at(-1)).toMatchObject({ role: 'notice', notice: 'sessionError', detail: 'The model is unavailable at [outside allowed folders].' });
     await c.send('Again');
     await waitFor(async () => (await c.view()).messages.at(-1)?.text === 'Back.');
   });

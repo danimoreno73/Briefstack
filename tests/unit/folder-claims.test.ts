@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeRunner, parseRecording } from '../../src/creation/fakeRunner.js';
-import { FolderClaims, evaluateFolderClaim, type FolderClaimContext } from '../../src/creation/folderClaims.js';
+import { FolderClaims, claimRefusedMessage, evaluateFolderClaim, folderLabel, type FolderClaimContext } from '../../src/creation/folderClaims.js';
 import { CreationManager } from '../../src/creation/manager.js';
 import { readEvents, sessionEventsFile } from '../../src/events/index.js';
 import { tempDir } from '../helpers.js';
@@ -40,6 +40,17 @@ describe('FolderClaims', () => {
     claims.claim('a', at('x'), `${'long idea '.repeat(20)}`);
     const refused = claims.claim('b', at('x'), 'B');
     expect(refused.ok === false && refused.holder.length).toBeLessThanOrEqual(60);
+  });
+});
+
+describe('folderLabel', () => {
+  it('names a folder against the projects folder, and never gives an absolute path', () => {
+    expect(folderLabel(at('garden'), root)).toBe('the folder "garden" in the projects folder');
+    expect(folderLabel(at('a', 'b'), root)).toBe('the folder "a/b" in the projects folder');
+    expect(folderLabel(root, root)).toBe('the projects folder itself');
+    expect(folderLabel(path.resolve('/elsewhere/x'), root)).toBe('that folder (outside the projects folder)');
+    expect(folderLabel(at('garden'), undefined)).toBe('that folder (outside the projects folder)');
+    expect(claimRefusedMessage(path.resolve('/elsewhere/x'), 'Idea', root)).not.toContain('elsewhere');
   });
 });
 
@@ -143,6 +154,16 @@ describe('two creations and one folder (manager over the fake runner)', () => {
     const lines = (await readEvents(sessionEventsFile(sessionsDir, done.sessionId ?? ''))).events;
     const denial = lines.find((event) => event.type === 'tool.denied');
     expect(denial).toMatchObject({ source: 'runner', by: 'guard', tool: 'Bash', reason: expect.stringContaining('"A garden planner"') });
+    // The folder is named against the projects folder, never with its absolute path.
+    expect(denial).toMatchObject({ reason: expect.stringContaining('the folder "garden" in the projects folder') });
+    expect(JSON.stringify(denial)).not.toContain('[outside allowed folders]');
+    // The stream the page reads says the same.
+    const streamed: string[] = [];
+    m.subscribe(second.id, 0, (event) => {
+      if (event.kind === 'denied') streamed.push(event.data.reason ?? '');
+    });
+    expect(streamed).toEqual([expect.stringContaining('the folder "garden" in the projects folder')]);
+    expect(streamed.join()).not.toMatch(/[A-Za-z]:[\\/]|\/tmp\/|\/home\//);
     // The reason names the folder only relative to nothing: no absolute path is kept in the file.
     expect(JSON.stringify(denial)).not.toContain(slash(dir));
     expect(m.get(first.id).status).not.toBe('finished');

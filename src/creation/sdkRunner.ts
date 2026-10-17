@@ -408,6 +408,7 @@ class SdkRun {
                     isOwnSession: guardContext.isOwnSession,
                     claim: (dir) => this.io.claimFolder(dir),
                     heldByOther: (target) => this.io.folderHeldByOther(target),
+                    projectsDir,
                     pathEnv: this.deps.pathEnv,
                   },
                   (denial) => this.io.emit({ kind: 'denial', ...denial }),

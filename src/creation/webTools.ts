@@ -81,7 +81,7 @@ export async function grantDirectory(deps: WebToolsDeps, args: { dir: string }):
   if (report.status === 'notADirectory') return fail('That path is a file, not a folder.');
   // Before the user is asked: a folder another creation in progress holds is refused outright.
   const claim = deps.io.claimFolder(dir);
-  if (!claim.ok) return fail(claimRefusedMessage(dir, claim.holder));
+  if (!claim.ok) return fail(claimRefusedMessage(dir, claim.holder, deps.projectsDir, pathEnv));
 
   const granted = await deps.io.grantDirectory({ dir });
   if (!granted) return reply({ granted: false });

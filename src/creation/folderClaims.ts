@@ -69,10 +69,24 @@ export class FolderClaims {
   }
 }
 
+/**
+ * How a refusal names the folder: relative to the projects folder when it is
+ * inside it, else only as "that folder". Never an absolute path: the reason
+ * is recorded in `events.jsonl` and shown in the panel.
+ */
+export function folderLabel(dir: string, projectsDir: string | undefined, pathEnv: PathEnv = systemPathEnv()): string {
+  const { pathApi } = pathEnv;
+  if (projectsDir !== undefined && isPathInside(pathApi.resolve(dir), projectsDir, pathEnv)) {
+    const relative = pathApi.relative(projectsDir, pathApi.resolve(dir)).split(pathApi.sep).join('/');
+    return relative === '' ? 'the projects folder itself' : `the folder "${relative}" in the projects folder`;
+  }
+  return 'that folder (outside the projects folder)';
+}
+
 /** The message the flow gets when a folder is taken: it tells the main session what to do next. */
-export function claimRefusedMessage(dir: string, holder: string): string {
+export function claimRefusedMessage(dir: string, holder: string, projectsDir?: string, pathEnv?: PathEnv): string {
   return (
-    `Another creation in progress ("${holder}") is using the folder ${dir.replaceAll('\\', '/')} or one that overlaps it. ` +
+    `Another creation in progress ("${holder}") is using ${folderLabel(dir, projectsDir, pathEnv)} or one that overlaps it. ` +
     'Two creations cannot share a project folder. Ask the user for another folder.'
   );
 }
@@ -81,6 +95,8 @@ export interface FolderClaimContext {
   isOwnSession(id: string): boolean;
   claim(dir: string): ClaimResult;
   heldByOther(target: string): string | undefined;
+  /** The projects folder, which the refusal names the folder against. */
+  projectsDir?: string;
   pathEnv?: PathEnv;
 }
 
@@ -100,7 +116,7 @@ export function evaluateFolderClaim(
   const absolute = (value: string | undefined): value is string => value !== undefined && isFullyAbsolute(value, pathEnv.pathApi);
   const refuse = (dir: string, holder: string, summary: string): ClaimVerdict => ({
     verdict: 'deny',
-    reason: claimRefusedMessage(dir, holder),
+    reason: claimRefusedMessage(dir, holder, ctx.projectsDir, pathEnv),
     summary: redactSecretLines(summary).slice(0, 500),
   });
 

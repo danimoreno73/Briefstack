@@ -366,7 +366,7 @@ export class FakeRunner implements CreationRunner {
                 kind: 'denial',
                 toolName: 'Bash',
                 summary: `npm run --silent briefstack -- paths check "${dir.replaceAll('\\', '/')}" --json`,
-                reason: claimRefusedMessage(dir, result.holder),
+                reason: claimRefusedMessage(dir, result.holder, this.options.projectsDir),
               });
               if (step.onRefused !== undefined) pc = jump(step.onRefused);
             }
