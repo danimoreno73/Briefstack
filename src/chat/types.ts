@@ -41,7 +41,8 @@ export type ConfirmationCard =
     }
   | { kind: 'usageProfile'; from: string; to: string; toLabel: { en: string; es: string } };
 
-export type ConfirmationState = 'pending' | 'confirmed' | 'declined' | 'failed' | 'expired';
+/** `stale`: confirmed, but what the card showed no longer held (the note changed), so nothing was done. */
+export type ConfirmationState = 'pending' | 'confirmed' | 'declined' | 'failed' | 'expired' | 'stale';
 
 export interface Confirmation {
   id: string;

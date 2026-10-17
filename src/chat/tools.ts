@@ -12,6 +12,7 @@ import {
   listProjects,
   noteRef,
   noteRelativePath,
+  noteTextHash,
   readNote,
   readTextIfExists,
   saveModeOf,
@@ -59,6 +60,9 @@ export interface ToolOutcome {
 
 /** A refusal the model should read and explain: no stack, no secrets. */
 export class ChatToolError extends Error {}
+
+/** What the card showed no longer holds (the note changed): nothing was done, the card says so. */
+export class StaleProposalError extends ChatToolError {}
 
 interface ToolBase<S extends z.ZodRawShape> {
   name: ChatToolName;
@@ -420,6 +424,8 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
       const { paths } = await load(ctx);
       const file = noteRelativePath(ref.section, ref.name);
       const existing = await readTextIfExists(toNative(paths.libraryDir, file));
+      // The diff is shown against this text; saveNote saves only if the note still holds it.
+      const expectedHash = noteTextHash(existing);
       const mode = saveModeOf(existing, args.text);
       if (mode === 'unchanged') throw new ChatToolError('That is the note as it is now: there is nothing to change.');
       const lines = diffLines(existing ?? '', args.text);
@@ -435,7 +441,15 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
           removed: lines.filter((line) => line.op === '-').length,
         },
         perform: async () => {
-          const saved = await saveNote({ libraryDir: paths.libraryDir, section: ref.section, name: ref.name, text: args.text });
+          let saved;
+          try {
+            saved = await saveNote({ libraryDir: paths.libraryDir, section: ref.section, name: ref.name, text: args.text, expectedHash });
+          } catch (error) {
+            if (isBriefstackError(error) && error.code === 'library.noteChanged') {
+              throw new StaleProposalError(`${file} changed after the card was shown, so nothing was saved. Read the note again and propose a new change if the user still wants it.`);
+            }
+            throw error;
+          }
           return {
             data: { file: saved.file, mode: saved.mode, committed: saved.committed, indexUpdated: saved.indexUpdated },
             sources: [noteSource(saved.file)],

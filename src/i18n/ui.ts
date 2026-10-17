@@ -401,6 +401,7 @@ export const uiMessages = defineCatalogue({
         declined: 'Declined: nothing was done',
         failed: 'Confirmed, but it failed',
         expired: 'Expired: nothing was done',
+        stale: 'The note changed after this proposal, so nothing was saved. Ask me for a new proposal',
       };
       return labels[state] ?? state;
     },
@@ -814,6 +815,7 @@ export const uiMessages = defineCatalogue({
         declined: 'Rechazada: no se ha hecho nada',
         failed: 'Confirmada, pero ha fallado',
         expired: 'Caducada: no se ha hecho nada',
+        stale: 'La nota cambió después de esta propuesta y no se ha guardado nada. Pídeme otra propuesta',
       };
       return labels[state] ?? state;
     },

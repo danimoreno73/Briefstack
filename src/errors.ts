@@ -55,6 +55,7 @@ export interface ErrorParams {
   'library.revertConflict': { sha: string; files: string[] };
   'library.revertFailed': { sha: string; detail: string };
   'library.busy': { waitedMs: number };
+  'library.noteChanged': { file: string };
   'events.invalidSession': { session: string };
   'events.sessionNotFound': { session: string };
   'web.invalidPort': { value: string };

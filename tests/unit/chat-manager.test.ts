@@ -5,6 +5,7 @@ import { FakeChatRunner, parseChatScript, type ChatScript } from '../../src/chat
 import { ChatManager } from '../../src/chat/manager.js';
 import { ChatStore } from '../../src/chat/store.js';
 import type { ChatMessage, ChatStreamEvent } from '../../src/chat/types.js';
+import { addNote } from '../../src/library/index.js';
 import { FAKE_KEY, INJECTED, chatWorld, type ChatWorld } from '../chatWorld.js';
 import { useHermeticGit } from '../helpers.js';
 
@@ -111,6 +112,23 @@ describe('ChatManager', () => {
     c.confirm(card.id, 'decline');
     await idle(c);
     expect(await readFile(style, 'utf8')).toBe(before);
+  });
+
+  it('a note change confirmed after the note changed saves nothing and the card says so', async () => {
+    const { chat: c, runner } = await open({
+      turns: [[{ call: 'propose_note_change', args: { section: 'profile', name: 'style', text: '# Style\n\nLong answers.\n' } }, { sayResult: '' }]],
+    });
+    await c.send('Make my style note say long answers');
+    const card = await pendingOf(c);
+    const style = path.join(world.libraryDir, 'profile', 'style.md');
+    await addNote({ libraryDir: world.libraryDir, section: 'profile', name: 'style', text: 'Use metric units.\n' });
+    const changed = await readFile(style, 'utf8');
+    c.confirm(card.id, 'confirm');
+    await idle(c);
+    expect(await readFile(style, 'utf8')).toBe(changed);
+    const { messages } = await c.view();
+    expect(messages.find((message) => message.confirmation?.id === card.id)?.confirmation?.state).toBe('stale');
+    expect(runner.replies.at(-1)).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('changed after the card was shown') }] });
   });
 
   it('keeps one card at a time and limits how many it shows', async () => {

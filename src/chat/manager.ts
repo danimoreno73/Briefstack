@@ -3,7 +3,7 @@ import { BriefstackError } from '../errors.js';
 import { hideAbsolutePaths } from '../panel/project.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import type { ChatStore, ChatStoreState, ChatThreadRecord } from './store.js';
-import { ChatToolError, errorText, findChatTool, parseArgs, resultText, type ChatToolContext, type ToolOutcome } from './tools.js';
+import { ChatToolError, StaleProposalError, errorText, findChatTool, parseArgs, resultText, type ChatToolContext, type ToolOutcome } from './tools.js';
 import type {
   ChatMessage,
   ChatNotice,
@@ -374,6 +374,10 @@ export class ChatManager {
       return reply(resultText({ ...outcome, data: { confirmedByUser: true, result: outcome.data } }, this.options.tools.pathEnv.homedir));
     } catch (error) {
       const text = errorText(error);
+      if (error instanceof StaleProposalError) {
+        this.updateConfirmation(message, 'stale');
+        return reply(text, true);
+      }
       this.updateConfirmation(message, 'failed', text);
       return reply(`The user confirmed, but it failed: ${text}`, true);
     }

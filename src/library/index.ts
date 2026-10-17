@@ -22,6 +22,7 @@ export {
   libraryExists,
   listNotes,
   noteRef,
+  noteTextHash,
   readNote,
   saveNote,
   saveModeOf,

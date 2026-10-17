@@ -365,7 +365,9 @@ from the usage profile, and the stream `seq` to continue from.
 A message: `{ id, ts, role: "user" | "assistant" | "tool" | "confirmation" | "notice", text?, tool?, confirmation?, notice?, detail? }`.
 `tool` is `{ name, summary, sources: [{ kind, ref, label? }], error? }`
 (what was asked and where the data came from, never the data itself).
-`confirmation` is `{ id, tool, card, state: "pending" | "confirmed" | "declined" | "failed" | "expired", result?, sources? }`.
+`confirmation` is `{ id, tool, card, state: "pending" | "confirmed" | "declined" | "failed" | "expired" | "stale", result?, sources? }`.
+`stale` means the user confirmed but what the card showed no longer held
+(the note changed in between), so nothing was done.
 `notice` is `resumeFailed` (the model context could not be restored: a new
 session started, the old messages stay) or `sessionError` (`detail` says
 what). Every text is stored and sent redacted.
@@ -429,7 +431,7 @@ string redacted.
 | `show_settings` | read | — | language, permission policy, limit of creations, resolved folders |
 | `start_creation` | action | `idea` | card, then starts a creation as the New project page does |
 | `cancel_creation` | action | `creationId` | card, then cancels through the flow |
-| `propose_note_change` | action | `section`, `name`?, `text` (the whole note) | card with the diff, then `saveNote` (secret check, dates, INDEX, one commit) |
+| `propose_note_change` | action | `section`, `name`?, `text` (the whole note) | card with the diff, then `saveNote` (secret check, dates, INDEX, one commit) only if the note still holds the text the diff was made from; otherwise nothing is saved and the card becomes `stale` |
 | `set_usage_profile` | action | `profile` | card, then `usage set` |
 
 An action is refused without a card when another card waits, after 10 cards

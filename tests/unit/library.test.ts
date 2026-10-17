@@ -8,6 +8,7 @@ import {
   datedEntries,
   initLibrary,
   listNotes,
+  noteTextHash,
   readNote,
   readProjectStatus,
   saveNote,
@@ -365,6 +366,25 @@ describe('personal library', () => {
       expect(same).toMatchObject({ mode: 'unchanged', committed: false, indexUpdated: false });
       expect(log()).toEqual(['library: update profile/tools', 'library: update profile/tools', 'library: add profile/tools', 'library: initialise']);
       expect(git(libraryDir, ['status', '--porcelain']).trim()).toBe('');
+    });
+
+    it('saves only over the text it expects: a note changed in between is left alone', async () => {
+      await saveNote({ libraryDir, section: 'profile', name: 'tools', text: '# Tools\n\nUses VS Code.\n', now });
+      const shown = await read('profile/tools.md');
+      // Another change lands after the edit was shown (a creation's `library add`).
+      await addNote({ libraryDir, section: 'profile', name: 'tools', text: 'Prefers pnpm.\n', now });
+      const current = await read('profile/tools.md');
+      await expect(
+        saveNote({ libraryDir, section: 'profile', name: 'tools', text: '# Tools\n\nUses Vim.\n', expectedHash: noteTextHash(shown), now }),
+      ).rejects.toMatchObject({ code: 'library.noteChanged', params: { file: 'profile/tools.md' } });
+      expect(await read('profile/tools.md')).toBe(current);
+      // A new note expected absent, but created meanwhile, is refused too.
+      await saveNote({ libraryDir, section: 'profile', name: 'units', text: '# Units\n', now });
+      await expect(
+        saveNote({ libraryDir, section: 'profile', name: 'units', text: '# Units\n\nMetric.\n', expectedHash: noteTextHash(undefined), now }),
+      ).rejects.toMatchObject({ code: 'library.noteChanged' });
+      const saved = await saveNote({ libraryDir, section: 'profile', name: 'tools', text: '# Tools\n\nUses Vim.\n', expectedHash: noteTextHash(current), now });
+      expect(saved).toMatchObject({ mode: 'rewrite', committed: true });
     });
 
     it('refuses secrets and invalid project status blocks, writing nothing', async () => {

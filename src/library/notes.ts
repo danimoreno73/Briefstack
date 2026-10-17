@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { BriefstackError } from '../errors.js';
@@ -402,6 +403,17 @@ export interface SaveNoteOptions {
   /** The whole note, frontmatter included. */
   text: string;
   now?: Date;
+  /**
+   * `noteTextHash` of the note as it was when the change was shown to the
+   * user. When the note holds something else now, nothing is saved
+   * (`library.noteChanged`).
+   */
+  expectedHash?: string | undefined;
+}
+
+/** A fingerprint of a note's text (`undefined`: no note yet), to see whether it changed. */
+export function noteTextHash(text: string | undefined): string {
+  return text === undefined ? 'absent' : createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
 export type SaveMode = 'append' | 'rewrite' | 'create' | 'unchanged';
@@ -487,6 +499,10 @@ async function saveNoteLocked(options: SaveNoteOptions, ref: NoteRef): Promise<S
   const existing = await readTextIfExists(toNative(libraryDir, relative));
   const base = { section: ref.section, name: ref.name, file: relative };
 
+  // Checked under the lock: a change shown against an older text is never saved over a newer one.
+  if (options.expectedHash !== undefined && noteTextHash(existing) !== options.expectedHash) {
+    throw new BriefstackError('library.noteChanged', { file: relative });
+  }
   if (existing !== undefined && existing.replace(/\s+$/, '') === text.replace(/\s+$/, '')) {
     const status = ref.section === 'projects' ? previousStatus(existing, relative) : undefined;
     return { ...base, mode: 'unchanged', indexUpdated: false, committed: false, ...(status !== undefined ? { status } : {}), warnings: [] };

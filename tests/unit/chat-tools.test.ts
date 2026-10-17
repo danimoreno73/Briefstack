@@ -7,6 +7,7 @@ import { CHAT_ACTION_TOOLS, CHAT_READ_TOOLS, CHAT_TOOL_NAMES } from '../../src/c
 import {
   CHAT_TOOLS,
   ChatToolError,
+  StaleProposalError,
   errorText,
   findChatTool,
   parseArgs,
@@ -18,6 +19,7 @@ import {
 } from '../../src/chat/tools.js';
 import { readConfig } from '../../src/config/index.js';
 import { BriefstackError } from '../../src/errors.js';
+import { addNote } from '../../src/library/index.js';
 import { FAKE_KEY, INJECTED, SESSION, chatWorld, type ChatWorld } from '../chatWorld.js';
 import { useHermeticGit } from '../helpers.js';
 
@@ -198,6 +200,19 @@ describe('the tools', () => {
     await expect(propose('propose_note_change', { section: 'profile', name: 'units', text: `key ${FAKE_KEY}\n` })).rejects.toBeInstanceOf(ChatToolError);
     await expect(propose('propose_note_change', { section: 'profile', name: 'style', text: '# Style\n\nLong answers.\n' })).rejects.toThrow(/nothing to change/);
     await expect(propose('propose_note_change', { section: 'profile', name: 'Bad Name', text: 'x' })).rejects.toMatchObject({ code: 'library.invalidName' });
+  });
+
+  it('propose_note_change saves nothing when the note changed after the card was shown', async () => {
+    const file = path.join(world.libraryDir, 'lessons.md');
+    const before = await readFile(file, 'utf8');
+    const proposal = await propose('propose_note_change', { section: 'lessons', text: before.replace('Do not ask for the folder twice.', 'Ask once.') });
+    expect(proposal.card).toMatchObject({ mode: 'rewrite' });
+    // A creation finishes and adds a lesson while the card waits.
+    await addNote({ libraryDir: world.libraryDir, section: 'lessons', text: 'Show the plan usage early.\n' });
+    const after = await readFile(file, 'utf8');
+    await expect(proposal.perform()).rejects.toBeInstanceOf(StaleProposalError);
+    expect(await readFile(file, 'utf8')).toBe(after);
+    expect(after).toContain('Show the plan usage early.');
   });
 
   it('set_usage_profile shows from and to, and switches only when performed', async () => {
