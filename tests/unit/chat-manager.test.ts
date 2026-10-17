@@ -164,6 +164,27 @@ describe('ChatManager', () => {
     expect(await first).toMatchObject({ content: [{ text: expect.stringContaining('declined') }] });
   });
 
+  it('two actions called at once: the second gets an error at once, the first keeps its card', async () => {
+    const { chat: c } = await open({ turns: [] });
+    const settle = <T,>(promise: Promise<T>) => Promise.race([promise, new Promise<'hung'>((resolve) => setTimeout(() => resolve('hung'), 1000))]);
+    // Both start before the first one's proposal is ready.
+    const first = c.execute('set_usage_profile', { profile: 'saver' });
+    const second = c.execute('set_usage_profile', { profile: 'max' });
+    expect(await settle(second)).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('Another proposal is waiting') }] });
+    const card = await pendingOf(c);
+    expect(card.card).toMatchObject({ kind: 'usageProfile', to: 'saver' });
+    expect((await c.view()).messages.filter((message) => message.role === 'confirmation')).toHaveLength(1);
+    c.confirm(card.id, 'decline');
+    expect(await settle(first)).toMatchObject({ content: [{ text: expect.stringContaining('declined') }] });
+
+    // A proposal that fails frees the slot for the next one.
+    expect(await c.execute('cancel_creation', { creationId: 'nope' })).toMatchObject({ isError: true });
+    const third = c.execute('set_usage_profile', { profile: 'max' });
+    const next = await pendingOf(c);
+    c.confirm(next.id, 'decline');
+    expect(await settle(third)).toMatchObject({ content: [{ text: expect.stringContaining('declined') }] });
+  });
+
   it('stores the history redacted, and shows it again after a restart, resuming the same session', async () => {
     const script = { turns: [[{ echo: true as const }], [{ say: 'Welcome back.' }]] };
     const { chat: c } = await open(script);

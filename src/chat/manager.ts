@@ -3,7 +3,17 @@ import { BriefstackError } from '../errors.js';
 import { hideAbsolutePaths } from '../panel/project.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import type { ChatStore, ChatStoreState, ChatThreadRecord } from './store.js';
-import { ChatToolError, StaleProposalError, errorText, findChatTool, parseArgs, resultText, type ChatToolContext, type ToolOutcome } from './tools.js';
+import {
+  ChatToolError,
+  StaleProposalError,
+  errorText,
+  findChatTool,
+  parseArgs,
+  resultText,
+  type ActionTool,
+  type ChatToolContext,
+  type ToolOutcome,
+} from './tools.js';
 import type {
   ChatMessage,
   ChatNotice,
@@ -64,6 +74,8 @@ export class ChatManager {
   private session: ChatSession | undefined;
   private status: ChatStatus = 'idle';
   private waiting: Waiting | undefined;
+  /** An action is being proposed, waits or runs: the slot is taken before the first await. */
+  private acting = false;
   private proposals: number[] = [];
   private readonly buffer: ChatStreamEvent[] = [];
   private readonly listeners = new Set<Listener>();
@@ -335,7 +347,7 @@ export class ChatManager {
     }
 
     // An action: one card at a time, a limited number per window, and nothing runs without a confirmation.
-    if (this.waiting !== undefined) {
+    if (this.waiting !== undefined || this.acting) {
       return reply('Another proposal is waiting for the user’s answer. Wait for it before proposing anything else.', true);
     }
     const now = this.now().getTime();
@@ -344,6 +356,23 @@ export class ChatManager {
     if (this.proposals.length >= (this.options.maxProposals ?? 10)) {
       return reply('Too many proposals in a short time. Stop proposing actions and tell the user.', true);
     }
+    // Taken before any await, so a second call in the same turn is refused instead of replacing this card.
+    this.acting = true;
+    try {
+      return await this.act(name, definition, parsed, summary, now, reply);
+    } finally {
+      this.acting = false;
+    }
+  }
+
+  private async act(
+    name: string,
+    definition: ActionTool,
+    parsed: Record<string, unknown>,
+    summary: string,
+    now: number,
+    reply: (text: string, isError?: boolean) => ToolReply,
+  ): Promise<ToolReply> {
     let proposal;
     try {
       proposal = await definition.propose(this.options.tools, parsed);

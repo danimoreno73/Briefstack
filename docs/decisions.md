@@ -2119,3 +2119,8 @@ conservative reading of the brief. The user can revisit any of them.
       (it holds no call) or by the stale rules in another. A change longer
       than 2 minutes can still lose its lock to the age rule; library
       changes take seconds, so the lock is not refreshed while held.
+    - One action at a time holds from the first await: the slot is taken
+      before the proposal is built and freed when the action ends, or when
+      its proposal fails. A second action in the same turn, even one called
+      in parallel, gets a tool error at once; it can no longer replace the
+      waiting card and leave the first call hanging.
