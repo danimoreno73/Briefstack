@@ -30,6 +30,41 @@ describe('check-effort: reads the effort from a Stop hook', () => {
   });
 });
 
+describe('phase 4 real checks: prepared, guarded, and kept off real data', () => {
+  const read = (name: string) => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', name), 'utf8');
+
+  it('each asks for --yes, works in a temp sandbox and cleans it up', async () => {
+    for (const name of ['check-chat-read.ts', 'check-chat-start-creation.ts', 'check-two-creations.ts', 'probe-h0-phase4.ts']) {
+      const script = await read(name);
+      expect(script, name).toContain('requireConfirmation(');
+      expect(script, name).toMatch(/await sandbox\('/);
+      expect(script, name).toContain('box.cleanup()');
+      expect(script, name).not.toContain('bypassPermissions');
+    }
+  });
+
+  it('the chat checks run on haiku through the real chat code, and the creation behind the second one is fake', async () => {
+    for (const name of ['check-chat-read.ts', 'check-chat-start-creation.ts']) {
+      const script = await read(name);
+      expect(script).toContain("profile: async () => ({ model: 'haiku', effort: 'low' })");
+      expect(script).toContain('new SdkChatRunner(');
+      expect(script).toContain('ChatManager.open(');
+    }
+    const start = await read('check-chat-start-creation.ts');
+    expect(start).toContain('new FakeRunner(');
+    expect(start).toContain("chat.confirm(first, 'decline')");
+    expect(start).toContain("chat.confirm(second, 'confirm')");
+  });
+
+  it('the two-creations check never rewrites the agent files and stops above 70% of the 5-hour window', async () => {
+    const script = await read('check-two-creations.ts');
+    expect(script).not.toMatch(/usageSet|applyProfile/);
+    expect(script).toContain('usage set saver');
+    expect(script).toContain('> 70');
+    expect(script).toContain("activeProfile: 'saver'");
+  });
+});
+
 describe('check-guard-auto: the cases it tries', () => {
   it('asks for a .git write, Monitor and a main-session WebFetch, and expects the guard to deny each', async () => {
     const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-guard-auto.ts'), 'utf8');

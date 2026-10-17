@@ -12,7 +12,9 @@ import type { HookCallback, PermissionResult } from '@anthropic-ai/claude-agent-
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { updateConfig, type PathEnv } from '../../src/config/index.js';
 import { findClaudeExecutable } from '../../src/creation/claudeBinary.js';
+import { addNote, initLibrary } from '../../src/library/index.js';
 import { readPlanUsage as readPlanUsageIn, type PlanUsage } from '../../src/creation/planUsage.js';
 import { cleanEnvironment } from '../../src/creation/sdkRunner.js';
 
@@ -140,6 +142,41 @@ export function oneShot(text: string): AsyncIterable<{
           ? new Promise(() => undefined)
           : ((sent = true), Promise.resolve({ value: { type: 'user' as const, message: { role: 'user' as const, content: text }, parent_tool_use_id: null }, done: false })),
     }),
+  };
+}
+
+/**
+ * A temp library in the sandbox's BRIEFSTACK_HOME with one project note, and
+ * the path environment that points at it. `init` writes its folder settings
+ * into the sandbox's own `project` folder, never into the briefstack repo.
+ */
+export async function sandboxLibrary(box: Sandbox): Promise<PathEnv> {
+  const libraryDir = path.join(box.home, 'library');
+  await initLibrary({ libraryDir, projectsDir: box.projects, sessionsDir: box.sessions, repoDir: box.project });
+  await updateConfig(path.join(box.home, 'config.json'), { projectsDir: box.projects, lang: 'en' });
+  await addNote({
+    libraryDir,
+    section: 'projects',
+    name: 'seed-tracker',
+    text: [
+      '---',
+      'target: claude-app',
+      `path: ${path.join(box.projects, 'seed-tracker').replaceAll('\\', '/')}`,
+      'status: created',
+      'profile: saver',
+      'summary: Tracks which seeds to sow each month.',
+      '---',
+      '# Seed tracker',
+      '',
+      'Tracks which seeds to sow each month.',
+      '',
+    ].join('\n'),
+  });
+  return {
+    env: { ...process.env, BRIEFSTACK_HOME: box.home },
+    homedir: os.homedir(),
+    pathApi: path,
+    caseInsensitive: process.platform !== 'linux',
   };
 }
 
