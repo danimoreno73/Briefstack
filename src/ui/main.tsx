@@ -5,6 +5,7 @@ import { uiMessages } from '../i18n/ui.js';
 import { ApiError, api, takeToken } from './api.js';
 import { NewProjectPage } from './creation.js';
 import { CreationsPage } from './creations.js';
+import { ChatDrawer, ChatPage } from './chat.js';
 import { AppCtx, type AppContext } from './hooks.js';
 import { LibraryView } from './library.js';
 import { SessionPanelPage } from './panel.js';
@@ -17,10 +18,11 @@ import { UsageView } from './usage.js';
 
 type Gate = 'connecting' | 'ready' | 'noToken' | 'rejected' | 'unreachable';
 
-const NAV: { page: Route['page']; route: Route; label: 'navProjects' | 'navNew' | 'navCreations' | 'navLibrary' | 'navUsage' | 'navSettings' }[] = [
+const NAV: { page: Route['page']; route: Route; label: 'navProjects' | 'navNew' | 'navCreations' | 'navChat' | 'navLibrary' | 'navUsage' | 'navSettings' }[] = [
   { page: 'projects', route: { page: 'projects' }, label: 'navProjects' },
   { page: 'new', route: { page: 'new', id: undefined }, label: 'navNew' },
   { page: 'creations', route: { page: 'creations' }, label: 'navCreations' },
+  { page: 'chat', route: { page: 'chat', thread: undefined }, label: 'navChat' },
   { page: 'library', route: { page: 'library', section: undefined, name: undefined }, label: 'navLibrary' },
   { page: 'usage', route: { page: 'usage' }, label: 'navUsage' },
   { page: 'settings', route: { page: 'settings' }, label: 'navSettings' },
@@ -47,6 +49,8 @@ function Page({ route }: { route: Route }) {
       return <NewProjectPage id={route.id} />;
     case 'creations':
       return <CreationsPage />;
+    case 'chat':
+      return <ChatPage thread={route.thread} />;
     case 'session':
       return <SessionPanelPage key={route.id} id={route.id} />;
     case 'library':
@@ -144,6 +148,8 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
             </a>
           ))}
         </nav>
+        {/* The compact chat on every page but the chat's own. */}
+        {route.page !== 'chat' && <ChatDrawer />}
       </header>
       <main>
         <Page route={route} />

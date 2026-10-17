@@ -604,3 +604,99 @@ nav a {
     grid-template-columns: 6rem 1fr 4.5rem;
   }
 }
+
+/* The chat: page, drawer, cards (phase 4). */
+.chat-toggle {
+  margin-left: auto;
+}
+
+.chat-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  width: min(26rem, 100vw);
+  box-sizing: border-box;
+  padding: 1rem;
+  overflow-y: auto;
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+  box-shadow: -4px 0 12px rgb(0 0 0 / 15%);
+}
+
+.chat-messages {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.chat-msg {
+  margin: 0.5rem 0;
+  overflow-wrap: anywhere;
+}
+
+.chat-who {
+  display: block;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.chat-user .chat-text {
+  margin: 0.25rem 0;
+  white-space: pre-wrap;
+}
+
+.chat-tool,
+.chat-notice {
+  font-size: 0.9em;
+}
+
+.chat-sources a {
+  margin-right: 0.25rem;
+}
+
+.chat-card {
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.chat-card blockquote {
+  margin: 0.5rem 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--line);
+  white-space: pre-wrap;
+}
+
+.diff {
+  max-height: 20rem;
+  overflow: auto;
+  white-space: pre;
+}
+
+.diff-add {
+  background: var(--ok-bg);
+  color: #14532d;
+}
+
+.diff-del {
+  background: var(--err-bg);
+  color: #7f1d1d;
+}
+
+.diff-skip {
+  color: var(--muted);
+}
+
+.chat-end {
+  height: 0;
+}
+
+.chat-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}

@@ -5,6 +5,8 @@ export type Route =
   | { page: 'new'; id: string | undefined }
   /** Every active creation. */
   | { page: 'creations' }
+  /** The global chat; with `thread`, a past chat, read-only. */
+  | { page: 'chat'; thread: string | undefined }
   | { page: 'project'; slug: string }
   /** A creation session's agent panel, rebuilt from its recorded events. */
   | { page: 'session'; id: string }
@@ -37,6 +39,8 @@ export function parseRoute(hash: string): Route {
       return { page: 'new', id: first };
     case 'creations':
       return { page: 'creations' };
+    case 'chat':
+      return { page: 'chat', thread: first };
     case 'sessions':
       return first === undefined ? DEFAULT_ROUTE : { page: 'session', id: first };
     case 'usage':
@@ -60,6 +64,8 @@ export function routeHash(route: Route): string {
       return route.id === undefined ? '#/new' : `#/new/${enc(route.id)}`;
     case 'creations':
       return '#/creations';
+    case 'chat':
+      return route.thread === undefined ? '#/chat' : `#/chat/${enc(route.thread)}`;
     case 'session':
       return `#/sessions/${enc(route.id)}`;
     case 'library': {

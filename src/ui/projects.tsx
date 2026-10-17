@@ -16,6 +16,7 @@ export function ProjectsView() {
           list.length === 0 ? (
             <p>{t.projectsEmpty}</p>
           ) : (
+            <div class="table-wrap">
             <table data-testid="projects">
               <thead>
                 <tr>
@@ -42,6 +43,7 @@ export function ProjectsView() {
                 ))}
               </tbody>
             </table>
+            </div>
           )
         }
       </Loader>
@@ -151,6 +153,7 @@ export function ProjectView({ slug }: { slug: string }) {
               {timeline === null || timeline.steps.length === 0 ? (
                 <p>{t.timelineEmpty}</p>
               ) : (
+                <div class="table-wrap">
                 <table data-testid="timeline">
                   <thead>
                     <tr>
@@ -171,6 +174,7 @@ export function ProjectView({ slug }: { slug: string }) {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
 
               {nextSteps !== null && (
