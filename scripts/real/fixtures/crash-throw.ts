@@ -16,8 +16,16 @@ const manager = await createWebCreations({ pathEnv: systemPathEnv(), repoDir: PA
 const { id } = await manager.create(idea);
 console.log(JSON.stringify({ started: id }));
 const deadline = Date.now() + 10 * 60_000;
+const replied = new Set<string>();
 while (manager.get(id).pending === undefined && manager.get(id).status !== 'finished' && Date.now() < deadline) {
   await new Promise((resolve) => setTimeout(resolve, 1000));
+  // A turn that ends with a question in text: answer it once, as the reply box would (same text as check-server-crash.ts).
+  const waiting = manager.get(id);
+  if (waiting.pending === undefined && waiting.awaitingReply !== undefined && !replied.has(waiting.awaitingReply.at)) {
+    replied.add(waiting.awaitingReply.at);
+    console.log(JSON.stringify({ turnEndedInText: waiting.awaitingReply.lastMessage.slice(0, 200) }));
+    manager.reply(id, 'Ask me to grant that folder and go on.');
+  }
 }
 const state = manager.get(id);
 console.log(JSON.stringify({ pending: state.pending?.kind ?? null, status: state.status, sessionId: state.sessionId ?? null }));

@@ -2477,3 +2477,55 @@ is gone (`src/creation/guardCommand.ts`).
   no other creation runs either.
 - Every tool call is logged to `guard.log` next to the rules (the tool, and the reason only when denied, redacted; never the input),
   so the real check can see that the hook ran.
+
+## `check-server-crash`: a denied write answered in text (2026-10-18)
+
+First run: scenario B passed; in A everything after the kill passed, but
+"A: the creation asked something" failed with status `running`. Read from
+that session's transcript (Claude Code's own session file for the
+creation session).
+
+- **The Write was not legitimate, and the guard was right.** The model's
+  first call, before step 0 (the idea says "before anything else"), was a
+  Write to the check's `outside/idea.txt`, which the check puts outside
+  every allowed folder on purpose. Both layers denied it with the same
+  reason (`tool.denied` from the callback guard, a `deny` line in
+  `guard.log` from the command hook). `guard.json` held the right
+  projects and sessions folders. The same happens with any home: the
+  folder is outside by design, not because the creation started from the
+  web.
+- **The model, not the hooks, ended the turn.** The model saw the
+  command hook's message (Claude Code shows it as `PreToolUse:Write hook
+  error: [<hook command line>]: <reason>`, from exit code 2 and stderr),
+  understood it, and 15 seconds later ended its turn with a question in
+  plain text ("grant the folder, or skip the copy?"), although
+  `grant_directory` was among its tools and the skill says never to end a
+  turn waiting for text in the web app. No tool call was waiting: the
+  creation was `running` with `awaitingReply` set, which the check did not
+  look at, so it waited its full 10 minutes. The only later event was a
+  plan-usage line. Nothing hung in the hook or between the two layers.
+- **A normal creation from the web is not broken** by this: the panel
+  shows that last text with the free-text reply box (phase 4, 3.3), and a
+  reply goes on. It is a detour: one extra turn, and the user has to type
+  what one click in the grant dialog would have done.
+
+Fixes:
+
+1. The denial for a folder outside the allowed ones (Write tools, and
+   `scaffold`/`commit` targets) now says how to get it granted
+   (`grantHint` in `guard.ts`): to the main session, call
+   `grant_directory` if it is among its tools, otherwise ask for
+   `/add-dir`, never in plain text when it has `grant_directory`; to a
+   subagent, stop and name the folder in its report. Both guard layers use
+   `evaluateToolUse`, so both say it. The message only proposes a grant;
+   the user still confirms it in the browser.
+2. SKILL.md, "Denied calls": the same rule, also before step 0.
+3. `check-server-crash.ts` and `fixtures/crash-throw.ts`: if a turn ends
+   with a question in text, they answer it once through the free-text
+   reply ("Ask me to grant that folder and go on.") and print that it
+   happened, then keep waiting for a tool call.
+
+Not changed: the command hook keeps exit code 2. A JSON
+`permissionDecision: "deny"` on stdout would drop the "hook error" prefix
+and the command line from the model's view, but the model read the reason
+correctly, so it is not needed now.

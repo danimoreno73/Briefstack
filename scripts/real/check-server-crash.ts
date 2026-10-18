@@ -67,6 +67,8 @@ requireConfirmation('Kill a briefstack web twice while a real creation waits on 
 const LIMIT_MS = 30 * 60_000;
 const PENDING_MS = 10 * 60_000;
 const WATCH_MS = 60_000;
+/** Sent if a turn ends with a question in text (the reply box): it leads to the grant dialog. */
+const REPLY = 'Ask me to grant that folder and go on.';
 
 // The agent files must already hold the saver models: this script never rewrites them.
 const profiles = await loadUsageProfiles({ baseFile: baseProfilesFile() });
@@ -222,11 +224,19 @@ try {
   const created = await call('POST', '/api/creations', { idea: idea('A one-page checklist for packing a carry-on bag.') });
   if (created.status !== 200 && created.status !== 201) throw new Error(`could not start the creation: ${created.status} ${created.body}`);
   const { id } = JSON.parse(created.body) as { id: string };
-  let state: { status?: string; pending?: { kind: string }; sessionId?: string } = {};
+  let state: { status?: string; pending?: { kind: string }; sessionId?: string; awaitingReply?: { lastMessage: string; at: string } } = {};
   const pendingBy = Math.min(Date.now() + PENDING_MS, finishBy);
+  const replied = new Set<string>();
   while (state.pending === undefined && state.status !== 'finished' && Date.now() < pendingBy) {
     await sleep(2000);
     state = JSON.parse((await call('GET', `/api/creations/${id}`)).body) as typeof state;
+    // A turn that ends with a question in text is not what this check needs: answer it once, from the reply box.
+    if (state.pending === undefined && state.awaitingReply !== undefined && !replied.has(state.awaitingReply.at)) {
+      replied.add(state.awaitingReply.at);
+      console.log(`   the turn ended in text instead of a tool call: ${state.awaitingReply.lastMessage.slice(0, 200)}`);
+      const sent = await call('POST', `/api/creations/${id}/reply`, { text: REPLY });
+      console.log(`   replied "${REPLY}" (${sent.status})`);
+    }
   }
   ok = report('A: the creation asked something (a tool call waits on the server)', state.pending !== undefined, state.pending?.kind ?? state.status ?? '?') && ok;
   const runsA = await runFiles(box);
