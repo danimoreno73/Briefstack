@@ -8,7 +8,9 @@
  *
  * A proposal that changes, moves or deletes a locked block, or adds a new
  * one, is rejected. "Moves" means the block now sits under another heading,
- * or the blocks are in another order. Blocks do not nest.
+ * or the blocks are in another order. Blocks do not nest. Markers are plain
+ * ASCII; a line that reads as one only after NFKC, without invisible
+ * characters or with look-alike letters, is rejected.
  */
 
 export interface LockedBlock {
@@ -23,8 +25,38 @@ export type LockedParse = { ok: true; blocks: LockedBlock[] } | { ok: false; err
 
 const OPEN_RE = /^\s*<!--\s*briefstack:locked\s+([a-z0-9][a-z0-9-]*)\s*-->\s*$/;
 const CLOSE_RE = /^\s*<!--\s*\/briefstack:locked\s+([a-z0-9][a-z0-9-]*)\s*-->\s*$/;
-/** Any marker-looking line, to catch a malformed one. */
-const ANY_MARKER_RE = /briefstack:locked/;
+/**
+ * Letters of other scripts that look like the Latin ones (after NFKC and
+ * lowercasing), so `briefstаck:lоcked` with Cyrillic letters is caught.
+ */
+const LOOK_ALIKES: Readonly<Record<string, string>> = {
+  // Cyrillic
+  'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'у': 'y', 'х': 'x', 'к': 'k',
+  'і': 'i', 'ј': 'j', 'ѕ': 's', 'ԁ': 'd', 'ӏ': 'l', 'һ': 'h', 'ԛ': 'q',
+  // Greek
+  'ο': 'o', 'α': 'a', 'κ': 'k', 'ι': 'i', 'ε': 'e', 'ϲ': 'c', 'ν': 'v', 'τ': 't', 'ρ': 'p',
+  // Armenian
+  'օ': 'o', 'ս': 'u',
+  // Latin look-alikes NFKC keeps
+  'ı': 'i', 'ɑ': 'a', 'ɩ': 'i', 'ʟ': 'l', 'ɡ': 'g',
+};
+
+/**
+ * A line reduced to its Latin letters: NFKC (width forms, ligatures), no
+ * invisible format characters, lowercase, look-alikes mapped, everything
+ * that is not a-z dropped.
+ */
+function skeleton(line: string): string {
+  return line
+    .normalize('NFKC')
+    .replace(/\p{Cf}/gu, '')
+    .toLowerCase()
+    .replace(/[^\x20-\x7e]/gu, (char) => LOOK_ALIKES[char] ?? char)
+    .replace(/[^a-z]/g, '');
+}
+
+/** Any line that reads as a marker once normalized, to catch a malformed or disguised one. */
+const looksLikeMarker = (line: string): boolean => skeleton(line).includes('briefstacklocked');
 const HEADING_RE = /^#{1,6}\s/;
 
 export function parseLockedBlocks(text: string): LockedParse {
@@ -52,7 +84,7 @@ export function parseLockedBlocks(text: string): LockedParse {
       open = undefined;
       continue;
     }
-    if (ANY_MARKER_RE.test(line)) return { ok: false, error: `line ${index + 1} looks like a locked-block marker but is not one` };
+    if (looksLikeMarker(line)) return { ok: false, error: `line ${index + 1} looks like a locked-block marker but is not one` };
     if (open === undefined && HEADING_RE.test(line)) heading = line.trim();
   }
   if (open !== undefined) return { ok: false, error: `locked block "${open.id}" is not closed` };

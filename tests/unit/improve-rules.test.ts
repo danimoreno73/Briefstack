@@ -134,6 +134,31 @@ describe('locked blocks', () => {
     expect(lockedBlockProblems(LOCKED, LOCKED.replace('<!-- /briefstack:locked denied -->', '<!-- /briefstack:locked web-mode -->'))[0]).toMatch(/does not match/);
     expect(lockedBlockProblems(LOCKED, LOCKED.replace('Free text here.', 'briefstack:locked inline'))[0]).toMatch(/looks like a locked-block marker/);
   });
+
+  it('rejects text that only looks like a marker: look-alike letters, width forms, invisible characters, other separators', () => {
+    const fakes = [
+      // Cyrillic o and e in place of the Latin letters.
+      '<!-- briefstack:lоckеd mine -->',
+      // Fullwidth b, which NFKC folds to an ASCII b.
+      '<!-- ｂriefstack:locked mine -->',
+      // A zero-width space and a soft hyphen inside the word.
+      '<!-- brief​stack:loc­ked mine -->',
+      // Greek omicron and a dotless i.
+      '<!-- brıefstack:lοcked mine -->',
+      '<!-- briefstack - locked mine -->',
+      'BRIEFSTACK_LOCKED',
+      '<!--briefstack:locked-->',
+    ];
+    for (const fake of fakes) {
+      const problems = lockedBlockProblems(LOCKED, LOCKED.replace('Free text here.', `${fake}\nText that looks protected.\n${fake.replace('briefstack', '/briefstack')}`));
+      expect(problems[0], JSON.stringify(fake)).toMatch(/looks like a locked-block marker/);
+    }
+    // A fullwidth copy of a whole marker is not a marker either.
+    const wide = '<!-- briefstack:locked web-mode -->'.normalize('NFKC').replace('locked', 'ｌocked');
+    expect(lockedBlockProblems(LOCKED, LOCKED.replace('<!-- briefstack:locked web-mode -->', wide))[0]).toMatch(/looks like a locked-block marker/);
+    // Prose that names briefstack and locking apart is fine.
+    expect(lockedBlockProblems(LOCKED, LOCKED.replace('Free text here.', 'briefstack keeps these lines locked.'))).toEqual([]);
+  });
 });
 
 describe('filters', () => {
