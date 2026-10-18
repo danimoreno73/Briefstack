@@ -7,12 +7,14 @@ import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import type { Pending } from '../../src/creation/manager.js';
 import {
   GIT_STATUS_ARGS,
+  CheckStop,
   autoAnswer,
   effortRecorder,
   mentionedPaths,
   onlyThisCommand,
   parseInterviewerTarget,
   sandbox,
+  startCheck,
   workRootCandidates,
 } from '../../scripts/real/common.js';
 import { tempDir } from '../helpers.js';
@@ -325,5 +327,91 @@ describe('check-interviewer-target: runs only the interviewer on two fixed ideas
     expect(script).not.toContain('bypassPermissions');
     expect(script).toContain('ok = report(`${expected}: recommended target`');
     expect(script).toContain('ok = report(`${expected}: cites the rule`');
+  });
+});
+
+describe('every real script closes what it started, whatever happens', () => {
+  type Listener = (error: unknown) => void;
+  const fakeProcess = () => {
+    const listeners = new Map<string, Listener[]>();
+    const exits: number[] = [];
+    return {
+      exits,
+      emit: (event: string, error: unknown) => {
+        for (const listener of listeners.get(event) ?? []) listener(error);
+      },
+      count: () => [...listeners.values()].reduce((sum, list) => sum + list.length, 0),
+      on: (event: string, listener: Listener) => listeners.set(event, [...(listeners.get(event) ?? []), listener]),
+      off: (event: string, listener: Listener) =>
+        listeners.set(
+          event,
+          (listeners.get(event) ?? []).filter((entry) => entry !== listener),
+        ),
+      exit: (code: number) => exits.push(code),
+    };
+  };
+
+  it('on an error, runs every close once, last added first, even when one throws, and fails', async () => {
+    const proc = fakeProcess();
+    const lines: string[] = [];
+    const check = startCheck(proc, (line) => lines.push(line));
+    const order: string[] = [];
+    check.add(() => order.push('sandbox'));
+    check.add(async () => {
+      order.push('manager');
+      throw new Error('stuck');
+    });
+    const tracked = { killTree: async () => void order.push('tree') };
+    check.query({ close: () => order.push('query') }, tracked);
+    check.fail(new Error('creation.noReply'));
+    await Promise.all([check.close(), check.close()]);
+    expect(order).toEqual(['query', 'tree', 'manager', 'sandbox']);
+    expect(lines.join('\n')).toContain('creation.noReply');
+    expect(lines.join('\n')).toContain('stuck');
+    expect(check.exitCode(true)).toBe(1);
+    expect(proc.count()).toBe(0);
+  });
+
+  it('passes only when nothing failed; a CheckStop sets its own code', async () => {
+    const quiet = startCheck(fakeProcess(), () => undefined);
+    await quiet.close();
+    expect(quiet.exitCode(true)).toBe(0);
+    expect(quiet.exitCode(false)).toBe(1);
+    const stopped = startCheck(fakeProcess(), () => undefined);
+    stopped.fail(new CheckStop(2, 'not starting'));
+    expect(stopped.exitCode(true)).toBe(2);
+  });
+
+  it('closes everything and exits with 1 on an error nothing awaited', async () => {
+    const proc = fakeProcess();
+    const check = startCheck(proc, () => undefined);
+    const closed: string[] = [];
+    check.add(() => closed.push('manager'));
+    proc.emit('unhandledRejection', new Error('late'));
+    await check.close();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(closed).toEqual(['manager']);
+    expect(proc.exits).toEqual([1]);
+  });
+
+  it('is used by every script that starts a session, a manager or a sandbox', async () => {
+    const dir = path.join(PACKAGE_ROOT, 'scripts', 'real');
+    const scripts = (await readdir(dir)).filter((name) => name.endsWith('.ts') && name !== 'common.ts');
+    expect(scripts.length).toBeGreaterThan(5);
+    for (const name of scripts) {
+      const source = await readFile(path.join(dir, name), 'utf8');
+      const where = (text: string) => `${name}: ${text}`;
+      expect(source, where('startCheck')).toContain('startCheck()');
+      expect(source, where('catch')).toMatch(/\} catch \(error\) \{\s+check\.fail\(error\);\s+\} finally \{\s+await check\.close\(\);\s+\}/);
+      expect(source, where('exit code')).toContain('process.exit(check.exitCode(');
+      // After the check starts, only its exit code ends the process: an early exit would skip the closes.
+      const body = source.slice(source.indexOf('startCheck()'));
+      expect(body.match(/process\.exit\(/g)?.length, where('one exit')).toBe(1);
+      // Every query is registered, and so is every manager and sandbox.
+      expect(source.match(/(?<![.\w])query\(/g)?.length ?? 0, where('queries')).toBe(source.match(/check\.query\(query\(/g)?.length ?? 0);
+      const count = (pattern: RegExp) => source.match(pattern)?.length ?? 0;
+      expect(count(/await sandbox\(/g), where('sandbox')).toBe(count(/check\.add\(\(\) => box\.cleanup\(\)\)/g));
+      expect(count(/createWebCreations\(|new CreationManager\(|ChatManager\.open\(/g), where('managers')).toBe(count(/check\.add\(\(\) => \w+\.shutdown\(\)\)/g));
+    }
   });
 });

@@ -11,7 +11,7 @@ import { promisify } from 'node:util';
 import { configFilePath, readConfig, resolvePaths, systemPathEnv } from '../../src/config/index.js';
 import { checkClaudeCode, formatVersion } from '../../src/creation/claudeBinary.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
-import { GIT_STATUS_ARGS, claudeExecutable, readPlanUsage, sandbox, show } from './common.js';
+import { GIT_STATUS_ARGS, claudeExecutable, readPlanUsage, sandbox, show, startCheck } from './common.js';
 
 const run = promisify(execFile);
 const pathEnv = systemPathEnv();
@@ -23,8 +23,8 @@ console.log('library         :', paths.libraryDir);
 console.log('projects folder :', paths.projectsDir);
 console.log('sessions        :', paths.sessionsDir);
 
-const check = await checkClaudeCode({ env: process.env, platform: process.platform, homedir: os.homedir() });
-console.log('claude          :', check.status === 'notFound' ? 'NOT FOUND' : `${check.executable} (${check.status}${'installed' in check ? `, ${formatVersion(check.installed)}` : ''})`);
+const claude = await checkClaudeCode({ env: process.env, platform: process.platform, homedir: os.homedir() });
+console.log('claude          :', claude.status === 'notFound' ? 'NOT FOUND' : `${claude.executable} (${claude.status}${'installed' in claude ? `, ${formatVersion(claude.installed)}` : ''})`);
 for (const name of ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN']) {
   if (process.env[name] !== undefined) console.log(`WARNING         : ${name} is set; briefstack web does not pass it to Claude Code.`);
 }
@@ -33,11 +33,16 @@ console.log('repo            :', git.stdout.trim() === '' ? 'clean' : 'HAS UNCOM
 const library = await run('git', [...GIT_STATUS_ARGS], { cwd: paths.libraryDir }).catch(() => undefined);
 console.log('library git     :', library === undefined ? 'not a git repo or missing' : library.stdout.trim() === '' ? 'clean' : 'HAS UNCOMMITTED CHANGES');
 
-if (check.status !== 'notFound') {
-  const box = await sandbox('preflight');
+if (claude.status !== 'notFound') {
+  const check = startCheck();
   try {
+    const box = await sandbox('preflight');
+    check.add(() => box.cleanup());
     console.log('plan usage      :', show(await readPlanUsage(box, claudeExecutable())));
+  } catch (error) {
+    check.fail(error);
   } finally {
-    await box.cleanup();
+    await check.close();
   }
+  process.exit(check.exitCode(true));
 }

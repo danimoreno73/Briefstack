@@ -154,13 +154,114 @@ export async function sandbox(prefix: string, options: SandboxOptions = {}): Pro
   return { ...made, cleanup };
 }
 
+/** Throws, so a check that has started something still closes it (see `startCheck`). */
 export function claudeExecutable(): string {
   const executable = findClaudeExecutable({ env: process.env, platform: process.platform, homedir: os.homedir() });
-  if (executable === undefined) {
-    console.error('Claude Code was not found on PATH or in ~/.local/bin.');
-    process.exit(1);
-  }
+  if (executable === undefined) throw new Error('Claude Code was not found on PATH or in ~/.local/bin.');
   return executable;
+}
+
+/** Ends a check early with an exit code and a message, without counting as a crash. */
+export class CheckStop extends Error {
+  constructor(
+    readonly code: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** What `startCheck` needs from the process; tests pass their own. */
+export interface CheckProcess {
+  on(event: 'unhandledRejection' | 'uncaughtException', listener: (error: unknown) => void): unknown;
+  off(event: 'unhandledRejection' | 'uncaughtException', listener: (error: unknown) => void): unknown;
+  exit(code: number): void;
+}
+
+/**
+ * A running real check and everything it must close. Each script does
+ *
+ *   const check = startCheck();
+ *   try { ... } catch (error) { check.fail(error); } finally { await check.close(); }
+ *   process.exit(check.exitCode(ok));
+ *
+ * and registers each session, manager and sandbox with `add` or `query` as
+ * soon as it exists. `close()` runs them once, last added first, each one
+ * even if another throws, so no Claude Code process outlives the script.
+ * An error nothing awaited (an unhandled rejection or an uncaught exception)
+ * would end Node before any `finally`: it is reported, everything is closed
+ * and the process exits with 1.
+ */
+export class Check {
+  private readonly closes: (() => unknown)[] = [];
+  private failed = false;
+  private stopCode: number | undefined;
+  private closing: Promise<void> | undefined;
+  private readonly onCrash = (error: unknown): void => {
+    this.fail(error);
+    void this.close().then(() => this.proc.exit(1));
+  };
+
+  constructor(
+    private readonly proc: CheckProcess,
+    private readonly log: (line: string) => void,
+  ) {
+    proc.on('unhandledRejection', this.onCrash);
+    proc.on('uncaughtException', this.onCrash);
+  }
+
+  /** Runs `close` when the check ends, whatever happens. */
+  add(close: () => unknown): void {
+    this.closes.push(close);
+  }
+
+  /** A query (and the process tree it was spawned in): closed and killed when the check ends. Returns `q`. */
+  query<Q extends { close(): void }>(q: Q, tracked?: { killTree(): Promise<void> }): Q {
+    this.add(async () => {
+      q.close();
+      await tracked?.killTree();
+    });
+    return q;
+  }
+
+  /** Records an error: the check fails, and the error is printed. A `CheckStop` sets its code instead. */
+  fail(error: unknown): void {
+    if (error instanceof CheckStop) {
+      this.stopCode ??= error.code;
+      this.log(error.message);
+      return;
+    }
+    this.failed = true;
+    this.log(`ERROR: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
+  }
+
+  /** Closes everything registered, once. Never throws. */
+  close(): Promise<void> {
+    this.closing ??= (async () => {
+      for (const close of [...this.closes].reverse()) {
+        try {
+          await close();
+        } catch (error) {
+          this.failed = true;
+          this.log(`ERROR while closing: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      this.proc.off('unhandledRejection', this.onCrash);
+      this.proc.off('uncaughtException', this.onCrash);
+    })();
+    return this.closing;
+  }
+
+  /** 0 when every check passed, the `CheckStop` code if one stopped it, 1 otherwise. */
+  exitCode(ok: boolean): number {
+    if (this.failed) return 1;
+    if (this.stopCode !== undefined) return this.stopCode;
+    return ok ? 0 : 1;
+  }
+}
+
+export function startCheck(proc: CheckProcess = process, log: (line: string) => void = (line) => console.error(line)): Check {
+  return new Check(proc, log);
 }
 
 /** The environment of a session: no API key, no CLAUDE_CODE_*, the sandbox as BRIEFSTACK_HOME. */

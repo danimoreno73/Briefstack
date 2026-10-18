@@ -20,18 +20,21 @@ import {
   sandbox,
   sessionEnv,
   show,
+  startCheck,
 } from './common.js';
 
 requireConfirmation('Check that the effort setting reaches a Sonnet session (two one-word turns).');
 
-const box = await sandbox('effort');
-const executable = claudeExecutable();
+const check = startCheck();
 let ok = true;
 try {
+  const executable = claudeExecutable();
+  const box = await sandbox('effort');
+  check.add(() => box.cleanup());
   console.log(`Plan usage before: ${show(await readPlanUsage(box, executable))}`);
   for (const effort of ['low', 'high'] as const) {
     const recorder = effortRecorder();
-    const q = query({
+    const q = check.query(query({
       prompt: oneShot('Reply with the single word: ok'),
       options: {
         cwd: box.project,
@@ -43,7 +46,7 @@ try {
         maxTurns: 1,
         hooks: { Stop: [{ hooks: [recorder.hook] }] },
       },
-    });
+    }));
     let model: unknown = '?';
     for await (const message of q) {
       if (message.type === 'system' && message.subtype === 'init') model = message.model;
@@ -54,7 +57,9 @@ try {
     ok = report(`effort ${effort}`, level === effort, `model ${String(model)}, Stop hook reports ${level ?? 'no effort'}`) && ok;
   }
   console.log(`\nPlan usage after: ${show(await readPlanUsage(box, executable))}`);
+} catch (error) {
+  check.fail(error);
 } finally {
-  await box.cleanup();
+  await check.close();
 }
-process.exit(ok ? 0 : 1);
+process.exit(check.exitCode(ok));

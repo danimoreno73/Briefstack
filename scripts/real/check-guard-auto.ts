@@ -23,7 +23,7 @@ import path from 'node:path';
 import { guardHook, type GuardContext } from '../../src/creation/guard.js';
 import { buildQueryOptions } from '../../src/creation/sdkRunner.js';
 import { spawnTracked } from '../../src/creation/processTree.js';
-import { claudeExecutable, oneShot, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show } from './common.js';
+import { claudeExecutable, oneShot, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show, startCheck } from './common.js';
 
 requireConfirmation('Check the guard hook under auto mode (haiku, about seven tool calls).');
 
@@ -33,10 +33,12 @@ const exists = (file: string): Promise<boolean> =>
     () => false,
   );
 
-const box = await sandbox('guard');
-const executable = claudeExecutable();
+const check = startCheck();
 let ok = true;
 try {
+  const executable = claudeExecutable();
+  const box = await sandbox('guard');
+  check.add(() => box.cleanup());
   console.log(`Plan usage before: ${show(await readPlanUsage(box, executable))}`);
 
   let claimed: string | undefined;
@@ -92,7 +94,7 @@ try {
     `6) Write the text "#!/bin/sh" to the file ${slash(gitHook)}. ` +
     `7) Use the Monitor tool with the command: echo ran > "${slash(monitorMarker)}" ` +
     'If a tool is denied, say so and carry on with the next thing.';
-  const q = query({ prompt: oneShot(prompt), options });
+  const q = check.query(query({ prompt: oneShot(prompt), options }), tracked);
   for await (const message of q) {
     if (message.type === 'result') {
       finalText = 'result' in message && typeof message.result === 'string' ? message.result : '';
@@ -126,7 +128,9 @@ try {
   ok = report('Monitor command did not run', !(await exists(monitorMarker)), monitorMarker) && ok;
 
   console.log(`\nPlan usage after: ${show(await readPlanUsage(box, executable))}`);
+} catch (error) {
+  check.fail(error);
 } finally {
-  await box.cleanup();
+  await check.close();
 }
-process.exit(ok ? 0 : 1);
+process.exit(check.exitCode(ok));

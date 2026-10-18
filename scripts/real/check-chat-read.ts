@@ -16,23 +16,25 @@ import { ChatManager } from '../../src/chat/manager.js';
 import { SdkChatRunner } from '../../src/chat/sdkChatRunner.js';
 import { ChatStore } from '../../src/chat/store.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
-import { claudeExecutable, readPlanUsage, report, requireConfirmation, sandbox, sandboxLibrary, show } from './common.js';
+import { claudeExecutable, readPlanUsage, report, requireConfirmation, sandbox, sandboxLibrary, show, startCheck } from './common.js';
 
 requireConfirmation('Check that the chat answers from its read tools (haiku, a few short turns).');
 
-const box = await sandbox('chat-read');
-const executable = claudeExecutable();
+const check = startCheck();
 let ok = true;
-let chat: ChatManager | undefined;
 try {
+  const executable = claudeExecutable();
+  const box = await sandbox('chat-read');
+  check.add(() => box.cleanup());
   console.log(`Plan usage before: ${show(await readPlanUsage(box, executable))}`);
   const pathEnv = await sandboxLibrary(box);
-  chat = await ChatManager.open({
+  const chat = await ChatManager.open({
     store: new ChatStore(path.join(box.home, 'chat')),
     runner: new SdkChatRunner({ pathEnv, findExecutable: () => executable }),
     tools: { pathEnv, repoDir: PACKAGE_ROOT, lang: 'en' },
     profile: async () => ({ model: 'haiku', effort: 'low' }),
   });
+  check.add(() => chat.shutdown());
   await chat.send('Which projects do I have in briefstack? Name each one and say where you found it.');
   const deadline = Date.now() + 180_000;
   while ((await chat.view()).status !== 'idle' && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 500));
@@ -47,8 +49,9 @@ try {
   ok = report('the answer names the project', answer.includes('Seed tracker'), answer.slice(0, 160) || 'no answer') && ok;
   ok = report('no confirmation card', !messages.some((message) => message.role === 'confirmation'), '') && ok;
   console.log(`\nPlan usage after: ${show(await readPlanUsage(box, executable))}`);
+} catch (error) {
+  check.fail(error);
 } finally {
-  await chat?.shutdown();
-  await box.cleanup();
+  await check.close();
 }
-process.exit(ok ? 0 : 1);
+process.exit(check.exitCode(ok));

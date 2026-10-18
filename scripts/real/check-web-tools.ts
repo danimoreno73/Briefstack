@@ -25,14 +25,16 @@ import { buildQueryOptions } from '../../src/creation/sdkRunner.js';
 import { spawnTracked } from '../../src/creation/processTree.js';
 import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL, WEB_SERVER_NAME, createWebToolsServer } from '../../src/creation/webTools.js';
 import { protectedDirs } from '../../src/scaffold/outputDir.js';
-import { claudeExecutable, oneShot, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show } from './common.js';
+import { claudeExecutable, oneShot, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show, startCheck } from './common.js';
 
 requireConfirmation('Check that the main session sees and calls approve_spec (haiku, one tool call).');
 
-const box = await sandbox('web-tools');
-const executable = claudeExecutable();
+const check = startCheck();
 let ok = true;
 try {
+  const executable = claudeExecutable();
+  const box = await sandbox('web-tools');
+  check.add(() => box.cleanup());
   console.log(`Plan usage before: ${show(await readPlanUsage(box, executable))}`);
 
   const word = `osprey${randomInt(1000, 10000)}`;
@@ -102,7 +104,7 @@ try {
   const prompt =
     `Call the tool ${APPROVE_SPEC_TOOL} once with specFile "${slash(specFile)}" and summaryFile "${slash(summaryFile)}". ` +
     'It returns the user decision. Then reply with only the new name the user asked for, nothing else.';
-  const q = query({ prompt: oneShot(prompt), options });
+  const q = check.query(query({ prompt: oneShot(prompt), options }), tracked);
   for await (const message of q) {
     if (message.type === 'system' && message.subtype === 'init' && initTools.length === 0) {
       initTools = message.tools;
@@ -137,7 +139,9 @@ try {
   ok = report('approve_spec needed no permission prompt', !asked.includes(APPROVE_SPEC_TOOL), asked.join(', ') || 'nothing asked') && ok;
 
   console.log(`\nPlan usage after: ${show(await readPlanUsage(box, executable))}`);
+} catch (error) {
+  check.fail(error);
 } finally {
-  await box.cleanup();
+  await check.close();
 }
-process.exit(ok ? 0 : 1);
+process.exit(check.exitCode(ok));

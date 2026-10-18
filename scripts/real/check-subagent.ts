@@ -21,14 +21,16 @@ import path from 'node:path';
 import { guardHook, type GuardContext } from '../../src/creation/guard.js';
 import { buildQueryOptions } from '../../src/creation/sdkRunner.js';
 import { spawnTracked } from '../../src/creation/processTree.js';
-import { claudeExecutable, oneShot, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show } from './common.js';
+import { claudeExecutable, oneShot, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show, startCheck } from './common.js';
 
 requireConfirmation('Check that a subagent report reaches the main session (haiku, one subagent, one word).');
 
-const box = await sandbox('subagent');
-const executable = claudeExecutable();
+const check = startCheck();
 let ok = true;
 try {
+  const executable = claudeExecutable();
+  const box = await sandbox('subagent');
+  check.add(() => box.cleanup());
   console.log(`Plan usage before: ${show(await readPlanUsage(box, executable))}`);
 
   const word = `heron${randomInt(1000, 10000)}`;
@@ -89,7 +91,7 @@ try {
   const prompt =
     'Use the Agent tool with subagent_type "echo" and the prompt "Report your word." ' +
     'When you have its report, reply with exactly the word it reported and nothing else.';
-  const q = query({ prompt: oneShot(prompt), options });
+  const q = check.query(query({ prompt: oneShot(prompt), options }), tracked);
   for await (const message of q) {
     if (message.type === 'assistant' && message.parent_tool_use_id === null) {
       for (const block of message.message.content) {
@@ -137,7 +139,9 @@ try {
   );
 
   console.log(`\nPlan usage after: ${show(await readPlanUsage(box, executable))}`);
+} catch (error) {
+  check.fail(error);
 } finally {
-  await box.cleanup();
+  await check.close();
 }
-process.exit(ok ? 0 : 1);
+process.exit(check.exitCode(ok));

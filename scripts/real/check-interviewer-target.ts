@@ -29,6 +29,7 @@ import {
   sandbox,
   sessionEnv,
   show,
+  startCheck,
 } from './common.js';
 
 requireConfirmation('Check that the interviewer recommends the target by library/rules/target.md (two ideas).');
@@ -51,10 +52,12 @@ const { data, body } = parseFrontmatter(await readFile(agentFile, 'utf8'), agent
 const model = typeof data.model === 'string' ? data.model : undefined;
 const effort = typeof data.effort === 'string' ? (data.effort as EffortLevel) : undefined;
 
-const box = await sandbox('interviewer-target');
-const executable = claudeExecutable();
+const check = startCheck();
 let ok = true;
 try {
+  const executable = claudeExecutable();
+  const box = await sandbox('interviewer-target');
+  check.add(() => box.cleanup());
   for (const part of [['library', 'rules'], ['library', 'templates'], ['schemas']]) {
     await cp(path.join(PACKAGE_ROOT, ...part), path.join(box.project, ...part), { recursive: true });
   }
@@ -72,7 +75,7 @@ try {
       'Give your report in the usual format. Then end with one line, exactly in this form and with nothing after it:',
       'TARGET: <the target you recommend or know: claude-code or claude-app> | RULE: <the file you cite for the target rule, or none>',
     ].join('\n');
-    const q = query({
+    const q = check.query(query({
       prompt: oneShot(prompt),
       options: {
         cwd: box.project,
@@ -89,7 +92,7 @@ try {
             : { behavior: 'deny', message: 'This check allows only Read, Grep and Glob.' },
         maxTurns: 12,
       },
-    });
+    }));
     let text = '';
     const reads: string[] = [];
     for await (const message of q) {
@@ -118,7 +121,9 @@ try {
   }
 
   console.log(`\nPlan usage after: ${show(await readPlanUsage(box, executable))}`);
+} catch (error) {
+  check.fail(error);
 } finally {
-  await box.cleanup();
+  await check.close();
 }
-process.exit(ok ? 0 : 1);
+process.exit(check.exitCode(ok));

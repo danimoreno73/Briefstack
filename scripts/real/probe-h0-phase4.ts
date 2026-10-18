@@ -34,7 +34,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import { spawnTracked } from '../../src/creation/processTree.js';
-import { claudeExecutable, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show, type Sandbox } from './common.js';
+import { claudeExecutable, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show, startCheck, type Sandbox } from './common.js';
 
 requireConfirmation('Phase 4 H0 probes (haiku, low effort, a few short turns).');
 
@@ -150,7 +150,7 @@ async function probe1(box: Sandbox): Promise<boolean> {
   let mcpStatus = '?';
   let final = '';
   const started = Date.now();
-  const q = query({ prompt, options });
+  const q = check.query(query({ prompt, options }), tracked);
   for await (const m of q) {
     if (m.type === 'system' && m.subtype === 'init' && initTools.length === 0) {
       initTools = m.tools;
@@ -234,7 +234,7 @@ async function probe2(box: Sandbox): Promise<boolean> {
         'Then reply with the word and the command output, separated by a space.';
       let final = '';
       const started = Date.now();
-      const q = query({ prompt, options });
+      const q = check.query(query({ prompt, options }), tracked);
       for await (const m of q) {
         if (m.type === 'system' && m.subtype === 'init') sessionId = m.session_id;
         if (m.type === 'result') {
@@ -290,10 +290,10 @@ async function probe3(box: Sandbox): Promise<boolean> {
   let first: TurnCost | undefined;
   {
     const tracked = spawnTracked();
-    const q = query({
+    const q = check.query(query({
       prompt: `Remember this word for later: ${word}. Reply only with: noted`,
       options: { ...base(box, cwd), persistSession: true, tools: [], maxTurns: 1, spawnClaudeCodeProcess: (o) => tracked.spawn(o) },
-    });
+    }), tracked);
     for await (const m of q) {
       if (m.type === 'system' && m.subtype === 'init') sessionId = m.session_id;
       if (m.type === 'result') {
@@ -312,10 +312,10 @@ async function probe3(box: Sandbox): Promise<boolean> {
   let second: TurnCost | undefined;
   {
     const tracked = spawnTracked();
-    const q = query({
+    const q = check.query(query({
       prompt: 'What was the word I asked you to remember? Reply with only the word.',
       options: { ...base(box, cwd), persistSession: true, resume: sessionId, tools: [], maxTurns: 1, spawnClaudeCodeProcess: (o) => tracked.spawn(o) },
-    });
+    }), tracked);
     for await (const m of q) {
       if (m.type === 'system' && m.subtype === 'init') resumedId = m.session_id;
       if (m.type === 'result') {
@@ -343,7 +343,7 @@ async function probe4(box: Sandbox): Promise<boolean> {
   const input = new Queue();
   const tracked = spawnTracked();
   input.push('Reply with only the word: ready');
-  const q = query({ prompt: input, options: { ...base(box, box.home), tools: [], maxTurns: 3, spawnClaudeCodeProcess: (o) => tracked.spawn(o) } });
+  const q = check.query(query({ prompt: input, options: { ...base(box, box.home), tools: [], maxTurns: 3, spawnClaudeCodeProcess: (o) => tracked.spawn(o) } }), tracked);
   const finals: string[] = [];
   const sessions = new Set<string>();
   let inits = 0;
@@ -371,9 +371,11 @@ async function probe4(box: Sandbox): Promise<boolean> {
 
 // --- Main ----------------------------------------------------------------------
 
-const box = await sandbox('h0-phase4');
+const check = startCheck();
 let ok = true;
 try {
+  const box = await sandbox('h0-phase4');
+  check.add(() => box.cleanup());
   const probes: [string, (b: Sandbox) => Promise<boolean>][] = [
     ['1', probe1],
     ['2', probe2],
@@ -393,7 +395,9 @@ try {
     }
   }
   await guardUsage(box, 'after');
+} catch (error) {
+  check.fail(error);
 } finally {
-  await box.cleanup();
+  await check.close();
 }
-process.exit(ok ? 0 : 1);
+process.exit(check.exitCode(ok));

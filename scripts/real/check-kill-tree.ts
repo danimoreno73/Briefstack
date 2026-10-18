@@ -12,7 +12,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawnTracked } from '../../src/creation/processTree.js';
-import { claudeExecutable, onlyThisCommand, oneShot, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show } from './common.js';
+import { claudeExecutable, onlyThisCommand, oneShot, readPlanUsage, report, requireConfirmation, sandbox, sessionEnv, show, startCheck } from './common.js';
 
 requireConfirmation('Check that stopping a creation leaves no orphan process (haiku, one tool call).');
 
@@ -25,10 +25,12 @@ const alive = (pid: number): boolean => {
   }
 };
 
-const box = await sandbox('kill');
-const executable = claudeExecutable();
+const check = startCheck();
 let ok = false;
 try {
+  const executable = claudeExecutable();
+  const box = await sandbox('kill');
+  check.add(() => box.cleanup());
   console.log(`Plan usage before: ${show(await readPlanUsage(box, executable))}`);
 
   const pidFile = path.join(box.dir, 'sleeper.pid').replaceAll('\\', '/');
@@ -43,7 +45,7 @@ try {
 
   const tracked = spawnTracked();
   const abort = new AbortController();
-  const q = query({
+  const q = check.query(query({
     prompt: oneShot(`Run exactly this shell command, character for character, and wait for it: ${command}`),
     options: {
       cwd: box.project,
@@ -60,7 +62,7 @@ try {
       tools: ['Bash', 'PowerShell'],
       canUseTool: onlyThisCommand(command),
     },
-  });
+  }), tracked);
 
   // Drive the session in the background until the sleeper has started.
   const driving = (async () => {
@@ -93,7 +95,9 @@ try {
   }
   await driving;
   console.log(`\nPlan usage after: ${show(await readPlanUsage(box, executable))}`);
+} catch (error) {
+  check.fail(error);
 } finally {
-  await box.cleanup();
+  await check.close();
 }
-process.exit(ok ? 0 : 1);
+process.exit(check.exitCode(ok));

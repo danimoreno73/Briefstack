@@ -18,21 +18,11 @@ import { ChatStore } from '../../src/chat/store.js';
 import { FakeRunner, parseRecording } from '../../src/creation/fakeRunner.js';
 import { CreationManager } from '../../src/creation/manager.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
-import { claudeExecutable, readPlanUsage, report, requireConfirmation, sandbox, sandboxLibrary, show } from './common.js';
+import { claudeExecutable, readPlanUsage, report, requireConfirmation, sandbox, sandboxLibrary, show, startCheck } from './common.js';
 
 requireConfirmation('Check that the chat starts a creation only through the confirmation (haiku; the creation itself is fake).');
 
 const IDEA = 'A checklist for packing a carry-on bag';
-const box = await sandbox('chat-start');
-const executable = claudeExecutable();
-let ok = true;
-let chat: ChatManager | undefined;
-const creations = new CreationManager({
-  runner: new FakeRunner({ steps: parseRecording('{"do":"session","phase":"started"}\n{"do":"wait","ms":60000}') }),
-  sessionsDir: box.sessions,
-  policy: () => 'ask',
-  profile: () => ({ name: 'saver', sessionModel: 'sonnet', effort: 'low' }),
-});
 
 /** Waits for the chat to show a card or to end its turn. */
 async function cardOrIdle(c: ChatManager): Promise<string | undefined> {
@@ -51,15 +41,28 @@ async function idle(c: ChatManager): Promise<void> {
   while ((await c.view()).status !== 'idle' && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 500));
 }
 
+const check = startCheck();
+let ok = true;
 try {
+  const executable = claudeExecutable();
+  const box = await sandbox('chat-start');
+  check.add(() => box.cleanup());
+  const creations = new CreationManager({
+    runner: new FakeRunner({ steps: parseRecording('{"do":"session","phase":"started"}\n{"do":"wait","ms":60000}') }),
+    sessionsDir: box.sessions,
+    policy: () => 'ask',
+    profile: () => ({ name: 'saver', sessionModel: 'sonnet', effort: 'low' }),
+  });
+  check.add(() => creations.shutdown());
   console.log(`Plan usage before: ${show(await readPlanUsage(box, executable))}`);
   const pathEnv = await sandboxLibrary(box);
-  chat = await ChatManager.open({
+  const chat = await ChatManager.open({
     store: new ChatStore(path.join(box.home, 'chat')),
     runner: new SdkChatRunner({ pathEnv, findExecutable: () => executable }),
     tools: { pathEnv, repoDir: PACKAGE_ROOT, lang: 'en', creations },
     profile: async () => ({ model: 'haiku', effort: 'low' }),
   });
+  check.add(() => chat.shutdown());
 
   await chat.send(`Start a new creation with exactly this idea: "${IDEA}". Use the start_creation tool.`);
   const first = await cardOrIdle(chat);
@@ -80,9 +83,9 @@ try {
   for (const message of messages) console.log(`${message.role}: ${message.text ?? message.tool?.name ?? message.notice ?? message.confirmation?.state ?? ''}`);
   ok = report('no error notice', !messages.some((message) => message.role === 'notice'), messages.find((m) => m.role === 'notice')?.detail ?? 'none') && ok;
   console.log(`\nPlan usage after: ${show(await readPlanUsage(box, executable))}`);
+} catch (error) {
+  check.fail(error);
 } finally {
-  await chat?.shutdown();
-  await creations.shutdown();
-  await box.cleanup();
+  await check.close();
 }
-process.exit(ok ? 0 : 1);
+process.exit(check.exitCode(ok));

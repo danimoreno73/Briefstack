@@ -37,7 +37,18 @@ import { parseFrontmatter } from '../../src/frontmatter/index.js';
 import { listProjects } from '../../src/library/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { agentSetting, loadUsageProfiles, baseProfilesFile } from '../../src/usage/index.js';
-import { autoAnswer, claudeExecutable, readPlanUsage, report, requireConfirmation, sandbox, sandboxLibrary, show } from './common.js';
+import {
+  CheckStop,
+  autoAnswer,
+  claudeExecutable,
+  readPlanUsage,
+  report,
+  requireConfirmation,
+  sandbox,
+  sandboxLibrary,
+  show,
+  startCheck,
+} from './common.js';
 
 requireConfirmation('Run two short real creations at the same time on the saver profile, in a temp home.');
 
@@ -63,19 +74,21 @@ if (mismatched.length > 0) {
   process.exit(2);
 }
 
-const box = await sandbox('two-creations');
-const executable = claudeExecutable();
+const check = startCheck();
 let ok = true;
 try {
+  const executable = claudeExecutable();
+  const box = await sandbox('two-creations');
+  check.add(() => box.cleanup());
   const before = await readPlanUsage(box, executable);
   console.log(`Plan usage before: ${show(before)}`);
   if (typeof before !== 'string' && (before.fiveHour ?? 0) > 70) {
-    console.error('The 5-hour window is above 70%: not starting.');
-    process.exit(2);
+    throw new CheckStop(2, 'The 5-hour window is above 70%: not starting.');
   }
   const pathEnv = await sandboxLibrary(box);
   await updateConfig(path.join(box.home, 'config.json'), { activeProfile: 'saver', permissionPolicy: 'ask' });
   const manager = await createWebCreations({ pathEnv, repoDir: PACKAGE_ROOT, lang: 'en' });
+  check.add(() => manager.shutdown());
 
   const started = await Promise.all(IDEAS.map((idea) => manager.create(idea)));
   const ids = started.map((state) => state.id);
@@ -123,7 +136,9 @@ try {
   const overlap = a !== undefined && b !== undefined && a.startedAt < (b.finishedAt ?? '') && b.startedAt < (a.finishedAt ?? '');
   ok = report('they ran at the same time', overlap, '') && ok;
   console.log(`\nPlan usage after: ${show(await readPlanUsage(box, executable))}`);
+} catch (error) {
+  check.fail(error);
 } finally {
-  await box.cleanup();
+  await check.close();
 }
-process.exit(ok ? 0 : 1);
+process.exit(check.exitCode(ok));
