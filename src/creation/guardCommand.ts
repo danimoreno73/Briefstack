@@ -131,18 +131,30 @@ export async function decideToolUse(stdin: string, rulesFile: string): Promise<C
       agent_id: input.data.agent_id,
       agent_type: input.data.agent_type,
     });
-    if (verdict.verdict !== 'deny') return { code: 0 };
-    log(rulesFile, input.data.tool_name, verdict.reason);
+    if (verdict.verdict !== 'deny') {
+      log(rulesFile, input.data.tool_name, 'none');
+      return { code: 0 };
+    }
+    log(rulesFile, input.data.tool_name, 'deny', verdict.reason);
     return deny(verdict.reason);
   } catch {
     return deny('briefstack guard: the check failed, so nothing is allowed.');
   }
 }
 
-/** One line per denial next to the rules, for the real checks. Best effort. */
-function log(rulesFile: string, tool: string, reason: string): void {
+/**
+ * One line per tool call next to the rules: the tool, and the reason when
+ * denied (redacted, short). It shows that Claude Code ran the hook; tool
+ * inputs are never written. Best effort.
+ */
+function log(rulesFile: string, tool: string, decision: 'deny' | 'none', reason?: string): void {
   try {
-    const line = { ts: new Date().toISOString(), tool, reason: redactSecretLines(reason).slice(0, 300) };
+    const line = {
+      ts: new Date().toISOString(),
+      tool: tool.slice(0, 100),
+      decision,
+      ...(reason === undefined ? {} : { reason: redactSecretLines(reason).slice(0, 300) }),
+    };
     appendFileSync(path.join(path.dirname(rulesFile), GUARD_LOG_FILE), `${JSON.stringify(line)}\n`, 'utf8');
   } catch {
     // The verdict stands without the log.

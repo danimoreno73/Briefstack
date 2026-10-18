@@ -76,8 +76,23 @@ describe('the command-hook guard', () => {
     expect(await decide(input('Monitor', { command: 'echo' }))).toMatchObject({ code: 2 });
     expect(await decide(input('WebFetch', { url: 'https://example.com' }))).toMatchObject({ code: 2 });
     expect(await decide(input('WebFetch', { url: 'https://example.com' }, { agent_id: 'a1', agent_type: 'researcher' }))).toEqual({ code: 0 });
-    // Each denial leaves a line next to the rules.
-    expect((await readFile(path.join(path.dirname(rulesFile), 'guard.log'), 'utf8')).trim().split('\n')).toHaveLength(4);
+    // Each tool call leaves a line next to the rules, with the reason only when denied and never the input.
+    const lines = (await readFile(path.join(path.dirname(rulesFile), 'guard.log'), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as { tool: string; decision: string; reason?: string });
+    expect(lines.map((line) => `${line.tool}:${line.decision}`)).toEqual([
+      'Write:none',
+      'Write:none',
+      'Bash:none',
+      'Write:deny',
+      'Bash:deny',
+      'Monitor:deny',
+      'WebFetch:deny',
+      'WebFetch:none',
+    ]);
+    expect(JSON.stringify(lines)).not.toContain('example.com');
+    expect(lines[3]?.reason).toContain('Writes are only allowed');
   });
 
   it('follows grants, a cancel and the session id from the rules', async () => {

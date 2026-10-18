@@ -2475,5 +2475,5 @@ is gone (`src/creation/guardCommand.ts`).
 - **Not covered by it:** the folder claims between creations
   (`folderClaims.ts`), which only the server knows. With the server gone
   no other creation runs either.
-- Denials are logged to `guard.log` next to the rules (redacted, short),
+- Every tool call is logged to `guard.log` next to the rules (the tool, and the reason only when denied, redacted; never the input),
   so the real check can see that the hook ran.
