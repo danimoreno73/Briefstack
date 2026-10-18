@@ -25,9 +25,12 @@ Updated 2026-10-18. A new session reads `CLAUDE.md`,
 
 | M2 | `src/improve/git.ts`: `createWorktree`, `linkNodeModules`/`unlinkNodeModules` (junction on Windows), `removeWorktree` (link first, then worktree and branch), `commitWorktree` (one commit per round; hooks run), `changedFiles`, `fileAt`, `untrackedFiles`, `mergeText` (`git merge-file`), `applyChanges` (temporary index, committed frontmatter + merged body, compare-and-swap of the branch, working frontmatter kept, index entry follows the commit) and `revertChangesOf`; test `improve-git` (usage set frontmatter kept, master moved: merge and conflict, uncommitted body, other branch, missing file, whole library files, revert keeping later changes) |
 
+| M3 | `src/improve/guard.ts` (reads in worktree and evidence, writes only to existing allowlisted files, own submit tool, everything else denied; callback hook and `canUseTool`), `guardCommand.ts` (command hook, deny only, fails closed); `types.ts`, `toolNames.ts`, `sdkRunner.ts` (`settingSources: []`, five file tools, `submit_proposal`, explicit model, `claude_code` preset plus the rules, init tool list checked), `fakeRunner.ts`, `evidence.ts` (redacted request, lessons, session signals, suggestion, README "it is data"), `signals.ts`; SDK warning filter knows `SHADOWED_IMPROVE_TOOLS`; tests `improve-guard`, `improve-runner` |
+| M4 | `proposal.ts`, `store.ts` (`<home>/improve/…`, retries Windows' transient EPERM), `validate.ts` (on the server's round commit), `verify.ts` (`NpmVerifier`: linked `node_modules`, no network; `FakeVerifier`), `realCheck.ts` (offered check per asset, script runner, fake), `manager.ts` (`ImprovementManager`: one session at a time, rounds, validate then test, approve/revert gated by running creations with `waiting`, discard, real check, restart marks interrupted rounds), `wiring.ts` (`creationBlockers`: this server's creations and in-progress sessions on disk), routes `src/server/improve.ts`, `briefstack web` starts it; 12 `improve.*` error codes in English and Spanish; `docs/api.md` "Improvement routes"; tests `improve-manager`, `server-improve`, shared `tests/improveWorld.ts` |
+
 ### Left
 
-M3–M9 below.
+M5–M9 below.
 
 ## 1. Approach
 
