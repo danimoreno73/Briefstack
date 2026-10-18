@@ -21,7 +21,8 @@ import { findClaudeExecutable } from './claudeBinary.js';
 import { FLOW_BUILTIN_TOOLS, callerOf, guardHook, insideAny, parseBriefstackCommand, type GuardContext } from './guard.js';
 import { folderClaimHook } from './folderClaims.js';
 import { killProcessTree, spawnTracked, type TrackedSpawn } from './processTree.js';
-import { processStartTime, removeRun, runsDirOf, writeRunRecord, type RunRecord, type StartTimeReader } from './runFiles.js';
+import { processStartTime, removeRun, runDirOf, runsDirOf, writeRunRecord, type RunRecord, type StartTimeReader } from './runFiles.js';
+import { GUARD_RULES_FILE, guardCommandSettings, writeGuardRulesSync } from './guardCommand.js';
 import { SHADOWED_WEB_TOOLS, filterKnownSdkWarnings } from './sdkWarnings.js';
 import type {
   CreationRunner,
@@ -100,6 +101,8 @@ export interface QueryOptionsParams {
   mcpServers: NonNullable<Options['mcpServers']>;
   abortController: AbortController;
   spawn: NonNullable<Options['spawnClaudeCodeProcess']>;
+  /** Flag settings: the command-hook guard (`guardCommand.ts`). */
+  settings?: ReturnType<typeof guardCommandSettings>;
 }
 
 /**
@@ -133,6 +136,8 @@ export function buildQueryOptions(params: QueryOptionsParams): Options {
     canUseTool: params.canUseTool,
     abortController: params.abortController,
     spawnClaudeCodeProcess: params.spawn,
+    // The command-hook guard, which Claude Code runs itself: it holds when the server is gone.
+    ...(params.settings === undefined ? {} : { settings: params.settings as NonNullable<Options['settings']> }),
   };
 }
 
@@ -306,6 +311,8 @@ class SdkRun {
   private failure: BriefstackError | undefined;
   /** The run file of this creation, once `claude` exists; its writes are serialised. */
   private runRecord: RunRecord | undefined;
+  /** Set once the run folder holds the command-hook guard's rules. */
+  private rulesWritten = false;
   private runWrites: Promise<void> = Promise.resolve();
 
   constructor(
@@ -327,6 +334,7 @@ class SdkRun {
       sessionId: this.sessionPromise,
       requestCancel: () => {
         this.cancelled = true;
+        this.writeRules();
       },
       sendMessage: (text) => this.sendMessage(text),
       stop: () => this.stop(),
@@ -351,6 +359,9 @@ class SdkRun {
     try {
       const { projectsDir, libraryDir } = await this.deps.locations();
       this.projectsDir = projectsDir;
+      // Before claude exists: the command-hook guard denies everything until its rules are there.
+      this.rulesWritten = true;
+      this.writeRules(true);
       const executable = (this.deps.findExecutable ?? (() => this.findExecutable()))();
       if (executable === undefined) throw new BriefstackError('creation.claudeNotFound', {});
 
@@ -410,7 +421,11 @@ class SdkRun {
         sessionDir: () => (this.claimed === undefined ? undefined : this.sessionDir(this.claimed)),
         protectedDirs: protectedDirs(libraryDir, this.deps.repoDir, this.deps.pathEnv),
         projectsDir,
-        onGrant: (dir) => this.granted.push(dir),
+        onGrant: (dir) => {
+          this.granted.push(dir);
+          // Before the grant tool returns, so the next write in that folder is not denied by the command hook.
+          this.writeRules();
+        },
         pathEnv: this.deps.pathEnv,
       });
 
@@ -447,6 +462,7 @@ class SdkRun {
         canUseTool: (toolName, input, extra) => this.whileAsking(() => this.canUseTool(toolName, input, extra.agentID)),
         mcpServers: { [WEB_SERVER_NAME]: webTools },
         abortController: this.abort,
+        settings: guardCommandSettings(this.rulesFile),
         spawn: (spawnOptions) => {
           const child = this.tracked.spawn(spawnOptions);
           const { pid } = child as { pid?: number };
@@ -481,7 +497,32 @@ class SdkRun {
       await this.tracked.killTree().catch(() => undefined);
       // The tree is gone: nothing is left for the next start to clean up.
       await this.runWrites;
-      if (this.runRecord !== undefined) await removeRun(this.runsDir, this.options.creationId).catch(() => undefined);
+      if (this.rulesWritten || this.runRecord !== undefined) await removeRun(this.runsDir, this.options.creationId).catch(() => undefined);
+    }
+  }
+
+  private get rulesFile(): string {
+    return path.join(runDirOf(this.runsDir, this.options.creationId), GUARD_RULES_FILE);
+  }
+
+  /**
+   * Writes the command-hook guard's rules: the same folders, grants, cancel
+   * and session the callback guard reads. A failed rewrite later in the run
+   * leaves the old rules, which allow less, or the same.
+   */
+  private writeRules(strict = false): void {
+    if (!this.rulesWritten) return;
+    try {
+      writeGuardRulesSync(this.rulesFile, {
+        v: 1,
+        projectsDir: this.projectsDir,
+        sessionsDir: this.options.sessionsDir,
+        granted: [...this.granted],
+        cancelled: this.cancelled,
+        ...(this.claimed === undefined ? {} : { sessionId: this.claimed }),
+      });
+    } catch (error) {
+      if (strict) throw error;
     }
   }
 
@@ -527,6 +568,7 @@ class SdkRun {
     this.claimed = id;
     this.resolveSession(id);
     this.recordRunSession(id);
+    this.writeRules();
   }
 
   private onMessage(message: SDKMessage): void {

@@ -2442,3 +2442,38 @@ and its subagents with it; on all three systems the exit hook
 descendants that left the job, after an uncaught exception or
 `process.exit()`. What no handler can cover on macOS and Linux after a
 hard kill is left to the run files and the sweep at the next start.
+
+### The command-hook guard (user decisions, 2026-10-18)
+
+A second guard that Claude Code runs itself, so it holds when the server
+is gone (`src/creation/guardCommand.ts`).
+
+- **Registered only in creation sessions**, through the `settings` option
+  of `query()` (the flag-settings layer), never in a settings file: a
+  `PreToolUse` command hook with no matcher (every tool), in exec form
+  (the running Node, no shell), `onFailure: "block"` and a 60-second
+  timeout. Hooks that cannot start, crash, time out or print something
+  wrong block the call by documented rule. From the sources it starts
+  through the tsx loader, from `dist` as plain JavaScript. Measured on
+  this machine: about 250 to 300 ms per tool call.
+- **Rules in the creation's run folder**, `<home>/runs/<creation
+  id>/guard.json`, not in the session folder (user's choice): the session
+  folder is one the session may write to, so it could rewrite its own
+  rules, and the flow creates it only after the first tool calls. The run
+  folder is outside every writable folder and exists before `claude`
+  starts; its path is the hook's argument. The rules hold the projects
+  and sessions folders, the granted folders, the cancel flag and, once
+  known, the session id. The runner writes them synchronously before
+  `query()` starts and on each claim, grant and cancel, so a change is in
+  the file before the call that made it returns.
+- **Deny only** (user's choice): it applies the same `evaluateToolUse` as
+  the callback guard and exits 2 with the reason when that denies; it is
+  silent otherwise. With both guards working, a deny from either wins
+  (`deny` > `ask` > `allow`); with the server gone, nothing is
+  pre-approved. Missing or invalid rules, input it cannot parse, a
+  session id other than the one in the rules, or any error: exit 2.
+- **Not covered by it:** the folder claims between creations
+  (`folderClaims.ts`), which only the server knows. With the server gone
+  no other creation runs either.
+- Denials are logged to `guard.log` next to the rules (redacted, short),
+  so the real check can see that the hook ran.

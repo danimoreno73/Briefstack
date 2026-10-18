@@ -563,6 +563,30 @@ describe('SdkRunner', () => {
     await handle.stop();
   });
 
+  it('registers the command-hook guard and keeps its rules current: session, grants and a cancel, removed at the end', async () => {
+    const rulesFile = path.join(dir, 'home', 'runs', 'c1', 'guard.json');
+    const rules = async () => JSON.parse(await readFile(rulesFile, 'utf8')) as Record<string, unknown>;
+    const handle = start();
+    for (let i = 0; i < 100 && captured === undefined; i += 1) await tick();
+    // In place before claude starts, so its first tool call already has them.
+    expect(await rules()).toEqual({ v: 1, projectsDir, sessionsDir, granted: [], cancelled: false });
+    const hook = (options().settings as unknown as { hooks: { PreToolUse: { hooks: { args: string[]; onFailure: string }[] }[] } }).hooks.PreToolUse[0]?.hooks[0];
+    expect(hook?.onFailure).toBe('block');
+    expect(hook?.args.at(-1)).toBe(rulesFile);
+
+    init();
+    await handle.sessionId;
+    expect((await rules()).sessionId).toBe(SESSION);
+    const output = path.join(dir, 'chosen', 'out');
+    const server = options().mcpServers?.['briefstack-web'] as unknown as { instance: { _registeredTools: Record<string, { handler: (args: unknown, extra: unknown) => Promise<unknown> }> } };
+    await server.instance._registeredTools.grant_directory?.handler({ dir: output }, {});
+    expect((await rules()).granted).toEqual([path.resolve(output)]);
+    handle.requestCancel();
+    expect((await rules()).cancelled).toBe(true);
+    await handle.stop();
+    await expect(readFile(rulesFile, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('fails clearly when Claude Code is missing or the skill is not listed', async () => {
     const missing = start(runner({ findExecutable: () => undefined }));
     expect(await missing.done).toMatchObject({ kind: 'failed', error: expect.stringContaining('Claude Code was not found') });
