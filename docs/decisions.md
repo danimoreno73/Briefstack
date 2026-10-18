@@ -2209,3 +2209,15 @@ Decisions:
   nothing. `cleanEnvironment` drops the variable from the server's own
   environment, so only the runner sets it. `GET /api/paths` (the server,
   not a session) still shows the settings file.
+- The real scripts' `sandbox()` picks its work folder from
+  `BRIEFSTACK_REAL_WORKDIR`, else the system temp folder, else
+  `~/.briefstack-real`, taking the first that overlaps (either way round,
+  after `realpath`) none of `protectedDirs` of the starting environment
+  (repo, real home and library, `~/.claude`, `CLAUDE_CONFIG_DIR`,
+  `%APPDATA%`, `%LOCALAPPDATA%`) nor the real projects folder. On Windows
+  that is `~/.briefstack-real`; on macOS and Linux the system temp folder.
+  It also checks that the sandbox's projects folder passes the flow's own
+  check with the temp home, and stops before anything runs otherwise. It
+  then sets `BRIEFSTACK_HOME` in `process.env` to the temp home, so default
+  paths and every child use it. This replaces "under the system temp
+  folder" in "What each real script touches" above.

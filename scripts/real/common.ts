@@ -5,14 +5,26 @@
 //
 //   npx tsx scripts/real/<script>.ts --yes
 //
-// Each one works in a temp folder it creates (including a temp BRIEFSTACK_HOME)
+// Each one works in a folder it creates (`sandbox()`: including a temp
+// BRIEFSTACK_HOME), outside every protected folder and the user's real data,
 // and deletes it at the end. None touches the real library or projects.
 
 import type { HookCallback, PermissionResult } from '@anthropic-ai/claude-agent-sdk';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { updateConfig, type PathEnv } from '../../src/config/index.js';
+import {
+  configFilePath,
+  isFullyAbsolute,
+  isPathInside,
+  readConfig,
+  resolvePaths,
+  systemPathEnv,
+  updateConfig,
+  type PathEnv,
+} from '../../src/config/index.js';
+import { PACKAGE_ROOT } from '../../src/packageRoot.js';
+import { protectedDirs, realpathNearest } from '../../src/scaffold/outputDir.js';
 import { findClaudeExecutable } from '../../src/creation/claudeBinary.js';
 import { addNote, initLibrary } from '../../src/library/index.js';
 import { readPlanUsage as readPlanUsageIn, type PlanUsage } from '../../src/creation/planUsage.js';
@@ -37,8 +49,87 @@ export interface Sandbox {
   cleanup(): Promise<void>;
 }
 
-export async function sandbox(prefix: string): Promise<Sandbox> {
-  const dir = await mkdtemp(path.join(os.tmpdir(), `briefstack-real-${prefix}-`));
+/** A folder the sandbox must stay out of, either way round. */
+export interface KeepOut {
+  name: string;
+  path: string;
+}
+
+/**
+ * Where the user's real data lives, and the folders a project may never be
+ * created in (`protectedDirs`: the repo, the home, the library, `~/.claude`,
+ * `%APPDATA%`, `%LOCALAPPDATA%`), as the environment the script started with sees them.
+ */
+export async function realKeepOut(pathEnv: PathEnv): Promise<KeepOut[]> {
+  let paths;
+  try {
+    paths = resolvePaths(await readConfig(configFilePath(pathEnv)), pathEnv);
+  } catch {
+    paths = resolvePaths({}, pathEnv);
+  }
+  return [
+    ...protectedDirs(paths.libraryDir, PACKAGE_ROOT, pathEnv).map((dir) => ({ name: dir.root, path: dir.path })),
+    { name: 'projects', path: paths.projectsDir },
+  ];
+}
+
+/** The first entry of `keepOut` that `dir` overlaps (inside it, or containing it), after `realpath`. */
+export async function overlapping(dir: string, keepOut: readonly KeepOut[], style: Pick<PathEnv, 'pathApi' | 'caseInsensitive'>): Promise<KeepOut | undefined> {
+  const real = await realpathNearest(dir);
+  for (const entry of keepOut) {
+    const root = await realpathNearest(entry.path);
+    if (isPathInside(real, root, style) || isPathInside(root, real, style)) return entry;
+  }
+  return undefined;
+}
+
+/**
+ * Where the sandboxes go: `BRIEFSTACK_REAL_WORKDIR` if set, else the system
+ * temp folder, else `~/.briefstack-real`. On Windows the temp folder is inside
+ * `%LOCALAPPDATA%`, which `paths check` refuses as a projects folder.
+ */
+export function workRootCandidates(pathEnv: PathEnv, tmpdir: string = os.tmpdir()): string[] {
+  const chosen = pathEnv.env.BRIEFSTACK_REAL_WORKDIR;
+  if (chosen !== undefined && chosen !== '') return [chosen];
+  return [tmpdir, pathEnv.pathApi.join(pathEnv.homedir, '.briefstack-real')];
+}
+
+export interface SandboxOptions {
+  /** The environment the script started with; `process.env` by default. Its `BRIEFSTACK_HOME` is set to the sandbox's. */
+  pathEnv?: PathEnv;
+  /** Tests pass their own; `workRootCandidates` otherwise. */
+  candidates?: string[];
+}
+
+/**
+ * A fresh folder for one real check, outside every protected folder and the
+ * user's real data on every system, checked before anything runs in it. From
+ * here on `BRIEFSTACK_HOME` (in `process.env` by default) is the sandbox's, so
+ * every child process and every default path uses the temp home.
+ */
+export async function sandbox(prefix: string, options: SandboxOptions = {}): Promise<Sandbox> {
+  const pathEnv = options.pathEnv ?? systemPathEnv();
+  const keepOut = await realKeepOut(pathEnv);
+  const candidates = options.candidates ?? workRootCandidates(pathEnv);
+  let root: string | undefined;
+  const refused: string[] = [];
+  for (const candidate of candidates) {
+    if (!isFullyAbsolute(candidate, pathEnv.pathApi)) {
+      refused.push(`${candidate} (not an absolute path)`);
+      continue;
+    }
+    const overlap = await overlapping(candidate, keepOut, pathEnv);
+    if (overlap === undefined) {
+      root = pathEnv.pathApi.resolve(candidate);
+      break;
+    }
+    refused.push(`${candidate} (overlaps ${overlap.name}: ${overlap.path})`);
+  }
+  if (root === undefined) {
+    throw new Error(`No work folder outside the protected folders: ${refused.join('; ')}. Set BRIEFSTACK_REAL_WORKDIR to one.`);
+  }
+  await mkdir(root, { recursive: true });
+  const dir = await mkdtemp(path.join(root, `briefstack-real-${prefix}-`));
   const made = {
     dir,
     home: path.join(dir, 'home'),
@@ -46,12 +137,20 @@ export async function sandbox(prefix: string): Promise<Sandbox> {
     projects: path.join(dir, 'projects'),
     sessions: path.join(dir, 'home', 'sessions'),
   };
+  // Windows keeps a folder locked for a while after a session closes: retry.
+  const cleanup = () => rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 });
+  // The projects folder must also pass the check the flow runs with the temp home (`paths check`).
+  const sandboxEnv: PathEnv = { ...pathEnv, env: { ...pathEnv.env, BRIEFSTACK_HOME: made.home } };
+  const flowKeepOut = protectedDirs(path.join(made.home, 'library'), PACKAGE_ROOT, sandboxEnv).map((d) => ({ name: d.root, path: d.path }));
+  const projectsOverlap = await overlapping(made.projects, [...keepOut, ...flowKeepOut], pathEnv);
+  if (projectsOverlap !== undefined) {
+    await cleanup();
+    throw new Error(`The sandbox projects folder ${made.projects} overlaps ${projectsOverlap.name}: ${projectsOverlap.path}.`);
+  }
   for (const folder of [made.home, made.project, made.projects, made.sessions]) await mkdir(folder, { recursive: true });
-  return {
-    ...made,
-    // Windows keeps a folder locked for a while after a session closes: retry.
-    cleanup: () => rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 }),
-  };
+  (pathEnv.env as Record<string, string | undefined>).BRIEFSTACK_HOME = made.home;
+  console.log(`Work folder: ${dir}`);
+  return { ...made, cleanup };
 }
 
 export function claudeExecutable(): string {

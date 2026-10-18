@@ -1,8 +1,18 @@
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { isPathInside, resolveHome, type PathEnv } from '../../src/config/index.js';
+import { cleanEnvironment } from '../../src/creation/sdkRunner.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
-import { GIT_STATUS_ARGS, effortRecorder, onlyThisCommand, parseInterviewerTarget } from '../../scripts/real/common.js';
+import {
+  GIT_STATUS_ARGS,
+  effortRecorder,
+  onlyThisCommand,
+  parseInterviewerTarget,
+  sandbox,
+  workRootCandidates,
+} from '../../scripts/real/common.js';
+import { tempDir } from '../helpers.js';
 
 // These scripts start real Claude Code sessions and are never run by the tests;
 // what can be checked without one is checked here.
@@ -27,6 +37,56 @@ describe('check-effort: reads the effort from a Stop hook', () => {
     expect(script).toContain('hooks: { Stop: [{ hooks: [recorder.hook] }] }');
     expect(script).toContain('level === effort');
     expect(script).not.toMatch(/\{ effort\?: unknown \}\)\.effort/);
+  });
+});
+
+describe('sandbox: a work folder outside the protected folders, and the temp home for every child', () => {
+  let dir: string;
+  let cleanup: () => Promise<void>;
+  beforeEach(async () => {
+    ({ dir, cleanup } = await tempDir('real-sandbox'));
+  });
+  afterEach(() => cleanup());
+
+  // A stand-in for the user's environment: its own home, library, projects folder and %LOCALAPPDATA%.
+  const userEnv = (): PathEnv => ({
+    env: { BRIEFSTACK_HOME: path.join(dir, 'real-home'), LOCALAPPDATA: path.join(dir, 'local') },
+    homedir: path.join(dir, 'user'),
+    pathApi: path,
+    caseInsensitive: process.platform !== 'linux',
+  });
+
+  it('skips a candidate inside %LOCALAPPDATA% or the real projects folder, and points BRIEFSTACK_HOME at the sandbox', async () => {
+    const pathEnv = userEnv();
+    await mkdir(path.join(dir, 'real-home'), { recursive: true });
+    await writeFile(path.join(dir, 'real-home', 'config.json'), JSON.stringify({ projectsDir: path.join(dir, 'real-projects') }), 'utf8');
+    const box = await sandbox('t', {
+      pathEnv,
+      candidates: [path.join(dir, 'local', 'Temp'), path.join(dir, 'real-projects', 'x'), 'relative', path.join(dir, 'work')],
+    });
+    expect(isPathInside(box.dir, path.join(dir, 'work'), pathEnv)).toBe(true);
+    expect(pathEnv.env.BRIEFSTACK_HOME).toBe(box.home);
+    for (const folder of [box.home, box.project, box.projects, box.sessions]) expect((await stat(folder)).isDirectory()).toBe(true);
+    // The temp home is what children get from the environment cleaning.
+    expect(cleanEnvironment(pathEnv.env, resolveHome(pathEnv)).env.BRIEFSTACK_HOME).toBe(box.home);
+    expect(await readdir(path.join(dir, 'local'), { recursive: true }).catch(() => [])).toEqual([]);
+    await box.cleanup();
+    await expect(stat(box.dir)).rejects.toThrow();
+  });
+
+  it('stops before creating anything when every candidate is protected', async () => {
+    const pathEnv = userEnv();
+    await expect(sandbox('t', { pathEnv, candidates: [path.join(dir, 'local', 'Temp'), path.join(dir, 'user', '.claude', 'x'), dir] })).rejects.toThrow(
+      /No work folder outside the protected folders/,
+    );
+    expect(pathEnv.env.BRIEFSTACK_HOME).toBe(path.join(dir, 'real-home'));
+    await expect(stat(path.join(dir, 'local'))).rejects.toThrow();
+  });
+
+  it('on Windows the default candidates leave the system temp folder for one in the user folder', () => {
+    const pathEnv: PathEnv = { env: {}, homedir: 'C:\\Users\\ana', pathApi: path.win32, caseInsensitive: true };
+    expect(workRootCandidates(pathEnv, 'C:\\Users\\ana\\AppData\\Local\\Temp')).toEqual(['C:\\Users\\ana\\AppData\\Local\\Temp', 'C:\\Users\\ana\\.briefstack-real']);
+    expect(workRootCandidates({ ...pathEnv, env: { BRIEFSTACK_REAL_WORKDIR: 'D:\\scratch' } })).toEqual(['D:\\scratch']);
   });
 });
 
