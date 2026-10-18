@@ -2248,3 +2248,98 @@ the process: the handlers are removed after the first).
   `src/timeLimit.ts`, whose timer keeps the process alive while it waits).
   After it, every creation not yet finished is marked interrupted and its
   stream closed; the chat stops waiting for its session.
+
+## `check-two-creations` run 2: `creation.noReply` (2026-10-18)
+
+The second run got both creations to the spec and both approved it. Then
+the script printed `reply` for one of them and died on
+`BriefstackError: creation.noReply` from `CreationManager.reply`. No
+`claude` process outlived it (checked by the user). The sandbox was
+deleted, so the cause is read from the code, not from that run's files.
+
+**What the script saw.** `pending` undefined and `awaitingReply` set. The
+flow writes `session.finished` *before* its hand-off text (SKILL.md: every
+way out closes the session, then the user is told). The manager polls
+`events.jsonl`, sees the close and finishes the creation; the hand-off
+turn's `result` comes later and its `turnEnded` set `awaitingReply` on the
+finished creation. The script then asked for a reply that `reply()`
+refuses, since the creation is finished. A bug in the manager, not a race:
+it happens every time the last turn ends after the poll. A second, smaller
+cause was in the script: it read both states at once and then awaited
+`readSpec` for one, so it could act on the other's stale state.
+
+**The web page.** `creation.tsx` checks `finished` before
+`awaitingReply`, so the reply box never showed on a finished creation; the
+Creations list and the chat's `list_sessions` leave finished creations
+out. Only the API (`GET /api/creations`, `GET /api/creations/:id`) returned
+the stale field. A real race
+remains and is expected: the box is shown, then a background subagent asks
+something (or the creation finishes) before the user sends. The route
+answers 409 `creation.noReply`, and the page shows "the page was stale"
+and reloads, as for `answer`.
+
+Fixes: `awaitingReply` is never set on a finished or cancelling creation,
+and `cancel()` clears it; the script reads each state just before acting
+and skips finished creations; every real script runs through
+`startCheck()` (`scripts/real/common.ts`), which catches any error and
+closes every query, process tree, manager and sandbox in a `finally`, also
+on an unhandled rejection or uncaught exception.
+
+### If `briefstack web` crashes (read, not tested)
+
+Sources: Agent SDK 0.3.286 `sdk.mjs` (`ProcessTransport`: every spawned
+process, ours through `spawnClaudeCodeProcess` too, is tracked, and on
+Node's `exit` event the SDK runs `stdin.end()` on Windows and
+`kill('SIGTERM')` elsewhere); H0 phase 2, item 6 (on `close()`, abort or
+host exit, the running command is left running, orphaned, until it ends);
+`src/cli.ts` (the server handles only SIGINT and SIGTERM); Claude Code
+itself is a closed binary, so what it does after its host is gone is not
+documented.
+
+- **Uncaught exception or `process.exit()`.** Node emits `exit`. On
+  Windows the SDK only closes each `claude` stdin: nothing kills the
+  process or its tree. On macOS and Linux `SIGTERM` reaches `claude`
+  alone: `spawnTracked` puts it in its own group, but the SDK signals the
+  pid, not the group. `killTree()` never runs: it is only called from
+  `stop()`.
+- **Hard kill** (Task Manager, `taskkill /F`, SIGKILL, out of memory, the
+  console closed): no handler runs at all. The pipes close when the OS
+  ends the host.
+- **What can still write.** A command already running goes on until it
+  ends (H0 #6). The guard lets only `npm run --silent briefstack -- …`
+  run, so that is one of our subcommands: a `scaffold` or a library
+  `save`/`commit` finishes its write. The library queue lives in the dead
+  server, so that commit can meet one from the restarted server (a git
+  `index.lock` error). Folder claims are in memory too: after a restart a
+  new creation can take the folder an orphan is still writing.
+- **New tool calls.** Each one needs the guard, which is an SDK callback
+  answered by the dead host, and creation sessions run in `auto` mode,
+  whose classifier allowed a write outside the working folder in H0
+  (item 7). Whether Claude Code then stops, waits forever, or treats the
+  failed callback as a non-blocking hook error and goes on is not
+  documented. Until a real check says otherwise, it is a risk: in the
+  worst case an orphaned session writes without the guard.
+- **Hook lines.** The command hooks in `.claude/settings.json` are run by
+  `claude` itself and keep appending to `events.jsonl` while it lives.
+
+**Proposed, not built** (the user decides):
+
+1. In `briefstack web`, a synchronous `process.on('exit')` that ends every
+   live tracked tree (`taskkill /PID <pid> /T /F` with `execFileSync` on
+   Windows, `process.kill(-pid, 'SIGKILL')` elsewhere), and
+   `uncaughtException` / `unhandledRejection` handlers that log and run the
+   normal `shutdown()` with its time limit before exiting. This covers
+   crashes inside Node, not hard kills.
+2. A run file per active creation in the briefstack home (pid, the
+   process start time, session id, claimed folder), removed when the
+   runner ends. On start, `briefstack web` ends any tree it lists that is
+   still alive and is the same process (same start time, so a reused pid
+   is never killed), writes the `session.end` that `shutdown()` writes,
+   and keeps its folder claimed until then. This covers hard kills from
+   the next start on.
+3. A real check, run by the user, that kills the host mid-session with a
+   tool call waiting on the guard, and records what Claude Code does.
+   If it goes on without the guard, item 2 is not enough and the creation
+   session needs a guard that does not depend on the host (a command
+   hook in `.claude/settings.json` that denies when the server's run file
+   or port is gone).
