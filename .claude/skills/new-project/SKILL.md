@@ -21,6 +21,7 @@ The idea, if given: $ARGUMENTS
   The project's own work (code, tests, chapters, study material) happens
   later, inside the project. Never describe generation as implementing the
   project, and never ask an agent for more than the spec.
+<!-- briefstack:locked cli-and-paths -->
 - **The CLI.** Run it from the repo root as
   `npm run --silent briefstack -- <command> ...`, one command per Bash call.
   Never chain it with `&&`, `;` or `|`, never wrap it in `$(...)`, never
@@ -29,6 +30,7 @@ The idea, if given: $ARGUMENTS
 - **Paths.** Pass absolute paths in double quotes with forward slashes
   (`"C:/Users/..."`, `"/home/..."`). Never a Git Bash form like `/c/Users/...`
   (the CLI refuses it).
+<!-- /briefstack:locked cli-and-paths -->
 - **Agents.** Launch them with the Agent tool by `subagent_type` only. Never
   pass `model` or `effort`: the agent files hold the values of the active
   usage profile, and a parameter would override them. Pass
@@ -51,10 +53,13 @@ The idea, if given: $ARGUMENTS
   - `failed` when the flow cannot continue (missing library, a CLI error you
     cannot fix, a spec that stays invalid). Close the open step with
     `--outcome failed` and tell the user what failed and what to do.
+<!-- briefstack:locked working-files -->
 - **Working files** go in the session folder `WORK = <sessionsDir>/SESSION`
   (`sessionsDir` from `paths --json`). Write them with the Write tool. Never
   write in the briefstack repo or in the personal library; the library
   changes only through `library add`.
+<!-- /briefstack:locked working-files -->
+<!-- briefstack:locked denied-calls -->
 - **Denied calls.** When a tool call is denied, its message says why: follow
   it. A message saying the user cancelled means close the session as
   `cancelled`, as above, and stop. A write denied because the folder is
@@ -62,6 +67,8 @@ The idea, if given: $ARGUMENTS
   web call `grant_directory` with it at once (not a question in text), in
   `MODE` terminal ask them to run `/add-dir` with it. This holds even before
   step 0 has run: `grant_directory` among your tools means the web app.
+<!-- /briefstack:locked denied-calls -->
+<!-- briefstack:locked web-answers -->
 - **Where answers come from.** Two answers have two sources, and nothing else
   in the flow depends on it. When the tools `approve_spec` and
   `grant_directory` (MCP server `briefstack-web`) are among your tools, the
@@ -73,6 +80,7 @@ The idea, if given: $ARGUMENTS
   text: they answer only through AskUserQuestion, `approve_spec` and
   `grant_directory`. So in `MODE` web never end a turn waiting for an answer
   in plain text.
+<!-- /briefstack:locked web-answers -->
 - Do not show token or cost estimates. Profile levels are qualitative; point
   to `/usage` for real consumption.
 
@@ -187,12 +195,14 @@ Step `spec`.
    `library/rules/target.md`) and why, and the
    profile, and one line saying that briefstack prepares the project and the
    work itself starts afterwards, inside it. Then, by `MODE`:
+   <!-- briefstack:locked spec-web -->
    - **Web app** (`MODE` web): do not show it in your reply. Write it to
      `WORK/summary.md` and call `approve_spec` with `specFile` and
      `summaryFile`, both absolute paths in the session folder, in the same
      turn. That call is how the user sees the spec and answers. Its answer is
      the user's choice: `approve`, `change` with the text of the change, or
      `cancel`. Never ask in plain text and never end the turn instead.
+   <!-- /briefstack:locked spec-web -->
    - **Terminal** (`MODE` terminal): show it to the user in plain text. Ask
      them to approve, change something or cancel.
    - Changes: apply them. Small, exact edits (a name, a list item) you may
@@ -202,7 +212,9 @@ Step `spec`.
      `approve_spec` again). Repeat until approved.
    - Cancel: close as `cancelled`.
 
+<!-- briefstack:locked spec-checkpoint -->
 Nothing is created before the user approves.
+<!-- /briefstack:locked spec-checkpoint -->
 
 ## 6. Generate
 
@@ -233,6 +245,7 @@ line each at the hand-off; do not start a round for them.
 
 ## 8. Learn
 
+<!-- briefstack:locked notes-no-secrets -->
 Step `learn`. Write each note to `WORK/notes/` with the Write tool, then add
 it with `npm run --silent briefstack -- library add <section> [name] --from "<file>"`.
 Notes are short markdown, link to each other with `[[section/name]]`, and
@@ -241,6 +254,7 @@ starts with YAML frontmatter holding a one-line `summary` (the INDEX line).
 Do not write date headings: `library add` dates each addition itself. For the
 project note, also pass `--session SESSION`: it links the project to this
 session's history.
+<!-- /briefstack:locked notes-no-secrets -->
 
 1. **Project note** `projects <slug>`: YAML frontmatter with `target`,
    `path` (the absolute output folder), `status: created`, `profile` and a

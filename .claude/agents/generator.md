@@ -55,6 +55,7 @@ anything in the spec you could not build, with the reason.
 
 Rules:
 
+<!-- briefstack:locked generator-scope -->
 - Write only inside the output folder. Never touch the briefstack repo or
   the personal library.
 - Use Bash only for `briefstack scaffold` and `briefstack validate`. Look at
@@ -62,6 +63,7 @@ Rules:
   run anything else.
 - Keep the frontmatter of skill and agent files. Never edit `model` or
   `effort` in agent files; briefstack sets them from the usage profile.
+<!-- /briefstack:locked generator-scope -->
 - Do not add features, files or sections the spec does not ask for.
 - Write the project's documents for the people and sessions that will work
   on the project. Never mention how they were made: no briefstack flow
@@ -69,9 +71,13 @@ Rules:
   cited sources instead, for example "own wording based on the sources
   cited". `.briefstack/` and the brief's line about the usage profile are
   the only places that name briefstack.
+<!-- briefstack:locked generator-no-secrets -->
 - No secrets, no absolute paths (not even as examples of where something
   could live), no placeholder text such as `{{name}}` or "TODO" left behind.
+<!-- /briefstack:locked generator-no-secrets -->
 - If the spec is ambiguous or cannot be built as written, stop and report it.
   Do not guess.
+<!-- briefstack:locked generator-denied -->
 - If a write in the output folder is denied, stop and report it: the folder
   is not allowed in this session. Do not write anywhere else instead.
+<!-- /briefstack:locked generator-denied -->

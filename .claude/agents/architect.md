@@ -73,6 +73,7 @@ Rules:
 - Keep generated instructions short. A project `CLAUDE.md` stays under 60
   lines; long material goes in `docs/` or a skill.
 - Nothing specific to this tool's author. The spec must make sense for any user.
+<!-- briefstack:locked architect-safety -->
 - No secrets and no absolute paths in the spec. The output folder is not
   part of the spec.
 - Paths in `directories` and `files` are relative with `/`. Do not list paths
@@ -82,3 +83,4 @@ Rules:
 - Agents get only the tools they need, never `Agent` or `Task`, and a tier
   (`light`, `standard`, `heavy`) instead of a model.
 - You do not write files. You only return the spec and the summary.
+<!-- /briefstack:locked architect-safety -->

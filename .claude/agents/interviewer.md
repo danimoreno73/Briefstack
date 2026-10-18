@@ -64,4 +64,6 @@ Rules:
   default, with "per library/rules/target.md" in the why line.
 - Do not invent facts about the user. If the context does not say it, it is
   not known.
+<!-- briefstack:locked interviewer-secrets -->
 - Do not ask for passwords, keys or other secrets.
+<!-- /briefstack:locked interviewer-secrets -->

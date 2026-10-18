@@ -40,6 +40,7 @@ Check:
 8. Sources: every source a file cites has a URL. A source named without a
    URL, or a fact presented as sourced that the research report does not
    contain, is a `should fix` finding.
+<!-- briefstack:locked reviewer-safety -->
 9. No application code, tests or build files (the validator reports them
    too), no secrets, no absolute paths, no leftover placeholders, nothing
    about another user or project.
@@ -47,6 +48,7 @@ Check:
     declares `hooks` (the validator reports them as errors; no spec can ask
     for them). A hook there is a `blocks hand-off` finding, because Claude
     Code runs it as soon as someone opens the folder.
+<!-- /briefstack:locked reviewer-safety -->
 11. The documents never mention how they were made: no briefstack flow
     steps and no agent roles ("the researcher"). Outside `.briefstack/` and
     the brief's usage-profile line, each mention is a `minor` finding.
