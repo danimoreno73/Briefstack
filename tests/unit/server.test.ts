@@ -9,7 +9,10 @@ import { startWebServer, TOKEN_HEADER, type WebServer } from '../../src/server/i
 import type { ClaudeCheck } from '../../src/creation/claudeBinary.js';
 import { FakeRunner } from '../../src/creation/fakeRunner.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { writeRunRecord } from '../../src/creation/runFiles.js';
+import { appendEvent, sessionLifecycleEvent } from '../../src/events/index.js';
 import { VERSION } from '../../src/version.js';
 import { tempDir, writeTree } from '../helpers.js';
 
@@ -296,6 +299,32 @@ describe('briefstack web', () => {
       // Everything was removed from the emitter once the shutdown ended.
       expect(['SIGINT', 'SIGTERM', 'uncaughtException', 'unhandledRejection'].map((name) => events.listenerCount(name))).toEqual([0, 0, 0, 0]);
     });
+  });
+
+  it('cleans up after a server that died with a creation running, before it serves anything', async () => {
+    // A pid that existed and is gone: a process that already ended.
+    const gone = await new Promise<number>((resolve) => {
+      const child = spawn(process.execPath, ['-e', ''], { stdio: 'ignore' });
+      child.on('exit', () => resolve(child.pid ?? 0));
+    });
+    const creation = '0b0e4c1a-1111-4a5b-9c8d-123456789abc';
+    const session = '3f2b9c1e-0000-4a5b-9c8d-123456789abc';
+    const sessionsDir = path.join(dir, 'home', 'sessions');
+    await appendEvent(sessionsDir, sessionLifecycleEvent(session, 'started'));
+    await writeRunRecord(path.join(dir, 'home', 'runs'), {
+      v: 1,
+      creationId: creation,
+      claude: { pid: gone, start: 'x' },
+      server: { pid: gone, start: 'y' },
+      sessionId: session,
+      startedAt: new Date().toISOString(),
+    });
+    const out: string[] = [];
+    const err: string[] = [];
+    expect(await main(['web', '--port', '0'], io(out, err, async () => undefined))).toBe(0);
+    expect(err.join('\n')).toContain(`Session ${session} was closed as interrupted.`);
+    expect(await readFile(path.join(sessionsDir, session, 'events.jsonl'), 'utf8')).toContain('"reason":"server_crash"');
+    expect(await readdir(path.join(dir, 'home', 'runs'))).toEqual([]);
   });
 
   it('prints the URL alone on its own line and stops cleanly', async () => {

@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { CanUseTool, HookCallback, Options, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -605,6 +605,35 @@ describe('SdkRunner', () => {
     expect(await handle.done).toEqual({ kind: 'stopped' });
     expect(fake.closed).toBe(true);
     expect(killed).toBeGreaterThan(0);
+  });
+
+  it('keeps a run file while claude runs, naming its process, this server and the session, and removes it at the end', async () => {
+    const runsDir = path.join(dir, 'home', 'runs');
+    const file = path.join(runsDir, 'c1', 'run.json');
+    const handle = start(
+      runner({
+        startTime: async (pid) => `start-${pid}`,
+        tracked: () => ({ spawn: () => ({ pid: 4321 }) as never, killTree: async () => void (killed += 1) }),
+      }),
+    );
+    for (let i = 0; i < 100 && captured === undefined; i += 1) await tick();
+    // The SDK starts claude through this option.
+    options().spawnClaudeCodeProcess?.({ command: 'claude', args: [], cwd: dir, env: {}, signal: new AbortController().signal });
+    const read = async () => JSON.parse(await readFile(file, 'utf8').catch(() => '{}')) as Record<string, unknown>;
+    for (let i = 0; i < 100 && (await read()).claude === undefined; i += 1) await tick();
+    expect(await read()).toMatchObject({
+      v: 1,
+      creationId: 'c1',
+      claude: { pid: 4321, start: 'start-4321' },
+      server: { pid: process.pid },
+    });
+    init();
+    await handle.sessionId;
+    for (let i = 0; i < 100 && (await read()).sessionId === undefined; i += 1) await tick();
+    expect((await read()).sessionId).toBe(SESSION);
+    fake.close();
+    expect(await handle.done).toEqual({ kind: 'ended' });
+    expect(await readdir(runsDir)).toEqual([]);
   });
 
   it('ends by itself when nothing arrives for a while after a turn ended', async () => {

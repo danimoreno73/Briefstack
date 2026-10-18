@@ -57,6 +57,8 @@ import type { ChatRunner } from './chat/types.js';
 import type { CreationRunner } from './creation/types.js';
 import { createWebChat } from './chat/wiring.js';
 import { createWebCreations } from './creation/wiring.js';
+import { killProcessTree } from './creation/processTree.js';
+import { runsDirOf, sweepRuns } from './creation/runFiles.js';
 import { stopTrigger, type StopEvents } from './stopTrigger.js';
 
 /** Argument parsing only; all real work lives in the library. */
@@ -534,6 +536,15 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   if (portValue !== undefined) {
     port = Number(portValue);
     if (!/^\d+$/.test(portValue) || port > 65535) throw new BriefstackError('web.invalidPort', { value: portValue });
+  }
+  // Before anything is served: a server that died with creations running left run files behind.
+  const paths = await resolvedPaths(io);
+  const swept = await sweepRuns({ runsDir: runsDirOf(paths.home), sessionsDir: paths.sessionsDir, kill: (pid) => killProcessTree(pid) });
+  for (const entry of swept) {
+    if (entry.action === 'killed') io.err(messages.sweptKilled(entry.pid ?? 0));
+    if (entry.action === 'unverified') io.err(messages.sweptUnverified(entry.pid ?? 0));
+    if (entry.action === 'live') io.err(messages.sweptLive(entry.pid ?? 0));
+    if (entry.closedSession !== undefined) io.err(messages.sweptClosed(entry.closedSession));
   }
   const creations = await createWebCreations({
     pathEnv: io.pathEnv,

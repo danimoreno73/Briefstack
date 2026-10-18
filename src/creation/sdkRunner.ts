@@ -21,6 +21,7 @@ import { findClaudeExecutable } from './claudeBinary.js';
 import { FLOW_BUILTIN_TOOLS, callerOf, guardHook, insideAny, parseBriefstackCommand, type GuardContext } from './guard.js';
 import { folderClaimHook } from './folderClaims.js';
 import { killProcessTree, spawnTracked, type TrackedSpawn } from './processTree.js';
+import { processStartTime, removeRun, runsDirOf, writeRunRecord, type RunRecord, type StartTimeReader } from './runFiles.js';
 import { SHADOWED_WEB_TOOLS, filterKnownSdkWarnings } from './sdkWarnings.js';
 import type {
   CreationRunner,
@@ -254,7 +255,16 @@ export interface SdkRunnerDeps {
   idleAfterResultMs?: number;
   /** The same wait while a background agent is still running, as a last resort against a missed stop. Default 2 hours. */
   idleWithAgentsMs?: number;
+  /** Where the run files go (`runFiles.ts`). Defaults to `<home>/runs`. */
+  runsDir?: string;
+  /** Tests inject the reading of a process's start time. */
+  startTime?: StartTimeReader;
 }
+
+/** This server's own pid and start time, read once: every run file names it. */
+let serverIdentity: Promise<{ pid: number; start: string }> | undefined;
+const thisServer = (startTime: StartTimeReader) =>
+  (serverIdentity ??= startTime(process.pid).then((start) => ({ pid: process.pid, start: start ?? '' })));
 
 const IDLE_AFTER_RESULT_MS = 15 * 60_000;
 const MAX_LAST_MESSAGE = 4000;
@@ -294,6 +304,9 @@ class SdkRun {
   private readonly donePromise: Promise<RunnerOutcome>;
   private projectsDir = '';
   private failure: BriefstackError | undefined;
+  /** The run file of this creation, once `claude` exists; its writes are serialised. */
+  private runRecord: RunRecord | undefined;
+  private runWrites: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly deps: SdkRunnerDeps,
@@ -434,7 +447,12 @@ class SdkRun {
         canUseTool: (toolName, input, extra) => this.whileAsking(() => this.canUseTool(toolName, input, extra.agentID)),
         mcpServers: { [WEB_SERVER_NAME]: webTools },
         abortController: this.abort,
-        spawn: (spawnOptions) => this.tracked.spawn(spawnOptions),
+        spawn: (spawnOptions) => {
+          const child = this.tracked.spawn(spawnOptions);
+          const { pid } = child as { pid?: number };
+          if (pid !== undefined) this.recordRun(pid);
+          return child;
+        },
       });
 
       this.input.push({
@@ -461,7 +479,44 @@ class SdkRun {
       return { kind: 'failed', error: this.text(error) };
     } finally {
       await this.tracked.killTree().catch(() => undefined);
+      // The tree is gone: nothing is left for the next start to clean up.
+      await this.runWrites;
+      if (this.runRecord !== undefined) await removeRun(this.runsDir, this.options.creationId).catch(() => undefined);
     }
+  }
+
+  private get runsDir(): string {
+    return this.deps.runsDir ?? runsDirOf(resolveHome(this.deps.pathEnv));
+  }
+
+  /** Writes the run file for the `claude` process just started (`runFiles.ts`). */
+  private recordRun(pid: number): void {
+    const startTime = this.deps.startTime ?? ((target: number) => processStartTime(target));
+    this.runWrites = this.runWrites
+      .then(async () => {
+        const [start, server] = await Promise.all([startTime(pid), thisServer(startTime)]);
+        this.runRecord = {
+          v: 1,
+          creationId: this.options.creationId,
+          claude: { pid, start: start ?? '' },
+          server,
+          ...(this.claimed === undefined ? {} : { sessionId: this.claimed }),
+          startedAt: new Date().toISOString(),
+        };
+        await writeRunRecord(this.runsDir, this.runRecord);
+      })
+      .catch(() => undefined);
+  }
+
+  /** Adds the session id to the run file, once it is known. */
+  private recordRunSession(id: string): void {
+    this.runWrites = this.runWrites
+      .then(async () => {
+        if (this.runRecord === undefined || this.runRecord.sessionId === id) return;
+        this.runRecord = { ...this.runRecord, sessionId: id };
+        await writeRunRecord(this.runsDir, this.runRecord);
+      })
+      .catch(() => undefined);
   }
 
   private findExecutable(): string | undefined {
@@ -471,6 +526,7 @@ class SdkRun {
   private claim(id: string): void {
     this.claimed = id;
     this.resolveSession(id);
+    this.recordRunSession(id);
   }
 
   private onMessage(message: SDKMessage): void {
