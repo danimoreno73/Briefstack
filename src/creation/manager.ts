@@ -112,7 +112,9 @@ export interface CreationState {
   /**
    * Set when the session ended a turn and asks nothing in the browser: it
    * waits for a reply the page cannot send. `lastMessage` is the main
-   * session's last text, redacted. Cleared when a turn starts or something is asked.
+   * session's last text, redacted. Cleared when a turn starts, something is
+   * asked, or the creation is cancelled or finished; never set then, so while
+   * it is set `reply()` takes a reply.
    */
   awaitingReply?: { lastMessage: string; at: string };
   denied: DeniedRequest[];
@@ -483,6 +485,7 @@ export class CreationManager {
     const c = this.find(id);
     if (this.isFinished(c) || c.state.cancelling) return this.snapshot(c);
     c.state.cancelling = true;
+    delete c.state.awaitingReply;
     this.settleAll(c);
     this.pushStatus(c);
     c.handle?.requestCancel();
@@ -620,7 +623,11 @@ export class CreationManager {
           const runner = event.kind === 'status' && event.message !== undefined ? { ...event, message: redactSecretLines(event.message) } : event;
           if (runner.kind === 'status' && runner.status === 'turnEnded') {
             // Requests are asked during a turn, so normally none is waiting here; if one is, it is what the page shows.
-            if (c.queue.length === 0) c.state.awaitingReply = { lastMessage: runner.message ?? '', at: this.now().toISOString() };
+            // Only when reply() would take it: the flow writes `session.finished` before its last text,
+            // so the turn of a finished (or cancelling) creation ends after the close and waits for nothing.
+            if (c.queue.length === 0 && !this.isFinished(c) && !c.state.cancelling) {
+              c.state.awaitingReply = { lastMessage: runner.message ?? '', at: this.now().toISOString() };
+            }
           } else if (runner.kind === 'status' && runner.status === 'running') {
             delete c.state.awaitingReply;
           }

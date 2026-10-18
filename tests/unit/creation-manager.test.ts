@@ -401,6 +401,54 @@ describe('CreationManager', () => {
     expect(received).toEqual(['Seedling']);
   });
 
+  it('never waits for a reply once finished: the flow closes the session before its last text', async () => {
+    const session = 'late-turn-end';
+    let release: () => void = () => undefined;
+    const closed = new Promise<void>((resolve) => (release = resolve));
+    const runner: CreationRunner = {
+      start: (options) => {
+        const done = (async () => {
+          await appendEvent(options.sessionsDir, sessionLifecycleEvent(session, 'started', undefined, new Date()));
+          await appendEvent(options.sessionsDir, sessionLifecycleEvent(session, 'finished', 'completed', new Date()));
+          // The hand-off text comes after the close: the manager has finished by then.
+          await closed;
+          options.io.emit({ kind: 'status', status: 'turnEnded', message: 'Your project is ready.' });
+          return { kind: 'ended' as const };
+        })();
+        return { sessionId: Promise.resolve(session), requestCancel: () => undefined, sendMessage: () => undefined, stop: async () => undefined, done };
+      },
+    };
+    const m = await make(runner);
+    const { id } = await m.create('x');
+    const seen: StreamEvent[] = [];
+    m.subscribe(id, 0, (event) => seen.push(event));
+    await waitFor(() => (m.get(id).status === 'finished' ? true : undefined));
+    release();
+    // The late turn end still reaches the stream, but the state asks for nothing.
+    await waitFor(() => seen.some((e) => e.kind === 'status' && e.data.runner?.kind === 'status' && e.data.runner.status === 'turnEnded'));
+    expect(m.get(id).awaitingReply).toBeUndefined();
+    expect(() => m.reply(id, 'Go on')).toThrow(expect.objectContaining({ code: 'creation.noReply' }));
+  });
+
+  it('never waits for a reply while cancelling', async () => {
+    const steps = parseRecording(
+      [
+        '{"do":"session","phase":"started"}',
+        '{"do":"turnEnd","message":"Which name?"}',
+        '{"do":"emit","event":{"kind":"status","status":"turnEnded","message":"Stopping."}}',
+        '{"do":"wait","ms":50}',
+        '{"do":"session","phase":"finished","outcome":"cancelled"}',
+      ].join('\n'),
+    );
+    const m = await make(new FakeRunner({ steps }));
+    const { id } = await m.create('x');
+    await waitFor(() => m.get(id).awaitingReply);
+    const cancelling = m.cancel(id);
+    expect(cancelling.awaitingReply).toBeUndefined();
+    await waitFor(() => (m.get(id).status === 'finished' ? true : undefined));
+    expect(m.get(id).awaitingReply).toBeUndefined();
+  });
+
   it('marks the session interrupted when the runner ends without closing it', async () => {
     const steps = parseRecording('{"do":"session","phase":"started"}\n{"do":"exit"}');
     const m = await make(new FakeRunner({ steps }));
