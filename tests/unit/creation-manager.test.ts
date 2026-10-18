@@ -401,6 +401,30 @@ describe('CreationManager', () => {
     expect(received).toEqual(['Seedling']);
   });
 
+  it('counts turns that ended in text and tells observers when a creation starts and finishes', async () => {
+    const steps = parseRecording(
+      ['{"do":"session","phase":"started"}', '{"do":"turnEnd","message":"Which name?"}', '{"do":"session","phase":"finished"}'].join('\n'),
+    );
+    const m = await make(new FakeRunner({ steps }));
+    const told: string[] = [];
+    const off = m.observe({
+      started: (state) => told.push(`started ${state.idea}`),
+      finished: (state) => told.push(`finished ${state.outcome ?? ''} ${state.textTurns ?? 0}`),
+    });
+    m.observe({
+      started: () => {
+        throw new Error('an observer that fails changes nothing');
+      },
+    });
+    const { id } = await m.create('x');
+    await waitFor(() => m.get(id).awaitingReply);
+    expect(m.get(id).textTurns).toBe(1);
+    m.reply(id, 'Seedling');
+    await waitFor(() => (m.get(id).status === 'finished' ? true : undefined));
+    expect(told).toEqual(['started x', 'finished completed 1']);
+    off();
+  });
+
   it('never waits for a reply once finished: the flow closes the session before its last text', async () => {
     const session = 'late-turn-end';
     let release: () => void = () => undefined;

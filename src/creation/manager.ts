@@ -117,6 +117,8 @@ export interface CreationState {
    * it is set `reply()` takes a reply.
    */
   awaitingReply?: { lastMessage: string; at: string };
+  /** How many turns ended in text with nothing asked in the browser (a signal for improvements, phase 5). */
+  textTurns?: number;
   denied: DeniedRequest[];
   /** The flow step open now, from `events.jsonl`. */
   currentStep?: FlowStep;
@@ -210,6 +212,12 @@ export interface CreationManagerOptions {
 
 type Listener = (event: StreamEvent) => void;
 
+/** Told when a creation starts and when it finishes (phase 5 suggestions). Errors in it are ignored. */
+export interface CreationObserver {
+  started?(state: CreationState): void;
+  finished?(state: CreationState): void;
+}
+
 interface Subscriber {
   listener: Listener;
   onEnd: () => void;
@@ -278,6 +286,7 @@ export class CreationManager {
   private readonly creations = new Map<string, Creation>();
   /** The output folder of each active creation: two never share one. */
   private readonly claims = new FolderClaims();
+  private readonly observers = new Set<CreationObserver>();
   private readonly options: CreationManagerOptions;
   private readonly now: () => Date;
   private readonly pollMs: number;
@@ -292,6 +301,22 @@ export class CreationManager {
     this.cancelTimeoutMs = options.cancelTimeoutMs ?? 60_000;
     this.finishGraceMs = options.finishGraceMs ?? 30_000;
     this.tailMs = options.tailMs ?? 1000;
+  }
+
+  /** Adds an observer of starts and ends; returns the function that removes it. */
+  observe(observer: CreationObserver): () => void {
+    this.observers.add(observer);
+    return () => this.observers.delete(observer);
+  }
+
+  private tell(event: 'started' | 'finished', c: Creation): void {
+    for (const observer of this.observers) {
+      try {
+        observer[event]?.(this.snapshot(c));
+      } catch {
+        // An observer never breaks a creation.
+      }
+    }
   }
 
   /** How many creations may be active at once now (config `maxActiveCreations`). */
@@ -332,6 +357,7 @@ export class CreationManager {
     };
     // Registered before any await, so a second create sees it.
     this.creations.set(c.state.id, c);
+    this.tell('started', c);
 
     try {
       c.state.policy = await this.options.policy();
@@ -627,6 +653,7 @@ export class CreationManager {
             // so the turn of a finished (or cancelling) creation ends after the close and waits for nothing.
             if (c.queue.length === 0 && !this.isFinished(c) && !c.state.cancelling) {
               c.state.awaitingReply = { lastMessage: runner.message ?? '', at: this.now().toISOString() };
+              c.state.textTurns = (c.state.textTurns ?? 0) + 1;
             }
           } else if (runner.kind === 'status' && runner.status === 'running') {
             delete c.state.awaitingReply;
@@ -841,6 +868,7 @@ export class CreationManager {
     delete c.state.cancelling;
     delete c.state.awaitingReply;
     delete c.state.usageReading;
+    this.tell('finished', c);
     for (const timer of [c.pollTimer, c.cancelTimer]) if (timer !== undefined) clearTimeout(timer);
     if (c.usageTimer !== undefined) clearInterval(c.usageTimer);
     c.usageTimer = undefined;
