@@ -181,4 +181,49 @@ describe('filters', () => {
     const base = `Line one.\nSee C:\\Users\\alice\\notes.md.\n`;
     expect(checkProposedText(base, `${base}New generic line.\n`, context)).toEqual([]);
   });
+
+  describe('personal data', () => {
+    const personal = prepareContext({
+      homedir: 'C:\\Users\\alice',
+      username: 'alice',
+      folders: [],
+      profileTexts: [],
+      gitName: 'Alice Liddell',
+      gitEmail: 'alice.l@wonder.io',
+      projectNames: ['meal-planner', 'Garden Journal', 'app'],
+      lessonTexts: ['# Lessons\n\n- 2026-10-01: The architect wrote the spec before the interviewer had asked about the target platform.\n'],
+    });
+    const kinds = (added: string) => checkProposedText('Line one.\n', `Line one.\n${added}\n`, personal).map((p) => p.kind);
+
+    it('rejects e-mail addresses, apart from placeholder domains', () => {
+      expect(kinds('Write to bob@company.io for help.')).toEqual(['personalData']);
+      expect(kinds('Contact: Carol.Smith+x@mail.example-corp.com')).toEqual(['personalData']);
+      expect(kinds('Use you@example.com or name@test.example or a@b.invalid.')).toEqual([]);
+    });
+
+    it("rejects the git user's name and e-mail", () => {
+      expect(kinds('Thanks to alice LIDDELL.')).toEqual(['personalData']);
+      expect(kinds('Ask alice.l@wonder.io.')).toEqual(['personalData']);
+      expect(kinds('Alice and the liddell scheme are fine apart.')).toEqual([]);
+    });
+
+    it("rejects the names of the library's projects, whatever the separators", () => {
+      expect(kinds('As in the meal planner project.')).toEqual(['personalData']);
+      expect(kinds('See meal-planner/README.md.')).toEqual(['personalData']);
+      expect(kinds('Like the garden_journal app.')).toEqual(['personalData']);
+      // Names shorter than four letters are too common to tell apart.
+      expect(kinds('Plan meals in the app.')).toEqual([]);
+    });
+
+    it('rejects paths written from the home folder with ~', () => {
+      expect(kinds('Keep notes in ~/notes/app.md.')).toEqual(['personalPath']);
+      expect(kinds('Or "~\\notes".')).toEqual(['personalPath']);
+      expect(kinds('About ~5 minutes, approx~ish.')).toEqual([]);
+    });
+
+    it('rejects eight words in a row copied from the lessons', () => {
+      expect(kinds('Remember: the architect wrote the spec before the interviewer had asked.')).toEqual(['lessonText']);
+      expect(kinds('The architect writes the spec once the interview ends.')).toEqual([]);
+    });
+  });
 });

@@ -36,7 +36,9 @@ export type ProblemKind =
   | 'locked'
   | 'secret'
   | 'personalPath'
+  | 'personalData'
   | 'profileText'
+  | 'lessonText'
   | 'noChanges'
   | 'unexplained';
 

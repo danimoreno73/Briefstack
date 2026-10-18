@@ -482,7 +482,7 @@ export const uiMessages = defineCatalogue({
     proposalNoChanges: 'No file changed.',
     proposalValidation: 'Checks on the change',
     proposalValidationOk:
-      'All passed: only allowed files changed, frontmatter and locked blocks kept, no secrets, personal paths or text from your profile.',
+      'All passed: only allowed files changed, frontmatter and locked blocks kept, no secrets, personal paths or data, or text from your profile or lessons.',
     problemKind: (kind: string): string =>
       ({
         forbiddenPath: 'A file an improvement may not change',
@@ -493,7 +493,9 @@ export const uiMessages = defineCatalogue({
         locked: 'Locked block touched',
         secret: 'Looks like a secret',
         personalPath: 'Personal path',
+        personalData: 'Personal data (an e-mail, your name or a project of yours)',
         profileText: 'Text from your profile',
+        lessonText: 'Text from your lessons',
         noChanges: 'Nothing changed',
         unexplained: 'No rationale given',
       })[kind] ?? kind,
@@ -1021,7 +1023,7 @@ export const uiMessages = defineCatalogue({
     proposalNoChanges: 'No cambió ningún archivo.',
     proposalValidation: 'Comprobaciones del cambio',
     proposalValidationOk:
-      'Todo correcto: solo cambian archivos permitidos, se mantienen el frontmatter y los bloques bloqueados, y no hay secretos, rutas personales ni texto de tu perfil.',
+      'Todo correcto: solo cambian archivos permitidos, se mantienen el frontmatter y los bloques bloqueados, y no hay secretos, rutas ni datos personales, ni texto de tu perfil o tus lecciones.',
     problemKind: (kind: string): string =>
       ({
         forbiddenPath: 'Un archivo que una mejora no puede cambiar',
@@ -1032,7 +1034,9 @@ export const uiMessages = defineCatalogue({
         locked: 'Bloque bloqueado tocado',
         secret: 'Parece un secreto',
         personalPath: 'Ruta personal',
+        personalData: 'Datos personales (un correo, tu nombre o un proyecto tuyo)',
         profileText: 'Texto de tu perfil',
+        lessonText: 'Texto de tus lecciones',
         noChanges: 'No cambió nada',
         unexplained: 'Sin justificación',
       })[kind] ?? kind,

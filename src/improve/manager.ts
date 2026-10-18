@@ -1,3 +1,4 @@
+import { readdir } from 'node:fs/promises';
 import os from 'node:os';
 import { isPathInside, type PathEnv } from '../config/index.js';
 import { redactDeep } from '../chat/tools.js';
@@ -6,7 +7,7 @@ import { listNotes, readNote } from '../library/index.js';
 import { classifyAsset } from './allowlist.js';
 import { writeEvidence, type EvidenceChoice } from './evidence.js';
 import { prepareContext, type PreparedContext } from './filters.js';
-import { applyChanges, commitWorktree, createWorktree, currentBranch, ignoredFiles, moveWorktree, removeWorktree, revertChangesOf, revParse, untrackedFiles, type ApplyResult, type BodyChange } from './git.js';
+import { applyChanges, commitWorktree, createWorktree, currentBranch, git, ignoredFiles, moveWorktree, removeWorktree, revertChangesOf, revParse, untrackedFiles, type ApplyResult, type BodyChange } from './git.js';
 import { writeImproveRulesSync } from './guardCommand.js';
 import type { ProposalRecord, ProposalStatus, ProposalSummary, ProposalView, Round } from './proposal.js';
 import { offeredCheck, type RealCheckRunner } from './realCheck.js';
@@ -337,11 +338,23 @@ export class ImprovementManager {
     } catch {
       username = undefined;
     }
+    const lessons = await readNote(locations.libraryDir, 'lessons').then((note) => [note.text], () => []);
+    // Project names: the library's project notes and the folders briefstack created in the projects folder.
+    const projectNotes = (await listNotes(locations.libraryDir, 'projects').catch(() => [])).flatMap((note) => (note.name === undefined ? [] : [note.name]));
+    const projectFolders = await readdir(locations.projectsDir, { withFileTypes: true }).then(
+      (entries) => entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.')).map((entry) => entry.name),
+      () => [],
+    );
+    const gitConfig = (key: string) => git(this.options.repoDir, ['config', '--get', key]).then((value) => value.trim() || undefined, () => undefined);
     return prepareContext({
       homedir: this.options.pathEnv.homedir,
       username,
       folders: [locations.home, locations.libraryDir, locations.projectsDir, locations.sessionsDir, this.options.repoDir],
       profileTexts,
+      gitName: await gitConfig('user.name'),
+      gitEmail: await gitConfig('user.email'),
+      projectNames: [...projectNotes, ...projectFolders],
+      lessonTexts: lessons,
     });
   }
 

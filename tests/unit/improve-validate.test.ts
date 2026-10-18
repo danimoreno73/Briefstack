@@ -48,6 +48,19 @@ describe('validateRound', () => {
     expect(check.problems).toEqual([]);
   });
 
+  it('checks the title and the expected effect, which go into the commit message, like the files', async () => {
+    const { base } = await round();
+    const head = await commit('round');
+    const submission = { ...researcherRound().submission, title: 'Shorter reports for bob@company.io', expectedEffect: 'Notes stay in ~/notes, as Alice Liddell wants.' };
+    const personal = prepareContext({ homedir: path.join(dir, 'user'), username: undefined, folders: [], profileTexts: [], gitName: 'Alice Liddell' });
+    const check = await validateRound({ repoDir: repo, baseCommit: base, head, stray: { untracked: [], ignored: [] }, submission, context: personal });
+    expect(check.problems.map((p) => [p.kind, p.file, p.detail.split(':')[0]])).toEqual([
+      ['personalData', undefined, 'in the title'],
+      ['personalPath', undefined, 'in the expected effect'],
+      ['personalData', undefined, 'in the expected effect'],
+    ]);
+  });
+
   it('rejects a change of the file mode, such as the executable bit', async () => {
     const { base } = await round();
     await git(repo, ['update-index', '--chmod=+x', '--', RESEARCHER]);

@@ -1,7 +1,7 @@
 import { diffHunks, diffLines } from '../chat/diff.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { classifyAsset } from './allowlist.js';
-import { checkProposedText, type PreparedContext } from './filters.js';
+import { checkProposedText, checkText, type PreparedContext } from './filters.js';
 import { changedFiles, fileAt } from './git.js';
 import { lockedBlockProblems } from './locked.js';
 import type { ProposalFile, ValidationProblem } from './proposal.js';
@@ -15,7 +15,8 @@ import type { Submission } from './types.js';
  *   added, deleted or renamed, keeps its file mode, and stays plain text;
  * - agent and skill files keep their frontmatter byte for byte;
  * - locked blocks are kept exactly (`locked.ts`);
- * - added lines hold no secret, personal path or profile text (`filters.ts`);
+ * - added lines, the title and the expected effect hold no secret, personal
+ *   path or data, or profile or lesson text (`filters.ts`);
  * - every changed file has a rationale in the submission.
  * The proposal is approvable only with no problem at all.
  */
@@ -101,6 +102,13 @@ export async function validateRound(params: {
     for (const detail of lockedBlockProblems(base, proposed)) problems.push({ kind: 'locked', file: entry.path, detail });
     for (const found of checkProposedText(base, proposed, params.context)) problems.push({ kind: found.kind, file: entry.path, line: found.line, detail: found.detail });
     if (why === undefined) problems.push({ kind: 'unexplained', file: entry.path, detail: 'the submission gives no rationale for this file' });
+  }
+  // The title and the expected effect become the commit message: the same filters as the files.
+  for (const [where, text] of [
+    ['the title', params.submission?.title],
+    ['the expected effect', params.submission?.expectedEffect],
+  ] as const) {
+    for (const found of checkText(text ?? '', params.context)) problems.push({ kind: found.kind, detail: `in ${where}: ${found.detail}` });
   }
   return { files, problems };
 }

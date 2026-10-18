@@ -281,6 +281,26 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     expect(verifier.calls).toEqual([]);
   });
 
+  it("rejects the git user's name, a library project's name and lesson text, read from the repo and the library", async () => {
+    await git(repo, ['config', 'user.name', 'Alice Liddell']);
+    await mkdir(path.join(home, 'library', 'projects'), { recursive: true });
+    await writeFile(path.join(home, 'library', 'projects', 'meal-planner.md'), '---\nsummary: Meals\n---\n# Meal planner\n', 'utf8');
+    await writeFile(path.join(home, 'library', 'lessons.md'), '# Lessons\n\n- The architect wrote the spec before the interviewer had asked about the target.\n', 'utf8');
+    const { manager: m } = await open({
+      rounds: [
+        {
+          edits: [
+            { file: RESEARCHER, find: 'Rules:', replace: 'As Alice Liddell asked for the meal planner.\n\nRules:' },
+            { file: INTERVIEWER, find: 'Rules:', replace: 'Note that the architect wrote the spec before the interviewer had asked.\n\nRules:' },
+          ],
+          submission: submission([RESEARCHER, INTERVIEWER]),
+        },
+      ],
+    });
+    const view = await settled((await m.prepare('x')).id);
+    expect((view.validation?.problems ?? []).map((p) => `${p.kind}:${p.file ?? ''}`).sort()).toEqual([`lessonText:${INTERVIEWER}`, `personalData:${RESEARCHER}`]);
+  });
+
   it('rejects a frontmatter change and a round with no changes', async () => {
     const { manager: m } = await open({
       rounds: [
