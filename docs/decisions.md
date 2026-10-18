@@ -2709,3 +2709,77 @@ reading of BRIEF-phase-5 where it was ambiguous. All can be changed.
     signal stay in the backlog.
 17. **CI**: `gh` is not installed here and the repo is private, so the
     public API answers 404; CI runs were not checked from this session.
+
+## Phase 5 security review fixes (2026-10-18)
+
+A read-only review of phase 5 found gaps; the user asked for these fixes,
+each in its own commit with a test that fails without it. Points 3, 6 and 7
+above change as noted.
+
+18. **File mode**: a changed file must keep its git mode (`mode` problem),
+    so the executable bit cannot change. Applying already took the mode
+    from the branch.
+19. **Files outside git and round commits**: untracked and ignored files
+    are listed before the round commit (before, the list ran after
+    `git add -A` and saw nothing; ignored files were never seen). A new file
+    is `notModified`; a file git ignores is `forbiddenPath`. The check
+    removes what git ignores after build, lint and tests (only once the
+    `node_modules` link is gone, so it is never followed), so the next round
+    does not see the build output. Round commits now run with an empty hooks
+    folder, `core.fsmonitor=false` and every configured filter driver
+    blanked (`-c filter.<name>.clean=` and the rest), so neither the repo's
+    hooks nor a `.gitattributes` in the worktree run anything. Verified
+    locally that a blanked clean filter does not run and an unblanked one
+    does. Changes point 6: hooks no longer run for round commits.
+20. **Approving after the branch moved**: approving is strict. If the
+    branch changed the part of a proposed file that would change (the body
+    for agents and the skill, the whole file in the library) since the
+    proposal's base, it is refused (`improve.baseChanged`), with no
+    three-way merge, because the merged text was never validated or tested.
+    "Ask for changes" then moves the worktree to the branch tip
+    (`reset --hard` without repo code), writes back each proposed file
+    merged onto it, drops the ones that no longer merge (the session is told
+    which, as a note from briefstack, not as the user's words), and makes
+    the tip the new base, so the round is validated and tested against what
+    approving would change. A frontmatter-only change on the branch (`usage
+    set` committed) does not refuse. Reverting still merges. Changes point 7.
+21. **Creation starts during apply and revert**: `CreationManager.holdStarts`
+    runs the check for running creations and the commit; `create` waits
+    while it is held, and holders take turns. Creations started from the
+    terminal are still seen only on disk (point 8).
+22. **Approving the reviewed round**: each checked round stores its commit
+    as the proposal's `head`; `POST …/approve` needs `{ head }` and answers
+    `409 improve.staleReview` when it is not the current one.
+23. **Personal data** (changes point 3): added lines, the title and the
+    expected effect (both go into the commit message) are refused with an
+    e-mail address outside reserved example domains (`example.com/.org/.net`,
+    `*.example`, `*.invalid`, `*.test`, `localhost`), the repo's
+    `git config user.name` (as whole words) or `user.email`, the name of a
+    library project note or of a folder in the projects folder (as whole
+    words, whatever the separators; names under four letters are ignored as
+    too common), a path written with `~/` or `~\`, or eight words in a row
+    from the lessons note (`lessonText`), besides what point 3 already
+    covered. A common word used as a project name rejects proposals that use
+    that word; that errs on the safe side.
+24. **Glob**: an improvement session's Glob pattern must be relative and
+    without `..` (absolute, drive, share and `~` patterns are denied); the
+    guard checked only `path` before.
+25. **Locked-block markers**: a marker counts only as plain ASCII. A line
+    whose Latin skeleton (NFKC, no `\p{Cf}` characters such as zero-width
+    spaces or soft hyphens, Cyrillic, Greek, Armenian and Latin look-alikes
+    mapped, everything but a–z dropped) contains "briefstacklocked" and is
+    not a marker rejects the proposal.
+26. **Safety notice**: after the validators pass and before build, lint and
+    tests, a Haiku session (low effort) with `tools: []`, no allowed tools,
+    no MCP servers, `settingSources: []`, a `canUseTool` that denies, one
+    turn, a cleaned environment and an empty temp folder reads the diff
+    (the redacted hunks, cut at 60 000 characters) and answers one JSON line
+    `{ weakens, reason }`: does the change weaken a rule about safety,
+    permissions, writes, secrets or asking only through the forms, also
+    outside a locked block. The diff is data in its prompt. It never blocks:
+    `flagged` shows on the proposal page as a prominent warning with the
+    reason, `clear` and `unavailable` (no answer, or it could not run) as a
+    quiet line; `show_proposal` passes it to the chat. It runs only with the
+    real improvement runner, so tests with fakes never start a model
+    session; `scripts/real/check-safety-review.ts` checks it on three fixed
+    diffs (one with an injected answer) and was not run.

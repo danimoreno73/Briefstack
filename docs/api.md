@@ -440,7 +440,7 @@ string redacted.
 | `set_usage_profile` | action | `profile` | card, then `usage set` |
 | `list_suggestions` | read | — | suggestions after creations: id, an English sentence, target asset, idea, creation and session, the proposal prepared from it |
 | `list_proposals` | read | — | improvement proposals (summaries) and the one being prepared now |
-| `show_proposal` | read | `proposalId` | status, request, diff hunks and rationale per file, validator problems, check results, rounds, what blocks applying |
+| `show_proposal` | read | `proposalId` | status, request, diff hunks and rationale per file, validator problems, safety notice, check results, rounds, what blocks applying |
 | `prepare_improvement` | action | `request`, `sessions`? (up to 5), `lessons`?, `suggestionId`? | card, then starts an improvement session (one at a time; a request with a secret is refused). Approving, asking for changes, discarding and reverting are not chat tools: they happen on the proposal page |
 
 An action is refused without a card when another card waits, after 10 cards
@@ -490,13 +490,22 @@ worktree path: `request`, `title`, `expectedEffect`, `evidence`
 `files` (`[{ path, kind, status, base?, proposed?, hunks, added, removed, rationale?, evidence? }]`,
 diff hunks as in a note-change card), `validation` (`{ ok, problems: [{ kind, file?, line?, detail }] }`),
 `checks` (`{ ok, steps: [{ name: "build" | "lint" | "test", ok, ms, tail }], error? }`),
+`head?` (the commit of the last checked round; an approval sends it back),
+`safety?` (`{ state: "flagged" | "clear" | "unavailable", reason, model, at }`:
+a cheap model's reading of the diff, after the validators pass; never blocks),
 `realCheck?`, `offeredCheck?`, `appliedCommit?`, `revertCommit?`, `error?`.
 `check` is the offered real check: `{ name, script, cost: { en, es } }`.
 `404 improve.notFound`.
 
-Problem kinds: `forbiddenPath`, `notModified` (added, deleted or renamed),
-`notText`, `frontmatter`, `locked`, `secret`, `personalPath`, `profileText`,
-`noChanges`, `unexplained` (no rationale for a changed file).
+Problem kinds: `forbiddenPath` (also a file git ignores left in the
+worktree), `notModified` (added, deleted or renamed), `mode` (file mode
+changed, such as the executable bit), `notText`, `frontmatter`, `locked`,
+`secret`, `personalPath` (also `~/` paths), `personalData` (an e-mail outside
+example domains, the git user's name or e-mail, a project name), `profileText`,
+`lessonText` (eight words in a row from the lessons), `noChanges`,
+`unexplained` (no rationale for a changed file). Problems in the title or the
+expected effect have no `file` and a `detail` that starts with "in the title"
+or "in the expected effect".
 
 ### `POST /api/improve/proposals`
 
@@ -508,15 +517,21 @@ on a branch or the home is inside it, `404 improve.suggestionNotFound`.
 ### `POST /api/improve/proposals/:id/changes`
 
 Body `{ "text": "<1–10000>" }`. "Ask for changes": a new round on the same
-branch, from `ready`, `rejected` or `failed`. `202 { proposal }`.
+branch, from `ready`, `rejected` or `failed`. `202 { proposal }`. If the base
+branch moved, the worktree first moves to its tip, which becomes
+`baseCommit`; changes that no longer merge are dropped and the session is
+told which.
 
 ### `POST /api/improve/proposals/:id/approve`
 
+Body `{ "head": "<commit>" }`: the `head` of the proposal the page showed.
 From `ready` with validators and checks passed. Applies the change as one
 commit on the base branch now, or answers with status `waiting` while a
-creation runs (it applies as soon as none does). Refusals leave it `ready`
-with `error` set: `409 improve.notOnBranch`, `improve.uncommitted`,
-`improve.conflict`, `improve.moved`.
+creation runs (it applies as soon as none does; creation starts wait while
+it is applied). `409 improve.staleReview` when another round was checked
+since. Refusals leave it `ready` with `error` set: `409 improve.notOnBranch`,
+`improve.uncommitted`, `improve.baseChanged` (the branch changed a proposed
+file since the base: ask for changes), `improve.moved`.
 
 ### `POST /api/improve/proposals/:id/revert`
 

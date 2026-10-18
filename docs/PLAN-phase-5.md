@@ -34,6 +34,7 @@ Updated 2026-10-18. A new session reads `CLAUDE.md`,
 
 | M8 | `tests/e2e/improve.spec.ts` (prepare from the chat through a card, proposal page with diff, rationale, validators and tests, the real check started by the user, approve as one commit, revert; ask for changes; discard; a locked block and a forbidden path rejected and never tested; an approval waiting for a running creation; suggestions on the result screen and in the chat, prepared from the page; 390 px); the e2e fixture's repo is now a git repo with the flow files and the app runs the real improvement wiring over fakes; `scripts/real/check-improvement-session.ts` and `check-improvement-flow.ts`, with static checks in `real-scripts.test.ts`. Not run |
 | M9 | `decisions.md` "Decisiones sin Dani (fase 5)" (17 points), `docs/api.md` (routes, chat tools, card, notice), this Status and the steps below |
+| R1 | Fixes from the read-only security review (decisions.md, "Phase 5 security review fixes", points 18–26): file mode checked; files outside git listed before the round commit, round commits without hooks, fsmonitor or filters; approval refused when the branch changed a proposed file (a new round moves to its tip); creation starts held while applying or reverting; approval names the reviewed `head`; personal-data filters (e-mails, git identity, project names, `~/`, lessons) also on the title and expected effect; Glob patterns relative only; disguised locked-block markers rejected; the safety notice (Haiku, no tools, never blocks) and `scripts/real/check-safety-review.ts` (not run) |
 
 ### Left
 
@@ -177,23 +178,29 @@ the repo, in order:
    rationale, nothing in `src/` despite the injected lesson, one apply
    commit, the worktree gone, a clean clone, and a revert that restores the
    file.
-3. **The interviewer check** (four short Haiku runs):
+3. **The safety notice** (three very short Haiku sessions, a temp home):
+   `npx tsx scripts/real/check-safety-review.ts --yes`. Expected: PASS for a
+   harmless diff not flagged, asking in plain text flagged with a reason,
+   and a dropped denied-write rule flagged despite a line in the diff that
+   tells the reviewer to answer otherwise.
+4. **The interviewer check** (four short Haiku runs):
    `npx tsx scripts/real/check-interviewer-target.ts --yes`, as in phase 3.
    The proposal page offers it for a change to the interviewer or the
    target rule and runs it from the proposal's worktree.
-4. **One creation with the flow files** (session on saver, up to 25
+5. **One creation with the flow files** (session on saver, up to 25
    minutes): `npx tsx scripts/real/check-improvement-flow.ts --yes`.
    Expected: `completed`, one project note, a clean temp library, no turn
    waiting for a text answer. The proposal page offers it for any other
    change and runs it from the worktree.
-5. **Phase 5 real run** (BRIEF-phase-5 §5), on the real repo and library:
+6. **Phase 5 real run** (BRIEF-phase-5 §5), on the real repo and library:
    1. `npm run build`, then `npm run briefstack -- web`, and open the
       address it prints.
    2. Improvements page: pick a real suggestion (or, in the chat, ask for an
       improvement from a real lesson; a card appears: confirm it).
    3. On the proposal page: read the diff, the rationale and the evidence;
-      check that the validators and build, lint and tests passed; optionally
-      run the offered real check.
+      check that the validators and build, lint and tests passed, and read
+      the safety notice (a prominent warning if the reviewer flagged the
+      change); optionally run the offered real check.
    4. Approve. With no creation running it becomes one commit on `master`
       (`git log -1`), not pushed; `git status` shows only what was there
       before (for example `usage set` changes).
