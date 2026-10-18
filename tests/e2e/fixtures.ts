@@ -18,6 +18,7 @@ import { startWebServer, type WebServer } from '../../src/server/index.js';
 import { FakeImprovementRunner, type FakeImproveScript } from '../../src/improve/fakeRunner.js';
 import type { ImprovementManager } from '../../src/improve/manager.js';
 import { FakeRealCheckRunner } from '../../src/improve/realCheck.js';
+import { FakeSafetyReviewer } from '../../src/improve/safetyReview.js';
 import { FakeVerifier } from '../../src/improve/verify.js';
 import { createWebImprovements } from '../../src/improve/wiring.js';
 import { makeImproveRepo } from '../improveWorld.js';
@@ -176,6 +177,10 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   const holder: { app?: App } = {};
   const chat = await openChat(pathEnv, repoDir, manager, chatRunner, () => holder.app?.improvements);
   const improveRunner = new FakeImprovementRunner(options.improveScript ?? { rounds: [] });
+  // Flags a change that lets an agent ask in plain text, like the real review should.
+  const safetyReviewer = new FakeSafetyReviewer((diff) =>
+    /^\+.*ask in plain text/im.test(diff) ? { weakens: true, reason: 'It lets an agent ask in plain text, against the rule that answers come only from the forms.' } : { weakens: false, reason: 'Nothing about safety changed.' },
+  );
   const realChecks = new FakeRealCheckRunner({ ok: true, output: 'PASS  the interviewer picks the target the rule gives' });
   // The real wiring (suggestion tracker, creation gate) over fake runners.
   const improvements = await createWebImprovements({
@@ -185,6 +190,7 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     runner: improveRunner,
     verifier: new FakeVerifier(),
     realChecks,
+    safetyReviewer,
     announce: (suggestions) => holder.app?.chat.announceSuggestions(suggestions),
     gatePollMs: 100,
   });

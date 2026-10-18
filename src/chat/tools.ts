@@ -408,7 +408,7 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
   tool({
     name: 'show_proposal',
     kind: 'read',
-    description: `One improvement proposal: status, request, the diff per file with its rationale, the validator problems, the build, lint and test results, the rounds, and what blocks applying it now. ${PAGE_ONLY}`,
+    description: `One improvement proposal: status, request, the diff per file with its rationale, the validator problems, the safety notice, the build, lint and test results, the rounds, and what blocks applying it now. ${PAGE_ONLY}`,
     input: { proposalId: z.string().min(1).max(100) },
     summary: (args) => args.proposalId,
     run: async (ctx, args) => {
@@ -424,6 +424,7 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
           files: view.files.map((file) => ({ path: file.path, added: file.added, removed: file.removed, rationale: file.rationale, hunks: file.hunks })),
           validation: view.validation,
           checks: view.checks === undefined ? undefined : { ok: view.checks.ok, steps: view.checks.steps.map((step) => ({ name: step.name, ok: step.ok })) },
+          ...(view.safety === undefined ? {} : { safety: { state: view.safety.state, reason: view.safety.reason } }),
           rounds: view.rounds.map((round) => ({ n: round.n, outcome: round.outcome, feedback: round.feedback, denials: round.denials.length })),
           ...(view.realCheck === undefined ? {} : { realCheck: { name: view.realCheck.name, state: view.realCheck.state } }),
           ...(view.appliedCommit === undefined ? {} : { appliedCommit: view.appliedCommit }),

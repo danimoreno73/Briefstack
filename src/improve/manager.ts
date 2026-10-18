@@ -9,7 +9,8 @@ import { writeEvidence, type EvidenceChoice } from './evidence.js';
 import { prepareContext, type PreparedContext } from './filters.js';
 import { applyChanges, commitWorktree, createWorktree, currentBranch, git, ignoredFiles, moveWorktree, removeWorktree, revertChangesOf, revParse, untrackedFiles, type ApplyResult, type BodyChange } from './git.js';
 import { writeImproveRulesSync } from './guardCommand.js';
-import type { ProposalRecord, ProposalStatus, ProposalSummary, ProposalView, Round } from './proposal.js';
+import type { ProposalFile, ProposalRecord, ProposalStatus, ProposalSummary, ProposalView, Round } from './proposal.js';
+import { SAFETY_MODEL, safetyDiff, type SafetyNotice, type SafetyReviewer } from './safetyReview.js';
 import { offeredCheck, type RealCheckRunner } from './realCheck.js';
 import { ImproveStore, newProposalId } from './store.js';
 import { suggestionText, type Suggestion, type SuggestionStore } from './suggestions.js';
@@ -23,7 +24,8 @@ import type { Verifier } from './verify.js';
  *
  * - One improvement session at a time (`improve.busy`).
  * - After the session the server commits the worktree on the branch,
- *   validates the round, and only then runs build, lint and tests.
+ *   validates the round, and only then asks for the safety notice (never
+ *   blocking) and runs build, lint and tests.
  * - Approve and revert never run while a creation is active: they wait
  *   (`waiting`, `revertWaiting`) and run as soon as none is, checked every
  *   `gatePollMs`.
@@ -56,6 +58,8 @@ export interface ImprovementManagerOptions {
    * creation cannot start between the check and the commit.
    */
   holdStarts?: <T>(task: () => Promise<T>) => Promise<T>;
+  /** Reads the diff of a round that passed the validators and says whether it weakens a rule; never blocks. */
+  safetyReviewer?: SafetyReviewer;
   /** Turns a creation ended in text, by session id (not in `events.jsonl`). */
   textTurns?: (sessionId: string) => number | undefined;
   /** Suggestions after creations: listed, used as evidence, marked once prepared. */
@@ -308,9 +312,11 @@ export class ImprovementManager {
       record.validation = { ok: check.problems.length === 0, problems: check.problems };
       delete record.checks;
       delete record.realCheck;
+      delete record.safety;
       if (check.problems.length > 0) {
         record.status = 'rejected';
       } else {
+        if (this.options.safetyReviewer !== undefined) record.safety = await this.safetyNotice(this.options.safetyReviewer, check.files);
         record.checks = await this.options.verifier.verify(record.worktreeDir);
         record.status = record.checks.ok ? 'ready' : 'failed';
         if (!record.checks.ok) record.error = record.checks.error ?? 'Build, lint or tests failed in the worktree.';
@@ -320,6 +326,18 @@ export class ImprovementManager {
       record.error = this.redact(`Checking the round failed: ${error instanceof Error ? error.message : String(error)}`).slice(0, 1000);
     }
     await this.save(record);
+  }
+
+  /** The safety notice of a round that passed the validators. Never throws: no answer is `unavailable`. */
+  private async safetyNotice(reviewer: SafetyReviewer, files: readonly ProposalFile[]): Promise<SafetyNotice> {
+    const notice = (state: SafetyNotice['state'], reason: string): SafetyNotice => ({ state, reason: this.redact(reason).slice(0, 2000), model: SAFETY_MODEL, at: this.stamp() });
+    try {
+      const answer = await reviewer.review(safetyDiff(files));
+      if (answer === undefined) return notice('unavailable', 'The safety review gave no answer in the expected form.');
+      return notice(answer.weakens ? 'flagged' : 'clear', answer.reason);
+    } catch (error) {
+      return notice('unavailable', `The safety review could not run: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private async personalContext(): Promise<PreparedContext> {

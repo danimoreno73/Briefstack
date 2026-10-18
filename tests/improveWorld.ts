@@ -6,6 +6,7 @@ import type { PathEnv } from '../src/config/index.js';
 import { FakeImprovementRunner, type FakeImproveScript } from '../src/improve/fakeRunner.js';
 import { ImprovementManager } from '../src/improve/manager.js';
 import { FakeRealCheckRunner } from '../src/improve/realCheck.js';
+import type { SafetyReviewer } from '../src/improve/safetyReview.js';
 import { ImproveStore } from '../src/improve/store.js';
 import type { SuggestionStore } from '../src/improve/suggestions.js';
 import type { Submission } from '../src/improve/types.js';
@@ -71,6 +72,7 @@ export async function openImproveWorld(params: {
   script: FakeImproveScript;
   blockers?: () => Promise<string[]>;
   suggestions?: SuggestionStore;
+  safety?: SafetyReviewer;
 }): Promise<ImproveWorld> {
   const runner = new FakeImprovementRunner(params.script);
   const verifier = new FakeVerifier();
@@ -87,6 +89,7 @@ export async function openImproveWorld(params: {
     profile: async () => ({ model: 'haiku', effort: 'low' }),
     blockers: params.blockers ?? (async () => world.blockers),
     ...(params.suggestions === undefined ? {} : { suggestions: params.suggestions }),
+    ...(params.safety === undefined ? {} : { safetyReviewer: params.safety }),
     gatePollMs: 50,
   });
   return world;

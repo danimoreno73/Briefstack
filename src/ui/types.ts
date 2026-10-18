@@ -253,6 +253,8 @@ export interface ProposalDetail {
   files: { path: string; kind: string; status: string; hunks: DiffHunkView[]; added: number; removed: number; rationale?: string; evidence?: string[] }[];
   validation?: { ok: boolean; problems: { kind: string; file?: string; line?: number; detail: string }[] };
   checks?: { ok: boolean; steps: { name: string; ok: boolean; ms: number; tail: string }[]; error?: string };
+  /** The safety notice of the last checked round: never blocks approving. */
+  safety?: { state: 'flagged' | 'clear' | 'unavailable'; reason: string; model: string; at: string };
   realCheck?: { name: string; state: string; startedAt: string; endedAt?: string; output?: string };
   offeredCheck?: string;
   appliedCommit?: string;

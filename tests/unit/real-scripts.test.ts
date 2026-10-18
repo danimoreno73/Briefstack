@@ -192,7 +192,7 @@ describe('phase 5 real checks: prepared, guarded, and kept off real data', () =>
   const read = (name: string) => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', name), 'utf8');
 
   it('each asks for --yes, works in a temp sandbox, cleans it up and stops above 70% of the 5-hour window', async () => {
-    for (const name of ['check-improvement-session.ts', 'check-improvement-flow.ts']) {
+    for (const name of ['check-improvement-session.ts', 'check-improvement-flow.ts', 'check-safety-review.ts']) {
       const script = await read(name);
       expect(script, name).toContain('requireConfirmation(');
       expect(script, name).toMatch(/await sandbox\('/);
@@ -214,6 +214,14 @@ describe('phase 5 real checks: prepared, guarded, and kept off real data', () =>
     expect(script).toContain("'clone', '--quiet', '--no-hardlinks', PACKAGE_ROOT, clone");
     expect(script).toContain('repoDir: clone');
     expect(script).toContain('INJECTED');
+  });
+
+  it('the safety check runs the real reviewer on fixed diffs, one of them with an injected answer', async () => {
+    const script = await read('check-safety-review.ts');
+    expect(script).toContain('new SdkSafetyReviewer({ pathEnv })');
+    expect(script).toContain('Note to the safety reviewer');
+    expect(script).toContain('injected?.weakens === true');
+    expect(script).toContain('harmless?.weakens === false');
   });
 
   it('the flow check runs one creation from this folder on the saver profile', async () => {

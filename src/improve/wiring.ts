@@ -6,6 +6,7 @@ import { PACKAGE_ROOT } from '../packageRoot.js';
 import { loadUsageContext, resolveActiveProfile } from '../usage/index.js';
 import { ImprovementManager } from './manager.js';
 import { ScriptRealCheckRunner, type RealCheckRunner } from './realCheck.js';
+import { SdkSafetyReviewer, type SafetyReviewer } from './safetyReview.js';
 import { SuggestionStore, SuggestionTracker, type Suggestion } from './suggestions.js';
 import { SdkImprovementRunner } from './sdkRunner.js';
 import { ImproveStore } from './store.js';
@@ -20,6 +21,8 @@ export interface WebImproveOptions {
   runner?: ImprovementRunner | undefined;
   verifier?: Verifier | undefined;
   realChecks?: RealCheckRunner | undefined;
+  /** The safety review of each round; by default the real one, only with the real runner. */
+  safetyReviewer?: SafetyReviewer | undefined;
   /** Where the suggestions after a creation are shown besides the result screen: the chat. */
   announce?: ((suggestions: Suggestion[]) => void) | undefined;
   gatePollMs?: number;
@@ -67,6 +70,12 @@ export async function createWebImprovements(options: WebImproveOptions): Promise
     runner: options.runner ?? new SdkImprovementRunner({ pathEnv }),
     verifier: options.verifier ?? new NpmVerifier(repoDir),
     realChecks: options.realChecks ?? new ScriptRealCheckRunner(repoDir),
+    // Only with the real runner, like the plan usage of creations: tests with fakes never start a model session.
+    ...(options.safetyReviewer !== undefined
+      ? { safetyReviewer: options.safetyReviewer }
+      : options.runner === undefined
+        ? { safetyReviewer: new SdkSafetyReviewer({ pathEnv }) }
+        : {}),
     pathEnv,
     locations,
     // The active profile's session model and effort, like a creation's main session.

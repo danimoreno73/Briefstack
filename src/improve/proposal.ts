@@ -1,6 +1,7 @@
 import type { DiffHunk } from '../chat/types.js';
 import type { EvidenceItem } from './evidence.js';
 import type { AssetKind } from './allowlist.js';
+import type { SafetyNotice } from './safetyReview.js';
 
 /**
  * A proposal: one improvement from the request to its end (BRIEF-phase-5
@@ -126,6 +127,8 @@ export interface ProposalRecord {
   files: ProposalFile[];
   validation?: { ok: boolean; problems: ValidationProblem[] };
   checks?: CheckReport;
+  /** The safety notice of the last checked round (`safetyReview.ts`): never blocks approving. */
+  safety?: SafetyNotice;
   realCheck?: RealCheck;
   appliedCommit?: string;
   appliedAt?: string;

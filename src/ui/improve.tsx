@@ -338,6 +338,13 @@ function ProposalBody({ page, reload }: { page: ProposalPage; reload: () => void
       </p>
       <h1>{proposal.title ?? t.proposalHeading(proposal.id)}</h1>
       <StatusLine proposal={proposal} blockers={blockers} />
+      {proposal.safety?.state === 'flagged' && (
+        <div class="banner banner-warn" role="alert" data-testid="safety-warning">
+          <strong>{t.safetyFlaggedTitle}</strong>
+          <p>{proposal.safety.reason}</p>
+          <p class="muted">{t.safetyFlaggedNote(proposal.safety.model)}</p>
+        </div>
+      )}
       <h2>{t.proposalRequest}</h2>
       <blockquote data-testid="proposal-request">{proposal.request}</blockquote>
       {proposal.expectedEffect !== undefined && (
@@ -386,6 +393,11 @@ function ProposalBody({ page, reload }: { page: ProposalPage; reload: () => void
             </li>
           ))}
         </ul>
+      )}
+      {proposal.safety !== undefined && proposal.safety.state !== 'flagged' && (
+        <p class="muted" data-testid="safety" data-state={proposal.safety.state}>
+          {proposal.safety.state === 'clear' ? t.safetyClear(proposal.safety.model) : t.safetyUnavailable(proposal.safety.reason)}
+        </p>
       )}
       <h2>{t.proposalTests}</h2>
       {proposal.checks === undefined ? (

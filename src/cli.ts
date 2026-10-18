@@ -61,6 +61,7 @@ import { createWebCreations } from './creation/wiring.js';
 import { createWebImprovements } from './improve/wiring.js';
 import type { ImprovementManager } from './improve/manager.js';
 import type { ImprovementRunner } from './improve/types.js';
+import type { SafetyReviewer } from './improve/safetyReview.js';
 import type { Verifier } from './improve/verify.js';
 import { killProcessTree } from './creation/processTree.js';
 import { runsDirOf, sweepRuns } from './creation/runFiles.js';
@@ -100,6 +101,7 @@ export interface CliIO {
   /** The runner of improvement sessions and the verifier of their rounds: the real ones unless a test passes fakes. */
   improveRunner?: ImprovementRunner;
   improveVerifier?: Verifier;
+  safetyReviewer?: SafetyReviewer;
 }
 
 const defaultIO = (): CliIO => ({
@@ -571,6 +573,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       creations,
       runner: io.improveRunner,
       verifier: io.improveVerifier,
+      safetyReviewer: io.safetyReviewer,
       announce: (suggestions) => chat?.announceSuggestions(suggestions),
     });
     server = await startWebServer({

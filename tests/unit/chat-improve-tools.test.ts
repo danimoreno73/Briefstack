@@ -2,6 +2,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CHAT_ACTION_TOOLS, CHAT_READ_TOOLS } from '../../src/chat/toolNames.js';
 import { ChatToolError, findChatTool, parseArgs, resultText, type ActionTool, type ReadTool, type ToolOutcome } from '../../src/chat/tools.js';
+import { FakeSafetyReviewer } from '../../src/improve/safetyReview.js';
 import { computeSuggestions, SuggestionStore, type Suggestion } from '../../src/improve/suggestions.js';
 import { FAKE_KEY, chatWorld, type ChatWorld } from '../chatWorld.js';
 import { useHermeticGit } from '../helpers.js';
@@ -30,6 +31,7 @@ describe('improvement tools of the chat', { timeout: 60_000 }, () => {
       projectsDir: world.projectsDir,
       script: { rounds: [researcherRound()] },
       suggestions: store,
+      safety: new FakeSafetyReviewer(() => ({ weakens: true, reason: 'It softens the rule on denied calls.' })),
     });
     world.tools.improvements = () => improve.manager;
   });
@@ -83,6 +85,8 @@ describe('improvement tools of the chat', { timeout: 60_000 }, () => {
     expect(listed.data).toMatchObject({ proposals: [{ id, status: 'ready', files: [RESEARCHER] }] });
     const shown = await read('show_proposal', { proposalId: id });
     expect(shown.data).toMatchObject({ id, status: 'ready', files: [{ path: RESEARCHER, added: 1, removed: 1 }], checks: { ok: true }, blockers: [] });
+    // The safety notice reaches the chat, so it can point at it.
+    expect(shown.data).toMatchObject({ safety: { state: 'flagged', reason: 'It softens the rule on denied calls.' } });
     expect(JSON.stringify(shown.data)).toContain('proposal page');
     expect(resultText(shown)).not.toContain(world.dir.replaceAll('\\', '\\\\'));
     expect((await new SuggestionStore(path.join(world.home, 'improve', 'suggestions.json')).get(suggestion.id))?.proposalId).toBe(id);

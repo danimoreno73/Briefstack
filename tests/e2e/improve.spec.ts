@@ -81,6 +81,8 @@ test.describe('prepared from the chat, approved and reverted on the page', () =>
     await expect(page.getByTestId('checks')).toHaveAttribute('data-ok', 'true');
     await expect(page.getByTestId('checks').locator('li')).toHaveCount(3);
     await expect(page.getByTestId('evidence')).toContainText('lessons.md');
+    await expect(page.getByTestId('safety')).toHaveAttribute('data-state', 'clear');
+    await expect(page.getByTestId('safety-warning')).toHaveCount(0);
 
     // The real check is offered with its cost and started only by the user.
     await expect(page.getByTestId('real-check-offer')).toContainText('One whole creation in a temp home');
@@ -110,6 +112,41 @@ test.describe('prepared from the chat, approved and reverted on the page', () =>
     await expect(status(page)).toHaveAttribute('data-status', 'reverted');
     expect(await lastCommit(app)).toMatch(/^Revert improvement imp-/);
     expect(await researcher(app)).not.toContain('Keep the report under one page.');
+  });
+});
+
+test.describe('a change that weakens a rule outside a locked block', () => {
+  test.use({
+    appOptions: {
+      improveScript: {
+        rounds: [
+          {
+            edits: [{ file: '.claude/agents/interviewer.md', find: 'Rules:', replace: 'When unsure, you may ask in plain text.\n\nRules:' }],
+            submission: {
+              title: 'Faster interviews',
+              expectedEffect: 'Fewer form questions.',
+              changes: [{ file: '.claude/agents/interviewer.md', rationale: 'Forms felt slow.', evidence: ['request.md'] }],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  test('shows a prominent safety notice with its reason, and can still be approved', async ({ page, app }) => {
+    await app.improvements.prepare('Faster interviews.');
+    await page.goto(app.url);
+    await page.getByRole('link', { name: 'Improvements' }).first().click();
+    await page.getByTestId('proposals').getByRole('link', { name: 'Open' }).click();
+    await expect(status(page)).toHaveAttribute('data-status', 'ready');
+    const warning = page.getByTestId('safety-warning');
+    await expect(warning).toBeVisible();
+    await expect(warning).toContainText('Safety notice');
+    await expect(warning).toContainText('It lets an agent ask in plain text');
+    await expect(page.getByTestId('validation')).toHaveAttribute('data-ok', 'true');
+    await page.getByTestId('approve').click();
+    await confirmDialog(page, 'Approve and apply');
+    await expect(status(page)).toHaveAttribute('data-status', 'applied');
   });
 });
 

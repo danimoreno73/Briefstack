@@ -7,6 +7,7 @@ import { FakeImprovementRunner, type FakeImproveScript } from '../../src/improve
 import { git, revParse } from '../../src/improve/git.js';
 import { ImprovementManager } from '../../src/improve/manager.js';
 import { FakeRealCheckRunner } from '../../src/improve/realCheck.js';
+import { FakeSafetyReviewer } from '../../src/improve/safetyReview.js';
 import { ImproveStore } from '../../src/improve/store.js';
 import { FakeVerifier } from '../../src/improve/verify.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
@@ -67,7 +68,7 @@ const submission = (files: string[], title = 'Shorter research reports') => ({
 
 const researcherEdit = { file: RESEARCHER, find: 'Never fill a gap with a guess.', replace: 'Never fill a gap with a guess. Keep the report under one page.' };
 
-async function open(script: FakeImproveScript, extra: { verifier?: FakeVerifier; realChecks?: FakeRealCheckRunner; holdStarts?: <T>(task: () => Promise<T>) => Promise<T> } = {}) {
+async function open(script: FakeImproveScript, extra: { verifier?: FakeVerifier; realChecks?: FakeRealCheckRunner; holdStarts?: <T>(task: () => Promise<T>) => Promise<T>; safety?: FakeSafetyReviewer } = {}) {
   const runner = new FakeImprovementRunner(script);
   const verifier = extra.verifier ?? new FakeVerifier();
   const pathEnv: PathEnv = { env: { BRIEFSTACK_HOME: home }, homedir: path.join(dir, 'user'), pathApi: path, caseInsensitive: process.platform !== 'linux' };
@@ -82,6 +83,7 @@ async function open(script: FakeImproveScript, extra: { verifier?: FakeVerifier;
     profile: async () => ({ model: 'haiku', effort: 'low' }),
     blockers: async () => blockers,
     ...(extra.holdStarts === undefined ? {} : { holdStarts: extra.holdStarts }),
+    ...(extra.safety === undefined ? {} : { safetyReviewer: extra.safety }),
     gatePollMs: 20,
   });
   return { manager, runner, verifier };
@@ -299,6 +301,49 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     });
     const view = await settled((await m.prepare('x')).id);
     expect((view.validation?.problems ?? []).map((p) => `${p.kind}:${p.file ?? ''}`).sort()).toEqual([`lessonText:${INTERVIEWER}`, `personalData:${RESEARCHER}`]);
+  });
+
+  it('flags, without blocking, a change that weakens a rule outside a locked block, after the validators pass', async () => {
+    const safety = new FakeSafetyReviewer((diff) =>
+      diff.includes('may ask in plain text') ? { weakens: true, reason: 'It lets the interviewer ask in plain text, against the web-mode rule.' } : { weakens: false, reason: 'Nothing about safety.' },
+    );
+    const { manager: m, verifier } = await open(
+      {
+        rounds: [
+          { edits: [{ file: INTERVIEWER, find: 'Rules:', replace: 'When unsure, you may ask in plain text.\n\nRules:' }], submission: submission([INTERVIEWER]) },
+          { edits: [{ file: INTERVIEWER, find: 'When unsure, you may ask in plain text.', replace: 'Keep each question short.' }], submission: submission([INTERVIEWER]) },
+        ],
+      },
+      { safety },
+    );
+    const { id } = await m.prepare('Fewer questions.');
+    const flagged = await settled(id);
+    expect(flagged.status).toBe('ready');
+    expect(flagged.validation?.ok).toBe(true);
+    expect(flagged.safety).toMatchObject({ state: 'flagged', reason: 'It lets the interviewer ask in plain text, against the web-mode rule.', model: 'haiku' });
+    expect(safety.diffs[0]).toContain(`+++ b/${INTERVIEWER}`);
+    expect(safety.diffs[0]).toContain('+When unsure, you may ask in plain text.');
+    expect(verifier.calls).toHaveLength(1);
+
+    await m.askChanges(id, 'Do not let it ask in text.');
+    const clear = await settled(id);
+    expect(clear.safety).toMatchObject({ state: 'clear', reason: 'Nothing about safety.' });
+    expect((await m.approve(id, clear.head ?? '')).status).toBe('applied');
+  });
+
+  it('skips the safety review when a validator fails, and says when it could not answer', async () => {
+    const safety = new FakeSafetyReviewer(() => new Error('Claude Code was not found.'));
+    const rejected = await open({ rounds: [{ edits: [{ file: 'src/cli.ts', text: 'x\n' }], submission: submission(['src/cli.ts']) }] }, { safety });
+    const view = await settled((await rejected.manager.prepare('x')).id);
+    expect(view.status).toBe('rejected');
+    expect(view.safety).toBeUndefined();
+    expect(safety.diffs).toEqual([]);
+    await rejected.manager.shutdown();
+
+    const failing = await open({ rounds: [{ edits: [researcherEdit], submission: submission([RESEARCHER]) }] }, { safety });
+    const ready = await settled((await failing.manager.prepare('x')).id);
+    expect(ready.status).toBe('ready');
+    expect(ready.safety).toMatchObject({ state: 'unavailable', reason: expect.stringContaining('Claude Code was not found.') });
   });
 
   it('rejects a frontmatter change and a round with no changes', async () => {

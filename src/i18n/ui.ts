@@ -502,6 +502,11 @@ export const uiMessages = defineCatalogue({
     proposalTests: 'Build, lint and tests',
     testStep: (name: string, ok: boolean, seconds: number) => `${name}: ${ok ? 'passed' : 'failed'} (${seconds} s)`,
     proposalNotTested: 'Not run: the checks on the change must pass first.',
+    safetyFlaggedTitle: 'Safety notice: this change may weaken a rule',
+    safetyFlaggedNote: (model: string) =>
+      `A cheap model (${model}) read the diff and says so. It does not block approving: read the diff above before you decide.`,
+    safetyClear: (model: string) => `Safety review (${model}): it found no rule about safety, permissions, writes or asking in text weakened.`,
+    safetyUnavailable: (reason: string) => `Safety review: no answer (${reason}). Read the diff with that in mind.`,
     proposalRounds: 'Rounds',
     roundLine: (n: number, outcome: string | undefined, denials: number) =>
       `Round ${n}: ${outcome === 'submitted' ? 'proposal handed in' : outcome === 'noProposal' ? 'no proposal handed in' : outcome === 'failed' ? 'failed' : outcome === 'interrupted' ? 'interrupted' : 'running'}${denials > 0 ? `, ${denials} call(s) denied by the guard` : ''}.`,
@@ -1043,6 +1048,11 @@ export const uiMessages = defineCatalogue({
     proposalTests: 'Build, lint y tests',
     testStep: (name: string, ok: boolean, seconds: number) => `${name}: ${ok ? 'correcto' : 'fallido'} (${seconds} s)`,
     proposalNotTested: 'No se ejecutaron: antes deben pasar las comprobaciones del cambio.',
+    safetyFlaggedTitle: 'Aviso de seguridad: este cambio puede debilitar una regla',
+    safetyFlaggedNote: (model: string) =>
+      `Un modelo barato (${model}) leyó el diff y lo indica. No impide aprobar: lee el diff de arriba antes de decidir.`,
+    safetyClear: (model: string) => `Revisión de seguridad (${model}): no encontró ninguna regla de seguridad, permisos, escritura o preguntas en texto debilitada.`,
+    safetyUnavailable: (reason: string) => `Revisión de seguridad: sin respuesta (${reason}). Lee el diff teniéndolo en cuenta.`,
     proposalRounds: 'Rondas',
     roundLine: (n: number, outcome: string | undefined, denials: number) =>
       `Ronda ${n}: ${outcome === 'submitted' ? 'propuesta entregada' : outcome === 'noProposal' ? 'sin propuesta' : outcome === 'failed' ? 'fallida' : outcome === 'interrupted' ? 'interrumpida' : 'en marcha'}${denials > 0 ? `, ${denials} llamada(s) denegada(s) por el guardián` : ''}.`,
