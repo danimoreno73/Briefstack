@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BriefstackError } from '../errors.js';
 import { hideAbsolutePaths } from '../panel/project.js';
+import { settlesWithin } from '../timeLimit.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import type { ChatStore, ChatStoreState, ChatThreadRecord } from './store.js';
 import { CHAT_CONFIRMATION_TIMEOUT_MS } from './toolNames.js';
@@ -58,6 +59,8 @@ export interface ChatManagerOptions {
   /** Default 10 cards per 10 minutes. */
   maxProposals?: number;
   proposalWindowMs?: number;
+  /** How long `shutdown()` waits for the session to stop and the history to be written. Default 15 s. */
+  shutdownTimeoutMs?: number;
 }
 
 type Listener = (event: ChatStreamEvent) => void;
@@ -481,13 +484,19 @@ export class ChatManager {
     this.push({ kind: 'thread', data: { threadId: this.thread.id } });
   }
 
+  /** Always returns within `shutdownTimeoutMs`, even when the session does not stop. */
   async shutdown(): Promise<void> {
     this.expireWaiting();
     this.clearIdle();
     const old = this.session;
     this.session = undefined;
-    await old?.stop();
-    await this.writes;
+    await settlesWithin(
+      (async () => {
+        await old?.stop();
+        await this.writes;
+      })(),
+      this.options.shutdownTimeoutMs ?? 15_000,
+    );
     this.listeners.clear();
   }
 }

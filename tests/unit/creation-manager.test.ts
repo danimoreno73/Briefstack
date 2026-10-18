@@ -1,4 +1,6 @@
+import { execFile } from 'node:child_process';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeRunner, parseRecording } from '../../src/creation/fakeRunner.js';
 import { CreationManager, type CreationState, type StreamEvent } from '../../src/creation/manager.js';
@@ -15,6 +17,7 @@ import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { tempDir } from '../helpers.js';
 
 const RECORDINGS = path.join(PACKAGE_ROOT, 'tests', 'fixtures', 'recordings');
+const execFileAsync = promisify(execFile);
 
 async function waitFor<T>(probe: () => T | undefined | false, timeoutMs = 5000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
@@ -312,6 +315,33 @@ describe('CreationManager', () => {
     expect(events.at(-1)).toMatchObject({ source: 'hook', type: 'session.end', reason: 'server_stop' });
     expect(summarizeSession(events)).toMatchObject({ status: 'interrupted', endReason: 'server_stop' });
   });
+
+  it('returns from shutdown within its limit when a runner never stops, and closes what is left', async () => {
+    const runner: CreationRunner = {
+      start: () => ({
+        sessionId: Promise.resolve('never-stops'),
+        requestCancel: () => undefined,
+        sendMessage: () => undefined,
+        stop: () => new Promise<void>(() => undefined),
+        done: new Promise(() => undefined),
+      }),
+    };
+    const m = new CreationManager({ runner, sessionsDir, policy: () => 'ask', profile: () => ({ name: 'saver', sessionModel: 'sonnet' }), shutdownTimeoutMs: 200 });
+    const { id } = await m.create('x');
+    let ended = false;
+    m.subscribe(id, 0, () => undefined, () => (ended = true));
+    const started = Date.now();
+    await m.shutdown();
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(m.get(id)).toMatchObject({ status: 'finished', outcome: 'interrupted' });
+    expect(ended).toBe(true);
+  });
+
+  it('finishes a top-level shutdown in a process that nothing else keeps alive', async () => {
+    const fixture = path.join(PACKAGE_ROOT, 'tests', 'fixtures', 'shutdown-alone.ts');
+    const { stdout } = await execFileAsync(process.execPath, ['--import', 'tsx', fixture, sessionsDir], { cwd: PACKAGE_ROOT, timeout: 30_000 });
+    expect(stdout).toContain('shutdown returned: interrupted');
+  }, 40_000);
 
   it('streams the session.end Claude Code writes as it exits, after session.finished', async () => {
     const session = 'late-end';

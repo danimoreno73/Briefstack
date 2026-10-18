@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeChatRunner, parseChatScript, type ChatScript } from '../../src/chat/fakeChatRunner.js';
 import { ChatManager } from '../../src/chat/manager.js';
 import { ChatStore } from '../../src/chat/store.js';
-import type { ChatMessage, ChatStreamEvent } from '../../src/chat/types.js';
+import type { ChatMessage, ChatRunner, ChatStreamEvent } from '../../src/chat/types.js';
 import { addNote } from '../../src/library/index.js';
 import { FAKE_KEY, INJECTED, chatWorld, type ChatWorld } from '../chatWorld.js';
 import { useHermeticGit } from '../helpers.js';
@@ -225,6 +225,17 @@ describe('ChatManager', () => {
     await again.chat.send('Hello again');
     await idle(again.chat);
     expect(again.runner.starts).toEqual([{ model: 'haiku', effort: 'low', resume: sdkSessionId }]);
+  });
+
+  it('returns from shutdown within its limit when the session never stops', async () => {
+    const runner: ChatRunner = {
+      start: () => ({ send: () => undefined, stop: () => new Promise<void>(() => undefined), done: new Promise<void>(() => undefined) }),
+    };
+    const c = await ChatManager.open({ store: store(), runner, tools: world.tools, profile: async () => ({ model: 'haiku', effort: 'low' }), shutdownTimeoutMs: 200 });
+    await c.send('Hello');
+    const started = Date.now();
+    await c.shutdown();
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 
   it('starts a new session and says so when the resume fails, keeping the old messages', async () => {

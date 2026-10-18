@@ -23,6 +23,7 @@ import {
   type SessionOutcome,
 } from '../events/index.js';
 import { hideAbsolutePaths, projectEvent } from '../panel/project.js';
+import { settlesWithin } from '../timeLimit.js';
 import { FolderClaims } from './folderClaims.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import type {
@@ -197,6 +198,12 @@ export interface CreationManagerOptions {
   planUsage?: () => Promise<{ fiveHour: number | null; sevenDay: number | null } | undefined>;
   /** Default 5 minutes. */
   usageEveryMs?: number;
+  /**
+   * How long `shutdown()` waits for the runners to stop and the streams to
+   * close. After it, what is left is marked interrupted and its stream closed
+   * without waiting. Default 15 s.
+   */
+  shutdownTimeoutMs?: number;
 }
 
 type Listener = (event: StreamEvent) => void;
@@ -506,8 +513,22 @@ export class CreationManager {
   /**
    * Server stop: every active runner is stopped, and its session gets a
    * `session.end` with reason `server_stop`, so it reads as interrupted.
+   * Always returns within `shutdownTimeoutMs`: a runner that does not stop by
+   * then is left behind, its creation marked interrupted and its stream closed.
    */
   async shutdown(): Promise<void> {
+    if (await settlesWithin(this.stopAll(), this.options.shutdownTimeoutMs ?? 15_000)) return;
+    for (const c of this.creations.values()) {
+      this.finish(c, 'interrupted');
+      if (c.streamClosed) continue;
+      c.streamClosed = true;
+      const subscribers = [...c.subscribers];
+      c.subscribers.clear();
+      for (const subscriber of subscribers) subscriber.onEnd();
+    }
+  }
+
+  private async stopAll(): Promise<void> {
     const work = [...this.creations.values()].map(async (c) => {
       if (this.isFinished(c)) {
         if (!c.runnerDone) await this.stopRunner(c);
@@ -847,7 +868,8 @@ export class CreationManager {
         }
       };
       await (c.pollChain = c.pollChain.then(tail).catch(() => undefined));
-      await new Promise((resolve) => setTimeout(resolve, this.tailMs).unref());
+      // Not `unref`'d: during a shutdown it may be the only thing left, and the wait must still end.
+      await new Promise((resolve) => setTimeout(resolve, this.tailMs));
       await (c.pollChain = c.pollChain.then(tail).catch(() => undefined));
       c.streamClosed = true;
       const subscribers = [...c.subscribers];

@@ -2227,3 +2227,24 @@ Decisions:
   inside it; with none, or when the question text names a path outside,
   the script cancels that creation. A spec is approved only when its
   summary names no path outside; a folder grant is accepted only inside.
+
+**`shutdown()` did not return in the scripts.** Both runs ended with
+"Detected unsettled top-level await" at `await manager.shutdown()`. The SDK
+was not the cause: a probe with a stand-in `claude` that writes nothing
+showed the message iterator ends after `query.close()` (and throws after a
+kill). The cause was `closeStream`, which waits `tailMs` (1 s) on an
+`unref`'d timer: once the runners' processes were gone it was the only
+thing left, Node's event loop emptied, and Node (exit code 13) dropped the
+pending `await`. Reproduced with the fake runner and no session at all.
+`briefstack web` was not affected on Ctrl+C: its HTTP server is still
+listening while `creations.shutdown()` runs (`server.close()` comes after),
+so the timer fires. But nothing bounded a runner whose `stop()` never
+settled, and Ctrl+C would then have waited forever (a second Ctrl+C kills
+the process: the handlers are removed after the first).
+
+- The tail wait is no longer `unref`'d.
+- `CreationManager.shutdown()` and `ChatManager.shutdown()` wait at most
+  `shutdownTimeoutMs` (default 15 s, `settlesWithin` in
+  `src/timeLimit.ts`, whose timer keeps the process alive while it waits).
+  After it, every creation not yet finished is marked interrupted and its
+  stream closed; the chat stops waiting for its session.
