@@ -46,13 +46,13 @@ describe('buildQueryOptions', () => {
       },
     });
 
-  it('runs in auto mode from the repo, with the user claude and only the project and local settings', () => {
+  it('runs in auto mode from the repo, with the user claude and only the project settings', () => {
     const options = base();
     expect(options).toMatchObject({
       cwd: '/repo',
       pathToClaudeCodeExecutable: '/bin/claude',
       permissionMode: 'auto',
-      settingSources: ['project', 'local'],
+      settingSources: ['project'],
       strictMcpConfig: true,
       model: 'sonnet',
       effort: 'medium',
@@ -121,6 +121,11 @@ describe('buildQueryOptions', () => {
 });
 
 describe('cleanEnvironment', () => {
+  it('turns auto memory off even when the server environment turns it on', () => {
+    const { env } = cleanEnvironment({ CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0', PATH: '/bin' }, '/home');
+    expect(env.CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBe('1');
+  });
+
   it('turns background tasks off even when the server environment sets them otherwise', () => {
     const { env, removed } = cleanEnvironment({ CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '0', PATH: '/bin' }, '/home');
     expect(env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe('1');
@@ -150,7 +155,12 @@ describe('cleanEnvironment', () => {
       'CLAUDE_CODE_OAUTH_TOKEN',
     ]);
     expect(JSON.stringify(removed)).not.toContain(FAKE_KEY);
-    expect(env).toEqual({ PATH: '/bin', BRIEFSTACK_HOME: '/new-home', CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1' });
+    expect(env).toEqual({
+      PATH: '/bin',
+      BRIEFSTACK_HOME: '/new-home',
+      CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1',
+      CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1',
+    });
   });
 });
 

@@ -110,6 +110,8 @@ describe('the chat session options', () => {
     expect(o).not.toHaveProperty('resume');
     expect(o.env).not.toHaveProperty('ANTHROPIC_API_KEY');
     expect(o.env).not.toHaveProperty('ANTHROPIC_MODEL');
+    // Auto memory loads whatever `settingSources` says: only the environment turns it off.
+    expect(o.env?.CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBe('1');
     expect(o.permissionMode).not.toBe('bypassPermissions');
     expect(o).not.toHaveProperty('allowDangerouslySkipPermissions');
     expect(await (o.canUseTool as NonNullable<Options['canUseTool']>)('Bash', {}, { signal: new AbortController().signal, toolUseID: 't', requestId: 'r' })).toMatchObject({

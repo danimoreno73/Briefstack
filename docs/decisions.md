@@ -2148,3 +2148,56 @@ conservative reading of the brief. The user can revisit any of them.
       (`chat.noConfirmation`). If the SDK passes the call's abort signal
       (the handler's `extra.signal`) and Claude Code gives up the call, the
       card expires at once too.
+
+## `check-two-creations` saw the user's real folders (2026-10-18)
+
+The first run of `scripts/real/check-two-creations.ts` gave both creations
+a temp projects folder under `%LOCALAPPDATA%\Temp`, which `paths check`
+reports `forbidden` (`localAppData` is protected). The interviewer then
+proposed a folder in the user's real projects folder and the script's
+answerer took it; the folder grants were refused, so nothing was written
+there (checked by the user). The two creation transcripts under
+`~/.claude/projects/<repo>/` show where the real paths came from:
+
+1. **`settingSources: ['project', 'local']`.** `local` loads
+   `<repo>/.claude/settings.local.json`; its `additionalDirectories` (the
+   user's real projects and sessions folders, written by `init`) reached
+   the session's environment block as "Additional working directories",
+   with `"source": "localSettings"`, before the runner's own two folders.
+   `local` also loaded `<repo>/CLAUDE.local.md` (the user's personal
+   instructions). Source: Agent SDK "Use Claude Code features"
+   (`code.claude.com/docs/en/agent-sdk/claude-code-features`, read
+   2026-10-18): `"local"` loads "CLAUDE.local.md,
+   `.claude/settings.local.json`".
+2. **Auto memory.** The same page: auto memory at
+   `~/.claude/projects/<project>/memory/` is "loaded into the system prompt
+   at session start" whatever `settingSources` says; "to disable: set
+   `autoMemoryEnabled: false` in settings, or
+   `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in `env`". The transcripts hold the
+   user's `MEMORY.md` for the repo.
+3. **`briefstack paths --json`**, which the skill runs at the start, printed
+   `allowedDirs` from the repo's `settings.local.json` (the CLI reads that
+   file, not `BRIEFSTACK_HOME`), so the real folders came back a second way.
+
+`BRIEFSTACK_HOME` was the temp one in every child: the same `paths --json`
+output shows the temp sessions folder.
+
+In production (`briefstack web` with the real home) items 1 and 3 name the
+same folders the runner passes, plus any old projects folder a Settings
+change left allowed (`docs/api.md`, `PUT /api/settings`), and item 2 and
+`CLAUDE.local.md` reach every creation. The other real scripts: those with
+`settingSources: []` and a temp working folder (`check-effort`,
+`check-guard-auto`, `check-kill-tree`, `check-subagent`, `check-web-tools`,
+`check-interviewer-target`) load no settings file but did load auto memory
+for their temp folder (empty there); `check-chat-read` and
+`check-chat-start-creation` run the chat with `settingSources: []` in the
+temp home, and the latter's creations are fake.
+
+Decisions:
+
+- Creation sessions load `settingSources: ['project']` only (skills, agents,
+  hooks and the repo's `CLAUDE.md`); the chat and the plan-usage reading
+  keep `[]`. Nothing needed `local`: the hooks are in `settings.json`, and
+  the runner passes its folders as `additionalDirectories`.
+- `cleanEnvironment` sets `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` for every
+  session (creation, chat, plan usage).

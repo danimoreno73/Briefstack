@@ -55,7 +55,7 @@ export interface CleanEnvironment {
 
 /**
  * The session's environment: the server's, without credentials or Claude
- * Code's own `CLAUDE_CODE_*`, with background tasks turned off.
+ * Code's own `CLAUDE_CODE_*`, with background tasks and auto memory turned off.
  */
 export function cleanEnvironment(
   source: Readonly<Record<string, string | undefined>>,
@@ -76,6 +76,9 @@ export function cleanEnvironment(
   // Subagents run in the foreground, so their report is the Agent call's result
   // and the main session never waits by polling (docs/decisions.md, H10).
   env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = '1';
+  // Auto memory (`~/.claude/projects/<cwd>/memory/`) loads whatever `settingSources` says; it holds
+  // the user's own notes about the folder, so no session reads it (docs/decisions.md, phase 4).
+  env.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1';
   return { env, removed };
 }
 
@@ -105,7 +108,9 @@ export function buildQueryOptions(params: QueryOptionsParams): Options {
   const { profile } = params;
   return {
     cwd: params.repoDir,
-    settingSources: ['project', 'local'],
+    // Project only: skills, agents and hooks. Not `local` (`settings.local.json`, `CLAUDE.local.md`) nor
+    // `user`: they hold the user's own folders and notes, and the runner passes the folders it means to.
+    settingSources: ['project'],
     pathToClaudeCodeExecutable: params.executable,
     permissionMode: 'auto',
     // Always explicit: the option wins over `ANTHROPIC_MODEL` and any settings file.
