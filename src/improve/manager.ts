@@ -6,7 +6,7 @@ import { listNotes, readNote } from '../library/index.js';
 import { classifyAsset } from './allowlist.js';
 import { writeEvidence, type EvidenceChoice } from './evidence.js';
 import { prepareContext, type PreparedContext } from './filters.js';
-import { applyChanges, commitWorktree, createWorktree, currentBranch, removeWorktree, revertChangesOf, revParse, type ApplyResult, type BodyChange } from './git.js';
+import { applyChanges, commitWorktree, createWorktree, currentBranch, ignoredFiles, removeWorktree, revertChangesOf, revParse, untrackedFiles, type ApplyResult, type BodyChange } from './git.js';
 import { writeImproveRulesSync } from './guardCommand.js';
 import type { ProposalRecord, ProposalStatus, ProposalSummary, ProposalView, Round } from './proposal.js';
 import { offeredCheck, type RealCheckRunner } from './realCheck.js';
@@ -266,6 +266,8 @@ export class ImprovementManager {
     record.status = 'verifying';
     await this.save(record);
     try {
+      // Listed before the commit: afterwards new files are in it, and ignored ones are not seen at all.
+      const stray = { untracked: await untrackedFiles(record.worktreeDir), ignored: await ignoredFiles(record.worktreeDir) };
       const commit = await commitWorktree(record.worktreeDir, `Improvement ${id}, round ${round.n}`);
       if (commit !== undefined) round.commit = commit;
       const head = await revParse(record.worktreeDir, 'HEAD');
@@ -273,7 +275,7 @@ export class ImprovementManager {
         repoDir: this.options.repoDir,
         baseCommit: record.baseCommit,
         head,
-        worktreeDir: record.worktreeDir,
+        stray,
         submission: outcome.submission === undefined ? undefined : redactDeep(outcome.submission, this.options.pathEnv.homedir) as typeof outcome.submission,
         context: await this.personalContext(),
       });

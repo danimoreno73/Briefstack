@@ -2,7 +2,7 @@ import { diffHunks, diffLines } from '../chat/diff.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { classifyAsset } from './allowlist.js';
 import { checkProposedText, type PreparedContext } from './filters.js';
-import { changedFiles, fileAt, untrackedFiles } from './git.js';
+import { changedFiles, fileAt } from './git.js';
 import { lockedBlockProblems } from './locked.js';
 import type { ProposalFile, ValidationProblem } from './proposal.js';
 import { splitFrontmatter } from './text.js';
@@ -29,19 +29,31 @@ const NUL = String.fromCharCode(0);
 const REPLACEMENT = String.fromCharCode(0xfffd);
 const hasBinary = (text: string) => text.includes(NUL) || text.includes(REPLACEMENT);
 
+/** What was in the worktree outside git, listed before the round was committed. */
+export interface StrayFiles {
+  /** New files the round commit then took in. */
+  untracked: readonly string[];
+  /** Files git ignores, which the commit leaves out but build and tests would see. */
+  ignored: readonly string[];
+}
+
 export async function validateRound(params: {
   repoDir: string;
   baseCommit: string;
   head: string;
-  worktreeDir: string;
+  stray: StrayFiles;
   submission: Submission | undefined;
   context: PreparedContext;
 }): Promise<RoundCheck> {
   const { repoDir, baseCommit, head } = params;
   const problems: ValidationProblem[] = [];
   const files: ProposalFile[] = [];
-  for (const untracked of await untrackedFiles(params.worktreeDir)) {
-    problems.push({ kind: 'forbiddenPath', file: untracked, detail: 'a file left outside git in the worktree' });
+  const untracked = new Set(params.stray.untracked);
+  for (const file of params.stray.untracked) {
+    problems.push({ kind: 'notModified', file, detail: 'a new file the session created; only edits of existing files are allowed' });
+  }
+  for (const file of params.stray.ignored) {
+    problems.push({ kind: 'forbiddenPath', file, detail: 'a file git ignores, left in the worktree' });
   }
   const changed = await changedFiles(repoDir, baseCommit, head);
   if (changed.length === 0) problems.push({ kind: 'noChanges', detail: 'the session changed no file' });
@@ -63,6 +75,8 @@ export async function validateRound(params: {
       ...(why === undefined ? {} : { rationale: why.rationale, evidence: why.evidence }),
     };
     files.push(file);
+    // Already reported as a new file, before the commit.
+    if (untracked.has(entry.path)) continue;
     if (asset === undefined) {
       problems.push({ kind: 'forbiddenPath', file: entry.path, detail: 'not a file an improvement may change' });
       continue;

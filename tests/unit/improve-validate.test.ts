@@ -44,7 +44,7 @@ describe('validateRound', () => {
   it('accepts a plain body edit', async () => {
     const { base } = await round();
     const head = await commit('round');
-    const check = await validateRound({ repoDir: repo, baseCommit: base, head, worktreeDir: repo, submission: researcherRound().submission, context: context() });
+    const check = await validateRound({ repoDir: repo, baseCommit: base, head, stray: { untracked: [], ignored: [] }, submission: researcherRound().submission, context: context() });
     expect(check.problems).toEqual([]);
   });
 
@@ -52,7 +52,7 @@ describe('validateRound', () => {
     const { base } = await round();
     await git(repo, ['update-index', '--chmod=+x', '--', RESEARCHER]);
     const head = await commit('round');
-    const check = await validateRound({ repoDir: repo, baseCommit: base, head, worktreeDir: repo, submission: researcherRound().submission, context: context() });
+    const check = await validateRound({ repoDir: repo, baseCommit: base, head, stray: { untracked: [], ignored: [] }, submission: researcherRound().submission, context: context() });
     expect(check.problems.map((p) => `${p.kind}:${p.file ?? ''}`)).toEqual([`mode:${RESEARCHER}`]);
   });
 });

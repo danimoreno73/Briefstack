@@ -3,6 +3,7 @@ import { lstat, mkdir, mkdtemp, readFile, rm, rmdir, symlink, unlink, writeFile 
 import os from 'node:os';
 import path from 'node:path';
 import { identityArgs } from '../library/git.js';
+import { noRepoCodeArgs } from '../scaffold/commit.js';
 import { splitFrontmatter } from './text.js';
 
 /**
@@ -154,21 +155,70 @@ export async function removeWorktree(repoDir: string, dir: string, branch: strin
 }
 
 /**
- * Commits everything in the worktree on its branch, as one round. Returns
- * the new commit, or `undefined` when nothing changed.
+ * Runs `task` with `-c` options under which git runs nothing the repo's
+ * config names: hooks are looked up in an empty folder, the filesystem
+ * monitor is off, and every configured filter driver is blanked, so a
+ * `.gitattributes` in the worktree cannot start one.
+ */
+async function withoutRepoCode<T>(worktreeDir: string, task: (configArgs: string[]) => Promise<T>): Promise<T> {
+  const emptyDir = await mkdtemp(path.join(os.tmpdir(), 'briefstack-no-hooks-'));
+  try {
+    const configArgs = noRepoCodeArgs(emptyDir);
+    const listed = await runGit(worktreeDir, [...configArgs, 'config', '--name-only', '--get-regexp', '^filter\\.']);
+    const drivers = new Set(listed.stdout.split(/\r?\n/).flatMap((line) => /^filter\.(.+)\.[^.]+$/.exec(line.trim())?.[1] ?? []));
+    for (const driver of drivers) {
+      configArgs.push('-c', `filter.${driver}.clean=`, '-c', `filter.${driver}.smudge=`, '-c', `filter.${driver}.process=`, '-c', `filter.${driver}.required=false`);
+    }
+    return await task(configArgs);
+  } finally {
+    await rm(emptyDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Commits everything in the worktree on its branch, as one round, without
+ * running anything from the repo's config (`withoutRepoCode`). Returns the
+ * new commit, or `undefined` when nothing changed.
  */
 export async function commitWorktree(worktreeDir: string, message: string): Promise<string | undefined> {
-  await git(worktreeDir, ['add', '-A']);
-  await git(worktreeDir, ['rm', '--cached', '-r', '--quiet', '--ignore-unmatch', '--', NODE_MODULES]);
-  if ((await git(worktreeDir, ['status', '--porcelain', '--', '.', NODE_MODULES_PATHSPEC])).trim() === '') return undefined;
-  await git(worktreeDir, [...(await identityArgs(worktreeDir)), 'commit', '--quiet', '-m', message]);
-  return revParse(worktreeDir, 'HEAD');
+  return withoutRepoCode(worktreeDir, async (configArgs) => {
+    await git(worktreeDir, [...configArgs, 'add', '-A']);
+    await git(worktreeDir, [...configArgs, 'rm', '--cached', '-r', '--quiet', '--ignore-unmatch', '--', NODE_MODULES]);
+    if ((await git(worktreeDir, [...configArgs, 'status', '--porcelain', '--', '.', NODE_MODULES_PATHSPEC])).trim() === '') return undefined;
+    await git(worktreeDir, [...configArgs, ...(await identityArgs(worktreeDir, configArgs)), 'commit', '--quiet', '-m', message]);
+    return revParse(worktreeDir, 'HEAD');
+  });
 }
 
 /** Paths in the worktree git does not track and does not ignore. */
 export async function untrackedFiles(worktreeDir: string): Promise<string[]> {
-  const raw = await git(worktreeDir, ['ls-files', '--others', '--exclude-standard', `--exclude=/${NODE_MODULES}`, '-z']);
+  const raw = await withoutRepoCode(worktreeDir, (configArgs) =>
+    git(worktreeDir, [...configArgs, 'ls-files', '--others', '--exclude-standard', `--exclude=/${NODE_MODULES}`, '-z']),
+  );
   return raw.split('\0').filter((part) => part !== '');
+}
+
+/** Paths in the worktree git ignores (folders end in `/`), apart from the `node_modules` link. */
+export async function ignoredFiles(worktreeDir: string): Promise<string[]> {
+  const raw = await withoutRepoCode(worktreeDir, (configArgs) =>
+    git(worktreeDir, [...configArgs, 'ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z']),
+  );
+  return raw.split('\0').filter((part) => part !== '' && part.replace(/\/$/, '') !== NODE_MODULES);
+}
+
+/**
+ * Removes what git ignores in the worktree (the build output of a check), so
+ * the next round starts with nothing outside git. Skipped while anything is
+ * still at `node_modules`, so a link is never followed.
+ */
+export async function cleanIgnored(worktreeDir: string): Promise<void> {
+  try {
+    await lstat(path.join(worktreeDir, NODE_MODULES));
+    return;
+  } catch {
+    // Nothing there: safe to clean.
+  }
+  await withoutRepoCode(worktreeDir, (configArgs) => git(worktreeDir, [...configArgs, 'clean', '-fdXq']));
 }
 
 // ---- Apply and revert ---------------------------------------------------------

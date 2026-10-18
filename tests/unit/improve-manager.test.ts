@@ -219,6 +219,18 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     expect(await codeOf(m.approve(id))).toBe('improve.wrongState');
   });
 
+  it('rejects a file the session left where git ignores it, listed before the round is committed', async () => {
+    await write('.gitignore', 'node_modules/\n*.local.md\n');
+    await commitAll('ignore local notes');
+    const { manager: m, verifier } = await open({
+      rounds: [{ edits: [researcherEdit, { file: 'notes.local.md', text: 'hidden\n' }, { file: 'library/rules/new.md', text: 'new\n' }], submission: submission([RESEARCHER]) }],
+    });
+    const view = await settled((await m.prepare('x')).id);
+    expect(view.status).toBe('rejected');
+    expect((view.validation?.problems ?? []).map((p) => `${p.kind}:${p.file ?? ''}`).sort()).toEqual(['forbiddenPath:notes.local.md', 'notModified:library/rules/new.md']);
+    expect(verifier.calls).toEqual([]);
+  });
+
   it('rejects a frontmatter change and a round with no changes', async () => {
     const { manager: m } = await open({
       rounds: [

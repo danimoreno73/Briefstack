@@ -4,16 +4,19 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   applyChanges,
   changedFiles,
+  cleanIgnored,
   commitWorktree,
   createWorktree,
   currentBranch,
   fileAt,
   git,
+  ignoredFiles,
   linkNodeModules,
   mergeText,
   removeWorktree,
   revertChangesOf,
   revParse,
+  unlinkNodeModules,
   untrackedFiles,
 } from '../../src/improve/git.js';
 import { tempDir, useHermeticGit } from '../helpers.js';
@@ -94,6 +97,53 @@ describe('worktrees', () => {
     expect((await git(repo, ['branch', '--list', 'improve/p1'])).trim()).toBe('');
     // Removing again is fine.
     await removeWorktree(repo, wt, 'improve/p1');
+  });
+
+  it('commits a round without the repo hooks, git filters or the filesystem monitor', async () => {
+    const base = await revParse(repo, 'HEAD');
+    const wt = path.join(dir, 'worktrees', 'p2');
+    await createWorktree(repo, wt, 'improve/p2', base);
+    // Hooks, a filter driver and fsmonitor that would leave a marker file if git ran them.
+    const hooks = path.join(dir, 'hooks');
+    await mkdir(hooks, { recursive: true });
+    const marker = (name: string) => path.join(dir, `ran-${name}`);
+    const touch = (name: string) => `echo x > '${marker(name).replaceAll('\\', '/')}'`;
+    for (const hook of ['pre-commit', 'commit-msg', 'post-commit']) {
+      await writeFile(path.join(hooks, hook), `#!/bin/sh\n${touch(hook)}\n`, { encoding: 'utf8', mode: 0o755 });
+    }
+    await git(repo, ['config', 'core.hooksPath', hooks]);
+    await git(repo, ['config', 'filter.mark.clean', `${touch('filter')}; cat`]);
+    await git(repo, ['config', 'filter.mark.required', 'true']);
+    await git(repo, ['config', 'core.fsmonitor', `${touch('fsmonitor')}; true`]);
+    await writeFile(path.join(wt, '.gitattributes'), '* filter=mark\n', 'utf8');
+    await writeFile(path.join(wt, ...AGENT.split('/')), head('opus') + BODY.replace('Line 2', 'Line two'), 'utf8');
+    expect(await commitWorktree(wt, 'Round 1')).toMatch(/^[0-9a-f]{40}$/);
+    for (const name of ['pre-commit', 'commit-msg', 'post-commit', 'filter', 'fsmonitor']) {
+      expect(await stat(marker(name)).then(() => name, () => undefined)).toBeUndefined();
+    }
+    await git(repo, ['config', '--unset', 'core.hooksPath']);
+    await git(repo, ['config', '--unset', 'core.fsmonitor']);
+    await removeWorktree(repo, wt, 'improve/p2');
+  });
+
+  it('lists the files git ignores in the worktree, apart from the node_modules link', async () => {
+    const base = await revParse(repo, 'HEAD');
+    const wt = path.join(dir, 'worktrees', 'p3');
+    await createWorktree(repo, wt, 'improve/p3', base);
+    await writeFile(path.join(wt, '.gitignore'), 'node_modules/\ndist/\n', 'utf8');
+    await mkdir(path.join(wt, 'dist'), { recursive: true });
+    await writeFile(path.join(wt, 'dist', 'cli.js'), 'x', 'utf8');
+    await mkdir(path.join(repo, 'node_modules'), { recursive: true });
+    await linkNodeModules(repo, wt);
+    expect(await ignoredFiles(wt)).toEqual(['dist/']);
+    // Cleaning never runs while the link is there, so it cannot follow it.
+    await cleanIgnored(wt);
+    expect(await ignoredFiles(wt)).toEqual(['dist/']);
+    await unlinkNodeModules(wt);
+    await cleanIgnored(wt);
+    expect(await ignoredFiles(wt)).toEqual([]);
+    expect(await stat(path.join(repo, 'node_modules')).then(() => true)).toBe(true);
+    await removeWorktree(repo, wt, 'improve/p3');
   });
 });
 

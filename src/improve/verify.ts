@@ -3,13 +3,14 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { hideAbsolutePaths } from '../panel/project.js';
 import { redactSecretLines } from '../validate/secrets.js';
-import { NODE_MODULES, linkNodeModules, unlinkNodeModules } from './git.js';
+import { NODE_MODULES, cleanIgnored, linkNodeModules, unlinkNodeModules } from './git.js';
 import type { CheckReport, CheckStep } from './proposal.js';
 
 /**
  * Build, lint and all tests in the worktree, run by the server (BRIEF-phase-5
  * §2.4, §3.3), only after the validators passed. `node_modules` is the repo's,
- * linked for the run and unlinked after (H0 #2); no network: every proxy
+ * linked for the run and unlinked after (H0 #2), then what git ignores (the
+ * build output) is removed; no network: every proxy
  * variable points at a closed port and npm is offline.
  */
 
@@ -97,6 +98,8 @@ export class NpmVerifier implements Verifier {
       }
     } finally {
       await unlinkNodeModules(worktreeDir).catch(() => undefined);
+      // The build output would count as a file left outside git in the next round.
+      await cleanIgnored(worktreeDir).catch(() => undefined);
     }
     return { ok: steps.every((step) => step.ok), steps };
   }
