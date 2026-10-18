@@ -415,3 +415,11 @@ describe('every real script closes what it started, whatever happens', () => {
     }
   });
 });
+
+describe('check-two-creations: acts on fresh state only', () => {
+  it('reads each creation just before acting on it and skips finished ones', async () => {
+    const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-two-creations.ts'), 'utf8');
+    expect(script).toMatch(/for \(const id of ids\) \{\s+const state = manager\.get\(id\);\s+if \(state\.status === 'finished'\) continue;/);
+    expect(script).not.toContain('for (const state of states())');
+  });
+});

@@ -97,7 +97,10 @@ try {
   const answered = new Set<string>();
   const states = (): CreationState[] => ids.map((id) => manager.get(id));
   while (states().some((state) => state.status !== 'finished') && Date.now() < deadline) {
-    for (const state of states()) {
+    // Each state is read just before acting on it: a snapshot taken before an await on the other creation may be stale.
+    for (const id of ids) {
+      const state = manager.get(id);
+      if (state.status === 'finished') continue;
       const pending = state.pending;
       if (pending !== undefined && !answered.has(`${state.id}:${pending.id}`)) {
         answered.add(`${state.id}:${pending.id}`);
