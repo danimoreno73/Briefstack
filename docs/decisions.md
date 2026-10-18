@@ -2343,3 +2343,79 @@ documented.
    session needs a guard that does not depend on the host (a command
    hook in `.claude/settings.json` that denies when the server's run file
    or port is gone).
+
+### What Claude Code does without its host (docs read 2026-10-18)
+
+Claude Code 2.1.302 and Agent SDK 0.3.286 on this machine. Sources, all
+read on 2026-10-18:
+
+- [H] Hooks reference, `code.claude.com/docs/en/hooks`: "Exit code",
+  "Block the action when a hook fails", "Command hook fields", "Common
+  fields", PreToolUse decision control.
+- [S] Agent SDK hooks, `code.claude.com/docs/en/agent-sdk/hooks`: "Hook
+  timeout", "Register multiple hooks".
+- [P] Run Claude Code programmatically, `code.claude.com/docs/en/headless`:
+  "Background tasks at exit", "Stop a run with SIGTERM".
+- [T] Agent SDK TypeScript reference,
+  `code.claude.com/docs/en/agent-sdk/typescript`: Options (`settings`,
+  `settingSources`), `canUseTool`.
+- [SDK] `node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs` 0.3.286,
+  `ProcessTransport` (read in the section above).
+
+**A failing SDK callback hook.** Only the timeout is documented: "An Agent
+SDK callback hook on `PreToolUse` that exceeds its timeout blocks the tool
+call, and Claude receives an error result naming the timeout" [H]; "When a
+callback exceeds its timeout, Claude Code cancels it and discards its
+output, and the session continues rather than hanging. [...] `PreToolUse`:
+Claude Code blocks the tool call" [S]. The timeout of a callback defaults
+to the `command` default, 600 seconds [S]; the runner sets none. Nothing
+says what happens when the callback throws or when the host that answers
+it is gone. The docs' general rule for hooks is fail-open: "On most
+events, when a hook fails or times out, Claude Code still carries out the
+action. A policy hook with a wrong path or a crashing script then lets
+everything through" [H]. So with the host dead, the documented best case
+is a 10-minute wait per tool call and then a block; a failure reported
+sooner than the timeout is not documented either way.
+
+**A failing command hook.** Documented: exit 2 blocks a `PreToolUse` call;
+any other exit code, a hook that cannot start, invalid JSON or a timeout
+is a non-blocking error and "the action goes ahead" [H]. With
+`"onFailure": "block"` on a `command` hook (Claude Code 2.1.295 or later)
+every one of those failures blocks the tool call instead, as exit 2 does;
+`onFailure` has no effect on hooks run with `async` [H]. The command
+hook's timeout defaults to 600 seconds [H]. When several `PreToolUse`
+hooks answer, "`deny` > `defer` > `ask` > `allow`" [H][S], so a deny from
+a command hook wins over an allow from the callback guard. Command hooks
+can be given in the `settings` option of `query()`, which "populates the
+flag-settings layer" [T]; `settingSources` controls only the filesystem
+settings [T]. That hooks in the flag layer run is implied (they can be
+changed at runtime with `applyFlagSettings()`) but not stated; the real
+check below confirms it.
+
+**A permission request with no host.** `canUseTool` has no timeout:
+"permission prompts don't time out" [T]. But "if your program closes the
+session through the Agent SDK, the SDK ends Claude Code's input before
+sending any signal, and Claude Code cancels the prompt as soon as the
+input ends" [P].
+
+**stdin closed mid-turn.** Not documented for a turn in progress. What is
+documented: "After Claude finishes its turn and stdin has closed, a
+`claude -p` run can stay open to wait for background work that Claude
+started"; background subagents keep it open "until that work completes",
+and other background work is stopped after 10 minutes of idle waiting [P].
+On SIGTERM Claude Code ends the tree of a running Bash command, runs
+`SessionEnd` hooks, "starts no new tool call, sends no new model request,
+and runs no hook other than `SessionEnd`" [P]. On Node's `exit` the SDK
+only ends `claude`'s stdin on Windows, and sends SIGTERM elsewhere [SDK].
+
+**Conclusion.** After a crash of `briefstack web` on Windows, `claude`
+gets an end of input and no signal. A pending question or permission
+request is cancelled, but background subagents (the generator, the
+reviewer) go on working, and each of their tool calls needs the callback
+guard, which nobody answers. The documented outcome is a block after 600
+seconds, but how a lost host is handled is not documented, and the docs
+say hooks fail open in general. Commands already running finish (H0 #6).
+So the guard must not depend on the host: a command hook with
+`onFailure: "block"`, which Claude Code runs itself and which blocks on any
+failure by documented rule, plus killing the trees when the server exits
+and cleaning up at the next start.
