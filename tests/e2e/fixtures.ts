@@ -1,5 +1,5 @@
 import { test as base } from '@playwright/test';
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { FakeRunner, parseRecording } from '../../src/creation/fakeRunner.js';
@@ -15,6 +15,12 @@ import { appendEvent, flowEvent, sessionEndEvent, sessionLifecycleEvent } from '
 import { addNote, initLibrary, saveNote } from '../../src/library/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { startWebServer, type WebServer } from '../../src/server/index.js';
+import { FakeImprovementRunner, type FakeImproveScript } from '../../src/improve/fakeRunner.js';
+import type { ImprovementManager } from '../../src/improve/manager.js';
+import { FakeRealCheckRunner } from '../../src/improve/realCheck.js';
+import { FakeVerifier } from '../../src/improve/verify.js';
+import { createWebImprovements } from '../../src/improve/wiring.js';
+import { makeImproveRepo } from '../improveWorld.js';
 import { isolateEnvironment } from '../sandboxEnv.js';
 
 // The server gets explicit paths, but anything read from the environment must not reach real data either.
@@ -39,6 +45,10 @@ export interface App {
   manager: CreationManager;
   /** The chat the server uses, over the fake chat runner. */
   chat: ChatManager;
+  /** Improvements over the fake improvement runner, verifier and real check. */
+  improvements: ImprovementManager;
+  improveRunner: FakeImprovementRunner;
+  realChecks: FakeRealCheckRunner;
   chatRunner: FakeChatRunner;
   pathEnv: PathEnv;
   dir: string;
@@ -64,6 +74,8 @@ export interface AppOptions {
   planUsage?: { fiveHour: number | null; sevenDay: number | null }[];
   /** The fake chat's script; no turns by default. */
   chatScript?: ChatScript;
+  /** The fake improvement runner's rounds; none by default. */
+  improveScript?: FakeImproveScript;
 }
 
 async function emptyGitConfig(dir: string): Promise<void> {
@@ -91,7 +103,8 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     caseInsensitive: process.platform === 'win32' || process.platform === 'darwin',
   };
 
-  await cp(path.join(PACKAGE_ROOT, '.claude', 'agents'), path.join(repoDir, '.claude', 'agents'), { recursive: true });
+  // A git repository with the flow's files, as improvements need (agents, skill, library rules and templates).
+  await makeImproveRepo(repoDir);
   await initLibrary({ libraryDir, projectsDir, sessionsDir, repoDir });
   // The UI follows the saved language, so the machine's own locale does not matter.
   await updateConfig(path.join(home, 'config.json'), { lang: options.lang ?? 'en', projectsDir });
@@ -160,11 +173,27 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
         }),
   });
   const chatRunner = new FakeChatRunner(options.chatScript ?? { turns: [] });
-  const chat = await openChat(pathEnv, repoDir, manager, chatRunner);
-  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat });
+  const holder: { app?: App } = {};
+  const chat = await openChat(pathEnv, repoDir, manager, chatRunner, () => holder.app?.improvements);
+  const improveRunner = new FakeImprovementRunner(options.improveScript ?? { rounds: [] });
+  const realChecks = new FakeRealCheckRunner({ ok: true, output: 'PASS  the interviewer picks the target the rule gives' });
+  // The real wiring (suggestion tracker, creation gate) over fake runners.
+  const improvements = await createWebImprovements({
+    pathEnv,
+    repoDir,
+    creations: manager,
+    runner: improveRunner,
+    verifier: new FakeVerifier(),
+    realChecks,
+    announce: (suggestions) => holder.app?.chat.announceSuggestions(suggestions),
+    gatePollMs: 100,
+  });
+  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat, improvements });
 
-  const app: App = { url: server.url, server, manager, chat, chatRunner, pathEnv, dir, home, libraryDir, projectsDir, sessionsDir, repoDir, gardenDir };
+  const app: App = { url: server.url, server, manager, chat, chatRunner, improvements, improveRunner, realChecks, pathEnv, dir, home, libraryDir, projectsDir, sessionsDir, repoDir, gardenDir };
+  holder.app = app;
   const stop = async () => {
+    await app.improvements.shutdown();
     await app.chat.shutdown();
     await manager.shutdown();
     await app.server.close();
@@ -173,11 +202,17 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   return { app, stop };
 }
 
-async function openChat(pathEnv: PathEnv, repoDir: string, creations: CreationManager, runner: FakeChatRunner): Promise<ChatManager> {
+async function openChat(
+  pathEnv: PathEnv,
+  repoDir: string,
+  creations: CreationManager,
+  runner: FakeChatRunner,
+  improvements: () => ImprovementManager | undefined,
+): Promise<ChatManager> {
   return ChatManager.open({
     store: new ChatStore(path.join(pathEnv.env.BRIEFSTACK_HOME ?? '', 'chat')),
     runner,
-    tools: { pathEnv, repoDir, lang: 'en', creations, planUsage: async () => ({ fiveHour: 21, sevenDay: 34 }) },
+    tools: { pathEnv, repoDir, lang: 'en', creations, planUsage: async () => ({ fiveHour: 21, sevenDay: 34 }), improvements },
     profile: () => activeChatProfile(pathEnv),
   });
 }
@@ -190,8 +225,8 @@ export async function restartChatServer(app: App, script: ChatScript): Promise<v
   await app.chat.shutdown();
   await app.server.close();
   app.chatRunner = new FakeChatRunner(script);
-  app.chat = await openChat(app.pathEnv, app.repoDir, app.manager, app.chatRunner);
-  app.server = await startWebServer({ port: 0, pathEnv: app.pathEnv, repoDir: app.repoDir, creations: app.manager, chat: app.chat });
+  app.chat = await openChat(app.pathEnv, app.repoDir, app.manager, app.chatRunner, () => app.improvements);
+  app.server = await startWebServer({ port: 0, pathEnv: app.pathEnv, repoDir: app.repoDir, creations: app.manager, chat: app.chat, improvements: app.improvements });
   app.url = app.server.url;
 }
 
