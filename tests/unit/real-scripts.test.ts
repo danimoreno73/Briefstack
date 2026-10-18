@@ -188,6 +188,42 @@ describe('phase 4 real checks: prepared, guarded, and kept off real data', () =>
   });
 });
 
+describe('phase 5 real checks: prepared, guarded, and kept off real data', () => {
+  const read = (name: string) => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', name), 'utf8');
+
+  it('each asks for --yes, works in a temp sandbox, cleans it up and stops above 70% of the 5-hour window', async () => {
+    for (const name of ['check-improvement-session.ts', 'check-improvement-flow.ts']) {
+      const script = await read(name);
+      expect(script, name).toContain('requireConfirmation(');
+      expect(script, name).toMatch(/await sandbox\('/);
+      expect(script, name).toContain('box.cleanup()');
+      expect(script, name).toContain('> 70');
+      expect(script, name).not.toContain('bypassPermissions');
+      expect(script, name).not.toMatch(/usageSet|applyProfile/);
+    }
+    const probe = await read('probe-h0-phase5.ts');
+    expect(probe).toContain('requireConfirmation(');
+    expect(probe).toContain("await sandbox('h0-phase5')");
+  });
+
+  it('the session check runs on haiku through the real manager, runner and verifier, on a clone', async () => {
+    const script = await read('check-improvement-session.ts');
+    expect(script).toContain("profile: async () => ({ model: 'haiku', effort: 'low' })");
+    expect(script).toContain('new SdkImprovementRunner(');
+    expect(script).toContain('new NpmVerifier(clone)');
+    expect(script).toContain("'clone', '--quiet', '--no-hardlinks', PACKAGE_ROOT, clone");
+    expect(script).toContain('repoDir: clone');
+    expect(script).toContain('INJECTED');
+  });
+
+  it('the flow check runs one creation from this folder on the saver profile', async () => {
+    const script = await read('check-improvement-flow.ts');
+    expect(script).toContain("activeProfile: 'saver'");
+    expect(script).toContain('repoDir: PACKAGE_ROOT');
+    expect(script).toContain('autoAnswer(');
+  });
+});
+
 describe('check-guard-auto: the cases it tries', () => {
   it('asks for a .git write, Monitor and a main-session WebFetch, and expects the guard to deny each', async () => {
     const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-guard-auto.ts'), 'utf8');
@@ -415,7 +451,7 @@ describe('every real script closes what it started, whatever happens', () => {
       expect(source.match(/(?<![.\w])query\(/g)?.length ?? 0, where('queries')).toBe(source.match(/check\.query\(query\(/g)?.length ?? 0);
       const count = (pattern: RegExp) => source.match(pattern)?.length ?? 0;
       expect(count(/await sandbox\(/g), where('sandbox')).toBe(count(/check\.add\(\(\) => box\.cleanup\(\)\)/g));
-      expect(count(/createWebCreations\(|new CreationManager\(|ChatManager\.open\(/g), where('managers')).toBe(count(/check\.add\(\(\) => \w+\.shutdown\(\)\)/g));
+      expect(count(/createWebCreations\(|new CreationManager\(|ChatManager\.open\(|ImprovementManager\.open\(/g), where('managers')).toBe(count(/check\.add\(\(\) => \w+\.shutdown\(\)\)/g));
     }
   });
 });

@@ -35,8 +35,8 @@ export const REAL_CHECKS: Record<RealCheckName, RealCheckInfo> = {
     name: 'improvement-flow',
     script: 'scripts/real/check-improvement-flow.ts',
     cost: {
-      en: 'One whole creation on the saver profile in a temp home: up to 20 minutes and a noticeable part of your plan.',
-      es: 'Una creación completa con el perfil ahorro en un home temporal: hasta 20 minutos y una parte apreciable de tu plan.',
+      en: 'One whole creation in a temp home (session on the saver profile, agents on the models their files hold): up to 25 minutes and a noticeable part of your plan.',
+      es: 'Una creación completa en un home temporal (sesión con el perfil ahorro, agentes con los modelos de sus archivos): hasta 25 minutos y una parte apreciable de tu plan.',
     },
   },
 };

@@ -83,7 +83,7 @@ test.describe('prepared from the chat, approved and reverted on the page', () =>
     await expect(page.getByTestId('evidence')).toContainText('lessons.md');
 
     // The real check is offered with its cost and started only by the user.
-    await expect(page.getByTestId('real-check-offer')).toContainText('One whole creation on the saver profile');
+    await expect(page.getByTestId('real-check-offer')).toContainText('One whole creation in a temp home');
     expect(app.realChecks.calls).toHaveLength(0);
     await page.getByTestId('real-check-offer').getByRole('button', { name: 'Run the real check' }).click();
     await expect(page.getByTestId('real-check')).toHaveAttribute('data-state', 'passed');
