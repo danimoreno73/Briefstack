@@ -41,8 +41,8 @@ import {
   libraryExists,
   listNotes,
   noteLink,
-  readAdditionalDirectories,
   readNote,
+  sessionAllowedDirectories,
 } from './library/index.js';
 import { PACKAGE_ROOT } from './packageRoot.js';
 import { commitProject, inspectOutputDir, loadTemplate, protectedDirs, scaffold, type ProtectedDir } from './scaffold/index.js';
@@ -175,7 +175,7 @@ async function runPaths(args: readonly string[], io: CliIO, lang: Lang): Promise
   const json = flags.has('--json');
   const paths = await resolvedPaths(io);
   const repoDir = io.repoDir ?? PACKAGE_ROOT;
-  const allowedDirs = await readAdditionalDirectories(repoDir);
+  const allowedDirs = await sessionAllowedDirectories(repoDir, io.pathEnv);
 
   if (positionals.length === 0) {
     const libraryReady = await libraryExists(paths.libraryDir);

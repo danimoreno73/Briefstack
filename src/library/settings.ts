@@ -137,6 +137,35 @@ export async function readAdditionalDirectories(repoDir: string): Promise<string
 }
 
 /**
+ * Set by the web runner to the folders it gives its session (a JSON list of
+ * absolute paths). Inside that session `paths` reports these, not the repo's
+ * `settings.local.json`, which the session does not load.
+ */
+export const ALLOWED_DIRS_ENV = 'BRIEFSTACK_ALLOWED_DIRS';
+
+/**
+ * The folders `ALLOWED_DIRS_ENV` names; undefined when it is not set. A value
+ * that is not a list of absolute paths allows nothing.
+ */
+export function allowedDirsFromEnv(pathEnv: Pick<PathEnv, 'env' | 'pathApi'>): string[] | undefined {
+  const raw = pathEnv.env[ALLOWED_DIRS_ENV];
+  if (raw === undefined || raw === '') return undefined;
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!Array.isArray(value)) return [];
+    const dirs = value.filter((item): item is string => typeof item === 'string');
+    return dirs.length === value.length && dirs.every((dir) => isFullyAbsolute(dir, pathEnv.pathApi)) ? dirs : [];
+  } catch {
+    return [];
+  }
+}
+
+/** What a session may write to: the runner's folders inside a web session, the settings file otherwise. */
+export async function sessionAllowedDirectories(repoDir: string, pathEnv: Pick<PathEnv, 'env' | 'pathApi'>): Promise<string[]> {
+  return allowedDirsFromEnv(pathEnv) ?? readAdditionalDirectories(repoDir);
+}
+
+/**
  * The entry that already lets Claude Code work in `dir` (the entry itself or
  * a parent of it), or `undefined`. `dir` must be absolute. Entries that are
  * not fully absolute are skipped: what they resolve against is not documented.

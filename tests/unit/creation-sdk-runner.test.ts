@@ -12,6 +12,7 @@ import {
   type QueryFn,
 } from '../../src/creation/sdkRunner.js';
 import type { TrackedSpawn } from '../../src/creation/processTree.js';
+import { ALLOWED_DIRS_ENV } from '../../src/library/settings.js';
 import type {
   ClaimResult,
   PermissionRequest,
@@ -121,6 +122,12 @@ describe('buildQueryOptions', () => {
 });
 
 describe('cleanEnvironment', () => {
+  it('never passes on a list of allowed folders from the server environment', () => {
+    const { env, removed } = cleanEnvironment({ [ALLOWED_DIRS_ENV]: '["/elsewhere"]', PATH: '/bin' }, '/home');
+    expect(env).not.toHaveProperty(ALLOWED_DIRS_ENV);
+    expect(removed).toEqual([ALLOWED_DIRS_ENV]);
+  });
+
   it('turns auto memory off even when the server environment turns it on', () => {
     const { env } = cleanEnvironment({ CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0', PATH: '/bin' }, '/home');
     expect(env.CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBe('1');
@@ -386,6 +393,8 @@ describe('SdkRunner', () => {
     expect(events[0]).toMatchObject({ kind: 'status', status: 'starting', message: 'Not passed to Claude Code: ANTHROPIC_API_KEY' });
     expect(JSON.stringify(events)).not.toContain(FAKE_KEY);
     expect(options().additionalDirectories).toEqual([projectsDir, sessionsDir]);
+    // `briefstack paths` inside the session reports the same two folders, not the repo's settings file.
+    expect(JSON.parse(options().env?.[ALLOWED_DIRS_ENV] ?? 'null')).toEqual([projectsDir, sessionsDir]);
     await tick();
     expect(events).toContainEqual({ kind: 'status', status: 'running' });
     await handle.stop();

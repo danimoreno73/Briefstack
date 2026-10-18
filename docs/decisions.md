@@ -2201,3 +2201,11 @@ Decisions:
   the runner passes its folders as `additionalDirectories`.
 - `cleanEnvironment` sets `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` for every
   session (creation, chat, plan usage).
+- A creation's environment carries `BRIEFSTACK_ALLOWED_DIRS`, a JSON list
+  of the two folders the runner passes as `additionalDirectories`.
+  `briefstack paths` and `paths check` report and check against that list
+  when it is set, and read `settings.local.json` only when it is not (the
+  terminal flow). A value that is not a list of absolute paths allows
+  nothing. `cleanEnvironment` drops the variable from the server's own
+  environment, so only the runner sets it. `GET /api/paths` (the server,
+  not a session) still shows the settings file.

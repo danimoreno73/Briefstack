@@ -133,7 +133,8 @@ Step `interview`.
    - `nonEmpty`: say so and ask whether to create the project inside it
      anyway (existing files are never overwritten). Only if they confirm,
      remember to pass `--allow-non-empty` to the generator.
-   - `allowed: false`: the folder is not in `settings.local.json`.
+   - `allowed: false`: the folder is not in `settings.local.json` (in the web
+     app: not among the folders the server gave this session).
      - **Terminal** (no `grant_directory` tool): ask the
        user to run `/add-dir <dir>` themselves; if `status` is `missing`, to
        create the folder first (`/add-dir` refuses a missing folder), for

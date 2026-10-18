@@ -275,6 +275,27 @@ describe('cli: paths', () => {
     });
   });
 
+  it('inside a web session, reports the folders the runner gave it, not the settings file', async () => {
+    await main(['init'], capture(dir).io);
+    const given = path.join(dir, 'given');
+    const env = { BRIEFSTACK_ALLOWED_DIRS: JSON.stringify([given]) };
+    const shown = capture(dir, env);
+    expect(await main(['paths', '--json'], shown.io)).toBe(0);
+    expect(json(shown).allowedDirs).toEqual([given]);
+
+    const check = async (target: string, extra: Record<string, string> = env) => {
+      const run = capture(dir, extra);
+      expect(await main(['paths', 'check', target, '--json'], run.io)).toBe(0);
+      return json(run);
+    };
+    expect(await check(path.join(given, 'app'))).toMatchObject({ allowed: true, allowedBy: given });
+    // The projects folder init allowed in settings.local.json is not allowed in that session.
+    expect(await check(path.join(dir, 'user', 'briefstack-projects', 'app'))).toMatchObject({ allowed: false, allowedBy: null });
+    // A value that is not a list of absolute paths allows nothing.
+    expect(await check(path.join(given, 'app'), { BRIEFSTACK_ALLOWED_DIRS: '["relative"]' })).toMatchObject({ allowed: false });
+    expect(await check(path.join(given, 'app'), { BRIEFSTACK_ALLOWED_DIRS: 'not json' })).toMatchObject({ allowed: false });
+  });
+
   it('exits 2 on usage errors', async () => {
     const run = capture(dir);
     expect(await main(['paths', 'check'], run.io)).toBe(2);

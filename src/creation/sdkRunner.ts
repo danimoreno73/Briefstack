@@ -12,6 +12,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { resolveHome, type PathEnv } from '../config/index.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
+import { ALLOWED_DIRS_ENV } from '../library/settings.js';
 import { formatError } from '../i18n/errors.js';
 import type { Lang } from '../i18n/index.js';
 import { protectedDirs } from '../scaffold/outputDir.js';
@@ -43,9 +44,10 @@ export const SKILL_COMMAND = 'new-project';
 /**
  * Environment variables that would make Claude Code bill an API key or change
  * how it runs. `ANTHROPIC_MODEL` too: the model is always passed as an option,
- * and the variable is not left to compete with it.
+ * and the variable is not left to compete with it. `ALLOWED_DIRS_ENV` too: only
+ * a creation sets it, to its own folders.
  */
-const REMOVED_ENV = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_MODEL', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDECODE'];
+const REMOVED_ENV = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_MODEL', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDECODE', ALLOWED_DIRS_ENV];
 
 export interface CleanEnvironment {
   env: Record<string, string | undefined>;
@@ -341,6 +343,9 @@ class SdkRun {
 
       const home = resolveHome(this.deps.pathEnv);
       const { env, removed } = cleanEnvironment(this.deps.pathEnv.env, home);
+      const allowedDirs = [projectsDir, this.options.sessionsDir];
+      // What `briefstack paths` reports inside the session: these folders, not the repo's settings file.
+      env[ALLOWED_DIRS_ENV] = JSON.stringify(allowedDirs);
       this.io.emit({
         kind: 'status',
         status: 'starting',
@@ -401,7 +406,7 @@ class SdkRun {
         executable,
         profile: this.options.profile,
         env,
-        additionalDirectories: [projectsDir, this.options.sessionsDir],
+        additionalDirectories: allowedDirs,
         hooks: {
           PreToolUse: [
             {
