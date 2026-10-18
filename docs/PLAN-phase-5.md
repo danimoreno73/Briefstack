@@ -23,9 +23,11 @@ Updated 2026-10-18. A new session reads `CLAUDE.md`,
 | H0 | All four checks PASS (decisions.md, "# Phase 5", "H0"); probe script `scripts/real/probe-h0-phase5.ts` |
 | M1 | `src/improve/allowlist.ts` (`classifyAsset`), `locked.ts` (`parseLockedBlocks`, `lockedBlockProblems`: changed, deleted, moved under another heading, reordered, added, malformed), `filters.ts` (secret, personal path, profile text; added lines only), `text.ts` (`splitFrontmatter` byte for byte); locked markers in the skill (7 blocks) and in generator, architect, interviewer and reviewer; tests `improve-rules`, `improve-locked-assets` |
 
+| M2 | `src/improve/git.ts`: `createWorktree`, `linkNodeModules`/`unlinkNodeModules` (junction on Windows), `removeWorktree` (link first, then worktree and branch), `commitWorktree` (one commit per round; hooks run), `changedFiles`, `fileAt`, `untrackedFiles`, `mergeText` (`git merge-file`), `applyChanges` (temporary index, committed frontmatter + merged body, compare-and-swap of the branch, working frontmatter kept, index entry follows the commit) and `revertChangesOf`; test `improve-git` (usage set frontmatter kept, master moved: merge and conflict, uncommitted body, other branch, missing file, whole library files, revert keeping later changes) |
+
 ### Left
 
-M2–M9 below.
+M3–M9 below.
 
 ## 1. Approach
 
