@@ -384,6 +384,7 @@ finished produced, for the page; the model does not see this notice). Every text
 | `cancelCreation` | `creationId`, `idea`, `step`? |
 | `noteChange` | `section`, `name`?, `file`, `mode: "create" \| "append" \| "rewrite"`, `hunks: [{ skipped, lines: [{ op: " " \| "+" \| "-", text }] }]`, `added`, `removed` |
 | `usageProfile` | `from`, `to`, `toLabel: { en, es }` |
+| `prepareImprovement` | `request`, `sessions`, `lessons`, `suggestionId`?, `model`, `effort`? (the session uses plan) |
 
 ### `POST /api/chat/messages`
 
@@ -437,12 +438,17 @@ string redacted.
 | `cancel_creation` | action | `creationId` | card, then cancels through the flow |
 | `propose_note_change` | action | `section`, `name`?, `text` (the whole note) | lines kept from the redacted view get the note's own text back, and a placeholder (`[redacted]`, `[outside allowed folders]`, `~/…`) in a new or changed line is refused; card with the diff, then `saveNote` (secret check, dates, INDEX, one commit) only if the note still holds the text the diff was made from; otherwise nothing is saved and the card becomes `stale` |
 | `set_usage_profile` | action | `profile` | card, then `usage set` |
+| `list_suggestions` | read | — | suggestions after creations: id, an English sentence, target asset, idea, creation and session, the proposal prepared from it |
+| `list_proposals` | read | — | improvement proposals (summaries) and the one being prepared now |
+| `show_proposal` | read | `proposalId` | status, request, diff hunks and rationale per file, validator problems, check results, rounds, what blocks applying |
+| `prepare_improvement` | action | `request`, `sessions`? (up to 5), `lessons`?, `suggestionId`? | card, then starts an improvement session (one at a time; a request with a secret is refused). Approving, asking for changes, discarding and reverting are not chat tools: they happen on the proposal page |
 
 An action is refused without a card when another card waits, after 10 cards
 in 10 minutes, when the text holds a secret, when nothing would change, or
 when the limit of creations is reached. Not available from the chat:
 reverting library commits, the projects folder, the permission policy,
-answering a creation's questions or approving its spec.
+answering a creation's questions or approving its spec, approving,
+discarding or reverting an improvement.
 ## Improvement routes
 
 Self-improvement of the creation flow (BRIEF-phase-5). Without an

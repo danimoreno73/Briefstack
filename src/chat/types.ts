@@ -5,7 +5,7 @@
 
 /** Where an answer's data came from, so the user can open it. */
 export interface ChatSource {
-  kind: 'project' | 'note' | 'session' | 'creation' | 'usage' | 'settings';
+  kind: 'project' | 'note' | 'session' | 'creation' | 'usage' | 'settings' | 'proposal' | 'suggestion';
   /** A project slug, a note path (`projects/garden.md`), a session or creation id. */
   ref: string;
   label?: string;
@@ -39,7 +39,9 @@ export type ConfirmationCard =
       added: number;
       removed: number;
     }
-  | { kind: 'usageProfile'; from: string; to: string; toLabel: { en: string; es: string } };
+  | { kind: 'usageProfile'; from: string; to: string; toLabel: { en: string; es: string } }
+  /** An improvement session (phase 5): it uses plan; approving happens later, on the proposal page. */
+  | { kind: 'prepareImprovement'; request: string; sessions: string[]; lessons: boolean; suggestionId?: string; model: string; effort?: string };
 
 /** `stale`: confirmed, but what the card showed no longer held (the note changed), so nothing was done. */
 export type ConfirmationState = 'pending' | 'confirmed' | 'declined' | 'failed' | 'expired' | 'stale';

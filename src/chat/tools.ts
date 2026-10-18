@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { configFilePath, maxActiveCreationsOf, permissionPolicyOf, readConfig, resolvePaths, type PathEnv } from '../config/index.js';
 import type { CreationManager, CreationState } from '../creation/manager.js';
+import type { ImprovementManager } from '../improve/manager.js';
+import { suggestionText } from '../improve/suggestions.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
 import { readEvents, sessionEventsFile } from '../events/index.js';
 import { listSessions } from '../events/sessions.js';
@@ -51,6 +53,8 @@ export interface ChatToolContext {
   lang: Lang;
   /** Reads the plan usage (`src/creation/planUsage.ts`); without it, `show_usage` has none. */
   planUsage?: (() => Promise<{ fiveHour: number | null; sevenDay: number | null } | undefined>) | undefined;
+  /** Improvements (phase 5), read when a tool runs: the manager starts after the chat. */
+  improvements?: (() => ImprovementManager | undefined) | undefined;
 }
 
 /** What a tool found or did, with where it came from. */
@@ -106,6 +110,14 @@ const needCreations = (ctx: ChatToolContext): CreationManager => {
 };
 
 const noteSource = (file: string): ChatSource => ({ kind: 'note', ref: file });
+
+const needImprovements = (ctx: ChatToolContext): ImprovementManager => {
+  const improvements = ctx.improvements?.();
+  if (improvements === undefined) throw new ChatToolError('Improvements are not available in this server.');
+  return improvements;
+};
+
+const PAGE_ONLY = 'Approving, asking for changes, discarding and reverting happen only on the proposal page, where the diff and the test results are: link the user to it.';
 
 const short = (text: string, length: number): string => (text.length > length ? `${text.slice(0, length)}…` : text);
 
@@ -353,6 +365,78 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
     },
   }),
 
+  tool({
+    name: 'list_suggestions',
+    kind: 'read',
+    description:
+      'Suggestions briefstack made after finished creations (what could be improved in its own flow, computed from what happened). A suggestion changes nothing by itself.',
+    input: {},
+    summary: () => '',
+    run: async (ctx) => {
+      const list = (await needImprovements(ctx).suggestions()).slice(0, 20);
+      return {
+        data: list.map((s) => ({
+          suggestionId: s.id,
+          text: suggestionText(s),
+          target: s.target,
+          idea: s.idea,
+          creationId: s.creationId,
+          ...(s.sessionId === undefined ? {} : { sessionId: s.sessionId }),
+          createdAt: s.createdAt,
+          ...(s.proposalId === undefined ? {} : { preparedAs: s.proposalId }),
+        })),
+        sources: list.map((s): ChatSource => ({ kind: 'suggestion', ref: s.id, label: short(s.idea, 60) })),
+      };
+    },
+  }),
+  tool({
+    name: 'list_proposals',
+    kind: 'read',
+    description: `Improvement proposals: id, status, title, request, changed files, and the commits of applied or reverted ones. ${PAGE_ONLY}`,
+    input: {},
+    summary: () => '',
+    run: async (ctx) => {
+      const improvements = needImprovements(ctx);
+      const list = (await improvements.list()).slice(0, 30);
+      const active = improvements.activeId();
+      return {
+        data: { ...(active === undefined ? {} : { preparingNow: active }), proposals: list },
+        sources: list.map((p): ChatSource => ({ kind: 'proposal', ref: p.id, ...(p.title === undefined ? {} : { label: p.title }) })),
+      };
+    },
+  }),
+  tool({
+    name: 'show_proposal',
+    kind: 'read',
+    description: `One improvement proposal: status, request, the diff per file with its rationale, the validator problems, the build, lint and test results, the rounds, and what blocks applying it now. ${PAGE_ONLY}`,
+    input: { proposalId: z.string().min(1).max(100) },
+    summary: (args) => args.proposalId,
+    run: async (ctx, args) => {
+      const improvements = needImprovements(ctx);
+      const view = await improvements.get(args.proposalId);
+      return {
+        data: {
+          id: view.id,
+          status: view.status,
+          request: view.request,
+          ...(view.title === undefined ? {} : { title: view.title }),
+          ...(view.expectedEffect === undefined ? {} : { expectedEffect: view.expectedEffect }),
+          files: view.files.map((file) => ({ path: file.path, added: file.added, removed: file.removed, rationale: file.rationale, hunks: file.hunks })),
+          validation: view.validation,
+          checks: view.checks === undefined ? undefined : { ok: view.checks.ok, steps: view.checks.steps.map((step) => ({ name: step.name, ok: step.ok })) },
+          rounds: view.rounds.map((round) => ({ n: round.n, outcome: round.outcome, feedback: round.feedback, denials: round.denials.length })),
+          ...(view.realCheck === undefined ? {} : { realCheck: { name: view.realCheck.name, state: view.realCheck.state } }),
+          ...(view.appliedCommit === undefined ? {} : { appliedCommit: view.appliedCommit }),
+          ...(view.revertCommit === undefined ? {} : { revertCommit: view.revertCommit }),
+          ...(view.error === undefined ? {} : { error: view.error }),
+          blockers: await improvements.blockers(),
+          note: PAGE_ONLY,
+        },
+        sources: [{ kind: 'proposal', ref: view.id, ...(view.title === undefined ? {} : { label: view.title }) }],
+      };
+    },
+  }),
+
   // ---- Actions: each one waits for the user's confirmation in the browser.
 
   tool({
@@ -494,6 +578,52 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
         perform: async () => {
           const result = await usageSet({ pathEnv: ctx.pathEnv, repoDir: ctx.repoDir, profile: args.profile });
           return { data: { profile: result.profile, sessionModel: result.sessionModel }, sources: [{ kind: 'usage', ref: result.profile }] };
+        },
+      };
+    },
+  }),
+  tool({
+    name: 'prepare_improvement',
+    kind: 'action',
+    description:
+      "Propose to prepare an improvement of briefstack's own creation flow (agent and skill instructions, library templates and rules) from the user's request, with evidence: chosen sessions, the lessons note, or a suggestion. The user confirms a card; an improvement session then runs (it uses plan) and the result waits on its proposal page, where only the user can approve it.",
+    input: {
+      request: z.string().trim().min(1).max(10_000),
+      sessions: z.array(z.string().min(1).max(100)).max(5).optional(),
+      lessons: z.boolean().optional(),
+      suggestionId: z.string().min(1).max(100).optional(),
+    },
+    summary: (args) => short(args.request, 80),
+    propose: async (ctx, args) => {
+      const leaked = secretLines(args.request);
+      if (leaked.length > 0) {
+        throw new ChatToolError(`The request has something that looks like a secret on line ${leaked.join(', ')}. Ask the user to remove it. Nothing was proposed.`);
+      }
+      const improvements = needImprovements(ctx);
+      const active = improvements.activeId();
+      if (active !== undefined) throw new ChatToolError(`An improvement session is already running (${active}). One at a time.`);
+      if (args.suggestionId !== undefined && !(await improvements.suggestions()).some((s) => s.id === args.suggestionId)) {
+        throw new ChatToolError(`There is no suggestion ${args.suggestionId}. Use list_suggestions.`);
+      }
+      const profile = await improvements.sessionProfile();
+      const sessions = args.sessions ?? [];
+      const lessons = args.lessons ?? false;
+      return {
+        card: {
+          kind: 'prepareImprovement',
+          request: args.request,
+          sessions,
+          lessons,
+          ...(args.suggestionId === undefined ? {} : { suggestionId: args.suggestionId }),
+          model: profile.model,
+          ...(profile.effort === undefined ? {} : { effort: profile.effort }),
+        },
+        perform: async () => {
+          const view = await improvements.prepare(args.request, { sessions, lessons, ...(args.suggestionId === undefined ? {} : { suggestionId: args.suggestionId }) });
+          return {
+            data: { prepared: true, proposalId: view.id, status: view.status, note: 'It runs now; its proposal page shows the result when it is ready.' },
+            sources: [{ kind: 'proposal', ref: view.id }],
+          };
         },
       };
     },

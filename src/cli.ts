@@ -59,6 +59,7 @@ import { createWebChat } from './chat/wiring.js';
 import type { ChatManager } from './chat/manager.js';
 import { createWebCreations } from './creation/wiring.js';
 import { createWebImprovements } from './improve/wiring.js';
+import type { ImprovementManager } from './improve/manager.js';
 import type { ImprovementRunner } from './improve/types.js';
 import type { Verifier } from './improve/verify.js';
 import { killProcessTree } from './creation/processTree.js';
@@ -560,10 +561,10 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     runner: io.creationRunner,
   });
   let chat: ChatManager | undefined;
-  let improvements;
+  let improvements: ImprovementManager | undefined;
   let server;
   try {
-    chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner });
+    chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements });
     improvements = await createWebImprovements({
       pathEnv: io.pathEnv,
       repoDir: io.repoDir,

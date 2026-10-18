@@ -120,6 +120,11 @@ export class ImprovementManager {
 
   // ---- Reading -------------------------------------------------------------
 
+  /** The model and effort an improvement session would run with now. */
+  sessionProfile(): Promise<{ model: string; effort?: string }> {
+    return this.options.profile();
+  }
+
   /** The running session's proposal id, if any. */
   activeId(): string | undefined {
     return this.active?.id;

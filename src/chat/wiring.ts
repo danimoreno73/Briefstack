@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { resolveHome, type PathEnv } from '../config/index.js';
 import type { CreationManager } from '../creation/manager.js';
+import type { ImprovementManager } from '../improve/manager.js';
 import { planUsageReader } from '../creation/planUsage.js';
 import type { Lang } from '../i18n/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
@@ -20,6 +21,8 @@ export interface WebChatOptions {
   /** Plan usage for `show_usage`; the real reading with the real runner. */
   planUsage?: (() => Promise<{ fiveHour: number | null; sevenDay: number | null } | undefined>) | undefined;
   idleMs?: number;
+  /** Improvements, once they exist (they start after the chat). */
+  improvements?: (() => ImprovementManager | undefined) | undefined;
 }
 
 /** The chat's model and effort from the active usage profile (BRIEF-phase-4 §8.3). */
@@ -37,7 +40,7 @@ export async function createWebChat(options: WebChatOptions): Promise<ChatManage
   return ChatManager.open({
     store: new ChatStore(path.join(resolveHome(pathEnv), 'chat')),
     runner,
-    tools: { pathEnv, repoDir, lang: options.lang, creations: options.creations, planUsage },
+    tools: { pathEnv, repoDir, lang: options.lang, creations: options.creations, planUsage, improvements: options.improvements },
     profile: () => activeChatProfile(pathEnv),
     ...(options.idleMs === undefined ? {} : { idleMs: options.idleMs }),
   });
