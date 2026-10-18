@@ -81,6 +81,18 @@ export interface ErrorParams {
   'chat.threadNotFound': { id: string };
   'chat.busy': Record<string, never>;
   'chat.noConfirmation': { id: string };
+  'improve.unavailable': Record<string, never>;
+  'improve.busy': { id: string };
+  'improve.notFound': { id: string };
+  'improve.wrongState': { id: string; status: string };
+  'improve.noRepo': { reason: string };
+  'improve.notOnBranch': { branch: string; current: string };
+  'improve.uncommitted': { file: string };
+  'improve.conflict': { file: string };
+  'improve.moved': Record<string, never>;
+  'improve.noCheck': { id: string };
+  'improve.checkBusy': { id: string };
+  'improve.suggestionNotFound': { id: string };
 }
 
 export type ErrorCode = keyof ErrorParams;
