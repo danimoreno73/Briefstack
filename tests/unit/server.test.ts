@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { createServer } from 'node:net';
 import { request } from 'node:http';
 import path from 'node:path';
@@ -202,11 +203,18 @@ describe('briefstack web', () => {
 
   describe('creations', () => {
     /** Runs `web` until `stop()`, and gives the address it printed. */
-    const runWeb = async (runner?: FakeRunner) => {
+    const runWeb = async (runner?: FakeRunner, events?: EventEmitter) => {
       const out: string[] = [];
+      const err: string[] = [];
       let stop!: () => void;
       const stopped = new Promise<void>((resolve) => (stop = resolve));
-      const done = main(['web', '--port', '0'], { ...io(out, [], () => stopped), ...(runner === undefined ? {} : { creationRunner: runner }) });
+      const options: CliIO = { ...io(out, err, () => stopped), ...(runner === undefined ? {} : { creationRunner: runner }) };
+      if (events !== undefined) {
+        // With an emitter, signals and crashes come from it, as from `process`.
+        delete options.untilStopped;
+        options.processEvents = events;
+      }
+      const done = main(['web', '--port', '0'], options);
       for (let i = 0; i < 200 && out[1] === undefined; i += 1) await new Promise((resolve) => setTimeout(resolve, 20));
       const url = new URL(out[1] ?? 'http://127.0.0.1:1/');
       const token = url.hash.replace('#token=', '');
@@ -236,7 +244,7 @@ describe('briefstack web', () => {
           req.on('error', reject);
           req.end(body === undefined ? undefined : JSON.stringify(body));
         });
-      return { call, stop, done };
+      return { call, stop, done, err };
     };
 
     it('answers the creation routes instead of 503, with the real runner unless a test passes one', async () => {
@@ -264,6 +272,29 @@ describe('briefstack web', () => {
       const events = await readFile(path.join(dir, 'home', 'sessions', session, 'events.jsonl'), 'utf8');
       expect(events).toContain('"reason":"server_stop"');
       expect(events).not.toContain('session.finished');
+    });
+
+    it('handles an error nothing caught as a stop: running creations are closed and it exits with 1', async () => {
+      const runner = await FakeRunner.fromFile(path.join(PACKAGE_ROOT, 'tests', 'fixtures', 'recordings', 'full.jsonl'));
+      const events = new EventEmitter();
+      const { call, done, err } = await runWeb(runner, events);
+      const created = JSON.parse((await call('POST', '/api/creations', { idea: 'A garden planner' })).body) as { id: string };
+      let state: { status: string; sessionId?: string } = { status: 'running' };
+      for (let i = 0; i < 200 && state.status !== 'waiting'; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        state = JSON.parse((await call('GET', `/api/creations/${created.id}`)).body) as typeof state;
+      }
+      expect(state.status).toBe('waiting');
+      events.emit('unhandledRejection', new Error('lost promise'));
+      // A second error during the shutdown is reported and does not stop it.
+      events.emit('uncaughtException', new Error('second one'));
+      expect(await done).toBe(1);
+      expect(err.join('\n')).toContain('lost promise');
+      expect(err.join('\n')).toContain('second one');
+      const file = await readFile(path.join(dir, 'home', 'sessions', state.sessionId as string, 'events.jsonl'), 'utf8');
+      expect(file).toContain('"reason":"server_stop"');
+      // Everything was removed from the emitter once the shutdown ended.
+      expect(['SIGINT', 'SIGTERM', 'uncaughtException', 'unhandledRejection'].map((name) => events.listenerCount(name))).toEqual([0, 0, 0, 0]);
     });
   });
 

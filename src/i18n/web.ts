@@ -5,6 +5,8 @@ export const webMessages = defineCatalogue({
     usage: 'briefstack web [--port <n>]',
     listening: 'briefstack web is running. Open this address in your browser (Ctrl+C to stop):',
     stopped: 'briefstack web stopped.',
+    crashed: (detail: string) =>
+      `briefstack web hit an error it did not expect and is stopping; running creations are closed as interrupted.\n${detail}`,
     claudeNotFound:
       'Warning: Claude Code was not found (claude on PATH or in ~/.local/bin). You can browse, but creating a project will not work.',
     claudeOlder: (installed: string, expected: string) =>
@@ -18,6 +20,8 @@ export const webMessages = defineCatalogue({
     usage: 'briefstack web [--port <n>]',
     listening: 'briefstack web está en marcha. Abre esta dirección en el navegador (Ctrl+C para pararlo):',
     stopped: 'briefstack web se ha parado.',
+    crashed: (detail: string) =>
+      `briefstack web ha tenido un error inesperado y se está parando; las creaciones en marcha se cierran como interrumpidas.\n${detail}`,
     claudeNotFound:
       'Aviso: no se encuentra Claude Code (claude en el PATH o en ~/.local/bin). Puedes navegar, pero crear un proyecto no funcionará.',
     claudeOlder: (installed: string, expected: string) =>

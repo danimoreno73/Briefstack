@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { EventEmitter } from 'node:events';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,6 +57,7 @@ import type { ChatRunner } from './chat/types.js';
 import type { CreationRunner } from './creation/types.js';
 import { createWebChat } from './chat/wiring.js';
 import { createWebCreations } from './creation/wiring.js';
+import { stopTrigger, type StopEvents } from './stopTrigger.js';
 
 /** Argument parsing only; all real work lives in the library. */
 
@@ -75,6 +77,11 @@ export interface CliIO {
    * tests pass their own.
    */
   untilStopped?: () => Promise<void>;
+  /**
+   * Where `web` listens for signals and for errors nothing caught (a crash
+   * is handled as a stop). Defaults to `process`; tests pass an emitter.
+   */
+  processEvents?: StopEvents;
   /** Built UI served by `web`; defaults to `dist/web` in the package. */
   uiDir?: string;
   /** Checks the installed Claude Code for `web`; tests pass their own. */
@@ -502,17 +509,6 @@ async function runLibrary(args: readonly string[], io: CliIO, lang: Lang): Promi
   throw new UsageError(cliMessages[lang].wrongArguments(libraryMessages[lang].usage));
 }
 
-const untilSignal = (): Promise<void> =>
-  new Promise((resolve) => {
-    const stop = () => {
-      process.off('SIGINT', stop);
-      process.off('SIGTERM', stop);
-      resolve();
-    };
-    process.once('SIGINT', stop);
-    process.once('SIGTERM', stop);
-  });
-
 function claudeWarning(check: ClaudeCheck, lang: Lang): string | undefined {
   const messages = webMessages[lang];
   switch (check.status) {
@@ -571,13 +567,27 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     checkClaudeCode({ env: io.pathEnv.env, platform: process.platform, homedir: io.pathEnv.homedir })))();
   const warning = claudeWarning(claude, lang);
   if (warning !== undefined) io.err(warning);
-  await (io.untilStopped ?? untilSignal)();
-  // The chat and the creations first: a running creation is closed as interrupted before the server goes.
-  await chat.shutdown();
-  await creations.shutdown();
-  await server.close();
+  // A crash stops it like Ctrl+C does: the shutdown below ends every creation's process tree.
+  // Tests that pass `untilStopped` and no emitter never hear the test runner's own process events.
+  const events: StopEvents = io.processEvents ?? (io.untilStopped === undefined ? process : new EventEmitter());
+  const trigger = stopTrigger(
+    events,
+    (error) => io.err(messages.crashed(error instanceof Error ? (error.stack ?? error.message) : String(error))),
+    io.untilStopped === undefined,
+  );
+  const { crashed } = await (io.untilStopped === undefined
+    ? trigger.stopped
+    : Promise.race([io.untilStopped().then(() => ({ crashed: false })), trigger.stopped]));
+  try {
+    // The chat and the creations first: a running creation is closed as interrupted before the server goes.
+    await chat.shutdown();
+    await creations.shutdown();
+    await server.close();
+  } finally {
+    trigger.release();
+  }
   io.out(messages.stopped);
-  return EXIT_OK;
+  return crashed ? EXIT_ERROR : EXIT_OK;
 }
 
 async function detectLang(io: CliIO): Promise<Lang> {
