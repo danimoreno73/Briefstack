@@ -83,6 +83,16 @@ describe('improvement guard', () => {
     expect((await decide('Glob', { pattern: '*', path: at('node_modules') })).verdict).toBe('deny');
   });
 
+  it('denies a Glob pattern that is absolute or climbs with ..', async () => {
+    const outside = path.join(dir, 'outside').replaceAll('\\', '/');
+    for (const pattern of [`${outside}/**/*.md`, '/etc/**', 'C:/Users/**/*.md', 'c:\\Users\\*', '\\\\server\\share\\*', '~/**/*.md', '../**/*.md', 'library/../../outside/*', '..\\*']) {
+      expect((await decide('Glob', { pattern })).verdict, pattern).toBe('deny');
+      expect((await decide('Glob', { pattern, path: at('library') })).verdict, pattern).toBe('deny');
+    }
+    expect((await decide('Glob', { pattern: 'library/**/*.md', path: at() })).verdict).toBe('allow');
+    expect((await decide('Glob', { pattern: '**/*.md', path: rules.evidence[0] })).verdict).toBe('allow');
+  });
+
   it('denies every other tool and allows only its own submit tool', async () => {
     for (const tool of ['Bash', 'PowerShell', 'WebFetch', 'WebSearch', 'Agent', 'Task', 'mcp__other__x', 'mcp__briefstack-chat__start_creation']) {
       expect((await decide(tool, { command: 'echo hi' })).verdict, tool).toBe('deny');

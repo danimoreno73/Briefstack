@@ -11,7 +11,8 @@ import { classifyAsset } from './allowlist.js';
  * the creation guard, and stricter:
  *
  * - reads (`Read`, `Glob`, `Grep`) only inside the worktree and the evidence
- *   folders, never in a `.git` folder or `node_modules`;
+ *   folders, never in a `.git` folder or `node_modules`; a `Glob` pattern
+ *   must be relative and without `..`;
  * - writes (`Write`, `Edit`) only to allowlisted files that already exist in
  *   the worktree (`allowlist.ts`), never in a `.git` folder;
  * - the session's own `submit_proposal` tool;
@@ -49,6 +50,11 @@ function relativeTo(root: string, target: string, pathEnv: PathEnv): string {
 
 const deny = (reason: string): ImproveVerdict => ({ verdict: 'deny', reason });
 
+/** Whether a glob pattern starts at a root of its own: absolute on any platform, a drive, a share, or `~`. */
+function isRootedPattern(pattern: string, pathEnv: PathEnv): boolean {
+  return pathEnv.pathApi.isAbsolute(pattern) || /^[\\/]/.test(pattern) || /^[A-Za-z]:/.test(pattern) || pattern.startsWith('~');
+}
+
 /** Decides one tool call. Pure apart from reading the disk (symlinks, existence). */
 export async function evaluateImproveToolUse(
   rules: ImproveGuardRules,
@@ -62,6 +68,11 @@ export async function evaluateImproveToolUse(
   if (tool === rules.submitTool) return { verdict: 'allow', reason: 'the session hands in its proposal' };
 
   if (READ_TOOLS.has(tool)) {
+    // A Glob pattern can name its own root: only patterns relative to the checked path, never climbing out of it.
+    if (tool === 'Glob') {
+      const pattern = typeof fields.pattern === 'string' ? fields.pattern : '';
+      if (isRootedPattern(pattern, pathEnv) || pattern.includes('..')) return deny('Glob patterns must be relative to the worktree or the evidence folder, without "..".');
+    }
     const given = text(fields.file_path) ?? text(fields.path);
     // No path: Glob and Grep search the working folder, which is the worktree.
     const target = given === undefined ? rules.worktree : pathApi.resolve(rules.worktree, given);
