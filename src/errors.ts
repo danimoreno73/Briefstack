@@ -90,6 +90,7 @@ export interface ErrorParams {
   'improve.uncommitted': { file: string };
   'improve.conflict': { file: string };
   'improve.baseChanged': { file: string; branch: string };
+  'improve.staleReview': { id: string };
   'improve.moved': Record<string, never>;
   'improve.noCheck': { id: string };
   'improve.checkBusy': { id: string };

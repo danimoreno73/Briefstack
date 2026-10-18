@@ -247,6 +247,8 @@ export interface ProposalDetail {
   expectedEffect?: string;
   evidence: { kind: string; ref: string; file: string }[];
   baseBranch: string;
+  /** The commit of the last checked round; an approval sends it back. */
+  head?: string;
   rounds: { n: number; feedback?: string; startedAt: string; endedAt?: string; outcome?: string; denials: { tool: string; reason: string }[]; text?: string; error?: string }[];
   files: { path: string; kind: string; status: string; hunks: DiffHunkView[]; added: number; removed: number; rationale?: string; evidence?: string[] }[];
   validation?: { ok: boolean; problems: { kind: string; file?: string; line?: number; detail: string }[] };

@@ -51,6 +51,8 @@ export function describeError(error: unknown, t: Messages): string {
       return t.errImproveConflict(String(error.params.file));
     case 'improve.baseChanged':
       return t.errImproveBaseChanged(String(error.params.file), String(error.params.branch));
+    case 'improve.staleReview':
+      return t.errImproveStaleReview;
     case 'improve.uncommitted':
       return t.errImproveUncommitted(String(error.params.file));
     case 'improve.notOnBranch':

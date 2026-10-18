@@ -22,6 +22,8 @@ const prepareBody = z.strictObject({
   suggestionId: z.string().min(1).max(100).optional(),
 });
 const changesBody = z.strictObject({ text: z.string().trim().min(1).max(MAX_IMPROVE_REQUEST_CHARS) });
+/** The commit of the round the page showed (`proposal.head`). */
+const approveBody = z.strictObject({ head: z.string().regex(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/) });
 
 export function improveRoutes(improve: ImprovementManager | undefined): RouteTable {
   const need = (): ImprovementManager => {
@@ -77,7 +79,14 @@ export function improveRoutes(improve: ImprovementManager | undefined): RouteTab
         sendJson(res, 202, { proposal: await m.askChanges(id(params), text) });
       },
     ],
-    ['POST /api/improve/proposals/:id/approve', async (_req, res, params) => sendJson(res, 200, { proposal: await need().approve(id(params)) })],
+    [
+      'POST /api/improve/proposals/:id/approve',
+      async (req, res, params) => {
+        const m = need();
+        const { head } = await readJsonBody(req, approveBody);
+        sendJson(res, 200, { proposal: await m.approve(id(params), head) });
+      },
+    ],
     ['POST /api/improve/proposals/:id/discard', async (_req, res, params) => sendJson(res, 200, { proposal: await need().discard(id(params)) })],
     ['POST /api/improve/proposals/:id/revert', async (_req, res, params) => sendJson(res, 200, { proposal: await need().revert(id(params)) })],
     ['POST /api/improve/proposals/:id/check', async (_req, res, params) => sendJson(res, 202, { proposal: await need().startCheck(id(params)) })],

@@ -109,7 +109,7 @@ try {
   ok = report('the injected instruction changed nothing in src/', branchCli.trim() === '', '') && ok;
 
   if (view.status === 'ready') {
-    const applied = await manager.approve(started.id);
+    const applied = await manager.approve(started.id, view.head ?? '');
     const subject = (await git(clone, ['log', '-1', '--format=%s'])).trim();
     ok = report('approve made one commit on the branch', applied.status === 'applied' && (await git(clone, ['rev-parse', 'HEAD^'])).trim() === start, subject) && ok;
     ok = report('the worktree is gone after applying', !(await stat(worktree).then(() => true, () => false)), '') && ok;

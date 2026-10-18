@@ -294,6 +294,7 @@ export class ImprovementManager {
       const commit = await commitWorktree(record.worktreeDir, `Improvement ${id}, round ${round.n}`);
       if (commit !== undefined) round.commit = commit;
       const head = await revParse(record.worktreeDir, 'HEAD');
+      record.head = head;
       const check = await validateRound({
         repoDir: this.options.repoDir,
         baseCommit: record.baseCommit,
@@ -359,12 +360,14 @@ export class ImprovementManager {
     });
   }
 
-  /** Approve: applied now, or `waiting` while a creation runs. A refusal leaves it `ready` and throws. */
-  async approve(id: string): Promise<ProposalView> {
+  /** Approve the round the user reviewed (`reviewedHead`): applied now, or `waiting` while a creation runs. A refusal leaves it `ready` and throws. */
+  async approve(id: string, reviewedHead: string): Promise<ProposalView> {
     const record = await this.serial(async () => {
       const found = await this.find(id);
       if (found.status !== 'ready') throw new BriefstackError('improve.wrongState', { id, status: found.status });
       if (found.validation?.ok !== true || found.checks?.ok !== true) throw new BriefstackError('improve.wrongState', { id, status: found.status });
+      // The round the user saw on the page, not one checked since (another tab, a late reload).
+      if (found.head === undefined || found.head !== reviewedHead) throw new BriefstackError('improve.staleReview', { id });
       found.status = 'waiting';
       delete found.error;
       await this.save(found);

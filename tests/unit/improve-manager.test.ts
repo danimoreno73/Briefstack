@@ -132,7 +132,7 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     const { id } = await m.prepare('Shorter reports.');
     await settled(id);
     const before = await revParse(repo, 'HEAD');
-    const applied = await m.approve(id);
+    const applied = await m.approve(id, (await m.get(id)).head ?? '');
     expect(applied.status).toBe('applied');
     expect(await revParse(repo, 'HEAD^')).toBe(before);
     expect(await revParse(repo, 'HEAD')).toBe(applied.appliedCommit);
@@ -156,7 +156,7 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     await settled(id);
     const original = await read(RESEARCHER);
     await write(RESEARCHER, original.replace(/^model: .*$/m, 'model: haiku-test'));
-    await m.approve(id);
+    await m.approve(id, (await m.get(id)).head ?? '');
     const onDisk = await read(RESEARCHER);
     expect(onDisk).toMatch(/^model: haiku-test$/m);
     expect(onDisk).toContain('Keep the report under one page.');
@@ -170,7 +170,7 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     await settled(id);
     blockers = ['A meal planner'];
     const before = await revParse(repo, 'HEAD');
-    expect((await m.approve(id)).status).toBe('waiting');
+    expect((await m.approve(id, (await m.get(id)).head ?? '')).status).toBe('waiting');
     expect(await m.blockers()).toEqual(['A meal planner']);
     await new Promise((resolve) => setTimeout(resolve, 80));
     expect(await revParse(repo, 'HEAD')).toBe(before);
@@ -199,7 +199,7 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     const { manager: m } = await open({ rounds: [{ edits: [researcherEdit], submission: submission([RESEARCHER]) }] }, { holdStarts });
     const { id } = await m.prepare('Shorter reports.');
     await settled(id);
-    expect((await m.approve(id)).status).toBe('waiting');
+    expect((await m.approve(id, (await m.get(id)).head ?? '')).status).toBe('waiting');
     expect(events).toEqual(['hold', 'release']);
     blockers = [];
     for (let i = 0; i < 1500 && (await m.get(id)).status === 'waiting'; i += 1) await new Promise((resolve) => setTimeout(resolve, 10));
@@ -222,7 +222,7 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     await write(RESEARCHER, (await read(RESEARCHER)).replace('Do not download or run anything.', 'Never download or run anything.'));
     await commitAll('hand edit');
     const tip = await revParse(repo, 'HEAD');
-    expect(await codeOf(m.approve(id))).toBe('improve.baseChanged');
+    expect(await codeOf(m.approve(id, (await m.get(id)).head ?? ''))).toBe('improve.baseChanged');
     expect(await revParse(repo, 'HEAD')).toBe(tip);
     const refused = await m.get(id);
     expect(refused.status).toBe('ready');
@@ -234,7 +234,7 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     expect(again.baseCommit).toBe(tip);
     expect(verifier.calls).toHaveLength(2);
     expect(again.files[0]?.base).toContain('Never download or run anything.');
-    await m.approve(id);
+    await m.approve(id, (await m.get(id)).head ?? '');
     expect(await revParse(repo, 'HEAD^')).toBe(tip);
     const applied = await read(RESEARCHER);
     expect(applied).toContain('Keep the report under one page.');
@@ -266,7 +266,7 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     const kinds = (view.validation?.problems ?? []).map((p) => `${p.kind}:${p.file ?? ''}`).sort();
     expect(kinds).toEqual([`forbiddenPath:src/cli.ts`, `locked:${SKILL}`, `notModified:library/rules/new.md`, `personalPath:${RULE}`, `profileText:${INTERVIEWER}`]);
     expect(verifier.calls).toEqual([]);
-    expect(await codeOf(m.approve(id))).toBe('improve.wrongState');
+    expect(await codeOf(m.approve(id, (await m.get(id)).head ?? ''))).toBe('improve.wrongState');
   });
 
   it('rejects a file the session left where git ignores it, listed before the round is committed', async () => {
@@ -318,9 +318,31 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     expect(runner.started[1]?.feedback).toBe('Even shorter, please.');
     expect(runner.started[1]?.worktreeDir).toBe(runner.started[0]?.worktreeDir);
     expect(view.title).toBe('Even shorter');
-    await m.approve(id);
+    await m.approve(id, (await m.get(id)).head ?? '');
     expect(await read(RESEARCHER)).toContain('under half a page');
     expect((await git(repo, ['log', '--format=%s', '-2'])).trim().split('\n')).toEqual([`Apply improvement ${id}: Even shorter`, 'start']);
+  });
+
+  it('approves only the round the user reviewed: the head it names must be the last checked one', async () => {
+    const { manager: m } = await open({
+      rounds: [
+        { edits: [researcherEdit], submission: submission([RESEARCHER]) },
+        { edits: [{ file: RESEARCHER, find: 'under one page', replace: 'under half a page' }], submission: submission([RESEARCHER], 'Even shorter') },
+      ],
+    });
+    const { id } = await m.prepare('Shorter reports.');
+    const first = await settled(id);
+    expect(first.head).toMatch(/^[0-9a-f]{40}$/);
+    expect(first.head).toBe(first.rounds[0]?.commit);
+    await m.askChanges(id, 'Even shorter.');
+    const second = await settled(id);
+    expect(second.head).not.toBe(first.head);
+    const before = await revParse(repo, 'HEAD');
+    expect(await codeOf(m.approve(id, first.head ?? ''))).toBe('improve.staleReview');
+    expect(await codeOf(m.approve(id, ''))).toBe('improve.staleReview');
+    expect(await revParse(repo, 'HEAD')).toBe(before);
+    expect((await m.get(id)).status).toBe('ready');
+    expect((await m.approve(id, second.head ?? '')).status).toBe('applied');
   });
 
   it('discards: removes the worktree and the branch', async () => {
@@ -330,7 +352,7 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     expect((await m.discard(id)).status).toBe('discarded');
     expect(await exists(runner.started[0]?.worktreeDir ?? '')).toBe(false);
     expect((await git(repo, ['branch', '--list', `improve/${id}`])).trim()).toBe('');
-    expect(await codeOf(m.approve(id))).toBe('improve.wrongState');
+    expect(await codeOf(m.approve(id, (await m.get(id)).head ?? ''))).toBe('improve.wrongState');
   });
 
   it('runs one session at a time, and a restart marks an interrupted one failed', async () => {

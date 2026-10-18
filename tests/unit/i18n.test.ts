@@ -105,6 +105,7 @@ describe('error catalogue', () => {
     'improve.uncommitted': { file: 'f' },
     'improve.conflict': { file: 'f' },
     'improve.baseChanged': { file: 'f', branch: 'master' },
+    'improve.staleReview': { id: 'p' },
     'improve.moved': {},
     'improve.noCheck': { id: 'p1' },
     'improve.checkBusy': { id: 'p1' },

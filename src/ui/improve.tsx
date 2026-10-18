@@ -282,7 +282,12 @@ function Actions({ proposal, check, reload }: { proposal: ProposalDetail; check:
           body={dialogs[confirm].body}
           confirmLabel={dialogs[confirm].label}
           onCancel={() => setConfirm(undefined)}
-          onConfirm={() => void run(() => send('POST', `${base}/${dialogs[confirm].path}`))}
+          onConfirm={() =>
+            void run(() =>
+              // Approving names the round this page shows, so a round checked since is not approved unseen.
+              confirm === 'approve' ? send('POST', `${base}/approve`, { head: proposal.head ?? '' }) : send('POST', `${base}/${dialogs[confirm].path}`),
+            )
+          }
         />
       )}
     </div>

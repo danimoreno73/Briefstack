@@ -119,6 +119,8 @@ export interface ProposalRecord {
   branch: string;
   worktreeDir: string;
   rounds: Round[];
+  /** The commit of the last checked round: what the page shows, and what an approval must name. */
+  head?: string;
   files: ProposalFile[];
   validation?: { ok: boolean; problems: ValidationProblem[] };
   checks?: CheckReport;

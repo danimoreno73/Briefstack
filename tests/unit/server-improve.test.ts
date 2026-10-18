@@ -116,11 +116,18 @@ describe('improvement API', { timeout: 60_000 }, () => {
     const listing = await get(s, '/api/improve');
     expect(listing).toMatchObject({ proposals: [{ id: proposal.id, status: 'ready', files: [RESEARCHER] }], suggestions: [], blockers: [] });
 
-    const approved = await post(s, `/api/improve/proposals/${proposal.id}/approve`);
+    const head = (shown.proposal as { head?: string }).head ?? '';
+    expect(head).toMatch(/^[0-9a-f]{40}$/);
+    // The approval names the round the page showed; without it, or with another one, nothing happens.
+    expect((await post(s, `/api/improve/proposals/${proposal.id}/approve`)).status).toBe(400);
+    const stale = await post(s, `/api/improve/proposals/${proposal.id}/approve`, { head: '0'.repeat(40) });
+    expect(stale.status).toBe(409);
+    expect(JSON.parse(stale.body)).toMatchObject({ code: 'improve.staleReview' });
+    const approved = await post(s, `/api/improve/proposals/${proposal.id}/approve`, { head });
     expect(approved.status).toBe(200);
     expect(await readFile(path.join(repo, ...RESEARCHER.split('/')), 'utf8')).toContain('under one page');
     expect((await testGit(repo, ['log', '-1', '--format=%s'])).trim()).toBe(`Apply improvement ${proposal.id}: Shorter research reports`);
-    expect(JSON.parse((await post(s, `/api/improve/proposals/${proposal.id}/approve`)).body)).toMatchObject({ code: 'improve.wrongState' });
+    expect(JSON.parse((await post(s, `/api/improve/proposals/${proposal.id}/approve`, { head })).body)).toMatchObject({ code: 'improve.wrongState' });
     expect((await post(s, `/api/improve/proposals/${proposal.id}/revert`)).status).toBe(200);
     expect((await testGit(repo, ['log', '-1', '--format=%s'])).trim()).toBe(`Revert improvement ${proposal.id}: Shorter research reports`);
   });
