@@ -2529,3 +2529,96 @@ Not changed: the command hook keeps exit code 2. A JSON
 `permissionDecision: "deny"` on stdout would drop the "hook error" prefix
 and the command line from the model's view, but the model read the reason
 correctly, so it is not needed now.
+
+# Phase 5
+
+## H0 (2026-10-18, SDK 0.3.286, Claude Code 2.1.302, Windows 11)
+
+Run by Claude with the user's go-ahead (BRIEF-phase-5 §6), with
+`scripts/real/probe-h0-phase5.ts --yes --probe <n>` from Git Bash: `haiku`,
+`effort: low`, `maxTurns` 14–30, `strictMcpConfig`, a temp
+`BRIEFSTACK_HOME` and temp folders under `BRIEFSTACK_REAL_WORKDIR`, the same
+environment cleaning as a creation. The repo was cloned into the sandbox
+(`git clone --no-hardlinks`, which only reads the repo) and every worktree
+was made from that clone; the real repo, library and projects were not
+touched. Plan usage was read before and after each model probe, with a stop
+above 85% of the 5-hour window: 77% / 57% (5-hour / 7-day) before the first
+model probe, 78% / 57% after the last.
+
+Docs read the same day: "Create custom subagents"
+(`code.claude.com/docs/en/sub-agents`) and "Skills"
+(`code.claude.com/docs/en/skills`).
+
+1. **A session in a worktree outside the repo, guarded to it. PASS.** A
+   worktree on `improve/probe1` next to the clone; the session's `cwd` was
+   the worktree (the init message says so), `settingSources: []`,
+   `tools: [Read, Glob, Grep, Write, Edit]` (the init list was exactly
+   those; no shell), an evidence folder outside the worktree in
+   `additionalDirectories`. A callback `PreToolUse` guard allowed reads only
+   in the worktree and the evidence, writes only to allowlisted paths in the
+   worktree, and denied every other tool; a command hook (through
+   `settings`, `onFailure: "block"`) denied writes outside the worktree and
+   logged each call. Result: the evidence was read; a read of the clone's
+   README was denied; an edit of `.claude/agents/researcher.md` in the
+   worktree went through; a write to `src/probe.ts` in the worktree and to a
+   file in the clone were denied; the clone and the worktree changed only
+   in that one allowlisted file; the command hook ran on every call with
+   the worktree as `cwd`.
+   **Finding:** a write inside `.claude/` reaches `canUseTool` even after the
+   hook said `allow` (`decisionReason`: "Claude requested permissions to
+   write to …\.claude\agents\researcher.md, but you haven't granted it
+   yet"). Creations already answer such writes in `canUseTool`; improvement
+   sessions must do the same, with the same allowlist check as the guard,
+   and deny everything else. First runs: once Haiku skipped the edit
+   (`Edit` needs a `Read` of the file first; the prompt now asks for both),
+   once the probe's `canUseTool` denied every call.
+2. **Build, lint and tests in that worktree, without network. PASS.** The
+   clone got its own `node_modules` with `npm ci --offline --ignore-scripts`
+   (8 s, from the npm cache), and the worktree a junction to it
+   (`fs.symlink(target, link, 'junction')`, no admin rights). With every
+   proxy variable pointing at a closed port and `npm_config_offline=true`:
+   `npm run build` 9 s, `npm run lint` 5 s, `npm test` 18 s (all 59 files
+   pass), so about 35 s in all. `git status` in the worktree stayed clean
+   (`node_modules` is ignored, `dist/` too).
+   **Finding:** Vitest writes into the linked `node_modules`: `.vite/`,
+   `.vite-temp/` (emptied after) and `.vitest-cache/` appeared. With the
+   real repo's `node_modules` linked, those caches are shared with the
+   user's own runs; they are caches, so this is accepted, and nothing else
+   is written there. Removing a worktree must unlink the junction before
+   deleting the folder.
+3. **When agent and skill files are read. Both are read again during a
+   session.** One session (`settingSources: ['project']`) ran an agent and a
+   skill, then their bodies were edited and a new agent file was added in
+   the same `agents` folder, 8 s passed, and they were run again in the same
+   session: the agent answered the new body, the skill the new body, and
+   the new agent started. This matches the docs: Claude Code watches
+   `.claude/agents/` and `.claude/skills/` and "the next delegation uses the
+   updated definition"; a skill's text already in the conversation stays as
+   it was. So a change applied while a creation runs reaches its next
+   subagent: the brief's rule "never while a creation is running" stands.
+4. **Commit only body changes over uncommitted frontmatter. PASS (no model).**
+   In a temp repo, an agent file's frontmatter was changed in the working
+   tree (as `usage set` does) and not committed. Applying a new body:
+   a temporary index (`GIT_INDEX_FILE`, `read-tree HEAD`), for each file a
+   blob of "committed frontmatter + new body" (`hash-object -w --path`),
+   `update-index --cacheinfo`, `write-tree`, `commit-tree -p HEAD`, then
+   `update-ref refs/heads/master <new> <old>` (refused if master moved in
+   between), then the working file is rewritten as "working frontmatter +
+   new body" and the real index entry of that file is set to the commit's
+   blob. Result: the commit has the committed frontmatter and the new body
+   and touches only that file; the working file keeps the uncommitted
+   frontmatter; `git status` shows ` M` and the unstaged diff is the model
+   line only. When master moved, the new body is a three-way merge of the
+   body (`git merge-file`: ours = body at HEAD, base = body the proposal
+   started from, theirs = proposed body): a change in other lines merges, a
+   change in the same or adjacent lines is refused. A revert is the same
+   operation with base = the applied body and theirs = its parent's body,
+   and keeps later changes. An uncommitted change to a body (not the
+   frontmatter) blocks the apply.
+
+Conclusion: the design can rely on all four. Improvement sessions run in a
+worktree outside the repo with a guard of their own and a `canUseTool` that
+repeats its allowlist check; the server verifies with a linked
+`node_modules` in about 35 s; applying and reverting never happen while a
+creation runs; apply and revert are the git plumbing of point 4, never
+`git commit -a`, `git revert` or a checkout in the user's working tree.
