@@ -2622,3 +2622,90 @@ repeats its allowlist check; the server verifies with a linked
 `node_modules` in about 35 s; applying and reverting never happen while a
 creation runs; apply and revert are the git plumbing of point 4, never
 `git commit -a`, `git revert` or a checkout in the user's working tree.
+
+## Decisiones sin Dani (fase 5)
+
+Taken while the user was away (2026-10-18), each the most conservative
+reading of BRIEF-phase-5 where it was ambiguous. All can be changed.
+
+1. **Allowlist** (`src/improve/allowlist.ts`): agent bodies, the
+   `/new-project` skill body, `library/templates/**` and `library/rules/**`.
+   Not `library/skills/**` (the brief names "templates and rules") and not
+   `library/usage-profiles.json` (settings). Only edits of files that exist:
+   no new agent files, no new, deleted or renamed files anywhere.
+2. **Locked blocks**: markers `<!-- briefstack:locked <id> -->` …
+   `<!-- /briefstack:locked <id> -->` on their own lines (indented inside a
+   list item). Locked: in the skill, the CLI and paths rules, working files
+   (never in the repo or the library), denied calls, where answers come from
+   (never ask in text in web mode), the web branch of the spec step, "Nothing
+   is created before the user approves", and the notes-without-secrets
+   paragraph; in generator, its scope (writes, Bash, frontmatter), no secrets
+   or absolute paths, and the denied-write rule; in architect, its safety
+   rules; in interviewer, never asking for secrets; in reviewer, the secrets
+   and hooks items. "Moved" means under another heading or in another order,
+   so renaming the heading above a block also rejects the proposal. A base
+   file whose markers are broken has nothing locked (not ours to judge).
+3. **Generic-only filters** (`filters.ts`) run on the lines a proposal adds,
+   not on text the base already had. A personal path is this machine's home,
+   its user name in a path, briefstack's own folders, the repo, or any path
+   under `C:\Users\<name>`, `/Users/<name>` or `/home/<name>` whose name is
+   not a placeholder (`you`, `user`, `<user>`, …). Profile text is an added
+   line of 24 or more characters contained in (or containing) a line of a
+   `profile` note, or eight words in a row from one.
+4. **Model of an improvement session**: the active profile's session model
+   and effort, like a creation's main session; no new entry in the usage
+   profiles. The real checks keep their own (Haiku, saver).
+5. **Branch**: the brief says `master`; the code applies to the branch `HEAD`
+   was on when the proposal was prepared (here `master`) and refuses if the
+   repo is on another one then (`improve.notOnBranch`), so a fork on `main`
+   works the same.
+6. **How a proposal is applied** (H0 #4): git plumbing, never `commit -a`,
+   `git revert` or a checkout. The repo's own commit hooks do not run for the
+   apply and revert commits (`commit-tree`); they do run for the round
+   commits in the worktree. The index entry of an applied file is set to the
+   new commit's blob, so a staged frontmatter change becomes unstaged (it is
+   still in the working tree). An uncommitted change to a body (not the
+   frontmatter), or anywhere in a library file, refuses the apply.
+7. **A refused approval** goes back to `ready` with the reason; for a
+   conflict the user asks for changes (a new round on the same branch,
+   validated against the original base).
+8. **"Not while a creation is running"** counts this server's active
+   creations and creation sessions on disk that look in progress (started,
+   not finished or ended, last event within 2 hours). That second part also
+   sees creations started from the terminal, for this gate only (phase 4
+   backlog item); a session that died without an end blocks applying until
+   it goes stale after 2 hours, and the page names it.
+9. **After applying**, the worktree and the branch are removed; the proposal
+   keeps the texts and the diff, which is what the revert uses.
+10. **Checks**: the validators first; build, lint and tests only if they
+    pass. Failing tests make the proposal `failed`: not approvable, but the
+    user can ask for changes or discard it. The repo's own `node_modules` is
+    linked into the worktree for the run and unlinked after; Vitest writes
+    its caches there (H0 #2), which is accepted.
+11. **Rationale required**: a changed file the submission does not explain
+    is a problem (`unexplained`) and rejects the proposal.
+12. **Real checks offered**: a change only to the interviewer or the target
+    rule → `check-interviewer-target`; anything else → the new
+    `check-improvement-flow` (one creation, session on saver, agents on the
+    models their files hold). Offered only when the proposal is `ready`, run
+    from the worktree with the server's environment.
+13. **Suggestions**: no model at all. Kinds and thresholds: a failed or
+    interrupted creation or a failed step; any turn that ended in text; any
+    denial by the guard or the policy; two or more review rounds; any new
+    lesson. At most three, in that order. Turns that ended in text are
+    counted in memory only (lost when the server restarts). In the chat they
+    are a notice for the page; the model sees them only through
+    `list_suggestions`.
+14. **One improvement session at a time** for the whole server; creations
+    may run meanwhile (they do not touch the worktree). Approving and
+    reverting are the ones that wait.
+15. **No run files** for improvement sessions (the phase 4 sweep of orphan
+    processes is for creations): the command-hook guard holds without the
+    server, and a proposal a stopped server left `preparing` is marked
+    `failed` (round `interrupted`) on the next start.
+16. **Phase 4 backlog**: only the terminal-creations item is touched (point
+    8, for the apply gate). The chat quoting the exact step, creations
+    seeing the repo's `CLAUDE.md`, the 2-minute library lock and the abort
+    signal stay in the backlog.
+17. **CI**: `gh` is not installed here and the repo is private, so the
+    public API answers 404; CI runs were not checked from this session.

@@ -32,9 +32,25 @@ Updated 2026-10-18. A new session reads `CLAUDE.md`,
 | M6 | Chat tools `list_suggestions`, `list_proposals`, `show_proposal` and `prepare_improvement` (card `prepareImprovement`: request, evidence, model; refused with a secret, a running session or an unknown suggestion); sources `proposal` and `suggestion`; the chat's system prompt says approving happens on the proposal page; `docs/api.md`; test `chat-improve-tools` |
 | M7 | `src/ui/improve.tsx`: `#/improve` (suggestions with "Prepare", a request form with the uses-plan note, proposals, applied history) and `#/improve/<id>` (status, request, expected effect, diff per file with rationale, validator problems, build/lint/test results, real check with its cost note, evidence, rounds; approve, ask for changes, discard, revert, each confirmed); suggestions on the creation result screen and in the chat; the `prepareImprovement` card; menu entry; English and Spanish strings; route and source tests |
 
+| M8 | `tests/e2e/improve.spec.ts` (prepare from the chat through a card, proposal page with diff, rationale, validators and tests, the real check started by the user, approve as one commit, revert; ask for changes; discard; a locked block and a forbidden path rejected and never tested; an approval waiting for a running creation; suggestions on the result screen and in the chat, prepared from the page; 390 px); the e2e fixture's repo is now a git repo with the flow files and the app runs the real improvement wiring over fakes; `scripts/real/check-improvement-session.ts` and `check-improvement-flow.ts`, with static checks in `real-scripts.test.ts`. Not run |
+| M9 | `decisions.md` "Decisiones sin Dani (fase 5)" (17 points), `docs/api.md` (routes, chat tools, card, notice), this Status and the steps below |
+
 ### Left
 
-M8–M9 below.
+The real checks and the real run in section 3, run by the user. Phase 5 is
+not done before the user accepts the real run.
+
+### Backlog (not phase 5, not started)
+
+- From phase 4: the chat should quote the exact step from the panel;
+  creations see the repo's `CLAUDE.md`; folder claims do not see creations
+  started from the terminal (the apply gate does, decisions.md point 8); the
+  library lock on writes longer than 2 minutes; whether the SDK passes the
+  abort signal to chat tools; an old tab after a restart gets 401 with no
+  explanation; a card left open keeps the chat's turn open.
+- Turns that ended in text are counted in memory only, so suggestions after
+  a server restart miss them.
+- The CI could not be checked from this session (`gh` missing, private repo).
 
 ## 1. Approach
 
@@ -150,4 +166,37 @@ Status updated; e2e from M8.
 
 ## 3. Real runs (prepared, run by the user)
 
-Filled in at M9.
+None was run while building phase 5 (only the H0 probes). From PowerShell in
+the repo, in order:
+
+1. **Preflight** (reads only): `npx tsx scripts/real/preflight.ts`.
+2. **An improvement session end to end** (one short Haiku session, a temp
+   clone, about 5–10 minutes): `npx tsx scripts/real/check-improvement-session.ts --yes`.
+   Expected: PASS for the worktree outside the clone, `ready` (validators
+   and build/lint/tests passed), only the researcher agent changed with a
+   rationale, nothing in `src/` despite the injected lesson, one apply
+   commit, the worktree gone, a clean clone, and a revert that restores the
+   file.
+3. **The interviewer check** (four short Haiku runs):
+   `npx tsx scripts/real/check-interviewer-target.ts --yes`, as in phase 3.
+   The proposal page offers it for a change to the interviewer or the
+   target rule and runs it from the proposal's worktree.
+4. **One creation with the flow files** (session on saver, up to 25
+   minutes): `npx tsx scripts/real/check-improvement-flow.ts --yes`.
+   Expected: `completed`, one project note, a clean temp library, no turn
+   waiting for a text answer. The proposal page offers it for any other
+   change and runs it from the worktree.
+5. **Phase 5 real run** (BRIEF-phase-5 §5), on the real repo and library:
+   1. `npm run build`, then `npm run briefstack -- web`, and open the
+      address it prints.
+   2. Improvements page: pick a real suggestion (or, in the chat, ask for an
+      improvement from a real lesson; a card appears: confirm it).
+   3. On the proposal page: read the diff, the rationale and the evidence;
+      check that the validators and build, lint and tests passed; optionally
+      run the offered real check.
+   4. Approve. With no creation running it becomes one commit on `master`
+      (`git log -1`), not pushed; `git status` shows only what was there
+      before (for example `usage set` changes).
+   5. Run one creation that uses the improved asset and judge the result.
+   6. Accept or reject phase 5, and push yourself if you keep it. A revert is
+      one click on the proposal page.
