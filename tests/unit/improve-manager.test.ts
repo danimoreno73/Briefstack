@@ -67,7 +67,7 @@ const submission = (files: string[], title = 'Shorter research reports') => ({
 
 const researcherEdit = { file: RESEARCHER, find: 'Never fill a gap with a guess.', replace: 'Never fill a gap with a guess. Keep the report under one page.' };
 
-async function open(script: FakeImproveScript, extra: { verifier?: FakeVerifier; realChecks?: FakeRealCheckRunner } = {}) {
+async function open(script: FakeImproveScript, extra: { verifier?: FakeVerifier; realChecks?: FakeRealCheckRunner; holdStarts?: <T>(task: () => Promise<T>) => Promise<T> } = {}) {
   const runner = new FakeImprovementRunner(script);
   const verifier = extra.verifier ?? new FakeVerifier();
   const pathEnv: PathEnv = { env: { BRIEFSTACK_HOME: home }, homedir: path.join(dir, 'user'), pathApi: path, caseInsensitive: process.platform !== 'linux' };
@@ -81,6 +81,7 @@ async function open(script: FakeImproveScript, extra: { verifier?: FakeVerifier;
     locations: async () => ({ home, libraryDir: path.join(home, 'library'), projectsDir: path.join(dir, 'projects'), sessionsDir: path.join(home, 'sessions') }),
     profile: async () => ({ model: 'haiku', effort: 'low' }),
     blockers: async () => blockers,
+    ...(extra.holdStarts === undefined ? {} : { holdStarts: extra.holdStarts }),
     gatePollMs: 20,
   });
   return { manager, runner, verifier };
@@ -177,6 +178,36 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     for (let i = 0; i < 1500 && (await m.get(id)).status === 'waiting'; i += 1) await new Promise((resolve) => setTimeout(resolve, 10));
     expect((await m.get(id)).status).toBe('applied');
     expect(await revParse(repo, 'HEAD^')).toBe(before);
+  });
+
+  it('applies and reverts while creation starts are held, and looks for running creations inside that hold', async () => {
+    const events: string[] = [];
+    let startJustBefore = true;
+    const holdStarts = async <T,>(task: () => Promise<T>): Promise<T> => {
+      events.push('hold');
+      // A creation that registered just before the hold was taken: the check inside it must see it.
+      if (startJustBefore) {
+        blockers = ['A meal planner'];
+        startJustBefore = false;
+      }
+      try {
+        return await task();
+      } finally {
+        events.push('release');
+      }
+    };
+    const { manager: m } = await open({ rounds: [{ edits: [researcherEdit], submission: submission([RESEARCHER]) }] }, { holdStarts });
+    const { id } = await m.prepare('Shorter reports.');
+    await settled(id);
+    expect((await m.approve(id)).status).toBe('waiting');
+    expect(events).toEqual(['hold', 'release']);
+    blockers = [];
+    for (let i = 0; i < 1500 && (await m.get(id)).status === 'waiting'; i += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+    expect((await m.get(id)).status).toBe('applied');
+    expect(events.slice(-2)).toEqual(['hold', 'release']);
+    events.length = 0;
+    expect((await m.revert(id)).status).toBe('reverted');
+    expect(events).toEqual(['hold', 'release']);
   });
 
   it('refuses the approval when master changed the file, even in other lines, and a new round starts from the current master', async () => {

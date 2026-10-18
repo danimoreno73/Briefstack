@@ -244,6 +244,32 @@ describe('CreationManager', () => {
     expect(m.list().filter((c) => c.status !== 'finished').map((c) => c.idea)).toEqual(['two', 'three']);
   });
 
+  it('waits to start a creation while an improvement is applied or reverted, and holders take turns', async () => {
+    const m = await make('full.jsonl');
+    let release!: () => void;
+    const order: string[] = [];
+    const first = m.holdStarts(async () => {
+      order.push('first in');
+      await new Promise<void>((resolve) => (release = resolve));
+      // No creation registered while the hold lasts.
+      order.push(`first out, ${m.list().length} creations`);
+    });
+    const second = m.holdStarts(async () => {
+      order.push('second in');
+    });
+    const started = m.create('one').then((state) => {
+      order.push('created');
+      return state;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(m.list()).toEqual([]);
+    expect(order).toEqual(['first in']);
+    release();
+    await Promise.all([first, second, started]);
+    expect(order).toEqual(['first in', 'first out, 0 creations', 'second in', 'created']);
+    await runToEnd(m, (await started).id);
+  });
+
   it('reads the limit at each start', async () => {
     let limit = 1;
     manager = new CreationManager({

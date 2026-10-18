@@ -287,6 +287,8 @@ export class CreationManager {
   /** The output folder of each active creation: two never share one. */
   private readonly claims = new FolderClaims();
   private readonly observers = new Set<CreationObserver>();
+  /** Set while `holdStarts` runs a task: starts wait for it. */
+  private startsHeld: Promise<void> | undefined;
   private readonly options: CreationManagerOptions;
   private readonly now: () => Date;
   private readonly pollMs: number;
@@ -324,10 +326,30 @@ export class CreationManager {
     return (await this.options.maxActive?.()) ?? DEFAULT_MAX_ACTIVE_CREATIONS;
   }
 
+  /**
+   * Runs `task` while no creation may start (an improvement being applied or
+   * reverted: BRIEF-phase-5 §3.4). A start waits until the hold ends; holders
+   * take turns.
+   */
+  async holdStarts<T>(task: () => Promise<T>): Promise<T> {
+    while (this.startsHeld !== undefined) await this.startsHeld;
+    // No await between the check above and taking the hold.
+    let release!: () => void;
+    this.startsHeld = new Promise<void>((resolve) => (release = resolve));
+    try {
+      return await task();
+    } finally {
+      this.startsHeld = undefined;
+      release();
+    }
+  }
+
   /** Starts a creation. Throws `creation.limit` when as many as the limit are active. */
   async create(idea: string): Promise<CreationState> {
     const limit = await this.limit();
-    // From here to the registration below there is no await, so two starts at once both count.
+    while (this.startsHeld !== undefined) await this.startsHeld;
+    // From the check above to the registration below there is no await, so two starts at once both
+    // count, and an improvement that takes the hold afterwards sees this creation as running.
     const active = [...this.creations.values()].filter((c) => c.state.status !== 'finished').map((c) => c.state.id);
     if (active.length >= limit) throw new BriefstackError('creation.limit', { limit, active });
 

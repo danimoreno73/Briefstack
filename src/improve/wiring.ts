@@ -76,6 +76,7 @@ export async function createWebImprovements(options: WebImproveOptions): Promise
       return { model: preset.sessionModel, effort: preset.effort };
     },
     blockers: async () => creationBlockers(options.creations, (await locations()).sessionsDir),
+    ...(options.creations === undefined ? {} : { holdStarts: (task) => (options.creations as CreationManager).holdStarts(task) }),
     ...(options.gatePollMs === undefined ? {} : { gatePollMs: options.gatePollMs }),
   });
 }

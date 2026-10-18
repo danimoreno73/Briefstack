@@ -49,6 +49,12 @@ export interface ImprovementManagerOptions {
   profile: () => Promise<{ model: string; effort?: string }>;
   /** What is running now that blocks applying: creations (their ideas or session ids). Empty when nothing is. */
   blockers: () => Promise<string[]>;
+  /**
+   * Runs a task while no creation may start (`CreationManager.holdStarts`).
+   * Applying and reverting check `blockers` and commit inside it, so a
+   * creation cannot start between the check and the commit.
+   */
+  holdStarts?: <T>(task: () => Promise<T>) => Promise<T>;
   /** Turns a creation ended in text, by session id (not in `events.jsonl`). */
   textTurns?: (sessionId: string) => number | undefined;
   /** Suggestions after creations: listed, used as evidence, marked once prepared. */
@@ -382,16 +388,20 @@ export class ImprovementManager {
 
   /** Runs a waiting apply or revert if nothing blocks it; otherwise leaves it waiting. */
   private async runGated(id: string, state: 'waiting' | 'revertWaiting'): Promise<ProposalView> {
+    const hold = this.options.holdStarts ?? (<T>(task: () => Promise<T>) => task());
     const outcome = await this.serial(async () => {
       const record = await this.find(id);
       if (record.status !== state) return { record };
-      if ((await this.options.blockers()).length > 0) {
-        this.armGate();
-        return { record };
-      }
-      const error = state === 'waiting' ? await this.doApply(record) : await this.doRevert(record);
-      await this.save(record);
-      return { record, error };
+      // Inside the hold: a creation that started before it is a blocker, and none starts until the commit is made.
+      return hold(async (): Promise<{ record: ProposalRecord; error?: BriefstackError | undefined }> => {
+        if ((await this.options.blockers()).length > 0) {
+          this.armGate();
+          return { record };
+        }
+        const error = state === 'waiting' ? await this.doApply(record) : await this.doRevert(record);
+        await this.save(record);
+        return { record, error };
+      });
     });
     if (outcome.error !== undefined) throw outcome.error;
     return viewOf(outcome.record);
