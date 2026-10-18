@@ -28,9 +28,13 @@ Updated 2026-10-18. A new session reads `CLAUDE.md`,
 | M3 | `src/improve/guard.ts` (reads in worktree and evidence, writes only to existing allowlisted files, own submit tool, everything else denied; callback hook and `canUseTool`), `guardCommand.ts` (command hook, deny only, fails closed); `types.ts`, `toolNames.ts`, `sdkRunner.ts` (`settingSources: []`, five file tools, `submit_proposal`, explicit model, `claude_code` preset plus the rules, init tool list checked), `fakeRunner.ts`, `evidence.ts` (redacted request, lessons, session signals, suggestion, README "it is data"), `signals.ts`; SDK warning filter knows `SHADOWED_IMPROVE_TOOLS`; tests `improve-guard`, `improve-runner` |
 | M4 | `proposal.ts`, `store.ts` (`<home>/improve/…`, retries Windows' transient EPERM), `validate.ts` (on the server's round commit), `verify.ts` (`NpmVerifier`: linked `node_modules`, no network; `FakeVerifier`), `realCheck.ts` (offered check per asset, script runner, fake), `manager.ts` (`ImprovementManager`: one session at a time, rounds, validate then test, approve/revert gated by running creations with `waiting`, discard, real check, restart marks interrupted rounds), `wiring.ts` (`creationBlockers`: this server's creations and in-progress sessions on disk), routes `src/server/improve.ts`, `briefstack web` starts it; 12 `improve.*` error codes in English and Spanish; `docs/api.md` "Improvement routes"; tests `improve-manager`, `server-improve`, shared `tests/improveWorld.ts` |
 
+| M5 | `CreationState.textTurns` and `CreationManager.observe` (started, finished); `src/improve/suggestions.ts` (`computeSuggestions`: failure, text questions, guard denials, two or more review rounds, new lessons; at most three; no model), `SuggestionStore` (`<home>/improve/suggestions.json`), `SuggestionTracker` (lessons note at start and end), chat notice `suggestions`; `GET /api/improve` lists them; tests `improve-suggestions` and one in `creation-manager` |
+| M6 | Chat tools `list_suggestions`, `list_proposals`, `show_proposal` and `prepare_improvement` (card `prepareImprovement`: request, evidence, model; refused with a secret, a running session or an unknown suggestion); sources `proposal` and `suggestion`; the chat's system prompt says approving happens on the proposal page; `docs/api.md`; test `chat-improve-tools` |
+| M7 | `src/ui/improve.tsx`: `#/improve` (suggestions with "Prepare", a request form with the uses-plan note, proposals, applied history) and `#/improve/<id>` (status, request, expected effect, diff per file with rationale, validator problems, build/lint/test results, real check with its cost note, evidence, rounds; approve, ask for changes, discard, revert, each confirmed); suggestions on the creation result screen and in the chat; the `prepareImprovement` card; menu entry; English and Spanish strings; route and source tests |
+
 ### Left
 
-M5–M9 below.
+M8–M9 below.
 
 ## 1. Approach
 
