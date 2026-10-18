@@ -251,6 +251,19 @@ const GIT_MESSAGE =
   'Writing inside a .git folder is not allowed: git runs hooks and settings from there. Let `briefstack scaffold` create ' +
   'the repository and `briefstack commit` commit it.';
 
+/**
+ * Appended to a denial for a folder outside the allowed ones: how to get it
+ * granted. Without it the main session in the web app asked in plain text
+ * (docs/decisions.md, "check-server-crash: a denied write answered in text").
+ */
+export function grantHint(caller: Caller): string {
+  return caller === 'main'
+    ? ' To write there, ask the user to grant that folder first: call `grant_directory` (MCP server `briefstack-web`) with it ' +
+        'if that tool is among yours, otherwise ask them to run `/add-dir` with it. Never ask for it in plain text when you have ' +
+        '`grant_directory`.'
+    : ' Do not try another path: stop and name the folder in your report, so the main session can ask the user to grant it.';
+}
+
 const redact = (value: string): string => redactSecretLines(value).slice(0, 500);
 
 /** Decides one tool call. Pure apart from reading symlinks on the disk. */
@@ -305,7 +318,7 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
         }
         if (await touchesGitDir(target, pathEnv)) return deny(GIT_MESSAGE, summary);
         if (!(await insideAny(target, roots(), pathEnv))) {
-          return deny('That folder is outside the projects folder and the folders the user granted for this creation.', summary);
+          return deny(`That folder is outside the projects folder and the folders the user granted for this creation.${grantHint(caller)}`, summary);
         }
       }
     }
@@ -329,7 +342,7 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
     if (await touchesGitDir(target, pathEnv)) return deny(GIT_MESSAGE, target);
     if (await insideAny(target, roots(), pathEnv)) return { verdict: 'allow', reason: 'inside an allowed folder' };
     return deny(
-      'Writes are only allowed inside the projects folder, this creation\'s session folder and folders the user granted for it.',
+      `Writes are only allowed inside the projects folder, this creation's session folder and folders the user granted for it.${grantHint(caller)}`,
       target,
     );
   }

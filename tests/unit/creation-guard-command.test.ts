@@ -71,7 +71,10 @@ describe('the command-hook guard', () => {
     expect(await decide(write(path.join(rules.projectsDir, 'app', 'a.txt')))).toEqual({ code: 0 });
     expect(await decide(write(path.join(rules.sessionsDir, SESSION, 'spec.json')))).toEqual({ code: 0 });
     expect(await decide(input('Bash', { command: 'npm run --silent briefstack -- paths --json' }))).toEqual({ code: 0 });
-    expect(await decide(write(path.join(dir, 'outside', 'a.txt')))).toMatchObject({ code: 2, message: expect.stringContaining('Writes are only allowed') });
+    // The hook's message is what the model reads: it must also say how to get the folder granted.
+    const outside = await decide(write(path.join(dir, 'outside', 'a.txt')));
+    expect(outside).toMatchObject({ code: 2, message: expect.stringContaining('Writes are only allowed') });
+    expect(outside.message).toContain('`grant_directory`');
     expect(await decide(input('Bash', { command: 'echo hi > x' }))).toMatchObject({ code: 2 });
     expect(await decide(input('Monitor', { command: 'echo' }))).toMatchObject({ code: 2 });
     expect(await decide(input('WebFetch', { url: 'https://example.com' }))).toMatchObject({ code: 2 });

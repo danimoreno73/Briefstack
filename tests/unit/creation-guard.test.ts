@@ -158,6 +158,23 @@ describe('evaluateToolUse', () => {
       expect(await verdictOf('NotebookEdit', { notebook_path: path.join(outside, 'n.ipynb') })).toBe('allow');
     });
 
+    it('says how to get a folder outside granted: the main session asks, a subagent reports', async () => {
+      const reasonOf = async (who: Partial<GuardInput>, tool = 'Write', toolInput: unknown = { file_path: path.join(outside, 'a.md') }) => {
+        const verdict = await evaluateToolUse(ctx, input(tool, toolInput, who));
+        return verdict.verdict === 'deny' ? verdict.reason : '';
+      };
+      // The main session in the web app asked in plain text instead (check-server-crash, 2026-10-18).
+      const main = await reasonOf({});
+      expect(main).toContain('Writes are only allowed');
+      expect(main).toContain('`grant_directory`');
+      expect(main).toContain('`/add-dir`');
+      const sub = await reasonOf(generator);
+      expect(sub).toContain('main session can ask the user to grant it');
+      expect(sub).not.toContain('grant_directory');
+      const scaffold = await reasonOf(generator, 'Bash', { command: `${CLI} scaffold "x.json" "${slashes(outside)}"` });
+      expect(scaffold).toContain('main session can ask the user to grant it');
+    });
+
     it('denies the repo, the library folder next to it and other sessions', async () => {
       expect(await verdictOf('Write', { file_path: path.join(PACKAGE_ROOT, 'src', 'cli.ts') })).toBe('deny');
       expect(await verdictOf('Write', { file_path: path.join(dir, 'library', 'INDEX.md') })).toBe('deny');

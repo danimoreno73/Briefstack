@@ -57,7 +57,11 @@ The idea, if given: $ARGUMENTS
   changes only through `library add`.
 - **Denied calls.** When a tool call is denied, its message says why: follow
   it. A message saying the user cancelled means close the session as
-  `cancelled`, as above, and stop.
+  `cancelled`, as above, and stop. A write denied because the folder is
+  outside the allowed ones, when the user asked for that folder: in `MODE`
+  web call `grant_directory` with it at once (not a question in text), in
+  `MODE` terminal ask them to run `/add-dir` with it. This holds even before
+  step 0 has run: `grant_directory` among your tools means the web app.
 - **Where answers come from.** Two answers have two sources, and nothing else
   in the flow depends on it. When the tools `approve_spec` and
   `grant_directory` (MCP server `briefstack-web`) are among your tools, the
