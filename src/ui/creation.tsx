@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
+import { CreationSuggestions } from './improve.js';
 import { ApiError, TOKEN_HEADER } from './api.js';
 import { answersFor, defaultSelection, type Selection } from './answers.js';
 import { ConfirmDialog, CopyButton, ErrorBanner, Loader, Markdown, Notice } from './common.js';
@@ -649,6 +650,7 @@ function Result({ state, progress }: { state: CreationState; progress: Progress 
           ))}
         </ul>
       )}
+      <CreationSuggestions creationId={state.id} />
       <div class="actions">
         <a href={routeHash({ page: 'new', id: undefined })}>{t.startAnother}</a>
       </div>

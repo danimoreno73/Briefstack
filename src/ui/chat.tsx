@@ -6,8 +6,10 @@ import { ConfirmDialog, ErrorBanner, Loader, Markdown } from './common.js';
 import { formatWhen } from './format.js';
 import { useApp, useLoad, useSend } from './hooks.js';
 import { parseSse } from './progress.js';
+import { SuggestionList } from './improve.js';
 import { ReplyBox } from './reply.js';
 import { routeHash } from './route.js';
+import type { SuggestionView } from './types.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -154,6 +156,13 @@ function Card({ confirmation, answer }: { confirmation: Confirmation; answer?: (
         </>
       )}
       {card.kind === 'usageProfile' && <p>{t.cardUsageProfile(card.from, card.to, card.toLabel[lang])}</p>}
+      {card.kind === 'prepareImprovement' && (
+        <>
+          <p>{t.cardPrepareImprovement(card.model)}</p>
+          <blockquote data-testid="card-request">{card.request}</blockquote>
+          <p class="muted">{t.cardEvidence(card.sessions.length, card.lessons, card.suggestionId !== undefined)}</p>
+        </>
+      )}
       <p class="chat-card-state" data-testid="card-state">
         {t.cardState(confirmation.state)}
         {confirmation.result !== undefined && `: ${confirmation.result}`}
@@ -211,6 +220,14 @@ function Message({ message, answer }: { message: ChatMessage; answer?: ((id: str
         </li>
       );
     case 'notice':
+      if (message.notice === 'suggestions') {
+        return (
+          <li class="chat-msg chat-notice" data-role="notice" data-notice="suggestions">
+            <p>{t.chatNoticeSuggestions}</p>
+            <SuggestionList suggestions={(message.suggestions ?? []).map((s) => ({ ...s, createdAt: message.ts, params: s.params as SuggestionView['params'] }))} />
+          </li>
+        );
+      }
       return (
         <li class="chat-msg chat-notice" data-role="notice" role="status">
           {message.notice === 'resumeFailed' ? t.chatNoticeResumeFailed : t.chatNoticeSessionError}

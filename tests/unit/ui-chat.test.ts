@@ -21,6 +21,8 @@ describe('chat page data', () => {
     expect(sourceHref({ kind: 'creation', ref: 'c1' })).toBe('#/new/c1');
     expect(sourceHref({ kind: 'usage', ref: 'balanced' })).toBe('#/usage');
     expect(sourceHref({ kind: 'settings', ref: 'settings' })).toBe('#/settings');
+    expect(sourceHref({ kind: 'proposal', ref: 'imp-abcdef-1234' })).toBe('#/improve/imp-abcdef-1234');
+    expect(sourceHref({ kind: 'suggestion', ref: 'sug-1' })).toBe('#/improve');
   });
 
   it('applies messages once each, in order, and updates a message by id', () => {

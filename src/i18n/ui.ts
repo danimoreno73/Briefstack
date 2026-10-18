@@ -416,6 +416,128 @@ export const uiMessages = defineCatalogue({
     cardSkipped: (count: number) => `… ${count} unchanged lines …`,
     cardUsageProfile: (from: string, to: string, label: string) => `Switch the usage profile from ${from} to ${to} (${label}).`,
     cardOpen: 'Open',
+    // Improvements (phase 5).
+    navImprove: 'Improvements',
+    improveTitle: 'Improvements',
+    improveIntro:
+      "briefstack can improve its own creation flow: the agents' and the skill's instructions and the library's templates and rules. A proposal is prepared apart, checked and tested, and changes nothing until you approve it here.",
+    improveSuggestions: 'Suggestions after creations',
+    improveNoSuggestions: 'No suggestions yet. They appear when a creation finishes with something worth improving.',
+    suggestionText: (kind: string, p: { count?: number; outcome?: string; steps?: string[]; tools?: string[] }, target: string): string => {
+      switch (kind) {
+        case 'failure':
+          return `The creation ended ${p.outcome === 'interrupted' ? 'interrupted' : 'failed'}${p.steps?.length ? ` (failed steps: ${p.steps.join(', ')})` : ''}. Look at ${target}.`;
+        case 'textQuestions':
+          return `The creation waited ${p.count ?? 0} time(s) for an answer in plain text, which this page cannot send. ${target} could ask through its tools instead.`;
+        case 'denials':
+          return `The guard denied ${p.count ?? 0} tool call(s) (${(p.tools ?? []).join(', ')}). ${target} could avoid them.`;
+        case 'reviewRounds':
+          return `The review took ${p.count ?? 0} rounds. ${target} could get it right the first time.`;
+        case 'lessons':
+          return `The creation wrote ${p.count ?? 0} new lesson(s). ${target} could turn them into a general rule.`;
+        default:
+          return kind;
+      }
+    },
+    suggestionRequest: (kind: string, text: string): string =>
+      `Improve the creation flow for this case: ${text} Keep the change generic, for any user.${kind === 'lessons' ? ' Use the lessons as evidence.' : ''}`,
+    suggestionPrepare: 'Prepare an improvement',
+    suggestionPrepared: 'Prepared:',
+    suggestionFrom: (idea: string) => `After "${idea}"`,
+    improvePrepareTitle: 'Prepare an improvement',
+    improveRequestLabel: 'What should change?',
+    improveLessonsLabel: 'Use the lessons note as evidence',
+    improveUsesPlan: (model: string) =>
+      `An improvement session runs with ${model} and uses part of your plan. Then the server checks and tests the change; nothing is applied until you approve it.`,
+    improvePrepareButton: 'Prepare',
+    improveRunning: 'An improvement session is running:',
+    improveProposals: 'Proposals',
+    improveNoProposals: 'No proposals yet. Ask for one here or in the chat.',
+    improveHistory: 'Applied improvements',
+    improveNoHistory: 'No improvement has been applied yet.',
+    colRequest: 'Request',
+    colFiles: 'Files',
+    colUpdated: 'Updated',
+    colCommit: 'Commit',
+    openProposal: 'Open',
+    proposalStatus: (status: string): string =>
+      ({
+        preparing: 'Being prepared',
+        verifying: 'Being checked',
+        ready: 'Ready to review',
+        rejected: 'Rejected by the checks',
+        failed: 'Failed',
+        waiting: 'Approved, waiting',
+        applied: 'Applied',
+        revertWaiting: 'Revert waiting',
+        reverted: 'Reverted',
+        discarded: 'Discarded',
+      })[status] ?? status,
+    proposalHeading: (id: string) => `Proposal ${id}`,
+    proposalRequest: 'Request',
+    proposalExpected: 'What should be different',
+    proposalEvidence: 'Evidence',
+    proposalChanges: 'Changes',
+    proposalRationale: 'Why:',
+    proposalNoChanges: 'No file changed.',
+    proposalValidation: 'Checks on the change',
+    proposalValidationOk:
+      'All passed: only allowed files changed, frontmatter and locked blocks kept, no secrets, personal paths or text from your profile.',
+    problemKind: (kind: string): string =>
+      ({
+        forbiddenPath: 'A file an improvement may not change',
+        notModified: 'A file added, deleted or renamed',
+        notText: 'Not plain text',
+        frontmatter: 'Frontmatter changed',
+        locked: 'Locked block touched',
+        secret: 'Looks like a secret',
+        personalPath: 'Personal path',
+        profileText: 'Text from your profile',
+        noChanges: 'Nothing changed',
+        unexplained: 'No rationale given',
+      })[kind] ?? kind,
+    proposalTests: 'Build, lint and tests',
+    testStep: (name: string, ok: boolean, seconds: number) => `${name}: ${ok ? 'passed' : 'failed'} (${seconds} s)`,
+    proposalNotTested: 'Not run: the checks on the change must pass first.',
+    proposalRounds: 'Rounds',
+    roundLine: (n: number, outcome: string | undefined, denials: number) =>
+      `Round ${n}: ${outcome === 'submitted' ? 'proposal handed in' : outcome === 'noProposal' ? 'no proposal handed in' : outcome === 'failed' ? 'failed' : outcome === 'interrupted' ? 'interrupted' : 'running'}${denials > 0 ? `, ${denials} call(s) denied by the guard` : ''}.`,
+    roundFeedback: 'You asked:',
+    proposalPreparing: 'The improvement session is running. This page updates by itself.',
+    proposalVerifying: 'The server is checking and testing the change.',
+    proposalWaiting: (blockers: string) => `Approved. It applies as soon as no creation is running (now: ${blockers}).`,
+    proposalRevertWaitingText: (blockers: string) => `The revert runs as soon as no creation is running (now: ${blockers}).`,
+    proposalApplied: (commit: string) => `Applied as commit ${commit} on your branch. It is not pushed.`,
+    proposalReverted: (commit: string) => `Reverted with commit ${commit}.`,
+    proposalDiscarded: 'Discarded: its branch and worktree were removed.',
+    proposalApprove: 'Approve and apply',
+    proposalApproveTitle: 'Apply this improvement?',
+    proposalApproveBody: 'It becomes one commit on your branch (not pushed). If a creation is running, it waits until none is.',
+    proposalAskChanges: 'Ask for changes',
+    proposalChangesLabel: 'What should be different?',
+    proposalSendChanges: 'Start a new round',
+    proposalDiscard: 'Discard',
+    proposalDiscardTitle: 'Discard this proposal?',
+    proposalDiscardBody: 'Its branch and worktree are removed. Nothing in your repository changes.',
+    proposalRevert: 'Revert',
+    proposalRevertTitle: 'Revert this improvement?',
+    proposalRevertBody: 'A revert commit undoes its changes and keeps later ones. If a creation is running, it waits until none is.',
+    proposalCheck: 'Run the real check',
+    proposalCheckTitle: (name: string) => `Real check: ${name}`,
+    realCheckState: (state: string) => ({ running: 'Running…', passed: 'Passed', failed: 'Failed' })[state] ?? state,
+    cardPrepareImprovement: (model: string) =>
+      `Prepare an improvement of briefstack's creation flow. An improvement session runs with ${model} and uses part of your plan; you review and approve the result on its page:`,
+    cardEvidence: (sessions: number, lessons: boolean, suggestion: boolean) =>
+      `Evidence: ${[sessions > 0 ? `${sessions} session(s)` : '', lessons ? 'the lessons note' : '', suggestion ? 'a suggestion' : ''].filter(Boolean).join(', ') || 'none'}.`,
+    chatNoticeSuggestions: 'A creation finished. Suggestions to improve the flow:',
+    creationSuggestions: 'What could be improved',
+    errImproveBusy: 'An improvement session is already running. Wait for it to finish.',
+    errImproveConflict: (file: string) => `${file} changed since the proposal was prepared, in the same lines. Ask for changes to prepare a new round.`,
+    errImproveUncommitted: (file: string) => `${file} has changes that are not committed in the part the proposal changes. Commit or discard them first.`,
+    errImproveNotOnBranch: (branch: string) => `Your repository is not on ${branch}, where the proposal was prepared. Switch back and try again.`,
+    errImproveMoved: 'The branch moved while the change was being applied. Nothing changed; try again.',
+    errImproveNoRepo: 'The briefstack repository cannot take an improvement now (it must be a git repository on a branch, outside the briefstack home).',
+    errImproveWrongState: 'The proposal cannot do that in its current state. Reload the page.',
   },
   es: {
     title: 'briefstack',
@@ -830,5 +952,127 @@ export const uiMessages = defineCatalogue({
     cardSkipped: (count: number) => `… ${count} líneas sin cambios …`,
     cardUsageProfile: (from: string, to: string, label: string) => `Cambiar el perfil de uso de ${from} a ${to} (${label}).`,
     cardOpen: 'Abrir',
+    // Mejoras (fase 5).
+    navImprove: 'Mejoras',
+    improveTitle: 'Mejoras',
+    improveIntro:
+      'briefstack puede mejorar su propio flujo de creación: las instrucciones de los agentes y del skill y las plantillas y reglas de la biblioteca. Cada propuesta se prepara aparte, se comprueba y se prueba, y no cambia nada hasta que la apruebas aquí.',
+    improveSuggestions: 'Sugerencias tras las creaciones',
+    improveNoSuggestions: 'Aún no hay sugerencias. Aparecen cuando una creación termina con algo que merece mejorarse.',
+    suggestionText: (kind: string, p: { count?: number; outcome?: string; steps?: string[]; tools?: string[] }, target: string): string => {
+      switch (kind) {
+        case 'failure':
+          return `La creación terminó ${p.outcome === 'interrupted' ? 'interrumpida' : 'con fallo'}${p.steps?.length ? ` (pasos fallidos: ${p.steps.join(', ')})` : ''}. Revisa ${target}.`;
+        case 'textQuestions':
+          return `La creación esperó ${p.count ?? 0} vez/veces una respuesta en texto, que esta página no puede enviar. ${target} podría preguntar con sus herramientas.`;
+        case 'denials':
+          return `El guardián denegó ${p.count ?? 0} llamada(s) (${(p.tools ?? []).join(', ')}). ${target} podría evitarlas.`;
+        case 'reviewRounds':
+          return `La revisión necesitó ${p.count ?? 0} rondas. ${target} podría acertar a la primera.`;
+        case 'lessons':
+          return `La creación escribió ${p.count ?? 0} lección(es) nueva(s). ${target} podría convertirlas en una regla general.`;
+        default:
+          return kind;
+      }
+    },
+    suggestionRequest: (kind: string, text: string): string =>
+      `Mejora el flujo de creación para este caso: ${text} Mantén el cambio genérico, válido para cualquier usuario.${kind === 'lessons' ? ' Usa las lecciones como evidencia.' : ''}`,
+    suggestionPrepare: 'Preparar una mejora',
+    suggestionPrepared: 'Preparada:',
+    suggestionFrom: (idea: string) => `Tras «${idea}»`,
+    improvePrepareTitle: 'Preparar una mejora',
+    improveRequestLabel: '¿Qué debería cambiar?',
+    improveLessonsLabel: 'Usar la nota de lecciones como evidencia',
+    improveUsesPlan: (model: string) =>
+      `Se ejecuta una sesión de mejora con ${model} que consume parte de tu plan. Después el servidor comprueba y prueba el cambio; no se aplica nada hasta que lo apruebes.`,
+    improvePrepareButton: 'Preparar',
+    improveRunning: 'Hay una sesión de mejora en marcha:',
+    improveProposals: 'Propuestas',
+    improveNoProposals: 'Aún no hay propuestas. Pide una aquí o en el chat.',
+    improveHistory: 'Mejoras aplicadas',
+    improveNoHistory: 'Todavía no se ha aplicado ninguna mejora.',
+    colRequest: 'Petición',
+    colFiles: 'Archivos',
+    colUpdated: 'Actualizada',
+    colCommit: 'Commit',
+    openProposal: 'Abrir',
+    proposalStatus: (status: string): string =>
+      ({
+        preparing: 'Preparándose',
+        verifying: 'Comprobándose',
+        ready: 'Lista para revisar',
+        rejected: 'Rechazada por las comprobaciones',
+        failed: 'Fallida',
+        waiting: 'Aprobada, en espera',
+        applied: 'Aplicada',
+        revertWaiting: 'Reversión en espera',
+        reverted: 'Revertida',
+        discarded: 'Descartada',
+      })[status] ?? status,
+    proposalHeading: (id: string) => `Propuesta ${id}`,
+    proposalRequest: 'Petición',
+    proposalExpected: 'Qué debería cambiar',
+    proposalEvidence: 'Evidencia',
+    proposalChanges: 'Cambios',
+    proposalRationale: 'Por qué:',
+    proposalNoChanges: 'No cambió ningún archivo.',
+    proposalValidation: 'Comprobaciones del cambio',
+    proposalValidationOk:
+      'Todo correcto: solo cambian archivos permitidos, se mantienen el frontmatter y los bloques bloqueados, y no hay secretos, rutas personales ni texto de tu perfil.',
+    problemKind: (kind: string): string =>
+      ({
+        forbiddenPath: 'Un archivo que una mejora no puede cambiar',
+        notModified: 'Un archivo añadido, borrado o renombrado',
+        notText: 'No es texto plano',
+        frontmatter: 'Frontmatter cambiado',
+        locked: 'Bloque bloqueado tocado',
+        secret: 'Parece un secreto',
+        personalPath: 'Ruta personal',
+        profileText: 'Texto de tu perfil',
+        noChanges: 'No cambió nada',
+        unexplained: 'Sin justificación',
+      })[kind] ?? kind,
+    proposalTests: 'Build, lint y tests',
+    testStep: (name: string, ok: boolean, seconds: number) => `${name}: ${ok ? 'correcto' : 'fallido'} (${seconds} s)`,
+    proposalNotTested: 'No se ejecutaron: antes deben pasar las comprobaciones del cambio.',
+    proposalRounds: 'Rondas',
+    roundLine: (n: number, outcome: string | undefined, denials: number) =>
+      `Ronda ${n}: ${outcome === 'submitted' ? 'propuesta entregada' : outcome === 'noProposal' ? 'sin propuesta' : outcome === 'failed' ? 'fallida' : outcome === 'interrupted' ? 'interrumpida' : 'en marcha'}${denials > 0 ? `, ${denials} llamada(s) denegada(s) por el guardián` : ''}.`,
+    roundFeedback: 'Pediste:',
+    proposalPreparing: 'La sesión de mejora está en marcha. Esta página se actualiza sola.',
+    proposalVerifying: 'El servidor está comprobando y probando el cambio.',
+    proposalWaiting: (blockers: string) => `Aprobada. Se aplica en cuanto no haya ninguna creación en marcha (ahora: ${blockers}).`,
+    proposalRevertWaitingText: (blockers: string) => `La reversión se hace en cuanto no haya ninguna creación en marcha (ahora: ${blockers}).`,
+    proposalApplied: (commit: string) => `Aplicada como commit ${commit} en tu rama. No se ha hecho push.`,
+    proposalReverted: (commit: string) => `Revertida con el commit ${commit}.`,
+    proposalDiscarded: 'Descartada: se borraron su rama y su worktree.',
+    proposalApprove: 'Aprobar y aplicar',
+    proposalApproveTitle: '¿Aplicar esta mejora?',
+    proposalApproveBody: 'Se convierte en un commit en tu rama (sin push). Si hay una creación en marcha, espera a que no haya ninguna.',
+    proposalAskChanges: 'Pedir cambios',
+    proposalChangesLabel: '¿Qué debería ser distinto?',
+    proposalSendChanges: 'Empezar otra ronda',
+    proposalDiscard: 'Descartar',
+    proposalDiscardTitle: '¿Descartar esta propuesta?',
+    proposalDiscardBody: 'Se borran su rama y su worktree. No cambia nada en tu repositorio.',
+    proposalRevert: 'Revertir',
+    proposalRevertTitle: '¿Revertir esta mejora?',
+    proposalRevertBody: 'Un commit de reversión deshace sus cambios y mantiene los posteriores. Si hay una creación en marcha, espera a que no haya ninguna.',
+    proposalCheck: 'Ejecutar la comprobación real',
+    proposalCheckTitle: (name: string) => `Comprobación real: ${name}`,
+    realCheckState: (state: string) => ({ running: 'En marcha…', passed: 'Correcta', failed: 'Fallida' })[state] ?? state,
+    cardPrepareImprovement: (model: string) =>
+      `Preparar una mejora del flujo de creación de briefstack. Se ejecuta una sesión de mejora con ${model} que consume parte de tu plan; revisas y apruebas el resultado en su página:`,
+    cardEvidence: (sessions: number, lessons: boolean, suggestion: boolean) =>
+      `Evidencia: ${[sessions > 0 ? `${sessions} sesión(es)` : '', lessons ? 'la nota de lecciones' : '', suggestion ? 'una sugerencia' : ''].filter(Boolean).join(', ') || 'ninguna'}.`,
+    chatNoticeSuggestions: 'Ha terminado una creación. Sugerencias para mejorar el flujo:',
+    creationSuggestions: 'Qué se podría mejorar',
+    errImproveBusy: 'Ya hay una sesión de mejora en marcha. Espera a que termine.',
+    errImproveConflict: (file: string) => `${file} cambió desde que se preparó la propuesta, en las mismas líneas. Pide cambios para preparar otra ronda.`,
+    errImproveUncommitted: (file: string) => `${file} tiene cambios sin commit en la parte que cambia la propuesta. Haz commit o descártalos antes.`,
+    errImproveNotOnBranch: (branch: string) => `Tu repositorio no está en ${branch}, donde se preparó la propuesta. Vuelve a esa rama e inténtalo de nuevo.`,
+    errImproveMoved: 'La rama se movió mientras se aplicaba el cambio. No cambió nada; inténtalo de nuevo.',
+    errImproveNoRepo: 'El repositorio de briefstack no puede recibir una mejora ahora (debe ser un repositorio git en una rama, fuera del home de briefstack).',
+    errImproveWrongState: 'La propuesta no puede hacer eso en su estado actual. Recarga la página.',
   },
 });

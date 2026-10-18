@@ -45,6 +45,20 @@ export function describeError(error: unknown, t: Messages): string {
       return t.limitMessage;
     case 'library.busy':
       return t.errLibraryBusy;
+    case 'improve.busy':
+      return t.errImproveBusy;
+    case 'improve.conflict':
+      return t.errImproveConflict(String(error.params.file));
+    case 'improve.uncommitted':
+      return t.errImproveUncommitted(String(error.params.file));
+    case 'improve.notOnBranch':
+      return t.errImproveNotOnBranch(String(error.params.branch));
+    case 'improve.moved':
+      return t.errImproveMoved;
+    case 'improve.noRepo':
+      return t.errImproveNoRepo;
+    case 'improve.wrongState':
+      return t.errImproveWrongState;
     default:
       return t.errGeneric(error.code);
   }

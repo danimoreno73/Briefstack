@@ -6,6 +6,7 @@ import { ApiError, api, takeToken } from './api.js';
 import { NewProjectPage } from './creation.js';
 import { CreationsPage } from './creations.js';
 import { ChatDrawer, ChatPage } from './chat.js';
+import { ImprovePage } from './improve.js';
 import { AppCtx, type AppContext } from './hooks.js';
 import { LibraryView } from './library.js';
 import { SessionPanelPage } from './panel.js';
@@ -18,11 +19,12 @@ import { UsageView } from './usage.js';
 
 type Gate = 'connecting' | 'ready' | 'noToken' | 'rejected' | 'unreachable';
 
-const NAV: { page: Route['page']; route: Route; label: 'navProjects' | 'navNew' | 'navCreations' | 'navChat' | 'navLibrary' | 'navUsage' | 'navSettings' }[] = [
+const NAV: { page: Route['page']; route: Route; label: 'navProjects' | 'navNew' | 'navCreations' | 'navChat' | 'navImprove' | 'navLibrary' | 'navUsage' | 'navSettings' }[] = [
   { page: 'projects', route: { page: 'projects' }, label: 'navProjects' },
   { page: 'new', route: { page: 'new', id: undefined }, label: 'navNew' },
   { page: 'creations', route: { page: 'creations' }, label: 'navCreations' },
   { page: 'chat', route: { page: 'chat', thread: undefined }, label: 'navChat' },
+  { page: 'improve', route: { page: 'improve', id: undefined }, label: 'navImprove' },
   { page: 'library', route: { page: 'library', section: undefined, name: undefined }, label: 'navLibrary' },
   { page: 'usage', route: { page: 'usage' }, label: 'navUsage' },
   { page: 'settings', route: { page: 'settings' }, label: 'navSettings' },
@@ -59,6 +61,8 @@ function Page({ route }: { route: Route }) {
       return <UsageView />;
     case 'settings':
       return <SettingsPage />;
+    case 'improve':
+      return <ImprovePage id={route.id} />;
   }
 }
 

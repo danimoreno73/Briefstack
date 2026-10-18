@@ -12,7 +12,9 @@ export type Route =
   | { page: 'session'; id: string }
   | { page: 'library'; section: string | undefined; name: string | undefined }
   | { page: 'usage' }
-  | { page: 'settings' };
+  | { page: 'settings' }
+  /** Improvements of the creation flow; with `id`, one proposal. */
+  | { page: 'improve'; id: string | undefined };
 
 export const DEFAULT_ROUTE: Route = { page: 'projects' };
 
@@ -47,6 +49,8 @@ export function parseRoute(hash: string): Route {
       return { page: 'usage' };
     case 'settings':
       return { page: 'settings' };
+    case 'improve':
+      return { page: 'improve', id: first };
     default:
       return DEFAULT_ROUTE;
   }
@@ -77,5 +81,7 @@ export function routeHash(route: Route): string {
       return '#/usage';
     case 'settings':
       return '#/settings';
+    case 'improve':
+      return route.id === undefined ? '#/improve' : `#/improve/${enc(route.id)}`;
   }
 }

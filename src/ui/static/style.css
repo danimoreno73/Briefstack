@@ -700,3 +700,43 @@ nav a {
   align-items: center;
   margin-bottom: 0.5rem;
 }
+
+/* Improvements (phase 5). */
+.suggestions {
+  list-style: none;
+  padding: 0;
+}
+
+.suggestions > li {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.improve-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.improve-form label.inline {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.improve-file {
+  margin-bottom: 1rem;
+  min-width: 0;
+}
+
+.improve-file h3 code {
+  overflow-wrap: anywhere;
+}
+
+.tail {
+  max-height: 14rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 0.85rem;
+}

@@ -198,3 +198,68 @@ export interface SpecView {
     Record<'name' | 'slug' | 'summary' | 'type' | 'target' | 'targetChosenBy' | 'targetReason' | 'profile' | 'language', string>
   > | null;
 }
+
+/** Improvements (phase 5), as `/api/improve` sends them (docs/api.md). */
+export interface SuggestionView {
+  id: string;
+  kind: string;
+  creationId: string;
+  sessionId?: string;
+  idea: string;
+  createdAt: string;
+  target: string;
+  params: { count?: number; outcome?: string; steps?: string[]; tools?: string[]; lines?: string[] };
+  proposalId?: string;
+}
+
+export interface ProposalSummaryView {
+  id: string;
+  status: string;
+  title?: string;
+  request: string;
+  createdAt: string;
+  updatedAt: string;
+  files: string[];
+  appliedCommit?: string;
+  revertCommit?: string;
+}
+
+export interface ImproveOverview {
+  active?: string;
+  proposals: ProposalSummaryView[];
+  suggestions: SuggestionView[];
+  blockers: string[];
+}
+
+export interface DiffHunkView {
+  skipped: number;
+  lines: { op: ' ' | '+' | '-'; text: string }[];
+}
+
+export interface ProposalDetail {
+  id: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  request: string;
+  suggestionId?: string;
+  title?: string;
+  expectedEffect?: string;
+  evidence: { kind: string; ref: string; file: string }[];
+  baseBranch: string;
+  rounds: { n: number; feedback?: string; startedAt: string; endedAt?: string; outcome?: string; denials: { tool: string; reason: string }[]; text?: string; error?: string }[];
+  files: { path: string; kind: string; status: string; hunks: DiffHunkView[]; added: number; removed: number; rationale?: string; evidence?: string[] }[];
+  validation?: { ok: boolean; problems: { kind: string; file?: string; line?: number; detail: string }[] };
+  checks?: { ok: boolean; steps: { name: string; ok: boolean; ms: number; tail: string }[]; error?: string };
+  realCheck?: { name: string; state: string; startedAt: string; endedAt?: string; output?: string };
+  offeredCheck?: string;
+  appliedCommit?: string;
+  revertCommit?: string;
+  error?: string;
+}
+
+export interface ProposalPage {
+  proposal: ProposalDetail;
+  blockers: string[];
+  check?: { name: string; script: string; cost: { en: string; es: string } };
+}
