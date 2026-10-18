@@ -10,7 +10,7 @@ export interface SplitText {
   body: string;
 }
 
-const HEAD_RE = /^(?:FEFF)?---[ \t]*\r?\n(?:[^]*?\r?\n)?---[ \t]*(?:\r?\n|$)/;
+const HEAD_RE = /^(?:\u{FEFF})?---[ \t]*\r?\n(?:[^]*?\r?\n)?---[ \t]*(?:\r?\n|$)/u;
 
 export function splitFrontmatter(text: string): SplitText {
   const match = HEAD_RE.exec(text);

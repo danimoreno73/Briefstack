@@ -60,6 +60,9 @@ describe('splitFrontmatter', () => {
   it('keeps CRLF and a file without frontmatter', () => {
     expect(splitFrontmatter('---\r\na: 1\r\n---\r\nx\r\n')).toEqual({ head: '---\r\na: 1\r\n---\r\n', body: 'x\r\n' });
     expect(splitFrontmatter('# Title\n')).toEqual({ head: '', body: '# Title\n' });
+    const bom = String.fromCharCode(0xfeff);
+    expect(splitFrontmatter(`${bom}---\na: 1\n---\nx\n`)).toEqual({ head: `${bom}---\na: 1\n---\n`, body: 'x\n' });
+    expect(splitFrontmatter('FEFF---\na: 1\n---\nx\n').head).toBe('');
   });
 
   it('tells text from binary', () => {
