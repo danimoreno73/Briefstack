@@ -2221,3 +2221,9 @@ Decisions:
   then sets `BRIEFSTACK_HOME` in `process.env` to the temp home, so default
   paths and every child use it. This replaces "under the system temp
   folder" in "What each real script touches" above.
+- The scripts' answerer (`autoAnswer` in `scripts/real/common.ts`) never
+  answers with a path outside the sandbox's projects folder. A question
+  whose options name a path gets the first option whose paths are all
+  inside it; with none, or when the question text names a path outside,
+  the script cancels that creation. A spec is approved only when its
+  summary names no path outside; a folder grant is accepted only inside.

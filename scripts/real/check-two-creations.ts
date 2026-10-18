@@ -10,10 +10,13 @@
 // says to run `npm run briefstack -- usage set saver` first (and
 // `usage set <your profile>` afterwards to go back).
 //
-// This script plays the browser for both: every question gets its first
-// (recommended) option, the spec is approved, a folder grant and any
-// permission request are refused, and a turn that ends with nothing asked
-// gets the reply "Go on with the recommended options.". Expected:
+// This script plays the browser for both (`autoAnswer` in common.ts): every
+// question gets its first (recommended) option, except that a folder is only
+// ever chosen inside the temp projects folder (no such option: the creation
+// is cancelled); the spec is approved when its summary names no folder
+// outside it; a folder grant is accepted only inside it; permission requests
+// are refused; and a turn that ends with nothing asked gets the reply
+// "Go on with the recommended options.". Expected:
 //   1. both creations end `completed`;
 //   2. both projects are in the temp projects folder, in different folders;
 //   3. the temp library has both project notes and a clean git tree (the
@@ -34,7 +37,7 @@ import { parseFrontmatter } from '../../src/frontmatter/index.js';
 import { listProjects } from '../../src/library/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { agentSetting, loadUsageProfiles, baseProfilesFile } from '../../src/usage/index.js';
-import { claudeExecutable, readPlanUsage, report, requireConfirmation, sandbox, sandboxLibrary, show } from './common.js';
+import { autoAnswer, claudeExecutable, readPlanUsage, report, requireConfirmation, sandbox, sandboxLibrary, show } from './common.js';
 
 requireConfirmation('Run two short real creations at the same time on the saver profile, in a temp home.');
 
@@ -85,16 +88,15 @@ try {
       const pending = state.pending;
       if (pending !== undefined && !answered.has(`${state.id}:${pending.id}`)) {
         answered.add(`${state.id}:${pending.id}`);
-        const answer =
-          pending.kind === 'question'
-            ? Object.fromEntries(pending.payload.questions.map((q) => [q.question, q.options[0]?.label ?? 'Yes']))
-            : pending.kind === 'spec'
-              ? { decision: 'approve' }
-              : pending.kind === 'permission'
-                ? 'deny'
-                : false;
-        console.log(`${state.id.slice(0, 8)} ${pending.kind} → ${JSON.stringify(answer).slice(0, 120)}`);
-        manager.answer(state.id, pending.id, answer);
+        const summary = pending.kind === 'spec' ? await manager.readSpec(state.id).then((view) => view.summary, () => null) : undefined;
+        const decision = autoAnswer(pending, box.projects, { summary });
+        if (decision.kind === 'cancel') {
+          console.log(`${state.id.slice(0, 8)} ${pending.kind} → cancel: ${decision.reason.slice(0, 160)}`);
+          manager.cancel(state.id);
+          continue;
+        }
+        console.log(`${state.id.slice(0, 8)} ${pending.kind} → ${JSON.stringify(decision.answer).slice(0, 120)}`);
+        manager.answer(state.id, pending.id, decision.answer);
       } else if (pending === undefined && state.awaitingReply !== undefined && !answered.has(`${state.id}:reply:${state.awaitingReply.at}`)) {
         answered.add(`${state.id}:reply:${state.awaitingReply.at}`);
         console.log(`${state.id.slice(0, 8)} reply`);

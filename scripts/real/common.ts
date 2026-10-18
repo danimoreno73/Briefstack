@@ -23,6 +23,7 @@ import {
   updateConfig,
   type PathEnv,
 } from '../../src/config/index.js';
+import type { Pending } from '../../src/creation/manager.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { protectedDirs, realpathNearest } from '../../src/scaffold/outputDir.js';
 import { findClaudeExecutable } from '../../src/creation/claudeBinary.js';
@@ -277,6 +278,62 @@ export async function sandboxLibrary(box: Sandbox): Promise<PathEnv> {
     pathApi: path,
     caseInsensitive: process.platform !== 'linux',
   };
+}
+
+// Absolute paths in free text: a drive (`C:\`, `C:/`), a UNC share, `~/`, or a
+// POSIX root that does not continue a word, a number or a URL scheme.
+const PATH_PATTERN = /(?:(?<!\w)[A-Za-z]:[\\/]|\\\\|~[\\/]|(?<![\w.:~/\\])\/(?=[^\s/]))[^\s"'`<>|*?,;()[\]{}]*/g;
+
+/** The absolute paths `text` mentions, without trailing punctuation. */
+export function mentionedPaths(text: string): string[] {
+  return [...text.matchAll(PATH_PATTERN)].map((match) => match[0].replace(/[.:!]+$/, '')).filter((found) => found !== '');
+}
+
+/** Whether every path `text` mentions is inside `dir` (true when it mentions none). `~` paths never are. */
+export function pathsInside(text: string, dir: string, style: Pick<PathEnv, 'pathApi' | 'caseInsensitive'>): boolean {
+  return mentionedPaths(text).every((found) => !found.startsWith('~') && isPathInside(style.pathApi.resolve(found), dir, style));
+}
+
+export type AutoAnswer = { kind: 'answer'; answer: unknown } | { kind: 'cancel'; reason: string };
+
+/**
+ * What the scripts answer for the browser. Never a path outside `root` (the
+ * sandbox's projects folder): a question that names a path gets the first
+ * option whose paths are all inside it, and when there is none (or the
+ * question itself names a path outside) the creation is cancelled. A spec is
+ * approved only when its summary names no path outside `root`; a folder
+ * grant only inside it. Permissions are always denied.
+ */
+export function autoAnswer(
+  pending: Pending,
+  root: string,
+  extra: { summary?: string | null | undefined; style?: Pick<PathEnv, 'pathApi' | 'caseInsensitive'> } = {},
+): AutoAnswer {
+  const style = extra.style ?? systemPathEnv();
+  switch (pending.kind) {
+    case 'question': {
+      const answers: Record<string, string> = {};
+      for (const q of pending.payload.questions) {
+        if (!pathsInside(`${q.question} ${q.header}`, root, style)) return { kind: 'cancel', reason: `the question names a folder outside the sandbox: ${q.question}` };
+        const text = (option: { label: string; description: string }) => `${option.label} ${option.description}`;
+        const namesPath = q.options.some((option) => mentionedPaths(text(option)).length > 0);
+        const pick = namesPath
+          ? q.options.find((option) => mentionedPaths(text(option)).length > 0 && pathsInside(text(option), root, style))
+          : q.options[0];
+        if (pick === undefined) return { kind: 'cancel', reason: `no option of "${q.question}" is a folder inside the sandbox` };
+        answers[q.question] = pick.label;
+      }
+      return { kind: 'answer', answer: answers };
+    }
+    case 'spec':
+      if (extra.summary === undefined || extra.summary === null) return { kind: 'cancel', reason: 'the spec summary could not be read' };
+      if (!pathsInside(extra.summary, root, style)) return { kind: 'cancel', reason: 'the spec summary names a folder outside the sandbox' };
+      return { kind: 'answer', answer: { decision: 'approve' } };
+    case 'grant':
+      return { kind: 'answer', answer: isPathInside(style.pathApi.resolve(pending.payload.dir), root, style) };
+    case 'permission':
+      return { kind: 'answer', answer: 'deny' };
+  }
 }
 
 /** The line the interviewer check asks for at the end of the report. */

@@ -4,9 +4,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { isPathInside, resolveHome, type PathEnv } from '../../src/config/index.js';
 import { cleanEnvironment } from '../../src/creation/sdkRunner.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
+import type { Pending } from '../../src/creation/manager.js';
 import {
   GIT_STATUS_ARGS,
+  autoAnswer,
   effortRecorder,
+  mentionedPaths,
   onlyThisCommand,
   parseInterviewerTarget,
   sandbox,
@@ -87,6 +90,60 @@ describe('sandbox: a work folder outside the protected folders, and the temp hom
     const pathEnv: PathEnv = { env: {}, homedir: 'C:\\Users\\ana', pathApi: path.win32, caseInsensitive: true };
     expect(workRootCandidates(pathEnv, 'C:\\Users\\ana\\AppData\\Local\\Temp')).toEqual(['C:\\Users\\ana\\AppData\\Local\\Temp', 'C:\\Users\\ana\\.briefstack-real']);
     expect(workRootCandidates({ ...pathEnv, env: { BRIEFSTACK_REAL_WORKDIR: 'D:\\scratch' } })).toEqual(['D:\\scratch']);
+  });
+});
+
+describe('autoAnswer: the scripts never answer with a folder outside the sandbox', () => {
+  const win = { pathApi: path.win32, caseInsensitive: true };
+  const posix = { pathApi: path.posix, caseInsensitive: false };
+  const root = 'C:\\work\\briefstack-real-x\\projects';
+  const question = (text: string, labels: string[]): Pending => ({
+    id: 'p1',
+    kind: 'question',
+    payload: { questions: [{ question: text, header: '', multiSelect: false, options: labels.map((label) => ({ label, description: '' })) }] },
+  });
+
+  it('finds drive, UNC, home and POSIX paths, and not slashes inside words, numbers or URLs', () => {
+    expect(mentionedPaths('Create it in C:/Users/ana/briefstack-projects/packing (Recommended).')).toEqual(['C:/Users/ana/briefstack-projects/packing']);
+    expect(mentionedPaths('at \\\\server\\share\\p, or ~/p, or /home/ana/p.')).toEqual(['\\\\server\\share\\p', '~/p', '/home/ana/p']);
+    expect(mentionedPaths('Markdown and/or text, 1/2 page, see https://example.com/a, a / b')).toEqual([]);
+  });
+
+  it('cancels when no option is a folder inside the sandbox, as in the failed run', () => {
+    const asked = question('Where should the project be created?', ['C:/Users/ana/briefstack-projects/packing-checklist', 'C:/Users/ana/packing-checklist']);
+    expect(autoAnswer(asked, root, { style: win })).toMatchObject({ kind: 'cancel' });
+  });
+
+  it('picks the first option inside the sandbox, even when it is not the first one', () => {
+    const asked = question('Where?', ['C:/Users/ana/briefstack-projects/packing', `${root}\\packing`, 'Somewhere else']);
+    expect(autoAnswer(asked, root, { style: win })).toEqual({ kind: 'answer', answer: { 'Where?': `${root}\\packing` } });
+    // Case and slashes do not matter on Windows.
+    const mixed = question('Where?', ['c:/WORK/briefstack-real-x/projects/packing']);
+    expect(autoAnswer(mixed, root, { style: win })).toMatchObject({ kind: 'answer' });
+  });
+
+  it('takes the first option of a question that names no folder, and cancels a yes/no about a folder outside', () => {
+    expect(autoAnswer(question('Which format?', ['Markdown', 'Plain text']), root, { style: win })).toEqual({ kind: 'answer', answer: { 'Which format?': 'Markdown' } });
+    expect(autoAnswer(question('Create it in C:/Users/ana/p?', ['Yes', 'No']), root, { style: win })).toMatchObject({ kind: 'cancel' });
+    expect(autoAnswer(question('Create it in ~/p?', ['Yes', 'No']), '/tmp/box/projects', { style: posix })).toMatchObject({ kind: 'cancel' });
+  });
+
+  it('approves a spec only when its summary names no folder outside, grants only inside, and denies permissions', () => {
+    const spec: Pending = { id: 'p2', kind: 'spec', payload: { specFile: 's', summaryFile: 'm' } };
+    expect(autoAnswer(spec, root, { style: win, summary: `Folder: ${root}\\packing` })).toEqual({ kind: 'answer', answer: { decision: 'approve' } });
+    expect(autoAnswer(spec, root, { style: win, summary: 'Folder: D:/projects/packing' })).toMatchObject({ kind: 'cancel' });
+    expect(autoAnswer(spec, root, { style: win, summary: null })).toMatchObject({ kind: 'cancel' });
+    const grant = (dir: string): Pending => ({ id: 'p3', kind: 'grant', payload: { dir } });
+    expect(autoAnswer(grant(`${root}\\packing`), root, { style: win })).toEqual({ kind: 'answer', answer: true });
+    expect(autoAnswer(grant('C:\\Users\\ana\\briefstack-projects\\packing'), root, { style: win })).toEqual({ kind: 'answer', answer: false });
+    expect(autoAnswer({ id: 'p4', kind: 'permission', payload: { toolName: 'Bash', summary: 'x' } }, root, { style: win })).toEqual({ kind: 'answer', answer: 'deny' });
+  });
+
+  it('is what the two-creations check answers with, and a cancel cancels that creation', async () => {
+    const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-two-creations.ts'), 'utf8');
+    expect(script).toContain('autoAnswer(pending, box.projects, { summary })');
+    expect(script).toContain('manager.cancel(state.id)');
+    expect(script).not.toContain('q.options[0]');
   });
 });
 
