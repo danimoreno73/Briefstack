@@ -89,6 +89,7 @@ export interface ErrorParams {
   'improve.notOnBranch': { branch: string; current: string };
   'improve.uncommitted': { file: string };
   'improve.conflict': { file: string };
+  'improve.baseChanged': { file: string; branch: string };
   'improve.moved': Record<string, never>;
   'improve.noCheck': { id: string };
   'improve.checkBusy': { id: string };

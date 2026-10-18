@@ -179,16 +179,35 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     expect(await revParse(repo, 'HEAD^')).toBe(before);
   });
 
-  it('refuses the approval when master changed the same lines, and keeps it ready', async () => {
-    const { manager: m } = await open({ rounds: [{ edits: [researcherEdit], submission: submission([RESEARCHER]) }] });
+  it('refuses the approval when master changed the file, even in other lines, and a new round starts from the current master', async () => {
+    const { manager: m, verifier } = await open({
+      rounds: [
+        { edits: [researcherEdit], submission: submission([RESEARCHER]) },
+        { edits: [], submission: submission([RESEARCHER], 'Shorter reports, again') },
+      ],
+    });
     const { id } = await m.prepare('Shorter reports.');
     await settled(id);
-    await write(RESEARCHER, (await read(RESEARCHER)).replace('Never fill a gap with a guess.', 'Never guess.'));
+    await write(RESEARCHER, (await read(RESEARCHER)).replace('Do not download or run anything.', 'Never download or run anything.'));
     await commitAll('hand edit');
-    expect(await codeOf(m.approve(id))).toBe('improve.conflict');
-    const view = await m.get(id);
-    expect(view.status).toBe('ready');
-    expect(view.error).toContain(RESEARCHER);
+    const tip = await revParse(repo, 'HEAD');
+    expect(await codeOf(m.approve(id))).toBe('improve.baseChanged');
+    expect(await revParse(repo, 'HEAD')).toBe(tip);
+    const refused = await m.get(id);
+    expect(refused.status).toBe('ready');
+    expect(refused.error).toContain(RESEARCHER);
+
+    await m.askChanges(id, 'Prepare it again on the current branch.');
+    const again = await settled(id);
+    expect(again.status).toBe('ready');
+    expect(again.baseCommit).toBe(tip);
+    expect(verifier.calls).toHaveLength(2);
+    expect(again.files[0]?.base).toContain('Never download or run anything.');
+    await m.approve(id);
+    expect(await revParse(repo, 'HEAD^')).toBe(tip);
+    const applied = await read(RESEARCHER);
+    expect(applied).toContain('Keep the report under one page.');
+    expect(applied).toContain('Never download or run anything.');
   });
 
   it('rejects a change to a locked block, a forbidden path, a new file and personal data, without testing', async () => {

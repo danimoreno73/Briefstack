@@ -13,6 +13,7 @@ import {
   ignoredFiles,
   linkNodeModules,
   mergeText,
+  moveWorktree,
   removeWorktree,
   revertChangesOf,
   revParse,
@@ -196,6 +197,49 @@ describe('applyChanges', () => {
     expect(merged).toContain('Line 8, by hand, of');
     const refused = await applyChanges(repo, 'master', [change(BODY.replace('Line 8 of', 'Line 8, mine, of'), base)], 'Apply p3');
     expect(refused).toEqual({ ok: false, reason: 'conflict', path: AGENT });
+  });
+
+  it('refuses, when strict, a file the branch changed since the base, even in other lines; a frontmatter change alone is fine', async () => {
+    const base = head('opus') + BODY;
+    const before = await revParse(repo, 'HEAD');
+    await write(AGENT, head('sonnet') + BODY);
+    await commitAll('usage set');
+    const fine = await applyChanges(repo, 'master', [change(BODY.replace('Line 2 of', 'Line 2, better, of'), base)], 'Apply p4', { strict: true });
+    expect(fine.ok).toBe(true);
+    await write(AGENT, head('sonnet') + BODY.replace('Line 2 of', 'Line 2, better, of').replace('Line 8 of', 'Line 8, by hand, of'));
+    await commitAll('hand edit');
+    const tip = await revParse(repo, 'HEAD');
+    const refused = await applyChanges(repo, 'master', [change(BODY.replace('Line 3 of', 'Line 3, better, of'), base)], 'Apply p5', { strict: true });
+    expect(refused).toEqual({ ok: false, reason: 'baseChanged', path: AGENT });
+    expect(await revParse(repo, 'HEAD')).toBe(tip);
+    expect(before).not.toBe(tip);
+  });
+
+  it('moves a worktree to the current tip and carries the changes that still apply', async () => {
+    const base = await revParse(repo, 'HEAD');
+    const wt = path.join(dir, 'worktrees', 'p6');
+    await createWorktree(repo, wt, 'improve/p6', base);
+    const baseAgent = head('opus') + BODY;
+    const proposedAgent = head('opus') + BODY.replace('Line 2 of', 'Line 2, better, of');
+    const proposedRule = RULE_TEXT.replace('Two.', 'Two, mine.');
+    await writeFile(path.join(wt, ...AGENT.split('/')), proposedAgent, 'utf8');
+    await writeFile(path.join(wt, ...RULE.split('/')), proposedRule, 'utf8');
+    await commitWorktree(wt, 'Round 1');
+    await write(AGENT, head('opus') + BODY.replace('Line 8 of', 'Line 8, by hand, of'));
+    await write(RULE, RULE_TEXT.replace('Two.', 'Two, by hand.'));
+    await commitAll('hand edit');
+    const tip = await revParse(repo, 'HEAD');
+    const moved = await moveWorktree(wt, tip, [
+      { path: AGENT, base: baseAgent, proposed: proposedAgent },
+      { path: RULE, base: RULE_TEXT, proposed: proposedRule },
+    ]);
+    expect(moved).toEqual({ dropped: [RULE] });
+    expect(await revParse(wt, 'HEAD')).toBe(tip);
+    const agent = await readFile(path.join(wt, ...AGENT.split('/')), 'utf8');
+    expect(agent).toContain('Line 2, better, of');
+    expect(agent).toContain('Line 8, by hand, of');
+    expect(await readFile(path.join(wt, ...RULE.split('/')), 'utf8')).toBe(RULE_TEXT.replace('Two.', 'Two, by hand.'));
+    await removeWorktree(repo, wt, 'improve/p6');
   });
 
   it('refuses an uncommitted body change, another branch and a missing file, changing nothing', async () => {

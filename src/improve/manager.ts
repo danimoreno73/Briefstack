@@ -6,7 +6,7 @@ import { listNotes, readNote } from '../library/index.js';
 import { classifyAsset } from './allowlist.js';
 import { writeEvidence, type EvidenceChoice } from './evidence.js';
 import { prepareContext, type PreparedContext } from './filters.js';
-import { applyChanges, commitWorktree, createWorktree, currentBranch, ignoredFiles, removeWorktree, revertChangesOf, revParse, untrackedFiles, type ApplyResult, type BodyChange } from './git.js';
+import { applyChanges, commitWorktree, createWorktree, currentBranch, ignoredFiles, moveWorktree, removeWorktree, revertChangesOf, revParse, untrackedFiles, type ApplyResult, type BodyChange } from './git.js';
 import { writeImproveRulesSync } from './guardCommand.js';
 import type { ProposalRecord, ProposalStatus, ProposalSummary, ProposalView, Round } from './proposal.js';
 import { offeredCheck, type RealCheckRunner } from './realCheck.js';
@@ -203,19 +203,35 @@ export class ImprovementManager {
     });
   }
 
-  /** "Ask for changes": a new round on the same branch, with the user's text. */
+  /**
+   * "Ask for changes": a new round on the same branch, with the user's text.
+   * If the branch the proposal applies to moved, the worktree first moves to
+   * its tip (`moveWorktree`) and that tip becomes the base, so the round is
+   * validated and tested against what approving would change.
+   */
   async askChanges(id: string, feedback: string): Promise<ProposalView> {
     return this.serial(async () => {
       if (this.active !== undefined) throw new BriefstackError('improve.busy', { id: this.active.id });
       const record = await this.find(id);
       if (!OPEN_STATES.includes(record.status)) throw new BriefstackError('improve.wrongState', { id, status: record.status });
       delete record.error;
-      await this.startRound(record, this.redact(feedback.trim()));
+      let notice: string | undefined;
+      const tip = await revParse(this.options.repoDir, `refs/heads/${record.baseBranch}`).catch(() => undefined);
+      if (tip !== undefined && tip !== record.baseCommit) {
+        const files = record.files.flatMap((file) => (file.base === undefined || file.proposed === undefined ? [] : [{ path: file.path, base: file.base, proposed: file.proposed }]));
+        const { dropped } = await moveWorktree(record.worktreeDir, tip, files);
+        record.baseCommit = tip;
+        notice =
+          dropped.length === 0
+            ? 'the branch moved since the last round; the worktree now starts from its current tip, with your earlier changes merged onto it.'
+            : `the branch moved since the last round; the worktree now starts from its current tip. Your earlier changes to ${dropped.join(', ')} no longer applied and were dropped: redo them if they are still needed.`;
+      }
+      await this.startRound(record, this.redact(feedback.trim()), notice);
       return viewOf(record);
     });
   }
 
-  private async startRound(record: ProposalRecord, feedback: string | undefined): Promise<void> {
+  private async startRound(record: ProposalRecord, feedback: string | undefined, notice?: string): Promise<void> {
     const n = record.rounds.length + 1;
     const round: Round = { n, startedAt: this.stamp(), denials: [], ...(feedback === undefined ? {} : { feedback }) };
     record.rounds.push(round);
@@ -231,6 +247,7 @@ export class ImprovementManager {
       rulesFile: store.rulesFile(record.id),
       request: record.request,
       ...(feedback === undefined ? {} : { feedback }),
+      ...(notice === undefined ? {} : { notice }),
       model: profile.model,
       ...(profile.effort === undefined ? {} : { effort: profile.effort }),
       emit: (event) => {
@@ -389,6 +406,8 @@ export class ImprovementManager {
       case 'missing':
       case 'conflict':
         return new BriefstackError('improve.conflict', { file: result.path });
+      case 'baseChanged':
+        return new BriefstackError('improve.baseChanged', { file: result.path, branch });
       case 'moved':
         return new BriefstackError('improve.moved', {});
     }
@@ -405,7 +424,7 @@ export class ImprovementManager {
   private async doApply(record: ProposalRecord): Promise<BriefstackError | undefined> {
     const title = record.title ?? 'improvement';
     const message = `Apply improvement ${record.id}: ${title}\n\n${record.expectedEffect ?? ''}\n\nBriefstack-Improvement: ${record.id}\n`;
-    const result = await applyChanges(this.options.repoDir, record.baseBranch, this.changesOf(record), message);
+    const result = await applyChanges(this.options.repoDir, record.baseBranch, this.changesOf(record), message, { strict: true });
     if (!result.ok) {
       const error = this.refusal(result, record.baseBranch);
       record.status = 'ready';

@@ -42,6 +42,8 @@ export interface ImproveRunStart {
   request: string;
   /** For a later round: the user's text from "ask for changes". */
   feedback?: string;
+  /** For a later round: what the server did to the worktree before it (not the user's words). */
+  notice?: string;
   model: string;
   effort?: string;
   emit(event: ImproveRunnerEvent): void;

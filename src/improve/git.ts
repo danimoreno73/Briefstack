@@ -207,6 +207,32 @@ export async function ignoredFiles(worktreeDir: string): Promise<string[]> {
 }
 
 /**
+ * Moves the worktree's branch to `tip` (the current tip of the branch the
+ * proposal applies to) and writes back each proposed file merged onto its
+ * text at `tip`. A file that no longer merges keeps its text at `tip` and is
+ * listed in `dropped`. Nothing here is validated: the next round's commit
+ * is, against `tip`.
+ */
+export async function moveWorktree(
+  worktreeDir: string,
+  tip: string,
+  files: readonly { path: string; base: string; proposed: string }[],
+): Promise<{ dropped: string[] }> {
+  await withoutRepoCode(worktreeDir, (configArgs) => git(worktreeDir, [...configArgs, 'reset', '--quiet', '--hard', tip]));
+  const dropped: string[] = [];
+  for (const file of files) {
+    const current = await fileAt(worktreeDir, tip, file.path);
+    const merged = current === undefined ? undefined : await mergeText(current, file.base, file.proposed);
+    if (merged === undefined) {
+      dropped.push(file.path);
+      continue;
+    }
+    await writeFile(path.join(worktreeDir, ...file.path.split('/')), merged, 'utf8');
+  }
+  return { dropped };
+}
+
+/**
  * Removes what git ignores in the worktree (the build output of a check), so
  * the next round starts with nothing outside git. Skipped while anything is
  * still at `node_modules`, so a link is never followed.
@@ -243,6 +269,8 @@ export type ApplyRefusal =
   | { reason: 'uncommitted'; path: string }
   /** The branch changed the same lines. */
   | { reason: 'conflict'; path: string }
+  /** Strict only: the branch changed the part that would change since the proposal's base. */
+  | { reason: 'baseChanged'; path: string }
   /** The branch moved while the commit was being made. */
   | { reason: 'moved' };
 
@@ -271,8 +299,18 @@ const part = (text: string, bodyOnly: boolean) => (bodyOnly ? splitFrontmatter(t
  * Refused, with nothing changed, if the repo is not on `branch`, a file has
  * uncommitted changes in the part that would change, a body no longer
  * merges, or the branch moves meanwhile.
+ *
+ * `strict` (approving a proposal): the part that would change must be on
+ * the branch exactly as in the proposal's base, so the commit holds what was
+ * validated and tested; no three-way merge. Reverting is not strict.
  */
-export async function applyChanges(repoDir: string, branch: string, changes: readonly BodyChange[], message: string): Promise<ApplyResult> {
+export async function applyChanges(
+  repoDir: string,
+  branch: string,
+  changes: readonly BodyChange[],
+  message: string,
+  options: { strict?: boolean } = {},
+): Promise<ApplyResult> {
   const current = await currentBranch(repoDir);
   if (current !== branch) return { ok: false, reason: 'wrongBranch', current };
   const head = await revParse(repoDir, `refs/heads/${branch}`);
@@ -289,6 +327,7 @@ export async function applyChanges(repoDir: string, branch: string, changes: rea
     const headParts = part(atHead, change.bodyOnly);
     const diskParts = part(onDisk, change.bodyOnly);
     if (diskParts.body !== headParts.body) return { ok: false, reason: 'uncommitted', path: change.path };
+    if (options.strict === true && headParts.body !== part(change.base, change.bodyOnly).body) return { ok: false, reason: 'baseChanged', path: change.path };
     const merged = await mergeText(headParts.body, part(change.base, change.bodyOnly).body, part(change.proposed, change.bodyOnly).body);
     if (merged === undefined) return { ok: false, reason: 'conflict', path: change.path };
     const mode = (await git(repoDir, ['ls-tree', head, '--', change.path])).split(' ')[0] || '100644';

@@ -93,6 +93,9 @@ describe('improvement session options', () => {
     const second = improvePrompt({ ...startOptions(), round: 2, feedback: 'Shorter.' });
     expect(second).toContain('round 2');
     expect(second).toContain('<feedback>\nShorter.\n</feedback>');
+    expect(second).not.toContain('Note from briefstack');
+    const moved = improvePrompt({ ...startOptions(), round: 2, feedback: 'Shorter.', notice: 'the branch moved.' });
+    expect(moved.indexOf('Note from briefstack: the branch moved.')).toBeGreaterThan(moved.indexOf('</feedback>'));
   });
 
   it('hides only its own exact tool in the SDK warning filter', () => {

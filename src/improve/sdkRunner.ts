@@ -55,7 +55,7 @@ export const IMPROVE_SYSTEM_APPEND = [
 ].join('\n');
 
 /** The first user message of a round. */
-export function improvePrompt(options: Pick<ImproveRunStart, 'request' | 'feedback' | 'round' | 'worktreeDir' | 'evidenceDir'>): string {
+export function improvePrompt(options: Pick<ImproveRunStart, 'request' | 'feedback' | 'notice' | 'round' | 'worktreeDir' | 'evidenceDir'>): string {
   const lines = [
     `Worktree (your working folder): ${options.worktreeDir.replaceAll('\\', '/')}`,
     `Evidence folder (read-only data): ${options.evidenceDir.replaceAll('\\', '/')}; start with its README.md.`,
@@ -74,6 +74,7 @@ export function improvePrompt(options: Pick<ImproveRunStart, 'request' | 'feedba
       '</feedback>',
       `Change the files again as needed, then call ${SUBMIT_PROPOSAL} with the whole proposal (all files changed so far).`,
     );
+    if (options.notice !== undefined) lines.push('', `Note from briefstack: ${options.notice}`);
   }
   return lines.join('\n');
 }

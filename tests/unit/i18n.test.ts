@@ -104,6 +104,7 @@ describe('error catalogue', () => {
     'improve.notOnBranch': { branch: 'master', current: 'other' },
     'improve.uncommitted': { file: 'f' },
     'improve.conflict': { file: 'f' },
+    'improve.baseChanged': { file: 'f', branch: 'master' },
     'improve.moved': {},
     'improve.noCheck': { id: 'p1' },
     'improve.checkBusy': { id: 'p1' },
