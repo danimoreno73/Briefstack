@@ -12,7 +12,7 @@ import type { Submission } from './types.js';
  * The server's checks on a round (BRIEF-phase-5 §3.3): run on the commit the
  * server made of the worktree, never on what the session says it did.
  * - every changed path is allowlisted (`allowlist.ts`) and was modified, not
- *   added, deleted or renamed, and stays plain text;
+ *   added, deleted or renamed, keeps its file mode, and stays plain text;
  * - agent and skill files keep their frontmatter byte for byte;
  * - locked blocks are kept exactly (`locked.ts`);
  * - added lines hold no secret, personal path or profile text (`filters.ts`);
@@ -69,6 +69,10 @@ export async function validateRound(params: {
     }
     if (entry.status !== 'modified' || base === undefined || proposed === undefined) {
       problems.push({ kind: 'notModified', file: entry.path, detail: `the file was ${entry.status}; only edits of existing files are allowed` });
+      continue;
+    }
+    if (entry.mode !== entry.baseMode) {
+      problems.push({ kind: 'mode', file: entry.path, detail: `the file mode changed from ${entry.baseMode ?? '?'} to ${entry.mode ?? '?'}; only the text may change` });
       continue;
     }
     if (hasBinary(proposed)) {

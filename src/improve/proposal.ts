@@ -30,6 +30,7 @@ export type ProposalStatus =
 export type ProblemKind =
   | 'forbiddenPath'
   | 'notModified'
+  | 'mode'
   | 'notText'
   | 'frontmatter'
   | 'locked'

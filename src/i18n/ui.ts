@@ -487,6 +487,7 @@ export const uiMessages = defineCatalogue({
       ({
         forbiddenPath: 'A file an improvement may not change',
         notModified: 'A file added, deleted or renamed',
+        mode: 'File mode changed',
         notText: 'Not plain text',
         frontmatter: 'Frontmatter changed',
         locked: 'Locked block touched',
@@ -1023,6 +1024,7 @@ export const uiMessages = defineCatalogue({
       ({
         forbiddenPath: 'Un archivo que una mejora no puede cambiar',
         notModified: 'Un archivo añadido, borrado o renombrado',
+        mode: 'Cambió el modo del archivo',
         notText: 'No es texto plano',
         frontmatter: 'Frontmatter cambiado',
         locked: 'Bloque bloqueado tocado',

@@ -70,7 +70,7 @@ describe('worktrees', () => {
     const round = await commitWorktree(wt, 'Round 1');
     expect(round).toMatch(/^[0-9a-f]{40}$/);
     expect(await changedFiles(repo, base, round as string)).toEqual([
-      { path: AGENT, status: 'modified', mode: '100644' },
+      { path: AGENT, status: 'modified', mode: '100644', baseMode: '100644' },
       { path: 'new.md', status: 'added', mode: '100644' },
     ]);
     expect(await fileAt(repo, round as string, 'new.md')).toBe('new\n');

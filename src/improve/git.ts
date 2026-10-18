@@ -79,6 +79,8 @@ export interface ChangedFile {
   status: ChangeStatus;
   /** Git's file mode at the head side, e.g. `100644`; `undefined` when deleted. */
   mode?: string;
+  /** Git's file mode at the base side; `undefined` when added. */
+  baseMode?: string;
 }
 
 /** Every path that differs between two commits, renames shown as a delete and an add. */
@@ -90,8 +92,14 @@ export async function changedFiles(repoDir: string, from: string, to: string): P
     const meta = (parts[i] as string).split(' ');
     const letter = (meta[4] ?? '').charAt(0);
     const status: ChangeStatus = letter === 'A' ? 'added' : letter === 'M' ? 'modified' : letter === 'D' ? 'deleted' : 'other';
+    const baseMode = (meta[0] ?? '').replace(/^:/, '');
     const mode = meta[1];
-    files.push({ path: parts[i + 1] as string, status, ...(status === 'deleted' || mode === undefined ? {} : { mode }) });
+    files.push({
+      path: parts[i + 1] as string,
+      status,
+      ...(status === 'deleted' || mode === undefined ? {} : { mode }),
+      ...(status === 'added' || baseMode === '' ? {} : { baseMode }),
+    });
   }
   return files;
 }
