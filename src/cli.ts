@@ -57,6 +57,9 @@ import type { ChatRunner } from './chat/types.js';
 import type { CreationRunner } from './creation/types.js';
 import { createWebChat } from './chat/wiring.js';
 import { createWebCreations } from './creation/wiring.js';
+import { createWebImprovements } from './improve/wiring.js';
+import type { ImprovementRunner } from './improve/types.js';
+import type { Verifier } from './improve/verify.js';
 import { killProcessTree } from './creation/processTree.js';
 import { runsDirOf, sweepRuns } from './creation/runFiles.js';
 import { stopTrigger, type StopEvents } from './stopTrigger.js';
@@ -92,6 +95,9 @@ export interface CliIO {
   creationRunner?: CreationRunner;
   /** The runner of the global chat: the real SDK one unless a test passes the fake one. */
   chatRunner?: ChatRunner;
+  /** The runner of improvement sessions and the verifier of their rounds: the real ones unless a test passes fakes. */
+  improveRunner?: ImprovementRunner;
+  improveVerifier?: Verifier;
 }
 
 const defaultIO = (): CliIO => ({
@@ -553,9 +559,17 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     runner: io.creationRunner,
   });
   let chat;
+  let improvements;
   let server;
   try {
     chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner });
+    improvements = await createWebImprovements({
+      pathEnv: io.pathEnv,
+      repoDir: io.repoDir,
+      creations,
+      runner: io.improveRunner,
+      verifier: io.improveVerifier,
+    });
     server = await startWebServer({
       port,
       lang,
@@ -563,10 +577,12 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       pathEnv: io.pathEnv,
       creations,
       chat,
+      improvements,
       ...(io.repoDir === undefined ? {} : { repoDir: io.repoDir }),
       ...(io.uiDir === undefined ? {} : { uiDir: io.uiDir }),
     });
   } catch (error) {
+    await improvements?.shutdown();
     await chat?.shutdown();
     await creations.shutdown();
     throw error;
@@ -591,6 +607,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     : Promise.race([io.untilStopped().then(() => ({ crashed: false })), trigger.stopped]));
   try {
     // The chat and the creations first: a running creation is closed as interrupted before the server goes.
+    await improvements.shutdown();
     await chat.shutdown();
     await creations.shutdown();
     await server.close();

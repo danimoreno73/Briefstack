@@ -442,6 +442,81 @@ in 10 minutes, when the text holds a secret, when nothing would change, or
 when the limit of creations is reached. Not available from the chat:
 reverting library commits, the projects folder, the permission policy,
 answering a creation's questions or approving its spec.
+## Improvement routes
+
+Self-improvement of the creation flow (BRIEF-phase-5). Without an
+improvement manager every route answers `503 improve.unavailable`. Reads need
+the token; writes the token and the same-origin check. Approve, discard,
+revert and the real check exist only here, for the proposal page: the chat
+can prepare an improvement but never apply one.
+
+### `GET /api/improve`
+
+`200 { active?, proposals, suggestions, blockers }`: the id of the proposal
+whose session is running, every proposal newest first
+(`{ id, status, title?, request, createdAt, updatedAt, files, appliedCommit?, revertCommit? }`),
+the suggestions after creations, and what blocks applying now (running
+creations: their ideas, or `session <id>` for one on disk this server does
+not run).
+
+Statuses: `preparing` (the session runs), `verifying` (the server commits,
+validates and tests), `ready`, `rejected` (a validator failed), `failed`
+(the session, the tests or git failed), `waiting` (approved, waits for no
+creation running), `applied`, `revertWaiting`, `reverted`, `discarded`.
+
+### `GET /api/improve/proposals/:id`
+
+`200 { proposal, blockers, check? }`. `proposal` has everything but the
+worktree path: `request`, `title`, `expectedEffect`, `evidence`
+(`[{ kind, ref, file }]`), `baseBranch`, `baseCommit`, `branch`, `rounds`
+(`[{ n, feedback?, startedAt, endedAt?, outcome?, commit?, denials, text?, error? }]`),
+`files` (`[{ path, kind, status, base?, proposed?, hunks, added, removed, rationale?, evidence? }]`,
+diff hunks as in a note-change card), `validation` (`{ ok, problems: [{ kind, file?, line?, detail }] }`),
+`checks` (`{ ok, steps: [{ name: "build" | "lint" | "test", ok, ms, tail }], error? }`),
+`realCheck?`, `offeredCheck?`, `appliedCommit?`, `revertCommit?`, `error?`.
+`check` is the offered real check: `{ name, script, cost: { en, es } }`.
+`404 improve.notFound`.
+
+Problem kinds: `forbiddenPath`, `notModified` (added, deleted or renamed),
+`notText`, `frontmatter`, `locked`, `secret`, `personalPath`, `profileText`,
+`noChanges`, `unexplained` (no rationale for a changed file).
+
+### `POST /api/improve/proposals`
+
+Body `{ "request": "<1–10000>", "sessions"?: [id, …] (at most 5), "lessons"?: boolean, "suggestionId"? }`.
+Starts an improvement session (one at a time): `202 { proposal }`;
+`409 improve.busy` while one runs, `409 improve.noRepo` when the repo is not
+on a branch or the home is inside it, `404 improve.suggestionNotFound`.
+
+### `POST /api/improve/proposals/:id/changes`
+
+Body `{ "text": "<1–10000>" }`. "Ask for changes": a new round on the same
+branch, from `ready`, `rejected` or `failed`. `202 { proposal }`.
+
+### `POST /api/improve/proposals/:id/approve`
+
+From `ready` with validators and checks passed. Applies the change as one
+commit on the base branch now, or answers with status `waiting` while a
+creation runs (it applies as soon as none does). Refusals leave it `ready`
+with `error` set: `409 improve.notOnBranch`, `improve.uncommitted`,
+`improve.conflict`, `improve.moved`.
+
+### `POST /api/improve/proposals/:id/revert`
+
+From `applied`: one revert commit now, or `revertWaiting` while a creation
+runs. Same refusals.
+
+### `POST /api/improve/proposals/:id/discard`
+
+From `preparing` (the session is stopped), `ready`, `rejected`, `failed` or
+`waiting`: removes the worktree and the branch.
+
+### `POST /api/improve/proposals/:id/check`
+
+From `ready`, when the proposal offers a real check: starts it (`202`); the
+result is added to the proposal as `realCheck`. `409 improve.noCheck`,
+`409 improve.checkBusy`.
+
 ## Appendix: fake runner recordings
 
 `FakeRunner` (`src/creation/fakeRunner.ts`) replays a recorded creation for

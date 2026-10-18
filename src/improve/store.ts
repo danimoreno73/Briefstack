@@ -15,6 +15,20 @@ import type { ProposalRecord } from './proposal.js';
 
 export const PROPOSAL_ID_RE = /^imp-[a-z0-9]{6,12}-[a-f0-9]{4}$/;
 
+/** Windows refuses a rename or read of a file another handle has open for a moment: those are tried again. */
+const TRANSIENT = new Set(['EPERM', 'EACCES', 'EBUSY']);
+
+async function retrying<T>(action: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await action();
+    } catch (error) {
+      if (attempt >= 40 || !TRANSIENT.has((error as NodeJS.ErrnoException).code ?? '')) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+}
+
 export function newProposalId(now: Date = new Date()): string {
   return `imp-${now.getTime().toString(36)}-${randomBytes(2).toString('hex')}`;
 }
@@ -56,13 +70,13 @@ export class ImproveStore {
     const target = this.file(record.id);
     const temp = `${target}.${process.pid}.tmp`;
     await writeFile(temp, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
-    await rename(temp, target);
+    await retrying(() => rename(temp, target));
   }
 
   async load(id: string): Promise<ProposalRecord | undefined> {
     if (!PROPOSAL_ID_RE.test(id)) return undefined;
     try {
-      return JSON.parse(await readFile(this.file(id), 'utf8')) as ProposalRecord;
+      return JSON.parse(await retrying(() => readFile(this.file(id), 'utf8'))) as ProposalRecord;
     } catch {
       return undefined;
     }
