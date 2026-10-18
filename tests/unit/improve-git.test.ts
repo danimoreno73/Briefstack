@@ -82,6 +82,11 @@ describe('worktrees', () => {
     await linkNodeModules(repo, wt);
     expect((await lstat(path.join(wt, 'node_modules'))).isSymbolicLink()).toBe(true);
     expect(await untrackedFiles(wt)).toEqual([]);
+    // A round committed while the link is there leaves it out.
+    await writeFile(path.join(wt, 'second.md'), 'second\n', 'utf8');
+    const round2 = await commitWorktree(wt, 'Round 2');
+    expect(await changedFiles(repo, round as string, round2 as string)).toEqual([{ path: 'second.md', status: 'added', mode: '100644' }]);
+    expect(await commitWorktree(wt, 'nothing')).toBeUndefined();
 
     await removeWorktree(repo, wt, 'improve/p1');
     await expect(stat(wt)).rejects.toThrow();

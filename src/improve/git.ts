@@ -100,6 +100,11 @@ export async function changedFiles(repoDir: string, from: string, to: string): P
 
 export const NODE_MODULES = 'node_modules';
 
+// Git sees a symlink as a file, so `node_modules/` in .gitignore does not
+// ignore the link outside Windows (a junction counts as a directory there).
+// Every listing and commit in a worktree leaves it out by name instead.
+const NODE_MODULES_PATHSPEC = `:(exclude,top)${NODE_MODULES}`;
+
 /** A new worktree at `dir` on a new branch `branch`, from `base`. */
 export async function createWorktree(repoDir: string, dir: string, branch: string, base: string): Promise<void> {
   await mkdir(path.dirname(dir), { recursive: true });
@@ -146,14 +151,15 @@ export async function removeWorktree(repoDir: string, dir: string, branch: strin
  */
 export async function commitWorktree(worktreeDir: string, message: string): Promise<string | undefined> {
   await git(worktreeDir, ['add', '-A']);
-  if ((await git(worktreeDir, ['status', '--porcelain'])).trim() === '') return undefined;
+  await git(worktreeDir, ['rm', '--cached', '-r', '--quiet', '--ignore-unmatch', '--', NODE_MODULES]);
+  if ((await git(worktreeDir, ['status', '--porcelain', '--', '.', NODE_MODULES_PATHSPEC])).trim() === '') return undefined;
   await git(worktreeDir, [...(await identityArgs(worktreeDir)), 'commit', '--quiet', '-m', message]);
   return revParse(worktreeDir, 'HEAD');
 }
 
 /** Paths in the worktree git does not track and does not ignore. */
 export async function untrackedFiles(worktreeDir: string): Promise<string[]> {
-  const raw = await git(worktreeDir, ['ls-files', '--others', '--exclude-standard', '-z']);
+  const raw = await git(worktreeDir, ['ls-files', '--others', '--exclude-standard', `--exclude=/${NODE_MODULES}`, '-z']);
   return raw.split('\0').filter((part) => part !== '');
 }
 
