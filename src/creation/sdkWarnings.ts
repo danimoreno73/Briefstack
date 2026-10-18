@@ -1,4 +1,5 @@
 import { CHAT_TOOL_IDS } from '../chat/toolNames.js';
+import { SUBMIT_PROPOSAL_TOOL } from '../improve/toolNames.js';
 import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './toolNames.js';
 
 /**
@@ -24,8 +25,15 @@ export const SHADOWED_WEB_TOOLS: readonly string[] = [APPROVE_SPEC_TOOL, GRANT_D
  */
 export const SHADOWED_CHAT_TOOLS: readonly string[] = CHAT_TOOL_IDS;
 
+/**
+ * An improvement session (phase 5) pre-approves only its own
+ * `submit_proposal`, which hands the proposal to the server and changes
+ * nothing. Its `canUseTool` repeats the improvement guard.
+ */
+export const SHADOWED_IMPROVE_TOOLS: readonly string[] = [SUBMIT_PROPOSAL_TOOL];
+
 /** The exact sets whose shadowing warning is expected. */
-export const SHADOWED_TOOL_SETS: readonly (readonly string[])[] = [SHADOWED_WEB_TOOLS, SHADOWED_CHAT_TOOLS];
+export const SHADOWED_TOOL_SETS: readonly (readonly string[])[] = [SHADOWED_WEB_TOOLS, SHADOWED_CHAT_TOOLS, SHADOWED_IMPROVE_TOOLS];
 
 const LISTED_RE = /canUseTool will not be invoked for: (.+?)\. /;
 
