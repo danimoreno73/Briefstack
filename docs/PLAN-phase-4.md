@@ -13,7 +13,7 @@ commits, one concern each.
 
 ## 0. Status
 
-Updated 2026-10-18. A new session reads `CLAUDE.md`,
+Updated 2026-10-18 (phase 4 accepted). A new session reads `CLAUDE.md`,
 `docs/BRIEF-phase-4.md`, this file and `docs/decisions.md` from
 "# Phase 4" onwards before continuing.
 
@@ -39,22 +39,52 @@ Updated 2026-10-18. A new session reads `CLAUDE.md`,
 
 ### Left
 
-The real checks and the real run (section 3), run by the user. Phase 4 is
-not done before the real run is accepted.
+Nothing. Phase 4 was accepted by the user on 2026-10-18 (tag `phase-4-done`).
 
-Before the real run: if `<home>/usage-profiles.json` has user presets, each
-needs a `chat` entry (decisions.md, phase 4, item 7).
+### Real checks and real run (all PASS)
+
+| Check | Result |
+|---|---|
+| `check-interviewer-target` (phase 3, P1) | Run 2026-10-17, 4 PASS |
+| `check-chat-read` | PASS |
+| `check-chat-start-creation` | PASS |
+| `check-two-creations` | PASS |
+| `check-server-crash` | PASS |
+
+Real run (2026-10-18, user's real library, saver profile, driven with
+Playwright, screenshots in the ignored `screenshots/phase-4-real/`), accepted
+by the user:
+
+| # | Point | Result |
+|---|---|---|
+| 1 | Build; `briefstack web` in the background | PASS |
+| 2 | From the chat, two `start_creation` cards (Markdown tables to CSV; meal planner), both confirmed; no other card appeared | PASS |
+| 3 | Both creations followed from the list and panels: recommended interview answers, specs approved, no permission or folder dialogs, no text reply needed | PASS |
+| 3 | Chat asked what each creation was doing: answered from `list_sessions` and `session_panel`; page reloaded mid-turn | PASS |
+| 4 | Both in Projects; library log has both commits and `git status` is clean | PASS |
+| 4 | Server restarted: chat history present and the conversation resumed | PASS |
+| 4 | Server stopped | PASS |
+
+Notes: plan usage went from 55 %/55 % (5 h/7 d) to 66 %/56 %. The two
+creations overlapped only partly (one tab lacked the token, so the second
+waited about 10 minutes on its interview); the free-text reply box was not
+exercised in this run.
 
 ### Backlog (not phase 4, not started)
 
+- The chat sometimes describes a creation's step wrongly: it should quote the
+  exact step from the panel.
+- After the server restarts, an old tab gets 401 with no explanation: show
+  "the server restarted, open the new URL" (for the UI pass).
+- Creations see the repo's `CLAUDE.md`.
 - Folder claims live in the server's memory: a creation started from the
   terminal (`/new-project` in Claude Code) is not seen by them.
+- The library lock on writes that take more than 2 minutes.
+- Check whether the SDK passes the abort signal to the chat's tools.
 - The chat's MCP tool waits for a confirmation without a timeout of its own,
   as `approve_spec` does; a card left open for hours keeps the chat's turn
   open until it is answered or "New chat" is pressed.
-- The UI and UX pass over the whole app (after phase 4, before publishing). Before the real run the user checks that any preset
-in `<home>/usage-profiles.json` has a `chat` entry (decisions.md, phase 4,
-item 7).
+- The UI and UX pass over the whole app (after phase 4, before publishing).
 
 ## 1. Approach
 
