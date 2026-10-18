@@ -23,12 +23,7 @@ const prepareBody = z.strictObject({
 });
 const changesBody = z.strictObject({ text: z.string().trim().min(1).max(MAX_IMPROVE_REQUEST_CHARS) });
 
-export interface ImproveRouteOptions {
-  /** Suggestions after creations (M5); none when absent. */
-  suggestions?: () => Promise<unknown[]>;
-}
-
-export function improveRoutes(improve: ImprovementManager | undefined, options: ImproveRouteOptions = {}): RouteTable {
+export function improveRoutes(improve: ImprovementManager | undefined): RouteTable {
   const need = (): ImprovementManager => {
     if (improve === undefined) throw new BriefstackError('improve.unavailable', {});
     return improve;
@@ -44,7 +39,7 @@ export function improveRoutes(improve: ImprovementManager | undefined, options: 
         sendJson(res, 200, {
           ...(active === undefined ? {} : { active }),
           proposals: await m.list(),
-          suggestions: (await options.suggestions?.()) ?? [],
+          suggestions: await m.suggestions(),
           blockers: await m.blockers(),
         });
       },

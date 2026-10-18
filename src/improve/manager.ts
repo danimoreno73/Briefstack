@@ -11,6 +11,7 @@ import { writeImproveRulesSync } from './guardCommand.js';
 import type { ProposalRecord, ProposalStatus, ProposalSummary, ProposalView, Round } from './proposal.js';
 import { offeredCheck, type RealCheckRunner } from './realCheck.js';
 import { ImproveStore, newProposalId } from './store.js';
+import { suggestionText, type Suggestion, type SuggestionStore } from './suggestions.js';
 import { SUBMIT_PROPOSAL_TOOL } from './toolNames.js';
 import type { ImprovementRunner, ImproveRunHandle, ImproveRunOutcome } from './types.js';
 import { validateRound } from './validate.js';
@@ -50,8 +51,8 @@ export interface ImprovementManagerOptions {
   blockers: () => Promise<string[]>;
   /** Turns a creation ended in text, by session id (not in `events.jsonl`). */
   textTurns?: (sessionId: string) => number | undefined;
-  /** A suggestion by id, for the evidence. */
-  suggestion?: (id: string) => Promise<{ id: string; text: string; signals?: unknown } | undefined>;
+  /** Suggestions after creations: listed, used as evidence, marked once prepared. */
+  suggestions?: SuggestionStore;
   now?: () => Date;
   /** How often waiting approvals check for running creations. Default 2 s. */
   gatePollMs?: number;
@@ -132,6 +133,11 @@ export class ImprovementManager {
     return viewOf(await this.find(id));
   }
 
+  /** Suggestions after creations, newest first. */
+  async suggestions(): Promise<Suggestion[]> {
+    return (await this.options.suggestions?.list()) ?? [];
+  }
+
   /** What blocks applying now (running creations), for the page. */
   blockers(): Promise<string[]> {
     return this.options.blockers();
@@ -170,11 +176,12 @@ export class ImprovementManager {
       };
       await createWorktree(repoDir, worktreeDir, record.branch, baseCommit);
       const locations = await this.options.locations();
-      const suggestion = choice.suggestionId === undefined ? undefined : await this.options.suggestion?.(choice.suggestionId);
-      if (choice.suggestionId !== undefined && suggestion === undefined) {
+      const found = choice.suggestionId === undefined ? undefined : await this.options.suggestions?.get(choice.suggestionId);
+      if (choice.suggestionId !== undefined && found === undefined) {
         await removeWorktree(repoDir, worktreeDir, record.branch).catch(() => undefined);
         throw new BriefstackError('improve.suggestionNotFound', { id: choice.suggestionId });
       }
+      const suggestion = found === undefined ? undefined : { id: found.id, text: suggestionText(found), signals: found };
       record.evidence = await writeEvidence({
         dir: store.evidenceDir(id),
         request,
@@ -186,6 +193,7 @@ export class ImprovementManager {
       });
       writeImproveRulesSync(store.rulesFile(id), { v: 1, worktree: worktreeDir, evidence: [store.evidenceDir(id)], submitTool: SUBMIT_PROPOSAL_TOOL });
       await this.startRound(record, undefined);
+      if (found !== undefined) await this.options.suggestions?.markUsed(found.id, id).catch(() => undefined);
       return viewOf(record);
     });
   }

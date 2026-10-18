@@ -58,7 +58,17 @@ export interface Confirmation {
 export type ChatRole = 'user' | 'assistant' | 'tool' | 'confirmation' | 'notice';
 
 /** A notice the chat shows from the server itself, translated by the page. */
-export type ChatNotice = 'resumeFailed' | 'sessionError' | 'newThread';
+export type ChatNotice = 'resumeFailed' | 'sessionError' | 'newThread' | 'suggestions';
+
+/** A suggestion after a creation (phase 5), as a `suggestions` notice carries it. */
+export interface ChatSuggestion {
+  id: string;
+  kind: string;
+  creationId: string;
+  idea: string;
+  target: string;
+  params: Record<string, unknown>;
+}
 
 export interface ChatMessage {
   /** 1, 2, 3… in the thread. */
@@ -73,6 +83,8 @@ export interface ChatMessage {
   notice?: ChatNotice;
   /** For `sessionError`: what went wrong, redacted. */
   detail?: string;
+  /** For `suggestions`: up to three suggestions after a creation finished. */
+  suggestions?: ChatSuggestion[];
 }
 
 export interface ChatThreadInfo {

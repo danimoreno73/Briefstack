@@ -68,7 +68,7 @@ describe('improvement API', { timeout: 60_000 }, () => {
       lang: 'en',
       pathEnv,
       repoDir: repo,
-      ...(world === undefined ? {} : { improvements: world.manager, suggestions: async () => [{ id: 'g1' }] }),
+      ...(world === undefined ? {} : { improvements: world.manager }),
     });
     return server;
   };
@@ -114,7 +114,7 @@ describe('improvement API', { timeout: 60_000 }, () => {
     expect(JSON.stringify(shown)).not.toContain('worktreeDir');
     expect(shown.check).toMatchObject({ name: 'improvement-flow' });
     const listing = await get(s, '/api/improve');
-    expect(listing).toMatchObject({ proposals: [{ id: proposal.id, status: 'ready', files: [RESEARCHER] }], suggestions: [{ id: 'g1' }], blockers: [] });
+    expect(listing).toMatchObject({ proposals: [{ id: proposal.id, status: 'ready', files: [RESEARCHER] }], suggestions: [], blockers: [] });
 
     const approved = await post(s, `/api/improve/proposals/${proposal.id}/approve`);
     expect(approved.status).toBe(200);

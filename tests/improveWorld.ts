@@ -7,6 +7,7 @@ import { FakeImprovementRunner, type FakeImproveScript } from '../src/improve/fa
 import { ImprovementManager } from '../src/improve/manager.js';
 import { FakeRealCheckRunner } from '../src/improve/realCheck.js';
 import { ImproveStore } from '../src/improve/store.js';
+import type { SuggestionStore } from '../src/improve/suggestions.js';
 import type { Submission } from '../src/improve/types.js';
 import { FakeVerifier } from '../src/improve/verify.js';
 import { PACKAGE_ROOT } from '../src/packageRoot.js';
@@ -69,7 +70,7 @@ export async function openImproveWorld(params: {
   projectsDir: string;
   script: FakeImproveScript;
   blockers?: () => Promise<string[]>;
-  suggestion?: (id: string) => Promise<{ id: string; text: string } | undefined>;
+  suggestions?: SuggestionStore;
 }): Promise<ImproveWorld> {
   const runner = new FakeImprovementRunner(params.script);
   const verifier = new FakeVerifier();
@@ -85,7 +86,7 @@ export async function openImproveWorld(params: {
     locations: async () => ({ home: params.home, libraryDir: params.libraryDir, projectsDir: params.projectsDir, sessionsDir: params.sessionsDir }),
     profile: async () => ({ model: 'haiku', effort: 'low' }),
     blockers: params.blockers ?? (async () => world.blockers),
-    ...(params.suggestion === undefined ? {} : { suggestion: params.suggestion }),
+    ...(params.suggestions === undefined ? {} : { suggestions: params.suggestions }),
     gatePollMs: 50,
   });
   return world;

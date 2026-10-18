@@ -19,6 +19,7 @@ import {
 import type {
   ChatMessage,
   ChatNotice,
+  ChatSuggestion,
   ChatRunner,
   ChatRunnerEvent,
   ChatSession,
@@ -198,6 +199,16 @@ export class ChatManager {
     const full: ChatMessage = { id: (this.messages.at(-1)?.id ?? 0) + 1, ts: this.now().toISOString(), ...message };
     this.record(full);
     return full;
+  }
+
+  /**
+   * Shows the suggestions after a creation in the active thread (BRIEF-phase-5
+   * §3.5). A notice for the page only: it starts nothing and the model does
+   * not see it (it has `list_suggestions`).
+   */
+  announceSuggestions(suggestions: readonly ChatSuggestion[]): void {
+    if (suggestions.length === 0) return;
+    this.add({ role: 'notice', notice: 'suggestions', suggestions: structuredClone([...suggestions]) });
   }
 
   private notice(notice: ChatNotice, detail?: string): void {

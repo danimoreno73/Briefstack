@@ -372,8 +372,9 @@ A card not answered within 59 minutes expires (`expired`), a minute before
 the chat server's own one-hour tool-call timeout, so a late confirmation can
 never run an action the chat was told had failed.
 `notice` is `resumeFailed` (the model context could not be restored: a new
-session started, the old messages stay) or `sessionError` (`detail` says
-what). Every text is stored and sent redacted.
+session started, the old messages stay), `sessionError` (`detail` says
+what) or `suggestions` (`suggestions`: the ones a creation that just
+finished produced, for the page; the model does not see this notice). Every text is stored and sent redacted.
 
 `card` per kind:
 
@@ -458,6 +459,16 @@ whose session is running, every proposal newest first
 the suggestions after creations, and what blocks applying now (running
 creations: their ideas, or `session <id>` for one on disk this server does
 not run).
+
+A suggestion (BRIEF-phase-5 §3.5; at most three per finished creation,
+computed without a model, newest first, at most 60 kept):
+`{ id, kind, creationId, sessionId?, idea, createdAt, target, params, proposalId? }`.
+`kind` is `failure` (`params.outcome`, `steps`), `textQuestions` (`count`
+turns that ended waiting for a text answer), `denials` (`count`, `tools`),
+`reviewRounds` (`count`, from 2 up) or `lessons` (`count`, the first
+`lines`); `target` is the asset most likely to need the change;
+`proposalId` is set once an improvement was prepared from it. A suggestion
+changes nothing by itself.
 
 Statuses: `preparing` (the session runs), `verifying` (the server commits,
 validates and tests), `ready`, `rejected` (a validator failed), `failed`

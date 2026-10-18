@@ -6,6 +6,7 @@ import { PACKAGE_ROOT } from '../packageRoot.js';
 import { loadUsageContext, resolveActiveProfile } from '../usage/index.js';
 import { ImprovementManager } from './manager.js';
 import { ScriptRealCheckRunner, type RealCheckRunner } from './realCheck.js';
+import { SuggestionStore, SuggestionTracker, type Suggestion } from './suggestions.js';
 import { SdkImprovementRunner } from './sdkRunner.js';
 import { ImproveStore } from './store.js';
 import type { ImprovementRunner } from './types.js';
@@ -19,9 +20,8 @@ export interface WebImproveOptions {
   runner?: ImprovementRunner | undefined;
   verifier?: Verifier | undefined;
   realChecks?: RealCheckRunner | undefined;
-  /** Turns a creation ended in text, by session id. */
-  textTurns?: ((sessionId: string) => number | undefined) | undefined;
-  suggestion?: ((id: string) => Promise<{ id: string; text: string; signals?: unknown } | undefined>) | undefined;
+  /** Where the suggestions after a creation are shown besides the result screen: the chat. */
+  announce?: ((suggestions: Suggestion[]) => void) | undefined;
   gatePollMs?: number;
 }
 
@@ -46,8 +46,23 @@ export async function createWebImprovements(options: WebImproveOptions): Promise
     const { paths } = await loadUsageContext(pathEnv);
     return { home, libraryDir: paths.libraryDir, projectsDir: paths.projectsDir, sessionsDir: paths.sessionsDir };
   };
+  const store = new ImproveStore(path.join(home, 'improve'));
+  const suggestions = new SuggestionStore(store.suggestionsFile);
+  if (options.creations !== undefined) {
+    const tracker = new SuggestionTracker({
+      store: suggestions,
+      locations,
+      homedir: pathEnv.homedir,
+      ...(options.announce === undefined ? {} : { announce: options.announce }),
+    });
+    options.creations.observe({ started: (state) => tracker.started(state), finished: (state) => void tracker.finished(state).catch(() => undefined) });
+  }
+  // Turns that ended in text are known only to the creation manager.
+  const textTurns = (sessionId: string) => options.creations?.list().find((creation) => creation.sessionId === sessionId)?.textTurns;
   return ImprovementManager.open({
-    store: new ImproveStore(path.join(home, 'improve')),
+    store,
+    suggestions,
+    textTurns,
     repoDir,
     runner: options.runner ?? new SdkImprovementRunner({ pathEnv }),
     verifier: options.verifier ?? new NpmVerifier(repoDir),
@@ -61,8 +76,6 @@ export async function createWebImprovements(options: WebImproveOptions): Promise
       return { model: preset.sessionModel, effort: preset.effort };
     },
     blockers: async () => creationBlockers(options.creations, (await locations()).sessionsDir),
-    ...(options.textTurns === undefined ? {} : { textTurns: options.textTurns }),
-    ...(options.suggestion === undefined ? {} : { suggestion: options.suggestion }),
     ...(options.gatePollMs === undefined ? {} : { gatePollMs: options.gatePollMs }),
   });
 }

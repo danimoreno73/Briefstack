@@ -9,7 +9,7 @@ import { DEFAULT_LANG, type Lang } from '../i18n/index.js';
 import { VERSION } from '../version.js';
 import { chatRoutes } from './chat.js';
 import { creationRoutes } from './creations.js';
-import { improveRoutes, type ImproveRouteOptions } from './improve.js';
+import { improveRoutes } from './improve.js';
 import { BASE_HEADERS, header, sendError, sendJson } from './http.js';
 import { readRoutes } from './read.js';
 import { writeRoutes } from './write.js';
@@ -41,8 +41,6 @@ export interface WebServerOptions {
   chat?: ChatManager;
   /** Improvements (phase 5). Without one, the improvement routes answer 503 `improve.unavailable`. The caller owns it. */
   improvements?: ImprovementManager;
-  /** Suggestions after creations, for `GET /api/improve`. */
-  suggestions?: ImproveRouteOptions['suggestions'];
   /** Where the user's files live; the real machine by default. Tests pass a temp home. */
   pathEnv?: PathEnv;
   /** The briefstack repo the usage and paths routes report on; the package by default. */
@@ -71,7 +69,7 @@ function apiRoutes(options: WebServerOptions): RouteTable {
     ...writeRoutes({ pathEnv, repoDir: options.repoDir }),
     ...creationRoutes(options.creations, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
     ...chatRoutes(options.chat, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
-    ...improveRoutes(options.improvements, options.suggestions === undefined ? {} : { suggestions: options.suggestions }),
+    ...improveRoutes(options.improvements),
   ];
 }
 

@@ -56,6 +56,7 @@ import { checkClaudeCode, formatVersion, type ClaudeCheck } from './creation/cla
 import type { ChatRunner } from './chat/types.js';
 import type { CreationRunner } from './creation/types.js';
 import { createWebChat } from './chat/wiring.js';
+import type { ChatManager } from './chat/manager.js';
 import { createWebCreations } from './creation/wiring.js';
 import { createWebImprovements } from './improve/wiring.js';
 import type { ImprovementRunner } from './improve/types.js';
@@ -558,7 +559,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     lang,
     runner: io.creationRunner,
   });
-  let chat;
+  let chat: ChatManager | undefined;
   let improvements;
   let server;
   try {
@@ -569,6 +570,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       creations,
       runner: io.improveRunner,
       verifier: io.improveVerifier,
+      announce: (suggestions) => chat?.announceSuggestions(suggestions),
     });
     server = await startWebServer({
       port,
