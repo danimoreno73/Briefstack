@@ -10,7 +10,8 @@
 // and deletes it at the end. None touches the real library or projects.
 
 import type { HookCallback, PermissionResult } from '@anthropic-ai/claude-agent-sdk';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -453,4 +454,90 @@ export function parseInterviewerTarget(report: string): InterviewerTarget | unde
   const last = lines.at(-1);
   if (last === undefined) return undefined;
   return { target: last[1] as InterviewerTarget['target'], rule: (last[2] ?? '').trim() };
+}
+
+/**
+ * The files under `root` that are inside none of `allowed`, as paths
+ * relative to `root` with forward slashes, sorted. For a before/after
+ * comparison of where a session wrote.
+ */
+export async function filesOutside(root: string, allowed: readonly string[]): Promise<string[]> {
+  const found: string[] = [];
+  const inside = (target: string) => allowed.some((dir) => target === dir || isPathInside(target, dir, systemPathEnv()));
+  const walk = async (dir: string): Promise<void> => {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (inside(full)) continue;
+      if (entry.isDirectory()) await walk(full);
+      else found.push(path.relative(root, full).replaceAll('\\', '/'));
+    }
+  };
+  await walk(root);
+  return found.sort();
+}
+
+const run = (file: string, args: readonly string[], env: NodeJS.ProcessEnv = process.env) =>
+  new Promise<string>((resolve) => {
+    execFile(file, [...args], { windowsHide: true, timeout: 30_000, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, env }, (_error, stdout) =>
+      resolve(stdout ?? ''),
+    );
+  });
+
+/**
+ * The processes whose command line mentions `text` (with either slash, and
+ * ignoring case on Windows), apart from this one. Windows: `Win32_Process`
+ * through PowerShell (the text is matched here, not in PowerShell);
+ * Linux: `/proc/<pid>/cmdline`; macOS: `ps`.
+ */
+export async function processesMentioning(text: string): Promise<{ pid: number; command: string }[]> {
+  const forms = [...new Set([text, text.replaceAll('\\', '/'), text.replaceAll('/', '\\')])];
+  const fold = (value: string) => (process.platform === 'win32' ? value.toLowerCase() : value);
+  const mentions = (command: string) => forms.some((form) => fold(command).includes(fold(form)));
+  const listed: { pid: number; command: string }[] = [];
+  if (process.platform === 'win32') {
+    const out = await run(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | ForEach-Object { "$($_.ProcessId)`t$($_.CommandLine)" }',
+      ],
+    );
+    for (const line of out.split(/\r?\n/)) {
+      const tab = line.indexOf('\t');
+      if (tab > 0) listed.push({ pid: Number(line.slice(0, tab)), command: line.slice(tab + 1) });
+    }
+  } else if (process.platform === 'linux') {
+    for (const name of await readdir('/proc').catch(() => [] as string[])) {
+      if (!/^\d+$/.test(name)) continue;
+      const command = await readFile(`/proc/${name}/cmdline`, 'utf8').catch(() => '');
+      if (command !== '') listed.push({ pid: Number(name), command: command.replaceAll('\0', ' ') });
+    }
+  } else {
+    for (const line of (await run('ps', ['-axo', 'pid=,command='])).split('\n')) {
+      const match = /^\s*(\d+)\s+(.*)$/.exec(line);
+      if (match !== null) listed.push({ pid: Number(match[1]), command: match[2] ?? '' });
+    }
+  }
+  return listed.filter((entry) => entry.pid !== process.pid && mentions(entry.command));
+}
+
+/** Ends one process at once, without its children: what a crash or Task Manager does to a server. */
+export async function hardKill(pid: number): Promise<void> {
+  if (process.platform === 'win32') {
+    await run('taskkill', ['/PID', String(pid), '/F']);
+    return;
+  }
+  try {
+    process.kill(pid, 'SIGKILL');
+  } catch {
+    // Already gone.
+  }
 }

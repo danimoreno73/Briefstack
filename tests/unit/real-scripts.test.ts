@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -10,6 +11,9 @@ import {
   CheckStop,
   autoAnswer,
   effortRecorder,
+  filesOutside,
+  hardKill,
+  processesMentioning,
   mentionedPaths,
   onlyThisCommand,
   parseInterviewerTarget,
@@ -421,5 +425,70 @@ describe('check-two-creations: acts on fresh state only', () => {
     const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-two-creations.ts'), 'utf8');
     expect(script).toMatch(/for \(const id of ids\) \{\s+const state = manager\.get\(id\);\s+if \(state\.status === 'finished'\) continue;/);
     expect(script).not.toContain('for (const state of states())');
+  });
+});
+
+describe('check-server-crash: kills a server while a creation waits on it', () => {
+  let dir: string;
+  let cleanup: () => Promise<void>;
+  beforeEach(async () => {
+    ({ dir, cleanup } = await tempDir('real-crash'));
+  });
+  afterEach(() => cleanup());
+
+  it('lists the files outside the allowed folders', async () => {
+    await writeFile(path.join(dir, 'top.txt'), 'x', 'utf8');
+    for (const folder of ['projects/app', 'home/sessions', 'outside/deep']) await mkdir(path.join(dir, folder), { recursive: true });
+    await writeFile(path.join(dir, 'projects', 'app', 'a.md'), 'x', 'utf8');
+    await writeFile(path.join(dir, 'home', 'sessions', 'e.jsonl'), 'x', 'utf8');
+    await writeFile(path.join(dir, 'outside', 'deep', 'idea.txt'), 'x', 'utf8');
+    expect(await filesOutside(dir, [path.join(dir, 'projects'), path.join(dir, 'home')])).toEqual(['outside/deep/idea.txt', 'top.txt']);
+  });
+
+  it('finds a process by a folder named on its command line, with either slash', async () => {
+    const marker = path.join(dir, 'marker-folder');
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', marker.replaceAll('\\', '/')], { stdio: 'ignore' });
+    // Listened for from the start: the exit may come before the kill call returns.
+    const exited = new Promise((resolve) => child.once('exit', resolve));
+    try {
+      let found: { pid: number }[] = [];
+      for (let i = 0; i < 10 && found.length === 0; i += 1) {
+        found = await processesMentioning(marker);
+        if (found.length === 0) await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      expect(found.map((entry) => entry.pid)).toContain(child.pid);
+    } finally {
+      await hardKill(child.pid ?? 0);
+    }
+    await exited;
+    expect((await processesMentioning(marker)).map((entry) => entry.pid)).not.toContain(child.pid);
+  }, 120_000);
+
+  it('kills the server without its children, watches, restarts, and checks processes, run files, sessions and writes', async () => {
+    const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-server-crash.ts'), 'utf8');
+    const common = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'common.ts'), 'utf8');
+    // A hard kill: only that pid, never the tree.
+    expect(common).toContain("await run('taskkill', ['/PID', String(pid), '/F']);");
+    expect(common).toContain("process.kill(pid, 'SIGKILL');");
+    expect(script).toContain('await hardKill(server.pid)');
+    expect(script).toContain("'src', 'cli.ts'), 'web', '--port', '0'");
+    expect(script).toContain("'fixtures', 'crash-throw.ts'");
+    expect(script).toContain("await sandbox('server-crash')");
+    expect(script).toContain("activeProfile: 'saver'");
+    for (const expected of [
+      'A: the command-hook guard ran in the session',
+      'A: after the restart no process mentions the work folder',
+      'A: the run folder is gone',
+      'A: the session is closed as interrupted',
+      'B: no process mentions the work folder, before any restart',
+      'nothing was written in the work folder outside the projects folder and the temp home',
+      'the repo git status did not change',
+    ]) {
+      expect(script).toContain(expected);
+    }
+    expect(script).not.toContain('bypassPermissions');
+    const fixture = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'fixtures', 'crash-throw.ts'), 'utf8');
+    expect(fixture).toContain("throw new Error('crash on purpose, with a tool call waiting')");
+    expect(fixture).toContain('process.env.BRIEFSTACK_HOME === undefined');
   });
 });
