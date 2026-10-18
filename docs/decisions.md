@@ -2419,3 +2419,26 @@ So the guard must not depend on the host: a command hook with
 `onFailure: "block"`, which Claude Code runs itself and which blocks on any
 failure by documented rule, plus killing the trees when the server exits
 and cleaning up at the next start.
+
+### Windows ends a host's children with it (verified 2026-10-18)
+
+A probe on this machine (Node 24, Windows 11): a Node process started a
+non-detached child through `spawnTracked`, which started a child of its
+own; the host was then ended with `taskkill /PID <host> /F` (no `/T`).
+Both descendants were gone two seconds later. The same with an uncaught
+exception and no exit hook. The cause is libuv: on Windows it puts every
+child it spawns without `detached` in one job object of the host with
+"kill on job close" (libuv `src/win/process.c`, `uv__init_global_job_handle`),
+so the system ends them when the host's last handle closes, however it
+ends. A process that breaks away from the job is not ended: the job
+allows breakaway, and the Git Bash commands orphaned in H0 #6 are the
+likely case. macOS and Linux have no such thing, and there `spawnTracked`
+starts `claude` in its own process group, so nothing ends it with the
+host.
+
+So: on Windows a crash or a hard kill of `briefstack web` ends `claude`
+and its subagents with it; on all three systems the exit hook
+(`killLiveTreesSync`, `taskkill /T` or the process group) also ends
+descendants that left the job, after an uncaught exception or
+`process.exit()`. What no handler can cover on macOS and Linux after a
+hard kill is left to the run files and the sweep at the next start.
