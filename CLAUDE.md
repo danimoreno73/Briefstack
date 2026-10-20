@@ -56,6 +56,8 @@ milestone is not done while CI is red; local Windows runs do not stand in for it
 
 - Plan first and wait for approval before writing code.
 - Small commits, one concern each.
+- Write and edit files with the Write and Edit tools, never through shell
+  heredocs, echo or inline scripts that embed the file's text.
 - When the brief is ambiguous or contradicts itself, ask.
 - If a Claude Code behaviour matters to the design, check the official docs
   instead of assuming, and note what you verified in `docs/decisions.md`.
