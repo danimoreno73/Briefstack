@@ -1,0 +1,1242 @@
+/*
+ * UI pass, step U1: two design directions under review (docs/DESIGN.md §2).
+ * Development only: nothing here applies unless `<html data-direction>` is
+ * set, which only the `briefstack-direction` key in localStorage does
+ * (src/ui/direction.ts). Applied to the shell, the projects list and the
+ * creation screen with its live panel. U2 keeps the chosen one as the base
+ * styles and deletes this file.
+ */
+
+/* ------------------------------------------------------------------------ */
+/* Tokens: direction A, "Quiet sheet"                                        */
+
+:root[data-direction='a'] {
+  color-scheme: light;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: ui-monospace, 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  --fs-meta: 0.8125rem; /* 13 */
+  --fs-body: 0.9375rem; /* 15 */
+  --fs-section: 1.125rem; /* 18 */
+  --fs-title: 1.5rem; /* 24 */
+  --lh-body: 1.55;
+  --w-regular: 400;
+  --w-strong: 600;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --radius-card: 8px;
+  --radius-control: 6px;
+  --radius-chip: 4px;
+  --border-width: 1px;
+  --control-height: 2.25rem;
+  --nav-width: 14rem;
+  --content-max: 70rem;
+
+  --ground: #f6f7f6;
+  --surface: #ffffff;
+  --raised: #eff1f0;
+  --border: #dfe3e1;
+  --rule: #eaedeb;
+  --control: #858d89;
+  --text: #161a18;
+  --muted: #565d59;
+  --accent: #0b6b5f;
+  --accent-ink: #ffffff;
+  --primary: #1c201e;
+  --primary-ink: #ffffff;
+  --attention-bg: #e6f2ef;
+  --attention-line: #0b6b5f;
+  --warn-bg: #fbf1d3;
+  --warn-ink: #5e3d00;
+  --danger: #b0222a;
+  --danger-bg: #fcebeb;
+  --ok: #1d7343;
+  --ok-bg: #e2f3e7;
+  --running: #0b6b5f;
+  --waiting: #9a5b00;
+  --focus: #0b6b5f;
+  --scrim: rgb(14 18 16 / 45%);
+  --t-fast: 140ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-direction='a'] {
+    color-scheme: dark;
+    --ground: #111312;
+    --surface: #191c1a;
+    --raised: #222624;
+    --border: #2d322f;
+    --rule: #242826;
+    --control: #6f7873;
+    --text: #edf0ee;
+    --muted: #a8b0ab;
+    --accent: #5fc4b3;
+    --accent-ink: #0a1714;
+    --primary: #edf0ee;
+    --primary-ink: #111312;
+    --attention-bg: #12302a;
+    --attention-line: #5fc4b3;
+    --warn-bg: #3a2c0a;
+    --warn-ink: #f2d27c;
+    --danger: #f2898e;
+    --danger-bg: #3b1618;
+    --ok: #72d39d;
+    --ok-bg: #11301e;
+    --running: #5fc4b3;
+    --waiting: #f0b34a;
+    --focus: #5fc4b3;
+    --scrim: rgb(0 0 0 / 60%);
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Tokens: direction B, "Ink and signal"                                     */
+
+:root[data-direction='b'] {
+  color-scheme: light;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: ui-monospace, 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  --fs-meta: 0.8125rem; /* 13 */
+  --fs-body: 1rem; /* 16 */
+  --fs-section: 1.25rem; /* 20 */
+  --fs-title: 2.25rem; /* 36 */
+  --lh-body: 1.5;
+  --w-regular: 400;
+  --w-strong: 700;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2.5rem;
+  --space-7: 4rem;
+  --radius-card: 0;
+  --radius-control: 2px;
+  --radius-chip: 2px;
+  --border-width: 2px;
+  --control-height: 2.5rem;
+  --content-max: 75rem;
+
+  --ground: #ffffff;
+  --surface: #ffffff;
+  --raised: #f3f3f2;
+  --border: #111111;
+  --rule: #e2e2e0;
+  --control: #111111;
+  --text: #111111;
+  --muted: #595959;
+  --accent: #111111;
+  --accent-ink: #ffffff;
+  --primary: #111111;
+  --primary-ink: #ffffff;
+  --signal: #ffd23f;
+  --signal-ink: #111111;
+  --attention-bg: #ffd23f;
+  --attention-line: #111111;
+  --warn-bg: #fff4c7;
+  --warn-ink: #4d3a00;
+  --danger: #b3121d;
+  --danger-bg: #fdeaea;
+  --ok: #17733a;
+  --ok-bg: #e4f3e9;
+  --running: #111111;
+  --waiting: #111111;
+  --focus: #111111;
+  --scrim: rgb(0 0 0 / 50%);
+  --t-fast: 120ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-direction='b'] {
+    color-scheme: dark;
+    --ground: #0d0d0d;
+    --surface: #0d0d0d;
+    --raised: #1b1b1b;
+    --border: #f2f2f2;
+    --rule: #2b2b2b;
+    --control: #f2f2f2;
+    --text: #f2f2f2;
+    --muted: #a8a8a8;
+    --accent: #f2f2f2;
+    --accent-ink: #0d0d0d;
+    --primary: #f2f2f2;
+    --primary-ink: #0d0d0d;
+    --signal: #ffd23f;
+    --signal-ink: #0d0d0d;
+    --attention-bg: #ffd23f;
+    --attention-line: #ffd23f;
+    --warn-bg: #3a2f08;
+    --warn-ink: #ffe28a;
+    --danger: #ff7b7b;
+    --danger-bg: #3a1414;
+    --ok: #6bd794;
+    --ok-bg: #0f2e1b;
+    --running: #f2f2f2;
+    --waiting: #ffd23f;
+    --focus: #ffd23f;
+    --scrim: rgb(0 0 0 / 65%);
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Shared by both: base text, controls, focus, motion                        */
+
+:root[data-direction] body {
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  -webkit-text-size-adjust: 100%;
+}
+
+:root[data-direction] h1 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-title);
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+:root[data-direction] h2 {
+  margin: var(--space-6) 0 var(--space-3);
+  font-size: var(--fs-section);
+  line-height: 1.3;
+  text-wrap: balance;
+}
+
+:root[data-direction] h3,
+:root[data-direction] h4 {
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: var(--fs-body);
+  line-height: 1.4;
+}
+
+:root[data-direction] a {
+  color: var(--accent);
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 0.07em;
+}
+
+:root[data-direction] .muted,
+:root[data-direction] [role='status'] {
+  color: var(--muted);
+}
+
+:root[data-direction] code,
+:root[data-direction] pre,
+:root[data-direction] .path,
+:root[data-direction] .target {
+  font-family: var(--mono);
+  font-size: 0.875em;
+}
+
+:root[data-direction] pre {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+}
+
+:root[data-direction] :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Buttons: one primary (the form's submit, or the first action of a request), secondary, danger. */
+:root[data-direction] button {
+  min-height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid var(--control);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: var(--w-strong);
+  font-size: var(--fs-body);
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background-color var(--t-fast) ease,
+    border-color var(--t-fast) ease,
+    color var(--t-fast) ease;
+}
+
+:root[data-direction] button[type='submit'],
+:root[data-direction] #pending-control .actions > button:first-child,
+:root[data-direction] [data-testid='awaiting-reply'] button[type='submit'] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+
+:root[data-direction] button.danger {
+  border-color: var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+
+:root[data-direction] button:disabled {
+  border-color: var(--rule);
+  background: var(--raised);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root[data-direction] button:not(:disabled):hover {
+    border-color: var(--text);
+  }
+
+  :root[data-direction] button.danger:not(:disabled):hover {
+    background: var(--danger-bg);
+  }
+}
+
+:root[data-direction] .link-button {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-weight: var(--w-regular);
+  font-size: inherit;
+  text-decoration: underline;
+}
+
+/* Fields: label above, 16 px text so phones do not zoom. */
+:root[data-direction] label {
+  font-weight: var(--w-strong);
+}
+
+:root[data-direction] textarea,
+:root[data-direction] input[type='text'],
+:root[data-direction] input[type='number'],
+:root[data-direction] select {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 44rem;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: var(--w-regular);
+}
+
+:root[data-direction] fieldset {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  border: 0;
+}
+
+:root[data-direction] legend {
+  margin-bottom: var(--space-2);
+  font-weight: var(--w-strong);
+}
+
+:root[data-direction] .option {
+  display: block;
+  padding: var(--space-2) 0;
+  font-weight: var(--w-regular);
+}
+
+:root[data-direction] input[type='radio'],
+:root[data-direction] input[type='checkbox'] {
+  accent-color: var(--primary);
+}
+
+:root[data-direction] .own {
+  margin-top: var(--space-3);
+}
+
+:root[data-direction] .chip {
+  border-radius: var(--radius-chip);
+  border-color: var(--rule);
+  font-size: var(--fs-meta);
+}
+
+:root[data-direction] dialog.permission {
+  margin: 0;
+  width: auto;
+}
+
+:root[data-direction] .actions {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* Tables: rules, no bands; numbers and dates in tabular figures. */
+:root[data-direction] table {
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-direction] th {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--w-regular);
+}
+
+:root[data-direction] td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+:root[data-direction] dl {
+  gap: var(--space-1) var(--space-5);
+}
+
+:root[data-direction] dt {
+  color: var(--muted);
+}
+
+/* Banners. */
+:root[data-direction] .banner {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+}
+
+:root[data-direction] .banner-error {
+  background: var(--danger-bg);
+  color: var(--text);
+}
+
+:root[data-direction] .banner-warn {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+
+:root[data-direction] .banner-ok {
+  background: var(--ok-bg);
+  color: var(--text);
+}
+
+/* Dialogs float: the one place with a shadow. */
+:root[data-direction] dialog:modal {
+  max-width: min(30rem, calc(100vw - 2rem));
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 22%);
+}
+
+:root[data-direction] dialog::backdrop {
+  background: var(--scrim);
+}
+
+:root[data-direction] dialog h2 {
+  margin-top: 0;
+}
+
+/* Diffs: readable in both themes. */
+:root[data-direction] .diff-add {
+  background: var(--ok-bg);
+  color: var(--text);
+}
+
+:root[data-direction] .diff-del {
+  background: var(--danger-bg);
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-direction] * {
+    transition: none !important;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Shared shell on phones: one row of menu that scrolls sideways             */
+
+@media (max-width: 63.99rem) {
+  :root[data-direction] header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-2) var(--space-4) 0;
+  }
+
+  :root[data-direction] header > strong {
+    font-size: var(--fs-body);
+  }
+
+  :root[data-direction] header nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin: 0 calc(-1 * var(--space-4));
+    padding: 0 var(--space-4);
+    scrollbar-width: none;
+  }
+
+  :root[data-direction] header nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    margin-right: var(--space-4);
+  }
+
+  :root[data-direction] .chat-toggle {
+    min-height: 2.5rem;
+  }
+
+  :root[data-direction] main {
+    padding: var(--space-5) var(--space-4) var(--space-7);
+  }
+}
+
+/* The creation: on a phone, what waits for the user comes before the progress. */
+@media (max-width: 48rem) {
+  :root[data-direction] .creation-main {
+    order: -1;
+  }
+
+  :root[data-direction] .creation-progress .steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+  }
+
+  :root[data-direction] .creation-progress .steps .step-state {
+    float: none;
+    margin-left: var(--space-1);
+  }
+}
+
+/* Projects table on a phone: one block per project, the name first. */
+@media (max-width: 40rem) {
+  :root[data-direction] table[data-testid='projects'] thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  :root[data-direction] table[data-testid='projects'],
+  :root[data-direction] table[data-testid='projects'] tbody,
+  :root[data-direction] table[data-testid='projects'] tr {
+    display: block;
+  }
+
+  :root[data-direction] table[data-testid='projects'] tr {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  :root[data-direction] table[data-testid='projects'] td {
+    display: inline;
+    padding: 0;
+    border: 0;
+    color: var(--muted);
+    font-size: var(--fs-meta);
+  }
+
+  :root[data-direction] table[data-testid='projects'] td:first-child {
+    display: block;
+    margin-bottom: var(--space-1);
+    color: var(--text);
+    font-size: var(--fs-body);
+    font-weight: var(--w-strong);
+  }
+
+  :root[data-direction] table[data-testid='projects'] td:not(:first-child, :last-child)::after {
+    content: ' · ';
+  }
+
+  :root[data-direction] table[data-testid='projects'] td:last-child {
+    display: block;
+    margin-top: var(--space-1);
+  }
+
+  :root[data-direction] .table-wrap {
+    overflow-x: visible;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Direction A: a quiet sidebar, white sheets, a teal mark on what waits      */
+
+:root[data-direction='a'] header {
+  border-bottom: 1px solid var(--rule);
+  background: var(--ground);
+}
+
+:root[data-direction='a'] header nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+:root[data-direction='a'] header nav a[aria-current='page'] {
+  color: var(--text);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+}
+
+:root[data-direction='a'] .dot {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 64rem) {
+  :root[data-direction='a'] #app:has(> header) {
+    display: grid;
+    grid-template-columns: var(--nav-width) minmax(0, 1fr);
+    min-height: 100vh;
+  }
+
+  :root[data-direction='a'] #app > header {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-5);
+    height: 100vh;
+    box-sizing: border-box;
+    padding: var(--space-5) var(--space-3);
+    border-bottom: 0;
+  }
+
+  :root[data-direction='a'] #app > header > strong {
+    padding: 0 var(--space-3);
+    font-size: var(--fs-section);
+  }
+
+  :root[data-direction='a'] header nav {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  :root[data-direction='a'] header nav a {
+    display: flex;
+    align-items: center;
+    min-height: 2.125rem;
+    margin: 0;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-control);
+  }
+
+  :root[data-direction='a'] header nav a[aria-current='page'] {
+    background: var(--raised);
+  }
+
+  :root[data-direction='a'] .chat-toggle {
+    margin: auto 0 0;
+  }
+
+  :root[data-direction='a'] main {
+    max-width: var(--content-max);
+    margin: 0;
+    padding: var(--space-6) var(--space-6) var(--space-7);
+  }
+}
+
+/* Sheets: one white surface per block, a 1 px edge, no shadow. */
+:root[data-direction='a'] .panel,
+:root[data-direction='a'] .agent-card,
+:root[data-direction='a'] .table-wrap,
+:root[data-direction='a'] .plan-usage,
+:root[data-direction='a'] .agent-detail {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+:root[data-direction='a'] .table-wrap {
+  padding: 0 var(--space-2);
+}
+
+:root[data-direction='a'] .plan-usage,
+:root[data-direction='a'] .agent-detail {
+  padding: var(--space-2) var(--space-4) var(--space-3);
+}
+
+:root[data-direction='a'] .plan-usage h3,
+:root[data-direction='a'] .agent-detail h3 {
+  margin-top: var(--space-2);
+}
+
+:root[data-direction='a'] tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+:root[data-direction='a'] .idea {
+  margin: var(--space-2) 0;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  font-size: var(--fs-section);
+}
+
+/* What waits for the user: tinted, a 3 px teal edge, the title at section size. */
+:root[data-direction='a'] #pending-control .panel,
+:root[data-direction='a'] .panel[data-testid='awaiting-reply'] {
+  padding: var(--space-5);
+  border: 1px solid var(--attention-line);
+  border-left-width: 4px;
+  background: var(--attention-bg);
+}
+
+:root[data-direction='a'] #pending-control .panel h2,
+:root[data-direction='a'] .panel[data-testid='awaiting-reply'] h2 {
+  margin-top: 0;
+}
+
+:root[data-direction='a'] .pending-for {
+  margin: 0 0 var(--space-2);
+  color: var(--muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--w-regular);
+}
+
+:root[data-direction='a'] .result {
+  padding: var(--space-5);
+}
+
+/* Progress: a quiet list, the current step in ink with a teal dot. */
+:root[data-direction='a'] .creation {
+  gap: var(--space-6);
+  margin-top: var(--space-5);
+}
+
+@media (min-width: 48.01rem) {
+  :root[data-direction='a'] .creation {
+    grid-template-columns: 13rem minmax(0, 1fr);
+  }
+}
+
+:root[data-direction='a'] .creation-progress h2 {
+  margin-top: 0;
+  color: var(--muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--w-regular);
+}
+
+:root[data-direction='a'] .steps li {
+  position: relative;
+  padding: var(--space-1) 0 var(--space-1) var(--space-5);
+  border-left: 0;
+  font-weight: var(--w-regular);
+}
+
+:root[data-direction='a'] .steps li::before {
+  content: '';
+  position: absolute;
+  top: 0.75em;
+  left: 0.3rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1.5px solid var(--control);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+:root[data-direction='a'] .steps li[data-state='ok']::before {
+  border-color: var(--ok);
+  background: var(--ok);
+}
+
+:root[data-direction='a'] .steps li[data-state='running'] {
+  color: var(--text);
+  font-weight: var(--w-strong);
+}
+
+:root[data-direction='a'] .steps li[data-state='running']::before {
+  border-color: var(--running);
+  background: var(--running);
+  box-shadow: 0 0 0 3px var(--attention-bg);
+}
+
+:root[data-direction='a'] .steps li[data-state='failed']::before {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+:root[data-direction='a'] .steps .step-state {
+  color: var(--muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--w-regular);
+}
+
+/* Agent cards: white, the status in words at the right, a 3 px status edge. */
+:root[data-direction='a'] .agent-card {
+  padding: var(--space-3) var(--space-4);
+  border-left-width: 3px;
+}
+
+:root[data-direction='a'] .agent-card[data-status='running'] {
+  border-left-color: var(--running);
+}
+
+:root[data-direction='a'] .agent-card[data-status='waiting'] {
+  border-left-color: var(--waiting);
+}
+
+:root[data-direction='a'] .agent-card[data-status='done'] {
+  border-left-color: var(--ok);
+}
+
+:root[data-direction='a'] .agent-card[data-status='failed'],
+:root[data-direction='a'] .agent-card[data-status='interrupted'] {
+  border-left-color: var(--danger);
+}
+
+:root[data-direction='a'] .agent-name {
+  font-weight: var(--w-strong);
+}
+
+:root[data-direction='a'] .agent-select[aria-pressed='true'] .agent-name {
+  text-decoration: none;
+}
+
+:root[data-direction='a'] .agent-card:has(.agent-select[aria-pressed='true']) {
+  border-color: var(--muted);
+}
+
+:root[data-direction='a'] .agent-select {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: var(--w-regular);
+  font-size: var(--fs-body);
+}
+
+:root[data-direction='a'] .agent-meta,
+:root[data-direction='a'] .agent-counts,
+:root[data-direction='a'] .node-status {
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-direction='a'] .agent-pending {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--attention-bg);
+  color: var(--text);
+  font-size: var(--fs-meta);
+}
+
+:root[data-direction='a'] .agent-children {
+  border-left: 1px solid var(--border);
+}
+
+/* Timeline: thin bars, status in the bar's colour and in the duration's text. */
+:root[data-direction='a'] .timeline-row {
+  min-height: 2rem;
+  border-radius: var(--radius-control);
+  font-weight: var(--w-regular);
+  font-size: var(--fs-body);
+}
+
+:root[data-direction='a'] .timeline-row[aria-pressed='true'] {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+:root[data-direction='a'] .timeline-track svg {
+  height: 0.5rem;
+}
+
+:root[data-direction='a'] .timeline-track .bar {
+  fill: var(--control);
+}
+
+:root[data-direction='a'] .timeline-row[data-status='running'] .bar,
+:root[data-direction='a'] .timeline-row[data-status='waiting'] .bar {
+  fill: var(--running);
+}
+
+:root[data-direction='a'] .timeline-row[data-status='done'] .bar {
+  fill: var(--ok);
+}
+
+:root[data-direction='a'] .timeline-row[data-status='failed'] .bar,
+:root[data-direction='a'] .timeline-row[data-status='interrupted'] .bar {
+  fill: var(--danger);
+}
+
+:root[data-direction='a'] .timeline-time {
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-direction='a'] .chat-card {
+  border: 1px solid var(--attention-line);
+  border-left-width: 4px;
+  border-radius: var(--radius-card);
+  background: var(--attention-bg);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Direction B: a top bar, type and rules, a yellow field for what waits      */
+
+:root[data-direction='b'] header {
+  align-items: center;
+  border-bottom: 2px solid var(--text);
+  background: var(--ground);
+}
+
+:root[data-direction='b'] header > strong {
+  font-size: var(--fs-section);
+  letter-spacing: -0.01em;
+}
+
+:root[data-direction='b'] header nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  border-bottom: 3px solid transparent;
+  color: var(--text);
+  text-decoration: none;
+}
+
+:root[data-direction='b'] header nav a[aria-current='page'] {
+  border-bottom-color: var(--text);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+}
+
+:root[data-direction='b'] .dot {
+  padding: 0 0.3em;
+  margin-left: 0.3em;
+  background: var(--signal);
+  color: var(--signal-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 64rem) {
+  :root[data-direction='b'] header {
+    padding: 0 var(--space-6);
+    gap: 0 var(--space-6);
+  }
+
+  :root[data-direction='b'] header nav a {
+    margin-right: var(--space-5);
+  }
+
+  :root[data-direction='b'] main {
+    max-width: var(--content-max);
+    padding: var(--space-6) var(--space-6) var(--space-7);
+  }
+}
+
+:root[data-direction='b'] h1 {
+  letter-spacing: -0.02em;
+  font-weight: var(--w-strong);
+}
+
+:root[data-direction='b'] h2 {
+  padding-top: var(--space-3);
+  border-top: 2px solid var(--text);
+  font-weight: var(--w-strong);
+  letter-spacing: -0.01em;
+}
+
+:root[data-direction='b'] dialog h2 {
+  padding-top: 0;
+  border-top: 0;
+}
+
+:root[data-direction='b'] th {
+  border-bottom: 2px solid var(--text);
+  color: var(--text);
+  font-weight: var(--w-strong);
+}
+
+:root[data-direction='b'] .idea {
+  margin: var(--space-3) 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--fs-section);
+  line-height: 1.35;
+}
+
+/* No boxes: blocks are separated by space and the heading rule. */
+:root[data-direction='b'] .panel {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+/* What waits for the user: a full yellow field, ink text, the one loud thing on screen. */
+:root[data-direction='b'] #pending-control,
+:root[data-direction='b'] .panel[data-testid='awaiting-reply'] {
+  padding: var(--space-5);
+  background: var(--signal);
+  color: var(--signal-ink);
+}
+
+:root[data-direction='b'] #pending-control .panel,
+:root[data-direction='b'] #pending-control label,
+:root[data-direction='b'] #pending-control legend,
+:root[data-direction='b'] #pending-control dt {
+  color: inherit;
+}
+
+:root[data-direction='b'] #pending-control input[type='radio'],
+:root[data-direction='b'] #pending-control input[type='checkbox'] {
+  accent-color: #111111;
+}
+
+:root[data-direction='b'] #pending-control h2,
+:root[data-direction='b'] .panel[data-testid='awaiting-reply'] h2 {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+  font-size: var(--fs-section);
+}
+
+:root[data-direction='b'] #pending-control .muted,
+:root[data-direction='b'] #pending-control [role='status'],
+:root[data-direction='b'] .panel[data-testid='awaiting-reply'] .muted,
+:root[data-direction='b'] .panel[data-testid='awaiting-reply'] [role='status'] {
+  color: var(--signal-ink);
+}
+
+:root[data-direction='b'] #pending-control button,
+:root[data-direction='b'] .panel[data-testid='awaiting-reply'] button {
+  border-color: var(--signal-ink);
+  background: transparent;
+  color: var(--signal-ink);
+}
+
+:root[data-direction='b'] #pending-control .actions > button:first-child,
+:root[data-direction='b'] #pending-control button[type='submit'],
+:root[data-direction='b'] .panel[data-testid='awaiting-reply'] button[type='submit'] {
+  background: var(--signal-ink);
+  color: var(--signal);
+}
+
+:root[data-direction='b'] #pending-control button:disabled,
+:root[data-direction='b'] .panel[data-testid='awaiting-reply'] button:disabled {
+  border-style: dashed;
+  background: transparent;
+  color: var(--signal-ink);
+}
+
+:root[data-direction='b'] #pending-control textarea,
+:root[data-direction='b'] #pending-control input[type='text'],
+:root[data-direction='b'] .panel[data-testid='awaiting-reply'] textarea {
+  border: 2px solid var(--signal-ink);
+  background: #ffffff;
+  color: #111111;
+}
+
+:root[data-direction='b'] #pending-control pre,
+:root[data-direction='b'] #pending-control .chip {
+  border-color: var(--signal-ink);
+  background: #ffffff;
+  color: #111111;
+}
+
+:root[data-direction='b'] #pending-control a,
+:root[data-direction='b'] .panel[data-testid='awaiting-reply'] a {
+  color: var(--signal-ink);
+}
+
+:root[data-direction='b'] #pending-control :focus-visible,
+:root[data-direction='b'] .panel[data-testid='awaiting-reply'] :focus-visible {
+  outline-color: var(--signal-ink);
+}
+
+:root[data-direction='b'] .pending-for {
+  margin: 0 0 var(--space-2);
+  font-weight: var(--w-regular);
+}
+
+:root[data-direction='b'] dialog.permission {
+  border: 0;
+  background: none;
+  color: inherit;
+}
+
+/* Progress: a numbered-by-position list, the current step inverted. */
+:root[data-direction='b'] .creation {
+  gap: var(--space-6);
+}
+
+@media (min-width: 48.01rem) {
+  :root[data-direction='b'] .creation {
+    grid-template-columns: 14rem minmax(0, 1fr);
+  }
+}
+
+:root[data-direction='b'] .creation-progress h2 {
+  margin-top: var(--space-6);
+}
+
+:root[data-direction='b'] .steps li {
+  padding: var(--space-1) var(--space-2);
+  border-left: 0;
+  border-bottom: 1px solid var(--rule);
+  font-weight: var(--w-regular);
+}
+
+:root[data-direction='b'] .steps li[data-state='ok'] .step-state {
+  color: var(--ok);
+}
+
+:root[data-direction='b'] .steps li[data-state='running'] {
+  background: var(--text);
+  color: var(--ground);
+  font-weight: var(--w-strong);
+}
+
+:root[data-direction='b'] .steps li[data-state='running'] .step-state {
+  color: var(--ground);
+}
+
+:root[data-direction='b'] .steps li[data-state='failed'] .step-state {
+  color: var(--danger);
+}
+
+:root[data-direction='b'] .steps .step-state {
+  float: right;
+  color: var(--muted);
+  font-size: var(--fs-meta);
+}
+
+/* Agents: rows of a list, not cards; the status word in a fixed column. */
+:root[data-direction='b'] .agent-children {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border-left: 0;
+}
+
+:root[data-direction='b'] .agent-card {
+  padding: var(--space-3) 0 var(--space-3) var(--space-4);
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-left: 4px solid var(--rule);
+  border-radius: 0;
+}
+
+:root[data-direction='b'] .agent-children .agent-card {
+  margin-left: var(--space-5);
+}
+
+:root[data-direction='b'] .agent-card[data-status='running'] {
+  border-left-color: var(--text);
+}
+
+:root[data-direction='b'] .agent-card[data-status='waiting'] {
+  border-left-color: var(--signal);
+}
+
+:root[data-direction='b'] .agent-card[data-status='done'] {
+  border-left-color: var(--ok);
+}
+
+:root[data-direction='b'] .agent-card[data-status='failed'],
+:root[data-direction='b'] .agent-card[data-status='interrupted'] {
+  border-left-color: var(--danger);
+}
+
+:root[data-direction='b'] .agent-select {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: var(--w-regular);
+  font-size: var(--fs-body);
+}
+
+:root[data-direction='b'] .agent-select[aria-pressed='true'] .agent-name {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+
+:root[data-direction='b'] .node-status {
+  color: var(--text);
+  font-weight: var(--w-strong);
+  font-size: var(--fs-meta);
+}
+
+:root[data-direction='b'] .agent-meta,
+:root[data-direction='b'] .agent-counts {
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-direction='b'] .agent-pending {
+  display: inline-block;
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: 0;
+  background: var(--signal);
+  color: var(--signal-ink);
+  font-size: var(--fs-meta);
+}
+
+:root[data-direction='b'] .agent-pending .link-button {
+  color: var(--signal-ink);
+}
+
+/* Timeline: ink bars, the selected row inverted label. */
+:root[data-direction='b'] .timeline-row {
+  min-height: 2rem;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  font-weight: var(--w-regular);
+  font-size: var(--fs-body);
+}
+
+:root[data-direction='b'] .timeline-row[aria-pressed='true'] .timeline-label {
+  font-weight: var(--w-strong);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+
+:root[data-direction='b'] .timeline-track svg {
+  height: 0.75rem;
+}
+
+:root[data-direction='b'] .timeline-track .bar {
+  fill: var(--muted);
+}
+
+:root[data-direction='b'] .timeline-row[data-status='running'] .bar {
+  fill: var(--text);
+}
+
+:root[data-direction='b'] .timeline-row[data-status='waiting'] .bar {
+  fill: var(--signal);
+}
+
+:root[data-direction='b'] .timeline-row[data-status='done'] .bar {
+  fill: var(--ok);
+}
+
+:root[data-direction='b'] .timeline-row[data-status='failed'] .bar,
+:root[data-direction='b'] .timeline-row[data-status='interrupted'] .bar {
+  fill: var(--danger);
+}
+
+:root[data-direction='b'] .timeline-time {
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-direction='b'] .chat-card {
+  border: 0;
+  border-radius: 0;
+  background: var(--signal);
+  color: var(--signal-ink);
+}

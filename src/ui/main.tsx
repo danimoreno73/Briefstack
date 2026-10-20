@@ -6,6 +6,7 @@ import { ApiError, api, takeToken } from './api.js';
 import { NewProjectPage } from './creation.js';
 import { CreationsPage } from './creations.js';
 import { ChatDrawer, ChatPage } from './chat.js';
+import { applyDevDirection } from './direction.js';
 import { ImprovePage } from './improve.js';
 import { AppCtx, type AppContext } from './hooks.js';
 import { LibraryView } from './library.js';
@@ -165,5 +166,6 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
 // 1. Read the token from the address and keep it for this tab; 2. clean the
 // address (`history.replaceState`); only then 3. start the router and render.
 const token = takeToken();
+applyDevDirection();
 const root = document.getElementById('app');
 if (root !== null) render(<App initialLang={readStoredLang() ?? langFromLocale(navigator.language) ?? 'en'} token={token} />, root);
