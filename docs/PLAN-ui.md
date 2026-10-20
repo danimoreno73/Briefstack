@@ -11,12 +11,13 @@ before each step; the work stops if the 7-day window is over 85% or the
 
 ## 0. Status
 
-Updated 2026-10-20. U0 is done; U1 is in progress.
+Updated 2026-10-20. U0 and U1 are done. **Waiting for the user to choose a
+direction**; U2 does not start before that.
 
 | Step | State | What exists |
 | --- | --- | --- |
 | U0 | done | References pinned in `docs/design/vendor/` with `SOURCE.md`; `tests/screenshots/audit.shots.ts`; 108 screenshots in `docs/design/shots/u0/`; `docs/design/audit.md` (40 findings: 7 high, 19 medium, 14 low) |
-| U1 | in progress | — |
+| U1 | done | `docs/DESIGN.md` §2 with directions A "Quiet sheet" and B "Ink and signal" and their tokens for both themes; `src/ui/static/directions.css` and the development flag `src/ui/direction.ts` (`localStorage['briefstack-direction']`); applied to the shell, the projects list and the creation screen; screenshots in `docs/design/shots/u1/{a,b}/` |
 | U2 | — | — |
 | U3 | — | — |
 | U4 | — | — |
