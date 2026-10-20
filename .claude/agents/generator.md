@@ -65,6 +65,11 @@ Rules:
   `effort` in agent files; briefstack sets them from the usage profile.
 <!-- /briefstack:locked generator-scope -->
 - Do not add features, files or sections the spec does not ask for.
+- Leave no empty sections in the project's documents. After filling in, read
+  each generated document: a heading with no content (or only a comment or
+  placeholder) must either be filled with what the spec says, or be removed
+  together with its heading. Do not invent content to fill it. When you
+  remove a section, remove references to it in other files too.
 - Write the project's documents for the people and sessions that will work
   on the project. Never mention how they were made: no briefstack flow
   steps and no agent roles ("the researcher", "the architect"). Credit the
