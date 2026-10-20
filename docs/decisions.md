@@ -2783,3 +2783,34 @@ above change as noted.
     real improvement runner, so tests with fakes never start a model
     session; `scripts/real/check-safety-review.ts` checks it on three fixed
     diffs (one with an injected answer) and was not run.
+
+# UI pass
+
+## U0: the references (2026-10-20)
+
+1. **Pinned copies, not installs.** The three references from BRIEF-ui §3
+   were cloned with `git clone --depth 1` into a scratch folder outside the
+   repo, read there, and the files used were copied unchanged into
+   `docs/design/vendor/<name>/`, each with a `SOURCE.md` (URL, commit,
+   commit date, copy date, license). No `npx skills`, no plugin, no script
+   from them was run; nothing is in `.claude/skills/`.
+2. **"The default frontend skill and the redesign skill" are one file now.**
+   Taste Skill 2.1.1 (2026-10-19) folded `redesign-existing-projects` into
+   `design-taste-frontend`, and 2.1.3 removed the old folder. The brief's
+   two skills are `SKILL.md` (its "Redesign, restyle or review" section is
+   the redesign route). Its app-screen chapter (`references/app-screens.md`)
+   is the one that applies to briefstack; the landing-page run, its
+   pictures, scroll scenes and motion floor do not.
+3. **The Vercel skill fetches its rules at run time.** `SKILL.md` tells the
+   agent to fetch `command.md` from the `web-interface-guidelines`
+   repository before each review. That file (and its fuller `AGENTS.md`)
+   is copied from that repository at a fixed commit, and the copy is the
+   audit checklist. The `agent-skills` repository has no LICENSE file; its
+   README states MIT.
+4. **awesome-design-md: structure only.** Only its README and LICENSE are
+   copied. One brand file (`design-md/ibm/DESIGN.md`) was read for its
+   structure and not copied, so no brand's values enter the repo.
+5. **Taste Skill commit is from the copy day.** The pinned commit
+   (`6010f91`, 2.1.4) was made hours before the copy. The two-weeks rule
+   in BRIEF-ui §5 is for runtime dependencies; these are documents that
+   nothing runs, so the latest commit was taken and read in full.
