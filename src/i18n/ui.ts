@@ -576,7 +576,7 @@ export const uiMessages = defineCatalogue({
     themeLabel: 'Tema',
     themeName: (theme: 'system' | 'light' | 'dark') => ({ system: 'Sistema', light: 'Claro', dark: 'Oscuro' })[theme],
     navProjects: 'Proyectos',
-    navLibrary: 'Librería',
+    navLibrary: 'Biblioteca',
     navUsage: 'Uso',
     navSettings: 'Ajustes',
 
@@ -599,15 +599,15 @@ export const uiMessages = defineCatalogue({
     errRelativePath: 'Usa una ruta completa, como C:\\Users\\tu\\proyectos o /home/tu/proyectos, o una que empiece por ~.',
     errForbiddenOutput: (root: string) =>
       root === 'library'
-        ? 'Esa carpeta se solapa con tu librería personal. Elige otra.'
+        ? 'Esa carpeta se solapa con tu biblioteca personal. Elige otra.'
         : root === 'repo'
           ? 'Esa carpeta se solapa con el repositorio de briefstack. Elige otra.'
           : 'Esa carpeta se solapa con una carpeta protegida (la de briefstack, la de Claude Code o AppData). Elige otra.',
     errNotADirectory: 'Esa ruta es un archivo, no una carpeta.',
     errNoteNotFound: 'Esa nota no existe.',
     errCommitNotFound: 'Ese commit no existe.',
-    errDirtyTree: 'La librería tiene cambios sin guardar. Guárdalos o descártalos primero.',
-    errRevertConflict: 'No se pudo revertir el commit sin conflictos. La librería no ha cambiado.',
+    errDirtyTree: 'La biblioteca tiene cambios sin guardar. Guárdalos o descártalos primero.',
+    errRevertConflict: 'No se pudo revertir el commit sin conflictos. La biblioteca no ha cambiado.',
     errUnknownProfile: 'Ese perfil de uso no existe.',
     errInvalidBody: 'El servidor no ha aceptado esos valores.',
 
@@ -724,7 +724,7 @@ export const uiMessages = defineCatalogue({
       }
     },
 
-    libraryTitle: 'Librería personal',
+    libraryTitle: 'Biblioteca personal',
     sectionIndex: 'Índice',
     sectionProfile: 'Perfil',
     sectionProjects: 'Notas de proyectos',
@@ -751,8 +751,8 @@ export const uiMessages = defineCatalogue({
     },
     redactedWarning:
       'Algunas líneas parecen secretos y se ocultan como [redacted]. Quita esas líneas para guardar, así no se sobrescribe el texto oculto.',
-    historyTitle: 'Historial de la librería',
-    historyEmpty: 'La librería aún no tiene historial.',
+    historyTitle: 'Historial de la biblioteca',
+    historyEmpty: 'La biblioteca aún no tiene historial.',
     filesChanged: (count: number) => (count === 1 ? '1 archivo' : `${count} archivos`),
     revert: 'Revertir',
     revertTitle: '¿Revertir este commit?',
@@ -809,7 +809,7 @@ export const uiMessages = defineCatalogue({
     pathsTitle: 'Rutas resueltas',
     pathHome: 'Carpeta de briefstack',
     pathConfig: 'Archivo de configuración',
-    pathLibrary: 'Librería personal',
+    pathLibrary: 'Biblioteca personal',
     pathProjects: 'Carpeta de proyectos',
     pathSessions: 'Sesiones',
     pathRepo: 'Repositorio de briefstack',

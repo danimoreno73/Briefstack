@@ -107,13 +107,6 @@ table {
   overflow-wrap: anywhere;
 }
 
-/* Headings inside rendered notes and specs sit under the page's own headings. */
-.markdown h1 {
-  margin: var(--space-5) 0 var(--space-2);
-  font-size: calc(var(--fs-section) * 1.15);
-  letter-spacing: -0.015em;
-}
-
 /* A note's own headings are demoted two levels when rendered (src/ui/common.tsx). */
 .markdown h3 {
   margin: var(--space-5) 0 var(--space-2);
@@ -831,16 +824,6 @@ section > .panel {
   vertical-align: 0.05em;
 }
 
-.history {
-  padding: 0;
-  list-style: none;
-}
-
-.history li {
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--rule);
-}
-
 /* A list table on a phone (`.stack-on-phone`): one block per row, the first cell as its title, the last on its own line. */
 @media (max-width: 40rem) {
   .stack-on-phone thead {
@@ -1485,19 +1468,125 @@ textarea#spec-change {
 /* ------------------------------------------------------------------------ */
 /* Library                                                                   */
 
+/* Library sections as tabs: one row on a rule, the current one marked by an ink bar (audit L7). */
 .tabs {
-  margin: var(--space-4) 0;
+  display: flex;
+  gap: var(--space-1);
+  margin: var(--space-4) 0 var(--space-5);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: none;
 }
 
 .tabs a {
-  margin-right: var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  margin-bottom: -1px;
+  padding: 0 var(--space-3);
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .tabs a[aria-current='page'] {
+  border-bottom-color: var(--text);
   color: var(--text);
   font-weight: var(--w-strong);
-  text-decoration: underline;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tabs a:hover {
+    color: var(--text);
+  }
+}
+
+.note-list {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  list-style: none;
+}
+
+.note-list li {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--rule);
+}
+
+.note-list li:last-child {
+  border-bottom: 0;
+}
+
+.note-list a {
+  font-weight: var(--w-strong);
+}
+
+.note-summary {
+  font-size: var(--fs-meta);
+}
+
+.note-file {
+  margin-top: 0;
+}
+
+.preview h3 {
+  margin-top: 0;
+}
+
+.preview .panel {
+  min-height: 22rem;
+}
+
+.unsaved {
+  border-color: var(--warn-ink);
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+
+/* Library history: one row per commit, its action quiet at the right. */
+.history {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  list-style: none;
+}
+
+.history li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--rule);
+}
+
+.history li:last-child {
+  border-bottom: 0;
+}
+
+.history-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.history-meta {
+  font-size: var(--fs-meta);
+}
+
+button.row-action {
+  flex: none;
+  min-height: 1.875rem;
+  padding: 0 var(--space-3);
+  border-color: var(--border);
+  font-size: var(--fs-meta);
 }
 
 .editor {

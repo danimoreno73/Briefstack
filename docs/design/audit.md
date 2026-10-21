@@ -193,4 +193,7 @@ light and dark and 390 light (git-ignored `screenshots/u3/<group>/`).
 | M8 unfinished creations listed by id | partial | 4 projects | A table by when they stopped, their status and the step's name, the id last; showing the idea needs the sessions list to return it, an API change, recorded as proposal 4 below |
 | M18 "Waiting for: nothing: working", no time | closed | 4 projects | A "Started" column; what waits for the user is marked in ink with a dot, working is quiet ("nothing yet: it is working") |
 | M4 "Next steps" said twice on a project | closed | 4 projects | A note that opens with the section's own heading drops it (`withoutLeadingHeading`, unit tested) |
+| L2 "Librería" in Spanish | closed | 5 library | "Biblioteca" in every Spanish UI string |
+| L7 library sections read as links | closed | 5 library | Tabs on a rule, the current one with an ink bar; they scroll sideways on a phone |
+| L8 a full-weight Revert on every commit | closed | 5 library | One row per commit (subject, then commit, date and files), Revert as a small quiet action at the right |
 | — list tables on a phone | closed | 4 projects | Every list table (projects, unfinished, creations, proposals, a project's history) becomes one block per row under 640 px |

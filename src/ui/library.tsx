@@ -57,7 +57,13 @@ function IndexView() {
       {({ text }) => (
         <>
           <p class="muted">{t.indexReadOnly}</p>
-          {text === null ? <p>{t.noNotes}</p> : <Markdown text={text} />}
+          {text === null ? (
+            <p class="empty">{t.noNotes}</p>
+          ) : (
+            <div class="panel">
+              <Markdown text={text} />
+            </div>
+          )}
         </>
       )}
     </Loader>
@@ -71,13 +77,13 @@ function NoteList({ section }: { section: string }) {
     <Loader loaded={loaded}>
       {({ notes }) =>
         notes.length === 0 ? (
-          <p>{t.noNotes}</p>
+          <p class="empty">{t.noNotes}</p>
         ) : (
-          <ul data-testid="notes">
+          <ul class="note-list" data-testid="notes">
             {notes.map((note) => (
               <li key={note.file}>
                 <a href={routeHash({ page: 'library', section: note.section, name: note.name })}>{note.name ?? note.file}</a>
-                {note.summary !== '' && <span class="muted"> — {note.summary}</span>}
+                {note.summary !== '' && <span class="muted note-summary">{note.summary}</span>}
               </li>
             ))}
           </ul>
@@ -134,7 +140,7 @@ function NoteEditor({ section, name }: { section: string; name: string | undefin
     <Loader loaded={loaded}>
       {({ file }) => (
         <div>
-          <h2>
+          <h2 class="note-file">
             <code>{file}</code>
           </h2>
           {error !== undefined && <ErrorBanner error={error} />}
@@ -153,18 +159,18 @@ function NoteEditor({ section, name }: { section: string; name: string | undefin
                 }}
               />
             </label>
-            <div>
+            <div class="preview">
               <h3>{t.previewLabel}</h3>
-              <div data-testid="preview">
+              <div class="panel" data-testid="preview">
                 <Markdown text={hideSecrets(stripFrontmatter(text))} />
               </div>
             </div>
           </div>
           <div class="actions">
-            <button type="button" disabled={!dirty || busy || hidden} onClick={() => void save()}>
+            <button type="button" class="primary" disabled={!dirty || busy || hidden} onClick={() => void save()}>
               {busy ? t.saving : t.save}
             </button>
-            {dirty && <span class="muted">{t.unsaved}</span>}
+            {dirty && <span class="chip unsaved">{t.unsaved}</span>}
           </div>
         </div>
       )}
@@ -206,11 +212,14 @@ function HistoryView() {
             <ul class="history" data-testid="history">
               {commits.map((commit) => (
                 <li key={commit.sha}>
-                  <code>{commit.shortSha}</code> <span>{commit.subject}</span>{' '}
-                  <span class="muted">
-                    {formatWhen(commit.date, lang)} · {t.filesChanged(commit.files.length)}
-                  </span>{' '}
-                  <button type="button" onClick={() => setAsking(commit)}>
+                  {/* The subject first; the commit, date and files as its meta line; Revert as a quiet row action (audit L8). */}
+                  <div class="history-text">
+                    <span class="history-subject">{commit.subject}</span>
+                    <span class="muted history-meta">
+                      <code>{commit.shortSha}</code> · <span class="num">{formatWhen(commit.date, lang)}</span> · {t.filesChanged(commit.files.length)}
+                    </span>
+                  </div>
+                  <button type="button" class="row-action" onClick={() => setAsking(commit)}>
                     {t.revert}
                   </button>
                 </li>
