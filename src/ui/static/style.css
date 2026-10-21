@@ -1349,17 +1349,22 @@ textarea#spec-change {
 /* ------------------------------------------------------------------------ */
 /* The chat: page and drawer                                                 */
 
+/* The chat page: one readable column. */
+.chat {
+  max-width: 48rem;
+}
+
+/* The drawer: a title bar that stays, the conversation scrolling under it. */
 .chat-drawer {
   position: fixed;
   top: 0;
   right: 0;
   bottom: 0;
   z-index: 10;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
   width: min(26rem, 100vw);
-  padding: var(--space-4);
-  overflow-y: auto;
-  overscroll-behavior: contain;
   border-left: 1px solid var(--border);
   background: var(--surface);
   box-shadow: -4px 0 16px rgb(0 0 0 / 18%);
@@ -1369,11 +1374,45 @@ textarea#spec-change {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-2);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-drawer-head h2 {
+  margin: 0;
+  font-size: var(--fs-lead);
+  font-weight: var(--w-heavy);
+}
+
+.chat-drawer-body {
+  flex: 1;
+  padding: 0 var(--space-4) var(--space-4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.chat-scrim {
+  display: none;
+}
+
+/* On a phone the drawer leaves a strip of the dimmed page to tap away. */
+@media (max-width: 63.99rem) {
+  .chat-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+    display: block;
+    background: var(--scrim);
+  }
+
+  .chat-drawer {
+    width: min(26rem, calc(100vw - 2.5rem));
+  }
 }
 
 .chat-messages {
-  margin: 0 0 var(--space-4);
+  margin: var(--space-3) 0 var(--space-4);
   padding: 0;
   list-style: none;
 }
@@ -1385,14 +1424,27 @@ textarea#spec-change {
 
 .chat-who {
   display: block;
+  margin-bottom: var(--space-1);
   color: var(--muted);
   font-size: var(--fs-meta);
-  font-weight: var(--w-strong);
+  font-weight: var(--w-heavy);
+}
+
+/* The user's messages sit on a sheet; Claude's answers on the page (audit L9). */
+.chat-user {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--raised);
 }
 
 .chat-user .chat-text {
-  margin: var(--space-1) 0;
+  margin: 0;
   white-space: pre-wrap;
+}
+
+.chat-assistant .markdown > :last-child {
+  margin-bottom: 0;
 }
 
 .chat-tool,

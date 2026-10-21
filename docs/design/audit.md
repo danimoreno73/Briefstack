@@ -179,3 +179,7 @@ light and dark and 390 light (git-ignored `screenshots/u3/<group>/`).
 | M16 long Ctrl+Enter hint | closed | 1 creation | The hint under the field says what the text is for; "Ctrl+Enter sends" sits by the send button |
 | M19 cancel at the page's end | closed | 1 creation | "Cancel creation" sits by the creation's name |
 | L14 timeline label cut on a phone | closed | 1 creation | On a phone the label has the row's first line and the bar the second |
+| H7 the chat drawer on a phone | closed | 2 chat | A title bar that stays, the conversation scrolling under it; on a phone a strip of dimmed page that closes it on a tap; focus moves in on opening and back on closing; Escape closes |
+| M10 "Claude is answering…" while a card waits | closed | 2 chat | "Waiting for your answer on the card above." while a card is pending |
+| L1 "1 lines added" | closed | 2 chat | Singular and plural in both languages for the card's counts and skipped lines |
+| L9 You and Claude look alike | closed | 2 chat | The user's messages sit on a sheet, Claude's on the page |

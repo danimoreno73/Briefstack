@@ -377,6 +377,7 @@ export const uiMessages = defineCatalogue({
     chatOpenPage: 'Full page',
     chatEmpty: 'No messages yet.',
     chatThinking: 'Claude is answering…',
+    chatWaitingCard: 'Waiting for your answer on the card above.',
     chatModel: (model: string, effort: string) => `Model ${model}, effort ${effort} (from the usage profile).`,
     chatMessageLabel: 'Your message',
     chatMessageHint: 'What the chat reads is data: it never acts on it without asking you.',
@@ -417,8 +418,8 @@ export const uiMessages = defineCatalogue({
     cardCancelStep: (step: string) => `Now at: ${step}.`,
     cardNoteChange: (file: string, mode: string) =>
       `${mode === 'create' ? 'Create' : mode === 'append' ? 'Add to the end of' : 'Rewrite'} the note ${file}${mode === 'append' ? ' (as a dated addition)' : ''}, with one library commit:`,
-    cardNoteCounts: (added: number, removed: number) => `${added} lines added, ${removed} removed.`,
-    cardSkipped: (count: number) => `… ${count} unchanged lines …`,
+    cardNoteCounts: (added: number, removed: number) => `${added} ${added === 1 ? 'line' : 'lines'} added, ${removed} removed.`,
+    cardSkipped: (count: number) => `… ${count} unchanged ${count === 1 ? 'line' : 'lines'} …`,
     cardUsageProfile: (from: string, to: string, label: string) => `Switch the usage profile from ${from} to ${to} (${label}).`,
     cardOpen: 'Open',
     // Improvements (phase 5).
@@ -928,6 +929,7 @@ export const uiMessages = defineCatalogue({
     chatOpenPage: 'Página completa',
     chatEmpty: 'Aún no hay mensajes.',
     chatThinking: 'Claude está respondiendo…',
+    chatWaitingCard: 'Esperando tu respuesta en la tarjeta de arriba.',
     chatModel: (model: string, effort: string) => `Modelo ${model}, esfuerzo ${effort} (del perfil de uso).`,
     chatMessageLabel: 'Tu mensaje',
     chatMessageHint: 'Lo que el chat lee son datos: nunca actúa por ello sin preguntarte.',
@@ -968,8 +970,9 @@ export const uiMessages = defineCatalogue({
     cardCancelStep: (step: string) => `Ahora en: ${step}.`,
     cardNoteChange: (file: string, mode: string) =>
       `${mode === 'create' ? 'Crear' : mode === 'append' ? 'Añadir al final de' : 'Reescribir'} la nota ${file}${mode === 'append' ? ' (como añadido con fecha)' : ''}, con un commit en la biblioteca:`,
-    cardNoteCounts: (added: number, removed: number) => `${added} líneas añadidas, ${removed} quitadas.`,
-    cardSkipped: (count: number) => `… ${count} líneas sin cambios …`,
+    cardNoteCounts: (added: number, removed: number) =>
+      `${added} ${added === 1 ? 'línea añadida' : 'líneas añadidas'}, ${removed} ${removed === 1 ? 'quitada' : 'quitadas'}.`,
+    cardSkipped: (count: number) => `… ${count} ${count === 1 ? 'línea sin cambios' : 'líneas sin cambios'} …`,
     cardUsageProfile: (from: string, to: string, label: string) => `Cambiar el perfil de uso de ${from} a ${to} (${label}).`,
     cardOpen: 'Abrir',
     // Mejoras (fase 5).

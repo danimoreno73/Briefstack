@@ -264,6 +264,7 @@ export function ChatPanel({ compact = false, onNewChat }: { compact?: boolean; o
   const state = chat.state;
 
   if (state === undefined) return chat.error === undefined ? <p role="status">{t.loading}</p> : <ErrorBanner error={chat.error} />;
+  const waitingForCard = state.messages.some((message) => message.role === 'confirmation' && message.confirmation?.state === 'pending');
 
   const answer = async (id: string, decision: 'confirm' | 'decline') => {
     setProblem(undefined);
@@ -292,7 +293,8 @@ export function ChatPanel({ compact = false, onNewChat }: { compact?: boolean; o
       <Messages messages={state.messages} answer={answer} />
       {state.status === 'thinking' && (
         <p role="status" class="muted" data-testid="chat-thinking">
-          {t.chatThinking}
+          {/* While a card waits, the chat is waiting for the user, not answering (audit M10). */}
+          {waitingForCard ? t.chatWaitingCard : t.chatThinking}
         </p>
       )}
       <ReplyBox
@@ -315,6 +317,7 @@ export function ChatPanel({ compact = false, onNewChat }: { compact?: boolean; o
           title={t.chatNewTitle}
           body={t.chatNewBody}
           confirmLabel={t.chatNew}
+          tone="normal"
           onConfirm={() => {
             setAsking(false);
             chat.newChat().then(
@@ -398,34 +401,46 @@ export function ChatDrawer() {
   const { t } = useApp();
   const [open, setOpen] = useState(false);
   const opener = useRef<HTMLButtonElement>(null);
+  const drawer = useRef<HTMLElement>(null);
   const close = () => {
     setOpen(false);
     // Back to where the user was.
     setTimeout(() => opener.current?.focus(), 0);
   };
+  // Focus moves into the drawer when it opens: its close button, the first thing in it.
+  useEffect(() => {
+    if (open) drawer.current?.querySelector<HTMLElement>('.chat-drawer-head button')?.focus();
+  }, [open]);
   return (
     <>
       <button ref={opener} type="button" class="chat-toggle" aria-expanded={open} aria-controls="chat-drawer" onClick={() => setOpen(true)} hidden={open}>
         {t.chatOpen}
       </button>
       {open && (
-        <aside
-          id="chat-drawer"
-          class="chat-drawer"
-          aria-label={t.chatTitle}
-          data-testid="chat-drawer"
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') close();
-          }}
-        >
-          <div class="chat-drawer-head">
-            <strong>{t.chatTitle}</strong>
-            <button type="button" onClick={close}>
-              {t.chatClose}
-            </button>
-          </div>
-          <ChatPanel compact />
-        </aside>
+        <>
+          {/* On a phone the page behind is dimmed, and a tap on it closes the drawer (audit H7). */}
+          <div class="chat-scrim" aria-hidden="true" onClick={close} />
+          <aside
+            ref={drawer}
+            id="chat-drawer"
+            class="chat-drawer"
+            aria-labelledby="chat-drawer-title"
+            data-testid="chat-drawer"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') close();
+            }}
+          >
+            <div class="chat-drawer-head">
+              <h2 id="chat-drawer-title">{t.chatTitle}</h2>
+              <button type="button" onClick={close}>
+                {t.chatClose}
+              </button>
+            </div>
+            <div class="chat-drawer-body">
+              <ChatPanel compact />
+            </div>
+          </aside>
+        </>
       )}
     </>
   );
