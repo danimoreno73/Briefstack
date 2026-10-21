@@ -53,6 +53,7 @@ const UI = {
   'index.html': '<html><head><!-- importmap --><script type="module" src="/ui/main.js"></script></head></html>',
   'ui/main.js': 'export {};\n',
   'style.css': 'body {}\n',
+  'fonts/face.woff2': 'wOF2',
   'notes.txt': 'not a served type\n',
 };
 
@@ -103,6 +104,9 @@ describe('web server', () => {
     expect(markdown.status).toBe(200);
     expect(markdown.body).toContain('export');
     expect((await send(s, '/ui/main.js')).status).toBe(200);
+    const font = await send(s, '/fonts/face.woff2');
+    expect(font.status).toBe(200);
+    expect(font.headers['content-type']).toBe('font/woff2');
     expect((await send(s, '/notes.txt')).status).toBe(404);
     expect((await send(s, '/../secret.txt')).status).toBe(404);
     expect((await send(s, '/%2e%2e/secret.txt')).status).toBe(404);
