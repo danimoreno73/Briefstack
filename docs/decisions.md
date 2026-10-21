@@ -2835,3 +2835,36 @@ above change as noted.
    pair (or trio) and deletes the other files and licenses.
 4. **The server learned one content type**, `.woff2` as `font/woff2`, so
    the static site serves the files; the path checks are unchanged.
+
+## U2: foundations (2026-10-21)
+
+1. **The choice.** The user chose direction A with type variant 2
+   (Bricolage Grotesque + JetBrains Mono). The other direction, the other
+   five font families with their licenses, `directions.css`,
+   `type-variants.css`, `src/ui/direction.ts` and the U1b shots script were
+   deleted.
+2. **Themes with `light-dark()`.** Every colour token is written once as
+   `light-dark(light, dark)` in `tokens.css`, so both themes sit on one
+   line and the contrast test reads them from one place. The switch only
+   sets `color-scheme` through `<html data-theme>`. `light-dark()` is
+   supported by current Chromium, Firefox and Safari (since 2024; not
+   checked against a source in this step); the e2e theme test runs it in
+   Playwright's Chromium. briefstack runs on the user's own current browser,
+   so no fallback is kept.
+3. **The theme is per browser**, in `localStorage['briefstack-theme']`, not
+   a server setting: it is a display preference of each browser, like the
+   reload language cache, and changes nothing the server does. System is
+   the default and removes the key.
+4. **The components page is not a route.** BRIEF-ui §5 forbids new routes,
+   so the page with every component in its states is a static file in
+   `tests/screenshots/`, served to the browser by the screenshots test at
+   the app's origin (like the U1b specimen). It uses the same classes as
+   the screens.
+5. **Primary and destructive buttons are marked, not guessed.** A `.primary`
+   class marks the filled button; the old rules (a form's submit, the first
+   action of the pending control) stay until U3 marks every screen. The
+   confirm dialogs' destructive action is `.danger.primary`, filled in red.
+6. **Declining a chat card is not destructive.** Its Decline button lost the
+   `danger` style (audit M11); Confirm is the primary. No behaviour changed.
+7. **Empty states** got a class (`.empty`) on the existing sentences; the
+   texts are unchanged.

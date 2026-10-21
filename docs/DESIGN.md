@@ -7,11 +7,13 @@ DESIGN.md convention (theme, colour roles, type, components, layout, depth,
 do's and don'ts, responsive behaviour) noted in
 `design/vendor/awesome-design-md/`; no value here comes from any brand.
 
-**Status: U1.** Section 2 holds two directions for the user to choose from.
-After the choice, U2 keeps one, removes the other and the development flag,
-and this file describes only the chosen one.
+**Status: U2.** The user chose direction A "Quiet sheet" (U1) with type
+variant 2 (U1b). It is the only style: tokens in `src/ui/static/tokens.css`,
+everything else in `src/ui/static/style.css`. The other direction, the other
+type variants and the development flags are gone; their screenshots stay in
+`design/shots/u1/` for the record.
 
-## 1. What every direction keeps
+## 1. Principles
 
 - **Functional and typographic.** Hierarchy from size, weight and space.
   Few colours, one accent. No gradients, no illustrations, no emoji, no glass,
@@ -20,190 +22,131 @@ and this file describes only the chosen one.
   approval, a permission request, a free-text reply the flow waits for, a
   chat confirmation card, a safety warning, an error. Everything else is
   quiet.
-- **Fonts served by briefstack itself** or the system stack. U1 used only
-  the system stack; U1b (§2.3) bundles OFL fonts, which BRIEF-ui §5 now
-  allows. Nothing is loaded from the internet. The system stack: `system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
-  Arial, sans-serif`. A monospace only for paths, commands, code and diffs:
-  `ui-monospace, 'Cascadia Mono', 'SF Mono', Consolas, monospace`.
-- **Tokens in one place** as custom properties; no raw colour in a
+- **Tokens in one place**, as custom properties; no raw colour in a
   component.
-- **Both themes** with the same hierarchy. The theme follows the system and
-  (from U2) a manual switch.
-- **Accessibility**: text at least 4.5:1, borders that identify a control at
-  least 3:1, a visible 2 px focus ring, 44 px targets on a phone, 16 px text
-  in fields so phones do not zoom, nothing told by colour alone, reduced
-  motion respected.
+- **Both themes** with the same hierarchy. The theme follows the system, or
+  the switch (System, Light, Dark), remembered per browser.
+- **Accessibility**: text at least 4.5:1, control edges, focus and status
+  marks at least 3:1 (checked by `tests/unit/contrast.test.ts`), a visible
+  2 px focus ring, 44 px targets on a phone, 16 px text in fields so phones
+  do not zoom, nothing told by colour alone, reduced motion respected.
 - **The phone is its own layout**: one row of menu that scrolls sideways,
   what waits for the user before the progress list, tables that become
   blocks.
 
-## 2. Two directions
-
-Both are applied to the projects list and to the creation screen with its
-live panel, behind a development-only flag (section 5). Screenshots:
-`design/shots/u1/a/` and `design/shots/u1/b/`, each in `1280-light`,
-`1280-dark`, `390-light` and `390-dark`, screens `01-projects`,
-`05-creation-question`, `06-creation-spec`, `07-creation-permission`.
-
-### 2.1 Direction A — "Quiet sheet"
+## 2. The look: "Quiet sheet"
 
 A tool you keep open all day. A labelled sidebar on the page ground, white
-sheets with a 1 px edge for each block, small grey labels, one teal accent.
-What waits for the user is a tinted sheet with a 4 px teal edge: clear, not
-alarming.
+sheets with a 1 px edge for each block, one teal accent. What waits for the
+user is a tinted sheet with a 4 px teal edge: clear, not alarming. The type
+gives it its personality.
 
-**Type** (4 sizes, 2 weights):
+### 2.1 Type
+
+Two bundled OFL faces, served by briefstack itself (BRIEF-ui §5; sources and
+licenses in `design/vendor/fonts/`):
+
+- **Bricolage Grotesque** for all text. Its optical sizes make it tight and
+  characterful at title size and calm at text size.
+- **JetBrains Mono** for paths, ids (target, slug, model), agent names (not
+  the main session), commands, code and diffs. Its tall x-height matches the
+  text face. Set at 0.84 em.
 
 | Role | Size / line height | Weight |
 | --- | --- | --- |
-| Page title (h1) | 24 / 1.15 | 600 |
-| Section (h2) | 18 / 1.3 | 600 |
-| Body, controls, card titles | 15 / 1.55 (fields 16) | 400, 600 |
-| Meta, labels, table headers | 13 | 400 |
+| Page title (h1) | 40 / 1.05, tracking −0.035 em | 760 |
+| Section (h2) | 22 / 1.3 | 600 |
+| Lead (the idea under a title) | 18 / 1.4 | 400 |
+| Body, controls | 15 / 1.5 (fields 16) | 400, 600 |
+| Meta, labels, table headers | 13 | 400; labels 760 |
 
-**Space** (4 px base): 4, 8, 12, 16, 24, 32, 48. Sidebar 224 px; content up to
-1120 px with 32 px gutters; 16 px gutters on a phone.
+Figures that change or line up (the panel, times, counts, tables) use
+tabular digits. Section labels (Progress, Agents, Timeline, Details, Plan
+usage, `.section-label`) are 15 px, weight 760, with a hairline that runs
+to the edge. Table headers are 13 px caps, tracked 0.04 em.
 
-**Shape**: card radius 8, control radius 6, chip radius 4. Borders 1 px.
-Controls 36 px tall (44 px menu rows on a phone).
+The logotype is the word in two weights: "brief" 300, "stack" 800, tracked
+−0.045 em.
 
-**Colour**:
+### 2.2 Space and shape
+
+4 px base: 4, 8, 12, 16, 24, 32, 48. Sidebar 224 px; content up to 1120 px
+with 32 px gutters; 16 px gutters on a phone. Card radius 8, control radius
+6, chip radius 4. Borders 1 px. Controls 36 px tall (40 px in the phone's
+top bar, 44 px menu rows on a phone).
+
+### 2.3 Colour
+
+Each token is `light-dark(light, dark)` in `tokens.css`:
 
 | Token | Light | Dark | Role |
 | --- | --- | --- | --- |
 | `--ground` | #f6f7f6 | #111312 | page and sidebar |
-| `--surface` | #ffffff | #191c1a | sheets, fields |
+| `--surface` | #ffffff | #191c1a | sheets, fields, buttons |
 | `--raised` | #eff1f0 | #222624 | active menu row, code, disabled |
 | `--border` | #dfe3e1 | #2d322f | sheet edge |
 | `--rule` | #eaedeb | #242826 | row rules |
-| `--control` | #858d89 | #6f7873 | field and button edge |
+| `--control` | #858d89 | #737c77 | field and button edge |
 | `--text` | #161a18 | #edf0ee | ink |
 | `--muted` | #565d59 | #a8b0ab | secondary text |
 | `--accent` | #0b6b5f | #5fc4b3 | links, running state, focus |
-| `--primary` / ink | #1c201e / #fff | #edf0ee / #111312 | the one filled button |
-| `--attention-bg` | #e6f2ef | #12302a | what waits for the user |
-| `--warn-bg` / ink | #fbf1d3 / #5e3d00 | #3a2c0a / #f2d27c | notices |
-| `--danger` / bg | #b0222a / #fcebeb | #f2898e / #3b1618 | errors, destructive |
-| `--ok` / bg | #1d7343 / #e2f3e7 | #72d39d / #11301e | done, added lines |
+| `--primary` / `--primary-ink` | #1c201e / #fff | #edf0ee / #111312 | the one filled button |
+| `--attention-bg` / `--attention-line` | #e6f2ef / #0b6b5f | #12302a / #5fc4b3 | what waits for the user |
+| `--warn-bg` / `--warn-ink` | #fbf1d3 / #5e3d00 | #3a2c0a / #f2d27c | notices |
+| `--danger` / `--danger-bg` / `--danger-ink` | #b0222a / #fcebeb / #fff | #f2898e / #3b1618 / #111312 | errors, destructive |
+| `--ok` / `--ok-bg` | #1d7343 / #e2f3e7 | #72d39d / #11301e | done, added lines |
 | `--waiting` | #9a5b00 | #f0b34a | an agent waiting for you |
 
-**Depth**: none at rest; a sheet is told from the ground by its surface and
-edge. Only dialogs float (0 12px 32px at 22% black, scrim 45–60%).
+### 2.4 Depth, focus, motion
 
-**Focus**: 2 px solid `--accent`, 2 px offset. **Motion**: colour changes on
-hover and press in 140 ms `ease`; nothing moves; with reduced motion there are
-no transitions.
+No shadow at rest; a sheet is told from the ground by its surface and edge.
+Only dialogs and the chat drawer float (dialog 0 12px 32px at 22% black,
+scrim 45% light, 65% dark). Focus: 2 px solid `--focus`, 2 px offset.
+Motion: colour changes on hover in 140 ms `ease`; nothing moves; with
+reduced motion there are no transitions.
 
-**Components**: primary button near-black (inverted in dark), secondary white
-with a 1 px edge, danger outlined in red; agent cards as sheets with a 3 px
-status edge and the status in words; progress as a quiet list with a dot per
-step (filled when done, ringed when running); timeline bars 8 px.
+### 2.5 Theme
 
-### 2.2 Direction B — "Ink and signal"
+`tokens.css` sets `color-scheme: light dark`, so the system decides.
+`src/ui/theme.ts` sets `<html data-theme="light|dark">` from the switch in
+the shell (stored as `localStorage['briefstack-theme']`; System removes
+it), which turns `color-scheme` to one value and with it every
+`light-dark()` token. The switch also sets `<meta name="theme-color">` to
+the page's ground.
 
-A printed sheet. A top bar over a wide column, black type on white (white on
-near-black), rules instead of boxes, larger titles. No accent colour: the one
-colour is a signal yellow that fills, edge to edge, the block that waits for
-the user, and marks the agent that asks. The rest is ink.
+## 3. Components
 
-**Type** (4 sizes, 2 weights):
+All in `style.css`, in its "shared components" sections. The components
+page (`tests/screenshots/components.html`, served only by
+`tests/screenshots/components.shots.ts`, never by the app) shows each in its
+states.
 
-| Role | Size / line height | Weight |
-| --- | --- | --- |
-| Page title (h1) | 36 / 1.15, tracking −0.02em | 700 |
-| Section (h2), with a 2 px rule above | 20 / 1.3 | 700 |
-| Body, controls | 16 / 1.5 | 400, 700 |
-| Meta, labels | 13 | 400 |
-
-**Space** (4 px base): 4, 8, 12, 16, 24, 40, 64. Content up to 1200 px with
-40 px gutters; 16 px on a phone.
-
-**Shape**: square: radius 0 on blocks, 2 on controls and chips. Borders
-2 px. Controls 40 px tall.
-
-**Colour**:
-
-| Token | Light | Dark | Role |
-| --- | --- | --- | --- |
-| `--ground` / `--surface` | #ffffff | #0d0d0d | page |
-| `--raised` | #f3f3f2 | #1b1b1b | code, disabled |
-| `--rule` | #e2e2e0 | #2b2b2b | row rules |
-| `--text`, `--control`, `--primary` | #111111 | #f2f2f2 | ink, edges, the filled button |
-| `--muted` | #595959 | #a8a8a8 | secondary text |
-| `--signal` / ink | #ffd23f / #111111 | #ffd23f / #0d0d0d | what waits for the user |
-| `--warn-bg` / ink | #fff4c7 / #4d3a00 | #3a2f08 / #ffe28a | notices |
-| `--danger` / bg | #b3121d / #fdeaea | #ff7b7b / #3a1414 | errors, destructive |
-| `--ok` / bg | #17733a / #e4f3e9 | #6bd794 / #0f2e1b | done, added lines |
-
-**Depth**: none; dialogs only. **Focus**: 2 px solid ink (signal yellow in
-dark), 2 px offset; inside the yellow block, ink. **Motion**: colour in
-120 ms; nothing moves.
-
-**Components**: the current menu item and the selected agent underlined in
-ink; the running step inverted (ink bar, ground text); agents as rows of a
-list with a 4 px status edge and the status word in bold at the right;
-buttons square, primary filled in ink, inside the yellow block filled in ink
-with yellow text.
-
-### 2.3 U1b: three type variants of A
-
-After U1 the user found A generic, with poor type. Three variants of A keep
-its colours, space and shapes and change only the type, with bundled OFL
-fonts (BRIEF-ui §5; sources and licenses in `design/vendor/fonts/`):
-
-| Variant | Faces | Why this pair |
-| --- | --- | --- |
-| 1 | Source Sans 3 + Source Code Pro | A neutral sans built for interface text, with true tabular figures, and the monospace drawn as its partner, so both share x-height and rhythm. |
-| 2 | Bricolage Grotesque + JetBrains Mono | A grotesque with optical sizes: ink-trapped and tight at title size, calm at text size; the tall-x-height mono matches its large lowercase. |
-| 3 | Newsreader (titles) + Instrument Sans (text) + Inconsolata | An optical-size serif gives titles a voice of their own; a crisp, narrow sans keeps the dense panel quiet; a narrow mono fits long paths. |
-
-The three share what gives A its personality without decoration:
-
-- **Mono** for paths, ids (target, slug, model), agent names (not the main
-  session) and commands; the text face for everything else.
-- **Tabular figures** in the panel (meta, counts, durations, details, plan
-  usage), the progress list, tables and the creations count.
-- **A marked scale**: label 12–13, meta 13, body 15–16, lead 18–19,
-  section 21–24, title 36–42; four weights (400, 500, 600, 700+), titles
-  tightly tracked.
-- **Section labels** (Progress, Agents, Timeline, Details, Plan usage):
-  small, heavy, a hairline running to the edge; caps and tracked in 1 and 3,
-  sentence case in ink in 2. Table headers small caps-style.
-- **A typographic logotype**: "brief" and "stack" in two weights of one
-  word (in 3, "brief" in the serif and "stack" in the sans).
-
-Screenshots (git-ignored): `screenshots/u1b/v{1,2,3}/{1280-light,
-1280-dark,390-light}/`, each with `00-specimen`, `01-projects` and
-`06-creation-spec`, taken by `tests/screenshots/type.shots.ts`, which also
-fails if a face does not load or lacks tabular figures.
-
-### 2.4 How A and B differ
-
-| | A "Quiet sheet" | B "Ink and signal" |
-| --- | --- | --- |
-| Shell | sidebar (top bar on a phone) | top bar |
-| Blocks | white sheets with edges | no boxes; rules and space |
-| Title | 24 px | 36 px |
-| Colour | one teal accent | none; yellow only for "waiting for you" |
-| What waits for you | tinted sheet, teal edge | full yellow field |
-| Corners | 6–8 px | square |
-| Feel | calm, dense, long sessions | stark, editorial, impossible to miss a request |
-
-## 3. Contrast
-
-Measured on the tokens (WCAG 2 relative luminance) on 2026-10-20 with a
-throwaway script; U4 adds an automated check to the tests.
-
-- Every text pair in both directions and themes passes 4.5:1: ink on every
-  ground (light / dark: A 16.4 / 16.3, B 18.9 / 17.4), muted on ground and
-  surfaces (A 6.3–6.8 / 7.7–8.4, B 7.0 / 8.2), accent links (A 6.4 / 8.2),
-  the filled button, warnings, errors, done text and ink on the yellow field
-  (B 13.1 / 13.5).
-- Control edges pass 3:1 (A 3.4 / 3.8; B 18.9 / 17.4).
-- One pair is under 3:1 and accepted: in B light the yellow field against
-  white is 1.4:1. The field is not a control; the text, buttons and fields
-  inside it all pass, and it is set off from the page by its own space and
-  the 2 px rule of the next section.
+- **Buttons.** Secondary: surface with a 1 px control edge. Primary
+  (`.primary`, a form's submit, or the first action of what waits for the
+  user): filled in `--primary`. Danger (`.danger`): outlined in red; a
+  destructive action being confirmed (`.danger.primary`, the confirm
+  dialogs): filled in red. Disabled: raised, muted text. Link button:
+  accent, underlined.
+- **Fields.** Label above, hint below (`.hint`), 16 px text, one height,
+  explicit colours in both themes (selects included); radios, checkboxes and
+  the range slider in `--primary`.
+- **Cards.** `.panel` / `.card`: surface, 1 px edge, radius 8. What waits
+  for the user (`.attention`, the creation's pending control, the free-text
+  reply): tinted, 4 px accent edge, title at section size. Agent cards: a
+  3 px status edge and the status in words.
+- **Dialogs.** Surface, edge, shadow, scrim; actions at the right, the
+  confirming one last.
+- **Tables.** Rules, no bands, caps headers, tabular figures, inside a sheet
+  that scrolls sideways; the projects table becomes one block per project
+  under 640 px.
+- **Notices.** `.banner-ok`, `.banner-warn`, `.banner-error`: a tint and a
+  1 px edge in the matching colour, text at AA.
+- **Empty states.** `.empty`: a muted sentence in a dashed frame.
+- **Chat confirmation card.** Waiting: tinted with the 4 px accent edge,
+  the state line in ink, Confirm primary, Decline secondary (declining
+  destroys nothing). Answered: a quiet sheet with the state in muted text.
+- **Diffs.** One block line per line, the `+` / `−` sign carries the change;
+  added lines on `--ok-bg`, removed on `--danger-bg`, both in `--text`.
 
 ## 4. Do and don't
 
@@ -213,19 +156,5 @@ throwaway script; U4 adds an automated check to the tests.
 - Do use tabular figures for times, durations and percentages.
 - Don't add a second accent or colour a heading.
 - Don't put a shadow on a resting block or a border and a shadow together.
-- Don't show the user's machine paths in committed screenshots (the shots
-  script shows the temp folder as `<tmp>`).
-
-## 5. The development flag (U1 only)
-
-`src/ui/static/directions.css` holds both directions, scoped to
-`<html data-direction="a">` and `"b"`. `src/ui/direction.ts` sets the
-attribute from `localStorage['briefstack-direction']` at start; without it
-the app looks as before. To look at one in a running app, in the browser's
-console: `localStorage.setItem('briefstack-direction', 'a')` and reload;
-`localStorage.removeItem('briefstack-direction')` to go back. With
-direction A, `localStorage.setItem('briefstack-type', '1')` (or `2`, `3`)
-adds a type variant (§2.3, `src/ui/static/type-variants.css`). The shots
-script sets it with `SHOTS_DIRECTION`. Only the shell, the projects list and
-the creation screen are styled; other screens show the new controls over the
-old layout.
+- Don't show the user's machine paths in screenshots (the shots scripts show
+  the temp folder as `<tmp>`).

@@ -137,3 +137,29 @@ These would change behaviour, so the UI pass does not make them (BRIEF §5):
 3. The result screen could find the project of a creation by the project
    folder when the note has no session id, so M12 does not happen with real
    creations that skip the note.
+
+## Status after U2 (2026-10-21)
+
+Checked on every screen with `audit.shots.ts` over the U2 styles (output in
+the git-ignored `screenshots/u2-audit/`), plus the components page.
+
+| Finding | State | How |
+| --- | --- | --- |
+| H1 diffs unreadable in dark | closed | Added and removed lines in `--text` on `--ok-bg` / `--danger-bg`, both themes; one block per line |
+| H3 what waits does not stand out | closed | Tinted sheet with a 4 px accent edge and a section-size title; first on a phone |
+| H5 buttons in dark | closed | Styled buttons with a control edge (3:1); danger text and filled danger pass 4.5:1 in both themes (contrast test) |
+| H6 navigation does not fold on a phone | closed | One sideways row of 44 px menu items under the logo, theme and chat |
+| M1 no theme switch | closed | System, Light, Dark in the shell, kept per browser |
+| M5 labels and fields on one line | closed | Label above, field, hint below, on every field |
+| M6 native fields unstyled, under 16 px | closed | One control style and height, 16 px text, explicit colours (selects too) |
+| M7 projects table cut on a phone | closed | One block per project under 640 px |
+| M11 confirmation card weak, Decline red | closed | Waiting card tinted with the accent edge; Confirm primary, Decline secondary |
+| M14 dialog without backdrop in dark | closed | Scrim 65% in dark, shadow, edge |
+| L4 no theme-color | closed | `<meta name="theme-color">`, set to the ground by the theme switch |
+| L5 figures not tabular | closed | Tabular digits in the panel, times, tables and counts |
+| L11 default focus ring | closed | 2 px accent ring, 2 px offset, on every control |
+| M4 headings inside rendered Markdown | partial | Sized under the page's headings; the heading levels in the markup are U3 |
+| M13 status by colour alone | partial | Agent cards say it in words; timeline rows still only by colour |
+| M16 long Ctrl+Enter hint | partial | Now a hint under the field; the text itself is U3 |
+
+Every other finding is open and belongs to U3 (screens) or U4.

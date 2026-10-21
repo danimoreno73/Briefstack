@@ -11,15 +11,16 @@ before each step; the work stops if the 7-day window is over 85% or the
 
 ## 0. Status
 
-Updated 2026-10-21. U0, U1 and U1b are done. **Waiting for the user to
-choose a type variant of direction A**; U2 does not start before that.
+Updated 2026-10-21. U0, U1, U1b and U2 are done; the user chose direction
+A with type variant 2. **Waiting for the user's review of U2**; U3 does not
+start before that.
 
 | Step | State | What exists |
 | --- | --- | --- |
 | U0 | done | References pinned in `docs/design/vendor/` with `SOURCE.md`; `tests/screenshots/audit.shots.ts`; 108 screenshots in `docs/design/shots/u0/`; `docs/design/audit.md` (40 findings: 7 high, 19 medium, 14 low) |
 | U1 | done | `docs/DESIGN.md` §2 with directions A "Quiet sheet" and B "Ink and signal" and their tokens for both themes; `src/ui/static/directions.css` and the development flag `src/ui/direction.ts` (`localStorage['briefstack-direction']`); applied to the shell, the projects list and the creation screen; screenshots in `docs/design/shots/u1/{a,b}/` |
 | U1b | done | The user asked for direction A only, with better type. BRIEF-ui §5 allows bundled OFL fonts; seven faces in `src/ui/static/fonts/` with licenses in `docs/design/vendor/fonts/`; three variants in `src/ui/static/type-variants.css` (flag `localStorage['briefstack-type']`), `docs/DESIGN.md` §2.4; `tests/screenshots/type.shots.ts` writes the specimens and screens to `screenshots/u1b/` (git-ignored) |
-| U2 | — | — |
+| U2 | done | Direction A with Bricolage Grotesque + JetBrains Mono is the only style; flags, the other direction and fonts removed. Tokens in `src/ui/static/tokens.css` (`light-dark()`), base and components in `style.css`; theme switch (`src/ui/theme.ts`); `tests/unit/contrast.test.ts`; components page and shots in `tests/screenshots/components.*` (output `screenshots/u2/`, git-ignored); 13 findings closed, 3 partial (`docs/design/audit.md`, "Status after U2") |
 | U3 | — | — |
 | U4 | — | — |
 
@@ -52,7 +53,11 @@ choose a type variant of direction A**; U2 does not start before that.
 ## 2. Tools
 
 - `npm run screenshots -- audit.shots.ts` takes every screen. `SHOTS_OUT`
-  sets the folder (default `screenshots/audit`, git-ignored),
-  `SHOTS_DIRECTION` the development direction flag, `SHOTS_ONLY` a list of
-  screen numbers. The test's temp folder is shown as `<tmp>` so no path of
-  the machine lands in a committed picture.
+  sets the folder (default `screenshots/audit`, git-ignored), `SHOTS_ONLY`
+  a list of screen numbers. The test's temp folder is shown as `<tmp>` so no
+  path of the machine lands in a committed picture.
+- `npm run screenshots -- components.shots.ts` takes the components page
+  and two key screens at 1280 light and dark and 390 light (default
+  `screenshots/u2`, git-ignored).
+- `tests/unit/contrast.test.ts` checks the token pairs for WCAG AA in both
+  themes, as part of `npm test`.
