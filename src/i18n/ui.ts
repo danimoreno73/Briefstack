@@ -10,6 +10,8 @@ export const uiMessages = defineCatalogue({
     unreachable: 'The server is not reachable. Is briefstack web still running?',
 
     navLabel: 'Main',
+    themeLabel: 'Theme',
+    themeName: (theme: 'system' | 'light' | 'dark') => ({ system: 'System', light: 'Light', dark: 'Dark' })[theme],
     navProjects: 'Projects',
     navLibrary: 'Library',
     navUsage: 'Usage',
@@ -557,6 +559,8 @@ export const uiMessages = defineCatalogue({
     unreachable: 'No se puede contactar con el servidor. ¿Sigue en marcha briefstack web?',
 
     navLabel: 'Principal',
+    themeLabel: 'Tema',
+    themeName: (theme: 'system' | 'light' | 'dark') => ({ system: 'Sistema', light: 'Claro', dark: 'Oscuro' })[theme],
     navProjects: 'Proyectos',
     navLibrary: 'Librería',
     navUsage: 'Uso',

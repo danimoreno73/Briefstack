@@ -6,15 +6,15 @@ import { ApiError, api, takeToken } from './api.js';
 import { NewProjectPage } from './creation.js';
 import { CreationsPage } from './creations.js';
 import { ChatDrawer, ChatPage } from './chat.js';
-import { applyDevDirection } from './direction.js';
 import { ImprovePage } from './improve.js';
-import { AppCtx, type AppContext } from './hooks.js';
+import { AppCtx, useApp, type AppContext } from './hooks.js';
 import { LibraryView } from './library.js';
 import { SessionPanelPage } from './panel.js';
 import { ProjectView, ProjectsView } from './projects.js';
 import { parseRoute, routeHash, type Route } from './route.js';
 import { SettingsPage } from './settings.js';
 import { readStoredLang, storeLang } from './storedLang.js';
+import { THEMES, applyTheme, readStoredTheme, type Theme } from './theme.js';
 import type { SettingsView } from './types.js';
 import { UsageView } from './usage.js';
 
@@ -156,8 +156,11 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
             </a>
           ))}
         </nav>
-        {/* The compact chat on every page but the chat's own. */}
-        {route.page !== 'chat' && <ChatDrawer />}
+        <div class="shell-tools">
+          <ThemeSwitch />
+          {/* The compact chat on every page but the chat's own. */}
+          {route.page !== 'chat' && <ChatDrawer />}
+        </div>
       </header>
       <main>
         <Page route={route} />
@@ -166,9 +169,34 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
   );
 }
 
+/** System, light or dark; kept per browser. */
+function ThemeSwitch() {
+  const { t } = useApp();
+  const [theme, setTheme] = useState<Theme>(readStoredTheme);
+  return (
+    <label class="theme-switch">
+      <span class="theme-label">{t.themeLabel}</span>
+      <select
+        value={theme}
+        onChange={(event) => {
+          const next = event.currentTarget.value as Theme;
+          setTheme(next);
+          applyTheme(next, true);
+        }}
+      >
+        {THEMES.map((value) => (
+          <option key={value} value={value}>
+            {t.themeName(value)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 // 1. Read the token from the address and keep it for this tab; 2. clean the
 // address (`history.replaceState`); only then 3. start the router and render.
 const token = takeToken();
-applyDevDirection();
+applyTheme(readStoredTheme());
 const root = document.getElementById('app');
 if (root !== null) render(<App initialLang={readStoredLang() ?? langFromLocale(navigator.language) ?? 'en'} token={token} />, root);

@@ -7,12 +7,11 @@ import { expect, test } from '../e2e/fixtures.js';
 // Every screen of the web app over the fake runners, at 1280 and 390 px, in
 // the light and the dark scheme, for the UI audit (BRIEF-ui §6, U0 and U4).
 // Not part of the test suite. `SHOTS_OUT` names the folder, relative to the
-// repo (default `screenshots/audit`, which git ignores); `SHOTS_DIRECTION`
-// sets the development-only design direction flag before each page loads.
+// repo (default `screenshots/audit`, which git ignores). The theme follows
+// the scheme of each run (the switch stays on System).
 // Run: `npm run screenshots -- audit.shots.ts`.
 
 const OUT = path.join(PACKAGE_ROOT, ...(process.env.SHOTS_OUT ?? 'screenshots/audit').split('/'));
-const DIRECTION = process.env.SHOTS_DIRECTION;
 /** Only these screen numbers, comma separated (`01,05`); all by default. */
 const ONLY = process.env.SHOTS_ONLY?.split(',');
 
@@ -75,9 +74,8 @@ for (const size of SIZES) {
 
     test.describe(`${size.name} px, ${scheme}`, () => {
       test.use({ viewport: { width: size.width, height: size.height }, colorScheme: scheme });
-      test.beforeEach(async ({ page, app }) => {
+      test.beforeEach(({ app }) => {
         tempDir = app.dir;
-        if (DIRECTION !== undefined) await page.addInitScript((value) => localStorage.setItem('briefstack-direction', value), DIRECTION);
       });
 
       test.describe('projects, a project, a past session, the gate', () => {

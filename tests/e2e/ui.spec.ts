@@ -28,6 +28,27 @@ test.describe('start-up', () => {
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   });
 
+  test('switches the theme and keeps it after a reload, then follows the system again', async ({ page, app }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.goto(app.url);
+    const theme = page.getByLabel('Theme');
+    await expect(theme).toHaveValue('system');
+    await expect(page.locator('html')).not.toHaveAttribute('data-theme');
+
+    await theme.selectOption('dark');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    const dark = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    await page.reload();
+    await expect(page.getByLabel('Theme')).toHaveValue('dark');
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(dark);
+
+    await page.getByLabel('Theme').selectOption('system');
+    await expect(page.locator('html')).not.toHaveAttribute('data-theme');
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(dark);
+    await page.reload();
+    await expect(page.getByLabel('Theme')).toHaveValue('system');
+  });
+
   test('says what to do when opened without the token', async ({ page, app }) => {
     await page.goto(new URL(app.url).origin + '/');
     await expect(page.getByRole('status')).toContainText('Open the address that briefstack web printed');
