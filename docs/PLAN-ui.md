@@ -11,9 +11,8 @@ before each step; the work stops if the 7-day window is over 85% or the
 
 ## 0. Status
 
-Updated 2026-10-21. U0, U1, U1b and U2 are done; the user chose direction
-A with type variant 2. **Waiting for the user's review of U2**; U3 does not
-start before that.
+Updated 2026-10-21. U0, U1, U1b, U2 and U3 are done. **Waiting for the
+user's review of U3**; U4 does not start before that.
 
 | Step | State | What exists |
 | --- | --- | --- |
@@ -21,7 +20,7 @@ start before that.
 | U1 | done | `docs/DESIGN.md` §2 with directions A "Quiet sheet" and B "Ink and signal" and their tokens for both themes; `src/ui/static/directions.css` and the development flag `src/ui/direction.ts` (`localStorage['briefstack-direction']`); applied to the shell, the projects list and the creation screen; screenshots in `docs/design/shots/u1/{a,b}/` |
 | U1b | done | The user asked for direction A only, with better type. BRIEF-ui §5 allows bundled OFL fonts; seven faces in `src/ui/static/fonts/` with licenses in `docs/design/vendor/fonts/`; three variants in `src/ui/static/type-variants.css` (flag `localStorage['briefstack-type']`), `docs/DESIGN.md` §2.4; `tests/screenshots/type.shots.ts` writes the specimens and screens to `screenshots/u1b/` (git-ignored) |
 | U2 | done | Direction A with Bricolage Grotesque + JetBrains Mono is the only style; flags, the other direction and fonts removed. Tokens in `src/ui/static/tokens.css` (`light-dark()`), base and components in `style.css`; theme switch (`src/ui/theme.ts`); `tests/unit/contrast.test.ts`; components page and shots in `tests/screenshots/components.*` (output `screenshots/u2/`, git-ignored); 13 findings closed, 3 partial (`docs/design/audit.md`, "Status after U2") |
-| U3 | — | — |
+| U3 | done | Every screen in six groups plus the shell, one commit each: creation; chat; improvements; projects and creations; library; usage, settings and the restart message; page titles and the skip link. All high findings and every medium but M8 (partial, API proposal) closed; `docs/design/audit.md` "Status after U3". Minimum browsers in the README and `docs/decisions.md`. Screenshots per group in `screenshots/u3/` (git-ignored); `SHOTS_VIEWS` limits the views |
 | U4 | — | — |
 
 ## 1. Steps
@@ -54,7 +53,8 @@ start before that.
 
 - `npm run screenshots -- audit.shots.ts` takes every screen. `SHOTS_OUT`
   sets the folder (default `screenshots/audit`, git-ignored), `SHOTS_ONLY`
-  a list of screen numbers. The test's temp folder is shown as `<tmp>` so no
+  a list of screen numbers, `SHOTS_VIEWS` a list of views
+  (`1280-light,1280-dark,390-light`). The test's temp folder is shown as `<tmp>` so no
   path of the machine lands in a committed picture.
 - `npm run screenshots -- components.shots.ts` takes the components page
   and two key screens at 1280 light and dark and 390 light (default

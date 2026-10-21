@@ -2846,11 +2846,8 @@ above change as noted.
 2. **Themes with `light-dark()`.** Every colour token is written once as
    `light-dark(light, dark)` in `tokens.css`, so both themes sit on one
    line and the contrast test reads them from one place. The switch only
-   sets `color-scheme` through `<html data-theme>`. `light-dark()` is
-   supported by current Chromium, Firefox and Safari (since 2024; not
-   checked against a source in this step); the e2e theme test runs it in
-   Playwright's Chromium. briefstack runs on the user's own current browser,
-   so no fallback is kept.
+   sets `color-scheme` through `<html data-theme>`. The browser versions
+   are recorded in "U3: minimum browser versions" below.
 3. **The theme is per browser**, in `localStorage['briefstack-theme']`, not
    a server setting: it is a display preference of each browser, like the
    reload language cache, and changes nothing the server does. System is
@@ -2868,3 +2865,53 @@ above change as noted.
    `danger` style (audit M11); Confirm is the primary. No behaviour changed.
 7. **Empty states** got a class (`.empty`) on the existing sentences; the
    texts are unchanged.
+
+## U3: minimum browser versions (2026-10-21)
+
+The styles need two features with no fallback: `light-dark()` for every
+colour token (U2) and the `:has()` selector (the sidebar grid, the selected
+agent card, list tables on a phone).
+
+Source: MDN browser-compat-data, `css/types/color.json` (`light-dark`) and
+`css/selectors/has.json`, read from the `main` branch on 2026-10-21:
+
+| Browser | `light-dark()` | `:has()` | Minimum |
+| --- | --- | --- | --- |
+| Chrome | 123 | 105 | 123 |
+| Edge | mirrors Chrome | mirrors Chrome | 123 |
+| Firefox | 120 | 121 | 121 |
+| Safari (macOS) | 17.5 | 15.4 | 17.5 |
+| Safari (iOS) | mirrors Safari | mirrors Safari | 17.5 |
+
+Conclusion: briefstack web needs Chrome or Edge 123, Firefox 121 or Safari
+17.5 or later, stated in the README. No fallback is kept: the app runs
+locally in the user's own browser, and every one of these versions is from
+2024 or earlier. The e2e tests run in Playwright's Chromium.
+
+## U3: decisions while restyling the screens (2026-10-21)
+
+1. **One fact, one place in the panel (M15).** The selected agent's details
+   no longer repeat the model, effort, start and duration the card shows;
+   two e2e assertions moved from the details to the card. The text view
+   keeps every fact, for screen readers and copying.
+2. **Plan usage moved to the creation's side column**, under the progress.
+   `AgentPanel` takes `showUsage`; a past session's page keeps it in the
+   panel.
+3. **A note's headings are demoted two levels** when rendered (`#` is
+   `h3`), so they sit under the page's `h1` and the section's `h2` (M4).
+   A note that opens with its section's own title drops that heading
+   (`withoutLeadingHeading`, unit tested).
+4. **The proposal page's order changed (H4)**: request, changes, checks,
+   then the decision. Only the order and grouping changed; the actions,
+   their confirmations and the approved round are the same.
+5. **A refused token turns the page into the restart message (H2).** The
+   API helper sends a window event on `web.rejected.token`; the app shows
+   the gate. No request, route or check changed.
+6. **Page titles and the skip link (M2, M3)** are set in the UI only. The
+   skip link moves focus and keeps the hash, because the hash is the route.
+7. **M8 is partial**: listing unfinished creations by their idea needs the
+   sessions API to return it; recorded as proposal 4 in the audit.
+8. **One e2e flake seen**: `several.spec.ts` "both library commits are
+   there" timed out waiting for the menu once in a slow full run (46 s
+   instead of 24 s); it passed alone five times and in two full runs after.
+   Not changed; to watch in U4.

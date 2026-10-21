@@ -173,6 +173,12 @@ Every other finding is open and belongs to U3 (screens) or U4.
 Updated after each group of screens, checked on `audit.shots.ts` at 1280
 light and dark and 390 light (git-ignored `screenshots/u3/<group>/`).
 
+**Summary at the end of U3:** every high finding is closed (H1, H3, H5,
+H6 in U2; H2, H4, H7 here). Every medium finding is closed except M8,
+partial, whose rest needs an API change (proposal 4). Low findings still
+open: L3 (the "●" in the menu count), L6 (wide monospace paths), L10
+("0 s" in short runs); they are for U4.
+
 | Finding | State | Group | How |
 | --- | --- | --- | --- |
 | M4 headings inside rendered Markdown | closed | 1 creation | A note's headings are demoted two levels when rendered (`#` becomes `h3`), styled under the page's own |

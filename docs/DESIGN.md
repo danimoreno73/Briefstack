@@ -148,6 +148,24 @@ states.
 - **Diffs.** One block line per line, the `+` / `−` sign carries the change;
   added lines on `--ok-bg`, removed on `--danger-bg`, both in `--text`.
 
+Added while restyling the screens (U3):
+
+- **Page head** (`.page-head`): a small kind label (`.page-kind`: Creation,
+  Project, Improvement proposal), the name as `h1`, and the page's actions
+  at the right (under it on a phone). A creation is named by its idea.
+- **List tables on a phone** (`.stack-on-phone`): one block per row, the
+  first cell as its title, the middle ones in a meta line, the last on its
+  own line.
+- **For you** (`.for-you`): in a list, what waits for the user is in ink
+  with a dot; the rest is quiet.
+- **Tabs** (`.tabs`): a row on a rule, the current one with an ink bar.
+- **Row action** (`.row-action`): a small quiet button at the end of a row.
+- **Hint** (`.hint`) under a field; a keyboard shortcut sits by its button.
+- **Section label** (`.section-label`) for a page's own groups.
+- **The gate**: the logotype and one card with a title and what to do.
+- **Skip link**: first on every page, visible when focused.
+- **Tab title**: the page's subject, then "· briefstack".
+
 ## 4. Do and don't
 
 - Do put what waits for the user first, at the top of the creation's main

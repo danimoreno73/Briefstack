@@ -15,6 +15,9 @@ app. Each run is recorded in a personal library so the next interview asks less.
 - Node.js 24 LTS or later
 - Claude Code (talks to Claude only through your own Claude Code; no API key)
 - git (optional, recommended: the personal library is kept as a git repo)
+- For `briefstack web`, a current browser: Chrome or Edge 123, Firefox 121,
+  Safari 17.5 (macOS and iOS) or later. The styles use the CSS `light-dark()`
+  function and the `:has()` selector, with no fallback for older browsers.
 
 Works on native Windows, macOS and Linux.
 
