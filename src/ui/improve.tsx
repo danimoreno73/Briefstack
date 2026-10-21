@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ConfirmDialog, ErrorBanner, Loader } from './common.js';
 import { formatWhen } from './format.js';
-import { useApp, useLoad, useSend } from './hooks.js';
+import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { routeHash } from './route.js';
 import type { DiffHunkView, ImproveOverview, ProposalDetail, ProposalPage, SuggestionView, UsageView } from './types.js';
 
@@ -161,6 +161,7 @@ function Overview() {
   const { t } = useApp();
   const loaded = useLoad<ImproveOverview>('/api/improve');
   usePoll(loaded.reload, true, 3000);
+  useDocumentTitle(t.improveTitle);
   return (
     <section>
       <h1>{t.improveTitle}</h1>
@@ -477,7 +478,9 @@ function ProposalBody({ page, reload }: { page: ProposalPage; reload: () => void
 }
 
 function ProposalView({ id }: { id: string }) {
+  const { t } = useApp();
   const loaded = useLoad<ProposalPage>(`/api/improve/proposals/${encodeURIComponent(id)}`);
+  useDocumentTitle(loaded.data?.proposal.title ?? t.proposalKind);
   const live = loaded.data === undefined || LIVE.has(loaded.data.proposal.status) || loaded.data.proposal.realCheck?.state === 'running';
   usePoll(loaded.reload, live, 1500);
   return <Loader loaded={loaded}>{(page) => <ProposalBody page={page} reload={loaded.reload} />}</Loader>;

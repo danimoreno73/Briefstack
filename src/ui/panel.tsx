@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { buildPanelState, type PanelEventInput, type PanelLive, type PanelNode, type PanelState } from '../panel/state.js';
 import { Loader } from './common.js';
-import { useApp, useLoad } from './hooks.js';
+import { useApp, useDocumentTitle, useLoad } from './hooks.js';
 import { formatClock, formatDuration, percent, targetText } from './panelData.js';
 import { routeHash } from './route.js';
 
@@ -268,6 +268,7 @@ export function AgentPanel({ state, showPendingLinks = false, showUsage = true }
 export function SessionPanelPage({ id }: { id: string }) {
   const { t } = useApp();
   const loaded = useLoad<{ events: PanelEventInput[]; badLines: number }>(`/api/sessions/${encodeURIComponent(id)}/events`);
+  useDocumentTitle(`${t.panelSessionTitle} ${id}`);
   return (
     <section>
       <p>

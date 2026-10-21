@@ -153,6 +153,17 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
   }
   return (
     <AppCtx.Provider value={context}>
+      {/* First on the page, shown when focused (audit M3). The address keeps its route: focus moves, the hash does not. */}
+      <a
+        class="skip-link"
+        href="#main"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById('main')?.focus();
+        }}
+      >
+        {t.skipToContent}
+      </a>
       <header>
         <strong class="logo" translate={false}>
           <span class="logo-brief">brief</span>
@@ -177,7 +188,7 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
           {route.page !== 'chat' && <ChatDrawer />}
         </div>
       </header>
-      <main>
+      <main id="main" tabIndex={-1}>
         <Page route={route} />
       </main>
     </AppCtx.Provider>

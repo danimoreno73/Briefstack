@@ -4,7 +4,7 @@ import { ApiError, TOKEN_HEADER, noteRejection } from './api.js';
 import { answersFor, defaultSelection, type Selection } from './answers.js';
 import { ConfirmDialog, CopyButton, ErrorBanner, Loader, Markdown, Notice } from './common.js';
 import { formatWhen } from './format.js';
-import { useApp, useLoad, useSend } from './hooks.js';
+import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { AgentPanel, PENDING_CONTROL_ID, PlanUsage, usePanelState } from './panel.js';
 import { liveFromState, panelEventsFromStream } from './panelData.js';
 import { STEPS, deriveProgress, parseSse, type Progress } from './progress.js';
@@ -34,6 +34,7 @@ function StartPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
   const [atLimit, setAtLimit] = useState(false);
+  useDocumentTitle(t.newTitle);
 
   // Several creations may run at once: the form stays, with a note that plan usage adds up.
   const running = list.data?.creations.filter((creation) => creation.status !== 'finished').length ?? 0;
@@ -193,6 +194,7 @@ function CreationView({ id }: { id: string }) {
   const panelEvents = useMemo(() => panelEventsFromStream(events), [events]);
   const live = useMemo(() => (state === undefined ? undefined : liveFromState(state)), [state]);
   const panel = usePanelState(panelEvents, live);
+  useDocumentTitle(state?.idea ?? t.creationLabel);
 
   /** Answers the pending request. A request that is no longer the one shown means the page is stale. */
   const answer = async (pending: Pending, value: unknown): Promise<boolean> => {

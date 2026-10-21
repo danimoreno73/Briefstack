@@ -198,4 +198,6 @@ light and dark and 390 light (git-ignored `screenshots/u3/<group>/`).
 | L8 a full-weight Revert on every commit | closed | 5 library | One row per commit (subject, then commit, date and files), Revert as a small quiet action at the right |
 | H2 an old tab after a restart | closed | 6 usage, settings | A refused token turns the whole page into "briefstack was restarted" with "open the new link from the terminal", and no retry; an e2e test covers it |
 | L13 bare gate screens | closed | 6 usage, settings | Opening, no token, refused and restarted screens show the logotype and a card with a title and what to do |
+| M2 the tab is always "briefstack" | closed | shell | Each page names its subject in the tab title (the project, the creation's idea, the proposal, the note), then "· briefstack"; an e2e test covers it |
+| M3 no skip link | closed | shell | "Skip to content" is the first stop of every page; it moves focus to the page without changing the route |
 | — list tables on a phone | closed | 4 projects | Every list table (projects, unfinished, creations, proposals, a project's history) becomes one block per row under 640 px |

@@ -1,7 +1,7 @@
 import { useState } from 'preact/hooks';
 import { ErrorBanner, Loader, Notice } from './common.js';
 import { USAGE_LEVELS, levelIndex } from './format.js';
-import { useApp, useLoad, useSend } from './hooks.js';
+import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import type { UsageView as UsageData } from './types.js';
 
 export function UsageView() {
@@ -11,6 +11,7 @@ export function UsageView() {
   const [error, setError] = useState<unknown>(undefined);
   const [notice, setNotice] = useState<string | undefined>(undefined);
   const [pending, setPending] = useState<number | undefined>(undefined);
+  useDocumentTitle(t.usageTitle);
 
   const apply = async (profile: string) => {
     setError(undefined);

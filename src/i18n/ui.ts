@@ -19,6 +19,7 @@ export const uiMessages = defineCatalogue({
       })[gate],
 
     navLabel: 'Main',
+    skipToContent: 'Skip to content',
     themeLabel: 'Theme',
     themeName: (theme: 'system' | 'light' | 'dark') => ({ system: 'System', light: 'Light', dark: 'Dark' })[theme],
     navProjects: 'Projects',
@@ -591,6 +592,7 @@ export const uiMessages = defineCatalogue({
       })[gate],
 
     navLabel: 'Principal',
+    skipToContent: 'Saltar al contenido',
     themeLabel: 'Tema',
     themeName: (theme: 'system' | 'light' | 'dark') => ({ system: 'Sistema', light: 'Claro', dark: 'Oscuro' })[theme],
     navProjects: 'Proyectos',

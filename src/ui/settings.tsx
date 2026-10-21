@@ -3,7 +3,7 @@ import { MANY_CREATIONS_NOTE_ABOVE } from '../config/limits.js';
 import { isLang } from '../i18n/index.js';
 import { api } from './api.js';
 import { ErrorBanner, Loader, Notice } from './common.js';
-import { useApp, useLoad, useSend } from './hooks.js';
+import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import type { PathsView, SettingsView } from './types.js';
 
 export function SettingsPage() {
@@ -20,6 +20,7 @@ export function SettingsPage() {
   const [error, setError] = useState<unknown>(undefined);
   const [saved, setSaved] = useState(false);
   const [willCreate, setWillCreate] = useState(false);
+  useDocumentTitle(t.settingsTitle);
 
   useEffect(() => {
     if (settings === undefined) return;

@@ -53,6 +53,14 @@ export function useLoad<T>(path: string): Loaded<T> {
   return { ...state, reload };
 }
 
+/** The tab's title: what the page is about, then the app's name (audit M2). Without a subject, just the name. */
+export function useDocumentTitle(subject: string | undefined): void {
+  useEffect(() => {
+    const text = subject?.replace(/\s+/g, ' ').trim();
+    document.title = text === undefined || text === '' ? 'briefstack' : `${text.length > 60 ? `${text.slice(0, 60)}…` : text} · briefstack`;
+  }, [subject]);
+}
+
 /** Calls a write route. */
 export function useSend(): <T>(method: string, path: string, body?: unknown) => Promise<T> {
   const { token } = useApp();

@@ -4,7 +4,7 @@ import { ApiError, TOKEN_HEADER } from './api.js';
 import { applyChatEvent, sourceHref, type ChatPageState } from './chatData.js';
 import { ConfirmDialog, ErrorBanner, Loader, Markdown } from './common.js';
 import { formatWhen } from './format.js';
-import { useApp, useLoad, useSend } from './hooks.js';
+import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { parseSse } from './progress.js';
 import { SuggestionList } from './improve.js';
 import { ReplyBox } from './reply.js';
@@ -385,6 +385,7 @@ function PastChat({ id }: { id: string }) {
 export function ChatPage({ thread }: { thread: string | undefined }) {
   const { t } = useApp();
   const [version, setVersion] = useState(0);
+  useDocumentTitle(t.chatTitle);
   if (thread !== undefined) return <PastChat key={thread} id={thread} />;
   return (
     <section>

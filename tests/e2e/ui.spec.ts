@@ -60,6 +60,25 @@ test.describe('start-up', () => {
     await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
   });
 
+  test('names each page in the tab title, and skips to the content from the keyboard', async ({ page, app }) => {
+    await page.goto(app.url);
+    await expect(page).toHaveTitle('Projects · briefstack');
+    await page.getByRole('link', { name: 'Garden planner' }).click();
+    await expect(page).toHaveTitle('Garden planner · briefstack');
+    await page.getByRole('link', { name: 'Settings' }).click();
+    await expect(page).toHaveTitle('Settings · briefstack');
+
+    // The skip link is the first stop of a freshly loaded page.
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+    await page.keyboard.press('Tab');
+    const skip = page.getByRole('link', { name: 'Skip to content' });
+    await expect(skip).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('main')).toBeFocused();
+    expect(page.url()).toContain('#/settings');
+  });
+
   test('says what to do when opened without the token', async ({ page, app }) => {
     await page.goto(new URL(app.url).origin + '/');
     await expect(page.getByRole('status')).toContainText('Open the address that briefstack web printed');
@@ -148,7 +167,7 @@ test.describe('library', () => {
     await page.getByTestId('editor').fill('# Style\n\n<img src=x onerror="document.title=\'pwned\'">\n');
     await expect(page.getByTestId('preview')).toContainText('<img');
     await expect(page.getByTestId('preview').locator('img')).toHaveCount(0);
-    expect(await page.title()).toBe('briefstack');
+    expect(await page.title()).toBe('style · briefstack');
   });
 
   test('asks for confirmation before reverting a commit, and reverts only after it', async ({ page, app }) => {

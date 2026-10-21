@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { ApiError } from './api.js';
 import { ConfirmDialog, ErrorBanner, Loader, Markdown, Notice } from './common.js';
 import { formatWhen, hasHiddenLines, hideSecrets, stripFrontmatter } from './format.js';
-import { useApp, useLoad, useSend } from './hooks.js';
+import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { routeHash } from './route.js';
 import type { LibraryCommit, NoteSummary, SaveNoteResult } from './types.js';
 
@@ -26,6 +26,7 @@ export function LibraryView({ section, name }: { section: string | undefined; na
   const { t } = useApp();
   const label = useSectionLabel();
   const current = section ?? 'index';
+  useDocumentTitle(name ?? `${label(current)} · ${t.libraryTitle}`);
   return (
     <section>
       <h1>{t.libraryTitle}</h1>

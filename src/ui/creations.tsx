@@ -1,7 +1,7 @@
 import { useEffect } from 'preact/hooks';
 import { Loader } from './common.js';
 import { formatWhen } from './format.js';
-import { useApp, useLoad } from './hooks.js';
+import { useApp, useDocumentTitle, useLoad } from './hooks.js';
 import { routeHash } from './route.js';
 import type { CreationState, SettingsView } from './types.js';
 
@@ -18,6 +18,7 @@ export function CreationsPage() {
   const { t, lang } = useApp();
   const list = useLoad<{ creations: CreationState[] }>('/api/creations');
   const settings = useLoad<SettingsView>('/api/settings');
+  useDocumentTitle(t.creationsTitle);
 
   // Kept current while the page is open: steps and requests change by themselves.
   useEffect(() => {

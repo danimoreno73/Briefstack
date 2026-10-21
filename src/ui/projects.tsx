@@ -1,6 +1,6 @@
 import { CopyButton, Loader, Markdown } from './common.js';
 import { formatWhen, isUnfinished, openCommandLines, withoutLeadingHeading } from './format.js';
-import { useApp, useLoad } from './hooks.js';
+import { useApp, useDocumentTitle, useLoad } from './hooks.js';
 import { routeHash } from './route.js';
 import type { ProjectDetail, ProjectListing, SessionSummary } from './types.js';
 
@@ -8,6 +8,7 @@ export function ProjectsView() {
   const { t, lang } = useApp();
   const projects = useLoad<{ projects: ProjectListing[] }>('/api/projects');
   const sessions = useLoad<{ sessions: SessionSummary[] }>('/api/sessions');
+  useDocumentTitle(t.projectsTitle);
   return (
     <section>
       <h1>{t.projectsTitle}</h1>
@@ -91,6 +92,7 @@ export function ProjectsView() {
 export function ProjectView({ slug }: { slug: string }) {
   const { t, lang } = useApp();
   const loaded = useLoad<ProjectDetail>(`/api/projects/${encodeURIComponent(slug)}`);
+  useDocumentTitle(loaded.data?.project.name ?? t.projectKind);
   return (
     <section>
       <p>
