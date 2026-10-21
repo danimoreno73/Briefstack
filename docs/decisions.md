@@ -2814,3 +2814,24 @@ above change as noted.
    (`6010f91`, 2.1.4) was made hours before the copy. The two-weeks rule
    in BRIEF-ui §5 is for runtime dependencies; these are documents that
    nothing runs, so the latest commit was taken and read in full.
+
+## U1b: bundled fonts (2026-10-21)
+
+1. **The brief changed on the user's request.** After U1 the user found
+   direction A generic, with poor type, and asked for three type variants
+   of A. BRIEF-ui §5 now allows fonts bundled with the app: served by
+   briefstack's own server under the existing CSP (`default-src 'self'`
+   covers fonts; no `font-src` with another origin), OFL-licensed, pinned,
+   in woff2, with the license and source in `docs/design/vendor/fonts/`.
+   Nothing is loaded from the internet at run time.
+2. **Source: Fontsource variable packages, 5.3.0.** Each family was taken
+   with `npm pack @fontsource-variable/<name>@5.3.0` (published
+   2026-07-19, older than two weeks) into a scratch folder outside the
+   repo; only the Latin variable woff2 that is used and the package's
+   LICENSE were copied. Latin covers Spanish (á é í ó ú ü ñ ¿ ¡). The
+   packages are not dependencies: nothing is installed, and the files are
+   plain static assets under `src/ui/static/fonts/`.
+3. **Only during U1b, three variants are bundled.** U2 keeps the chosen
+   pair (or trio) and deletes the other files and licenses.
+4. **The server learned one content type**, `.woff2` as `font/woff2`, so
+   the static site serves the files; the path checks are unchanged.

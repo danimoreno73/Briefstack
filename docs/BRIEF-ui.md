@@ -71,7 +71,10 @@ terminal".
   runtime dependency unless it is indispensable (then pinned, older than two
   weeks, recorded in `docs/decisions.md`).
 - Keep the strict CSP: no inline styles or scripts, no external fonts or
-  assets. Use a system font stack.
+  assets. Fonts may be bundled with the app: served by briefstack's own
+  server (CSP `'self'`), OFL-licensed, pinned to a version, in woff2, with
+  their license and source in `docs/design/vendor/`. Nothing is loaded from
+  the internet. Without bundled fonts, use a system font stack.
 - Strings stay in `src/i18n/`, English and Spanish. Longer Spanish text must
   not break layouts.
 - Accessibility: keyboard reachable, visible focus, labels, contrast at
