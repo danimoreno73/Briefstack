@@ -98,7 +98,7 @@ for (const size of SIZES) {
           // After a restart the old tab's token is refused (backlog item in BRIEF-ui §4).
           await page.route('**/api/**', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{"code":"web.rejected.token"}' }));
           await page.getByRole('link', { name: 'Library' }).click();
-          await expect(page.getByRole('alert').first()).toBeVisible();
+          await expect(page.getByRole('heading', { name: 'briefstack was restarted' })).toBeVisible();
           await shot(page, '24-old-tab-401');
           await page.unroute('**/api/**');
           await page.evaluate(() => sessionStorage.clear());

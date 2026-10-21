@@ -49,6 +49,17 @@ test.describe('start-up', () => {
     await expect(page.getByLabel('Theme')).toHaveValue('system');
   });
 
+  test('an old tab after a restart says to open the new link, with no retry', async ({ page, app }) => {
+    await page.goto(app.url);
+    await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
+    // The server now has another token: every request of this tab is refused.
+    await page.route('**/api/**', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{"code":"web.rejected.token"}' }));
+    await page.getByRole('link', { name: 'Library' }).click();
+    await expect(page.getByRole('heading', { name: 'briefstack was restarted' })).toBeVisible();
+    await expect(page.getByRole('status')).toContainText('Open the new link from the terminal.');
+    await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+  });
+
   test('says what to do when opened without the token', async ({ page, app }) => {
     await page.goto(new URL(app.url).origin + '/');
     await expect(page.getByRole('status')).toContainText('Open the address that briefstack web printed');

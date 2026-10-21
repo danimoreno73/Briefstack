@@ -2,7 +2,7 @@ import { render } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { langFromLocale, type Lang } from '../i18n/index.js';
 import { uiMessages } from '../i18n/ui.js';
-import { ApiError, api, takeToken } from './api.js';
+import { ApiError, TOKEN_REJECTED_EVENT, api, takeToken } from './api.js';
 import { NewProjectPage } from './creation.js';
 import { CreationsPage } from './creations.js';
 import { ChatDrawer, ChatPage } from './chat.js';
@@ -18,7 +18,7 @@ import { THEMES, applyTheme, readStoredTheme, type Theme } from './theme.js';
 import type { SettingsView } from './types.js';
 import { UsageView } from './usage.js';
 
-type Gate = 'connecting' | 'ready' | 'noToken' | 'rejected' | 'unreachable';
+type Gate = 'connecting' | 'ready' | 'noToken' | 'rejected' | 'unreachable' | 'restarted';
 
 const NAV: { page: Route['page']; route: Route; label: 'navProjects' | 'navNew' | 'navCreations' | 'navChat' | 'navImprove' | 'navLibrary' | 'navUsage' | 'navSettings' }[] = [
   { page: 'projects', route: { page: 'projects' }, label: 'navProjects' },
@@ -82,9 +82,17 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
         setLang(settings.lang);
         setGate('ready');
       },
-      (error: unknown) => setGate(error instanceof ApiError ? 'rejected' : 'unreachable'),
+      (error: unknown) =>
+        setGate(error instanceof ApiError ? (error.code === 'web.rejected.token' ? 'restarted' : 'rejected') : 'unreachable'),
     );
   }, [token]);
+
+  // A tab left open across a restart has the old token: say so, instead of an error with a retry that cannot work.
+  useEffect(() => {
+    const restarted = () => setGate('restarted');
+    window.addEventListener(TOKEN_REJECTED_EVENT, restarted);
+    return () => window.removeEventListener(TOKEN_REJECTED_EVENT, restarted);
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -129,10 +137,17 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
   );
 
   if (gate !== 'ready' || context === undefined) {
+    const shown = gate === 'ready' ? 'connecting' : gate;
     return (
-      <main>
-        <h1>{t.title}</h1>
-        <p role="status">{t[gate === 'ready' ? 'connecting' : gate]}</p>
+      <main class="gate">
+        <strong class="logo" translate={false}>
+          <span class="logo-brief">brief</span>
+          <span class="logo-stack">stack</span>
+        </strong>
+        <div class={shown === 'connecting' ? 'panel' : 'panel attention'}>
+          <h1>{t.gateTitle(shown)}</h1>
+          <p role="status">{t[shown]}</p>
+        </div>
       </main>
     );
   }

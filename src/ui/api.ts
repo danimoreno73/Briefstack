@@ -26,6 +26,14 @@ export function takeToken(): string | undefined {
   }
 }
 
+/** Sent on `window` when the server refuses this tab's token: briefstack was restarted with a new one. */
+export const TOKEN_REJECTED_EVENT = 'briefstack:token-rejected';
+
+/** Tells the page when an error means the token is no longer valid, so it shows the restart message instead of a retry. */
+export function noteRejection(error: unknown): void {
+  if (error instanceof ApiError && error.code === 'web.rejected.token') window.dispatchEvent(new Event(TOKEN_REJECTED_EVENT));
+}
+
 export async function api<T>(token: string, method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { [TOKEN_HEADER]: token };
   const init: RequestInit = { method, headers, credentials: 'omit' };
@@ -42,7 +50,9 @@ export async function api<T>(token: string, method: string, path: string, body?:
   }
   if (!res.ok) {
     const failure = data as { code?: string; params?: Record<string, unknown> };
-    throw new ApiError(res.status, failure.code ?? 'web.unknown', failure.params);
+    const error = new ApiError(res.status, failure.code ?? 'web.unknown', failure.params);
+    noteRejection(error);
+    throw error;
   }
   return data as T;
 }

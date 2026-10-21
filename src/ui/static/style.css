@@ -1613,6 +1613,72 @@ button.row-action {
 }
 
 /* ------------------------------------------------------------------------ */
+/* Usage and settings                                                        */
+
+.usage-level > :last-child,
+.settings-form > :last-child {
+  margin-bottom: 0;
+}
+
+.slider label {
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.settings-form > p,
+.settings-form > fieldset {
+  margin: 0 0 var(--space-5);
+}
+
+.settings-form .banner-warn {
+  margin-top: var(--space-2);
+}
+
+dl.paths {
+  margin: var(--space-4) 0;
+}
+
+dl.paths ul {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+/* On a phone each path goes under its label, so it is not broken every few letters. */
+@media (max-width: 40rem) {
+  dl.paths {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  dl.paths dd {
+    margin-bottom: var(--space-3);
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* The gate: opening, no token, a refused or restarted tab (audit H2, L13)   */
+
+.gate {
+  max-width: 36rem;
+  padding-top: var(--space-7);
+}
+
+.gate .logo {
+  margin-bottom: var(--space-5);
+}
+
+.gate .panel h1 {
+  margin-top: 0;
+  font-size: var(--fs-section);
+  letter-spacing: -0.01em;
+}
+
+.gate .panel p {
+  margin-bottom: 0;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------------ */
 /* Improvements                                                              */
 
 .suggestions {

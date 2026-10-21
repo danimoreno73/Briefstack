@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import { CreationSuggestions } from './improve.js';
-import { ApiError, TOKEN_HEADER } from './api.js';
+import { ApiError, TOKEN_HEADER, noteRejection } from './api.js';
 import { answersFor, defaultSelection, type Selection } from './answers.js';
 import { ConfirmDialog, CopyButton, ErrorBanner, Loader, Markdown, Notice } from './common.js';
 import { formatWhen } from './format.js';
@@ -123,6 +123,7 @@ function useCreation(id: string) {
       setState(body);
       setError(undefined);
     } catch (failure) {
+      noteRejection(failure);
       setError(failure);
     }
   }, [id, token]);

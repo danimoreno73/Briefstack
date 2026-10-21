@@ -196,4 +196,6 @@ light and dark and 390 light (git-ignored `screenshots/u3/<group>/`).
 | L2 "Librería" in Spanish | closed | 5 library | "Biblioteca" in every Spanish UI string |
 | L7 library sections read as links | closed | 5 library | Tabs on a rule, the current one with an ink bar; they scroll sideways on a phone |
 | L8 a full-weight Revert on every commit | closed | 5 library | One row per commit (subject, then commit, date and files), Revert as a small quiet action at the right |
+| H2 an old tab after a restart | closed | 6 usage, settings | A refused token turns the whole page into "briefstack was restarted" with "open the new link from the terminal", and no retry; an e2e test covers it |
+| L13 bare gate screens | closed | 6 usage, settings | Opening, no token, refused and restarted screens show the logotype and a card with a title and what to do |
 | — list tables on a phone | closed | 4 projects | Every list table (projects, unfinished, creations, proposals, a project's history) becomes one block per row under 640 px |

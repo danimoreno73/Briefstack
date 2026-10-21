@@ -78,7 +78,7 @@ export function SettingsPage() {
       <h1>{t.settingsTitle}</h1>
       <Loader loaded={loaded}>
         {() => (
-          <form onSubmit={(event) => void save(event)}>
+          <form class="panel settings-form" onSubmit={(event) => void save(event)}>
             {error !== undefined && <ErrorBanner error={error} />}
             {saved && <Notice>{t.settingsSaved}</Notice>}
             <p>
@@ -90,7 +90,7 @@ export function SettingsPage() {
                 spellcheck={false}
                 onInput={(event) => setProjectsDir(event.currentTarget.value)}
               />
-              <span class="muted">{t.projectsDirHint}</span>
+              <span class="hint">{t.projectsDirHint}</span>
               {willCreate && (
                 <span class="banner banner-warn" role="status" data-testid="folder-note">
                   {t.folderWillBeCreated}
@@ -128,7 +128,7 @@ export function SettingsPage() {
                 value={maxActive}
                 onInput={(event) => setMaxActive(event.currentTarget.value)}
               />
-              <span class="muted">{t.maxActiveHint}</span>
+              <span class="hint">{t.maxActiveHint}</span>
               {Number(maxActive) > MANY_CREATIONS_NOTE_ABOVE && (
                 <span class="banner banner-warn" role="status" data-testid="max-active-note">
                   {t.maxActiveNote}
@@ -147,7 +147,7 @@ export function SettingsPage() {
       <h2>{t.pathsTitle}</h2>
       <Loader loaded={paths}>
         {(view) => (
-          <dl data-testid="paths">
+          <dl class="panel paths" data-testid="paths">
             <dt>{t.pathHome}</dt>
             <dd class="path">{view.home}</dd>
             <dt>{t.pathConfig}</dt>

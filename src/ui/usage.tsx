@@ -41,36 +41,38 @@ export function UsageView() {
           const userPresets = usage.presets.filter((preset) => preset.source === 'user');
           return (
             <>
-              <div class="slider">
-                <label for="usage-level">{t.usageSlider}</label>
-                <input
-                  id="usage-level"
-                  type="range"
-                  min="0"
-                  max="2"
-                  step="1"
-                  value={position}
-                  aria-valuetext={levelNames[position]}
-                  onInput={(event) => setPending(Number(event.currentTarget.value))}
-                  onChange={(event) => {
-                    const level = USAGE_LEVELS[Number(event.currentTarget.value)];
-                    if (level !== undefined) void apply(level);
-                  }}
-                />
-                <ol class="ticks" aria-hidden="true">
-                  {levelNames.map((name, index) => (
-                    <li key={name} class={index === position ? 'on' : undefined}>
-                      {name}
-                    </li>
-                  ))}
-                </ol>
+              <div class="panel usage-level">
+                <div class="slider">
+                  <label for="usage-level">{t.usageSlider}</label>
+                  <input
+                    id="usage-level"
+                    type="range"
+                    min="0"
+                    max="2"
+                    step="1"
+                    value={position}
+                    aria-valuetext={levelNames[position]}
+                    onInput={(event) => setPending(Number(event.currentTarget.value))}
+                    onChange={(event) => {
+                      const level = USAGE_LEVELS[Number(event.currentTarget.value)];
+                      if (level !== undefined) void apply(level);
+                    }}
+                  />
+                  <ol class="ticks" aria-hidden="true">
+                    {levelNames.map((name, index) => (
+                      <li key={name} class={index === position ? 'on' : undefined}>
+                        {name}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+                <p data-testid="level-hint">{t.levelHint(USAGE_LEVELS[position] ?? 'balanced')}</p>
+                <p data-testid="active-profile">
+                  {t.usageActive(usage.label)}
+                  {activeLevel === undefined && ` · ${t.usageCustomActive}`}
+                </p>
+                <p data-testid="chat-model">{t.usageChatModel(usage.chat.model, usage.chat.effort)}</p>
               </div>
-              <p data-testid="level-hint">{t.levelHint(USAGE_LEVELS[position] ?? 'balanced')}</p>
-              <p data-testid="active-profile">
-                {t.usageActive(usage.label)}
-                {activeLevel === undefined && ` · ${t.usageCustomActive}`}
-              </p>
-              <p data-testid="chat-model">{t.usageChatModel(usage.chat.model, usage.chat.effort)}</p>
 
               {userPresets.length > 0 && (
                 <p>
@@ -105,7 +107,7 @@ export function UsageView() {
                   ))}
                 </ul>
               )}
-              <p class="muted">{t.openUsageHint}</p>
+              <p class="hint">{t.openUsageHint}</p>
             </>
           );
         }}

@@ -15,6 +15,8 @@ function numbers(value: unknown): number[] {
 export function describeError(error: unknown, t: Messages): string {
   if (!(error instanceof ApiError)) return t.errGeneric('unknown');
   switch (error.code) {
+    case 'web.rejected.token':
+      return t.restarted;
     case 'library.secretContent': {
       const lines = numbers(error.params.lines);
       return lines.length === 0 ? t.errSecretNoLines : t.errSecret(lines);

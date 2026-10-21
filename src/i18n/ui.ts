@@ -8,6 +8,15 @@ export const uiMessages = defineCatalogue({
     noToken: 'Open the address that briefstack web printed in the terminal, including the part after #.',
     rejected: 'The server refused the request. Restart briefstack web and open the new address.',
     unreachable: 'The server is not reachable. Is briefstack web still running?',
+    restarted: 'This tab’s link stopped working when briefstack restarted. Open the new link from the terminal.',
+    gateTitle: (gate: 'connecting' | 'noToken' | 'rejected' | 'unreachable' | 'restarted'): string =>
+      ({
+        connecting: 'Opening briefstack',
+        noToken: 'Open briefstack from the terminal',
+        rejected: 'The server refused this tab',
+        unreachable: 'briefstack is not answering',
+        restarted: 'briefstack was restarted',
+      })[gate],
 
     navLabel: 'Main',
     themeLabel: 'Theme',
@@ -571,6 +580,15 @@ export const uiMessages = defineCatalogue({
     noToken: 'Abre la dirección que briefstack web ha mostrado en la terminal, incluida la parte después de #.',
     rejected: 'El servidor ha rechazado la petición. Reinicia briefstack web y abre la nueva dirección.',
     unreachable: 'No se puede contactar con el servidor. ¿Sigue en marcha briefstack web?',
+    restarted: 'El enlace de esta pestaña dejó de servir cuando briefstack se reinició. Abre el enlace nuevo de la terminal.',
+    gateTitle: (gate: 'connecting' | 'noToken' | 'rejected' | 'unreachable' | 'restarted'): string =>
+      ({
+        connecting: 'Abriendo briefstack',
+        noToken: 'Abre briefstack desde la terminal',
+        rejected: 'El servidor ha rechazado esta pestaña',
+        unreachable: 'briefstack no responde',
+        restarted: 'briefstack se reinició',
+      })[gate],
 
     navLabel: 'Principal',
     themeLabel: 'Tema',

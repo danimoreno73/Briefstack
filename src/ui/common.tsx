@@ -1,6 +1,7 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import MarkdownIt from 'markdown-it';
+import { ApiError } from './apiError.js';
 import { describeError } from './errors.js';
 import { useApp, type Loaded } from './hooks.js';
 
@@ -43,12 +44,16 @@ export function Notice({ children }: { children: ComponentChildren }) {
 export function Loader<T>({ loaded, children }: { loaded: Loaded<T>; children: (data: T) => ComponentChildren }) {
   const { t } = useApp();
   if (loaded.error !== undefined) {
+    // A refused token never works again: no retry, the message says to open the new link.
+    const restarted = loaded.error instanceof ApiError && loaded.error.code === 'web.rejected.token';
     return (
       <div>
         <ErrorBanner error={loaded.error} />
-        <button type="button" onClick={loaded.reload}>
-          {t.retry}
-        </button>
+        {!restarted && (
+          <button type="button" onClick={loaded.reload}>
+            {t.retry}
+          </button>
+        )}
       </div>
     );
   }
