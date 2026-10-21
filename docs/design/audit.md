@@ -183,3 +183,6 @@ light and dark and 390 light (git-ignored `screenshots/u3/<group>/`).
 | M10 "Claude is answering…" while a card waits | closed | 2 chat | "Waiting for your answer on the card above." while a card is pending |
 | L1 "1 lines added" | closed | 2 chat | Singular and plural in both languages for the card's counts and skipped lines |
 | L9 You and Claude look alike | closed | 2 chat | The user's messages sit on a sheet, Claude's on the page |
+| H4 Approve before the diff | closed | 3 improvements | The proposal reads in the order of a decision: request, changes, checks, then "Your decision" with Approve; the safety notice says to read the changes below |
+| M17 a long proposal page with no grouping | closed | 3 improvements | Four blocks: what was asked, changes, checks (one card), the decision (tinted); evidence and rounds under "How it was prepared" |
+| L12 the improvements page has no order | closed | 3 improvements | Open proposals first, then suggestions, the request form in its own card, then the applied ones |

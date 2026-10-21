@@ -13,6 +13,9 @@ import type { DiffHunkView, ImproveOverview, ProposalDetail, ProposalPage, Sugge
 
 const LIVE = new Set(['preparing', 'verifying', 'waiting', 'revertWaiting']);
 
+/** Statuses with something to decide: approve, ask for changes, discard or revert (the same rules as `Actions`). */
+const DECIDABLE = new Set(['ready', 'rejected', 'failed', 'preparing', 'waiting', 'applied']);
+
 /** Reloads every `ms` while `active` holds. */
 function usePoll(reload: () => void, active: boolean, ms = 2000): void {
   useEffect(() => {
@@ -74,7 +77,7 @@ export function PrepareForm({ initial, suggestionId, lessons: lessonsDefault = f
       <label class="inline">
         <input type="checkbox" checked={lessons} onChange={(event) => setLessons((event.target as HTMLInputElement).checked)} /> {t.improveLessonsLabel}
       </label>
-      <p class="muted">{t.improveUsesPlan(usage.data?.sessionModel ?? '…')}</p>
+      <p class="hint">{t.improveUsesPlan(usage.data?.sessionModel ?? '…')}</p>
       {error !== undefined && <ErrorBanner error={error} />}
       <div class="actions">
         {onCancel !== undefined && (
@@ -141,8 +144,8 @@ function ProposalTable({ proposals, testId }: { proposals: ImproveOverview['prop
             <tr key={p.id} data-proposal={p.id}>
               <td>{p.title ?? p.request.slice(0, 120)}</td>
               <td data-testid="proposal-row-status">{t.proposalStatus(p.status)}</td>
-              <td>{p.files.join(', ')}</td>
-              <td>{formatWhen(p.updatedAt, lang)}</td>
+              <td class="path">{p.files.join(', ')}</td>
+              <td class="num">{formatWhen(p.updatedAt, lang)}</td>
               <td>
                 <a href={routeHash({ page: 'improve', id: p.id })}>{t.openProposal}</a>
               </td>
@@ -173,14 +176,17 @@ function Overview() {
                   {t.improveRunning} <a href={routeHash({ page: 'improve', id: data.active })}>{data.active}</a>
                 </p>
               )}
-              <h2>{t.improveSuggestions}</h2>
-              {data.suggestions.length === 0 ? <p class="muted">{t.improveNoSuggestions}</p> : <SuggestionList suggestions={data.suggestions} />}
-              <h2>{t.improvePrepareTitle}</h2>
-              <PrepareForm initial="" />
+              {/* What waits for a decision first, then what could be asked, then the record (audit L12). */}
               <h2>{t.improveProposals}</h2>
-              {open.length === 0 ? <p class="muted">{t.improveNoProposals}</p> : <ProposalTable proposals={open} testId="proposals" />}
+              {open.length === 0 ? <p class="empty">{t.improveNoProposals}</p> : <ProposalTable proposals={open} testId="proposals" />}
+              <h2>{t.improveSuggestions}</h2>
+              {data.suggestions.length === 0 ? <p class="empty">{t.improveNoSuggestions}</p> : <SuggestionList suggestions={data.suggestions} />}
+              <div class="panel">
+                <h2>{t.improvePrepareTitle}</h2>
+                <PrepareForm initial="" />
+              </div>
               <h2>{t.improveHistory}</h2>
-              {applied.length === 0 ? <p class="muted">{t.improveNoHistory}</p> : <ProposalTable proposals={applied} testId="history" />}
+              {applied.length === 0 ? <p class="empty">{t.improveNoHistory}</p> : <ProposalTable proposals={applied} testId="history" />}
             </>
           );
         }}
@@ -233,7 +239,7 @@ function Actions({ proposal, check, reload }: { proposal: ProposalDetail; check:
       )}
       <div class="actions">
         {proposal.status === 'ready' && (
-          <button type="button" disabled={busy} data-testid="approve" onClick={() => setConfirm('approve')}>
+          <button type="button" class="primary" disabled={busy} data-testid="approve" onClick={() => setConfirm('approve')}>
             {t.proposalApprove}
           </button>
         )}
@@ -328,34 +334,44 @@ function StatusLine({ proposal, blockers }: { proposal: ProposalDetail; blockers
   );
 }
 
+/**
+ * One proposal, in the order a decision needs (audit H4, M17): what was
+ * asked, the changes, the checks on them, then the decision; how it was
+ * prepared comes last. A safety notice sits at the top and points down to
+ * the changes.
+ */
 function ProposalBody({ page, reload }: { page: ProposalPage; reload: () => void }) {
   const { t } = useApp();
   const { proposal, blockers } = page;
   return (
-    <section>
+    <section class="proposal">
       <p>
-        <a href={routeHash({ page: 'improve', id: undefined })}>{t.improveTitle}</a>
+        <a href={routeHash({ page: 'improve', id: undefined })}>← {t.improveTitle}</a>
       </p>
+      <p class="page-kind">{t.proposalKind}</p>
       <h1>{proposal.title ?? t.proposalHeading(proposal.id)}</h1>
       <StatusLine proposal={proposal} blockers={blockers} />
       {proposal.safety?.state === 'flagged' && (
         <div class="banner banner-warn" role="alert" data-testid="safety-warning">
           <strong>{t.safetyFlaggedTitle}</strong>
           <p>{proposal.safety.reason}</p>
-          <p class="muted">{t.safetyFlaggedNote(proposal.safety.model)}</p>
+          <p>{t.safetyFlaggedNote(proposal.safety.model)}</p>
         </div>
       )}
-      <h2>{t.proposalRequest}</h2>
-      <blockquote data-testid="proposal-request">{proposal.request}</blockquote>
-      {proposal.expectedEffect !== undefined && (
-        <>
-          <h2>{t.proposalExpected}</h2>
-          <p data-testid="proposal-expected">{proposal.expectedEffect}</p>
-        </>
-      )}
-      <Actions proposal={proposal} check={page.check} reload={reload} />
-      <h2>{t.proposalChanges}</h2>
-      {proposal.files.length === 0 && <p class="muted">{t.proposalNoChanges}</p>}
+
+      <div class="panel">
+        <h2>{t.proposalRequest}</h2>
+        <blockquote data-testid="proposal-request">{proposal.request}</blockquote>
+        {proposal.expectedEffect !== undefined && (
+          <>
+            <h3>{t.proposalExpected}</h3>
+            <p data-testid="proposal-expected">{proposal.expectedEffect}</p>
+          </>
+        )}
+      </div>
+
+      <h2 class="section-label">{t.proposalChanges}</h2>
+      {proposal.files.length === 0 && <p class="empty">{t.proposalNoChanges}</p>}
       {proposal.files.map((file) => (
         <div key={file.path} class="improve-file" data-testid="proposal-file" data-path={file.path}>
           <h3>
@@ -370,57 +386,71 @@ function ProposalBody({ page, reload }: { page: ProposalPage; reload: () => void
           <Diff hunks={file.hunks} testId="proposal-diff" />
         </div>
       ))}
-      <h2>{t.proposalValidation}</h2>
-      {proposal.validation === undefined ? (
-        <p class="muted">…</p>
-      ) : proposal.validation.ok ? (
-        <p data-testid="validation" data-ok="true">
-          {t.proposalValidationOk}
-        </p>
-      ) : (
-        <ul data-testid="validation" data-ok="false">
-          {proposal.validation.problems.map((problem, index) => (
-            <li key={index} data-kind={problem.kind}>
-              <strong>{t.problemKind(problem.kind)}</strong>
-              {problem.file !== undefined && (
-                <>
-                  {' '}
-                  <code>{problem.file}</code>
-                  {problem.line !== undefined && `:${problem.line}`}
-                </>
-              )}
-              {` — ${problem.detail}`}
-            </li>
-          ))}
-        </ul>
-      )}
-      {proposal.safety !== undefined && proposal.safety.state !== 'flagged' && (
-        <p class="muted" data-testid="safety" data-state={proposal.safety.state}>
-          {proposal.safety.state === 'clear' ? t.safetyClear(proposal.safety.model) : t.safetyUnavailable(proposal.safety.reason)}
-        </p>
-      )}
-      <h2>{t.proposalTests}</h2>
-      {proposal.checks === undefined ? (
-        <p class="muted">{proposal.validation?.ok === false ? t.proposalNotTested : '…'}</p>
-      ) : (
-        <ul data-testid="checks" data-ok={String(proposal.checks.ok)}>
-          {proposal.checks.error !== undefined && <li>{proposal.checks.error}</li>}
-          {proposal.checks.steps.map((step) => (
-            <li key={step.name} data-step={step.name} data-ok={String(step.ok)}>
-              {t.testStep(step.name, step.ok, Math.round(step.ms / 1000))}
-              {!step.ok && <pre class="tail">{step.tail}</pre>}
-            </li>
-          ))}
-        </ul>
-      )}
-      {proposal.realCheck !== undefined && (
-        <div data-testid="real-check" data-state={proposal.realCheck.state}>
-          <h2>{t.proposalCheckTitle(proposal.realCheck.name)}</h2>
-          <p>{t.realCheckState(proposal.realCheck.state)}</p>
-          {proposal.realCheck.output !== undefined && <pre class="tail">{proposal.realCheck.output}</pre>}
+
+      <h2 class="section-label">{t.proposalChecks}</h2>
+      <div class="panel checks">
+        <h3>{t.proposalValidation}</h3>
+        {proposal.validation === undefined ? (
+          <p class="muted">…</p>
+        ) : proposal.validation.ok ? (
+          <p data-testid="validation" data-ok="true">
+            {t.proposalValidationOk}
+          </p>
+        ) : (
+          <ul data-testid="validation" data-ok="false">
+            {proposal.validation.problems.map((problem, index) => (
+              <li key={index} data-kind={problem.kind}>
+                <strong>{t.problemKind(problem.kind)}</strong>
+                {problem.file !== undefined && (
+                  <>
+                    {' '}
+                    <code>{problem.file}</code>
+                    {problem.line !== undefined && `:${problem.line}`}
+                  </>
+                )}
+                {` — ${problem.detail}`}
+              </li>
+            ))}
+          </ul>
+        )}
+        {proposal.safety !== undefined && proposal.safety.state !== 'flagged' && (
+          <p class="muted" data-testid="safety" data-state={proposal.safety.state}>
+            {proposal.safety.state === 'clear' ? t.safetyClear(proposal.safety.model) : t.safetyUnavailable(proposal.safety.reason)}
+          </p>
+        )}
+        <h3>{t.proposalTests}</h3>
+        {proposal.checks === undefined ? (
+          <p class="muted">{proposal.validation?.ok === false ? t.proposalNotTested : '…'}</p>
+        ) : (
+          <ul data-testid="checks" data-ok={String(proposal.checks.ok)}>
+            {proposal.checks.error !== undefined && <li>{proposal.checks.error}</li>}
+            {proposal.checks.steps.map((step) => (
+              <li key={step.name} data-step={step.name} data-ok={String(step.ok)}>
+                {t.testStep(step.name, step.ok, Math.round(step.ms / 1000))}
+                {!step.ok && <pre class="tail">{step.tail}</pre>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {proposal.realCheck !== undefined && (
+          <div data-testid="real-check" data-state={proposal.realCheck.state}>
+            <h3>{t.proposalCheckTitle(proposal.realCheck.name)}</h3>
+            <p>{t.realCheckState(proposal.realCheck.state)}</p>
+            {proposal.realCheck.output !== undefined && <pre class="tail">{proposal.realCheck.output}</pre>}
+          </div>
+        )}
+      </div>
+
+      {DECIDABLE.has(proposal.status) && (
+        <div class="panel attention decision">
+          <h2>{t.proposalDecision}</h2>
+          {proposal.status === 'ready' && <p class="hint">{t.proposalDecisionNote}</p>}
+          <Actions proposal={proposal} check={page.check} reload={reload} />
         </div>
       )}
-      <h2>{t.proposalEvidence}</h2>
+
+      <h2 class="section-label">{t.proposalMaking}</h2>
+      <h3>{t.proposalEvidence}</h3>
       <ul data-testid="evidence">
         {proposal.evidence.map((item) => (
           <li key={item.file}>
@@ -428,7 +458,7 @@ function ProposalBody({ page, reload }: { page: ProposalPage; reload: () => void
           </li>
         ))}
       </ul>
-      <h2>{t.proposalRounds}</h2>
+      <h3>{t.proposalRounds}</h3>
       <ol data-testid="rounds">
         {proposal.rounds.map((round) => (
           <li key={round.n}>

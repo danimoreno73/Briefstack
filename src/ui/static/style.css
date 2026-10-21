@@ -1525,15 +1525,66 @@ textarea#spec-change {
   display: flex;
   gap: var(--space-2);
   align-items: center;
+  margin-top: var(--space-3);
+  font-weight: var(--w-regular);
 }
 
 .improve-file {
   min-width: 0;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.improve-file h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin-top: 0;
 }
 
 .improve-file h3 code {
   overflow-wrap: anywhere;
+}
+
+.improve-file h3 .muted {
+  font-size: var(--fs-meta);
+  font-weight: var(--w-regular);
+}
+
+/* The proposal page: blocks in the order of a decision. */
+.proposal .banner-warn p {
+  margin: var(--space-2) 0 0;
+}
+
+.proposal blockquote,
+.result blockquote {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--border);
+  white-space: pre-wrap;
+}
+
+.proposal > .panel {
+  margin: var(--space-5) 0;
+}
+
+.checks h3:first-child,
+.decision h2:first-child {
+  margin-top: 0;
+}
+
+.decision .actions {
+  margin-bottom: 0;
+}
+
+.improve-check {
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.improve-check h3 {
+  margin-top: 0;
 }
 
 .tail {
