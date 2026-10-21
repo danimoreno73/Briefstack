@@ -54,7 +54,42 @@ function nodeName(node: PanelNode, mainLabel: string): string {
   return node.kind === 'main' ? mainLabel : node.agentType || '?';
 }
 
-export function AgentPanel({ state, showPendingLinks = false }: { state: PanelState; showPendingLinks?: boolean }) {
+/** Plan usage at the start and at the latest reading; never tokens or cost. */
+export function PlanUsage({ state }: { state: PanelState }) {
+  const { t, lang } = useApp();
+  return (
+    <div class="plan-usage" data-testid="panel-usage">
+      <h3>{t.panelUsage}</h3>
+      {state.usage.start === undefined ? (
+        <p class="muted" role="status">
+          {state.usage.reading === true ? t.panelUsageReading : t.panelUsageNone}
+        </p>
+      ) : (
+        <dl>
+          <dt>{t.panelUsageStart}</dt>
+          <dd>{t.panelUsageLine(percent(state.usage.start.fiveHour), percent(state.usage.start.sevenDay))}</dd>
+          {state.usage.now !== undefined && state.usage.now.at !== state.usage.start.at && (
+            <>
+              <dt>{t.panelUsageNow}</dt>
+              <dd>
+                {t.panelUsageLine(percent(state.usage.now.fiveHour), percent(state.usage.now.sevenDay))} · {formatClock(state.usage.now.at, lang)}
+              </dd>
+            </>
+          )}
+        </dl>
+      )}
+      <p class="hint">{t.panelUsageHint}</p>
+    </div>
+  );
+}
+
+/**
+ * Each fact has one place (audit M15): the card says who, model, time and
+ * what it does; the details add only what the card leaves out (denied calls
+ * and their reasons); the text view repeats everything for screen readers
+ * and copying. Plan usage is shown here unless the page puts it elsewhere.
+ */
+export function AgentPanel({ state, showPendingLinks = false, showUsage = true }: { state: PanelState; showPendingLinks?: boolean; showUsage?: boolean }) {
   const { t, lang } = useApp();
   const [selected, setSelected] = useState('main');
   const node = state.nodes.find((item) => item.id === selected) ?? state.nodes[0];
@@ -173,7 +208,10 @@ export function AgentPanel({ state, showPendingLinks = false }: { state: PanelSt
                   <rect x={left} y="1" width={Math.min(width, 100 - left)} height="8" rx="1" class={row.open ? 'bar bar-open' : 'bar'} />
                 </svg>
               </span>
-              <span class="timeline-time muted">{formatDuration(item.durationMs)}</span>
+              {/* The status in words too, not only the bar's colour (audit M13). */}
+              <span class="timeline-time muted">
+                <span class="timeline-status">{t.nodeStatus(item.status)}</span> · {formatDuration(item.durationMs)}
+              </span>
             </button>
           );
         })}
@@ -184,18 +222,6 @@ export function AgentPanel({ state, showPendingLinks = false }: { state: PanelSt
           <h3>
             {t.panelDetail}: {nodeName(node, t.panelMain)}
           </h3>
-          <dl>
-            <dt>{t.colStatus}</dt>
-            <dd>{t.nodeStatus(node.status)}</dd>
-            <dt>{t.panelModel}</dt>
-            <dd class="id">{node.model ?? '—'}</dd>
-            <dt>{t.panelEffort}</dt>
-            <dd>{node.effort ?? '—'}</dd>
-            <dt>{t.panelStarted}</dt>
-            <dd>{formatClock(node.startedAt, lang)}</dd>
-            <dt>{t.panelDuration}</dt>
-            <dd>{formatDuration(node.durationMs)}</dd>
-          </dl>
           <h4>{t.panelDenials}</h4>
           {node.denials.length === 0 ? (
             <p class="muted">{t.panelNoDenials}</p>
@@ -215,28 +241,7 @@ export function AgentPanel({ state, showPendingLinks = false }: { state: PanelSt
         </div>
       )}
 
-      <div class="plan-usage" data-testid="panel-usage">
-        <h3>{t.panelUsage}</h3>
-        {state.usage.start === undefined ? (
-          <p class="muted" role="status">
-            {state.usage.reading === true ? t.panelUsageReading : t.panelUsageNone}
-          </p>
-        ) : (
-          <dl>
-            <dt>{t.panelUsageStart}</dt>
-            <dd>{t.panelUsageLine(percent(state.usage.start.fiveHour), percent(state.usage.start.sevenDay))}</dd>
-            {state.usage.now !== undefined && state.usage.now.at !== state.usage.start.at && (
-              <>
-                <dt>{t.panelUsageNow}</dt>
-                <dd>
-                  {t.panelUsageLine(percent(state.usage.now.fiveHour), percent(state.usage.now.sevenDay))} · {formatClock(state.usage.now.at, lang)}
-                </dd>
-              </>
-            )}
-          </dl>
-        )}
-        <p class="muted">{t.panelUsageHint}</p>
-      </div>
+      {showUsage && <PlanUsage state={state} />}
 
       <details class="panel-text">
         <summary>{t.panelTextView}</summary>

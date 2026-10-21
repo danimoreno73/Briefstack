@@ -61,13 +61,14 @@ export function ReplyBox({ id, label, hint, sendLabel, onSend, disabled = false,
           }
         }}
       />
-      <span class="muted" id={`${id}-hint`}>
+      <span class="hint" id={`${id}-hint`}>
         {hint ?? t.replyHint}
       </span>
       <div class="actions">
         <button type="submit" disabled={empty || busy || disabled}>
           {busy ? t.sending : (sendLabel ?? t.replySend)}
         </button>
+        <span class="hint shortcut">{t.sendShortcut}</span>
       </div>
     </form>
   );

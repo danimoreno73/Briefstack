@@ -49,7 +49,8 @@ test.describe('the live panel', () => {
     await node(page, 'a1').getByRole('button', { name: /architect/ }).click();
     const detail = page.getByTestId('panel-detail');
     await expect(detail).toContainText('Details: architect');
-    await expect(detail).toContainText('opus');
+    // The model is on the card; the details add only what the card leaves out (audit M15).
+    await expect(node(page, 'a1')).toContainText('opus');
     await expect(page.getByTestId('panel-denials')).toContainText('Write by the guard');
     await expect(page.getByTestId('panel-denials')).toContainText('outside allowed folders');
     await expect(page.getByTestId('panel-denials')).toContainText('Writes are only allowed inside the projects folder');
@@ -142,7 +143,7 @@ test.describe('finished sessions', () => {
     await expect(page).toHaveURL(new RegExp(`#/sessions/${SESSION_DONE}$`));
     await expect(page.getByTestId('session-status')).toContainText('Completed');
     await expect(node(page, 'main').getByTestId('node-status')).toHaveText('Done');
-    await expect(page.getByTestId('panel-detail')).toContainText('Model');
+    await expect(page.getByTestId('panel-detail')).toContainText('Details: Main session');
     await expect(page.getByTestId('panel-usage')).toContainText('Not available for this session.');
     await expect(page.getByText('No subagent has started yet.')).toBeVisible();
   });

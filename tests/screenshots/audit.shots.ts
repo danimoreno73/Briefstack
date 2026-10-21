@@ -14,6 +14,8 @@ import { expect, test } from '../e2e/fixtures.js';
 const OUT = path.join(PACKAGE_ROOT, ...(process.env.SHOTS_OUT ?? 'screenshots/audit').split('/'));
 /** Only these screen numbers, comma separated (`01,05`); all by default. */
 const ONLY = process.env.SHOTS_ONLY?.split(',');
+/** Only these views, comma separated (`1280-light,1280-dark,390-light`); all four by default. */
+const VIEWS = process.env.SHOTS_VIEWS?.split(',');
 
 const SIZES = [
   { name: '1280', width: 1280, height: 900 },
@@ -63,10 +65,12 @@ async function hideTempDir(page: Page): Promise<void> {
 
 for (const size of SIZES) {
   for (const scheme of SCHEMES) {
+    if (VIEWS !== undefined && !VIEWS.includes(`${size.name}-${scheme}`)) continue;
     const folder = path.join(OUT, `${size.name}-${scheme}`);
     const shot = async (page: Page, name: string) => {
       if (!wanted(name)) return;
       // Let fonts, focus rings and the panel's 200 ms recompute settle.
+      await page.evaluate(() => document.fonts.ready);
       await page.waitForTimeout(300);
       await hideTempDir(page);
       await page.screenshot({ path: path.join(folder, `${name}.jpg`), fullPage: true, type: 'jpeg', quality: 80 });

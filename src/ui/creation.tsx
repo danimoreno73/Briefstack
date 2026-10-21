@@ -5,7 +5,7 @@ import { answersFor, defaultSelection, type Selection } from './answers.js';
 import { ConfirmDialog, CopyButton, ErrorBanner, Loader, Markdown, Notice } from './common.js';
 import { formatWhen } from './format.js';
 import { useApp, useLoad, useSend } from './hooks.js';
-import { AgentPanel, PENDING_CONTROL_ID, usePanelState } from './panel.js';
+import { AgentPanel, PENDING_CONTROL_ID, PlanUsage, usePanelState } from './panel.js';
 import { liveFromState, panelEventsFromStream } from './panelData.js';
 import { STEPS, deriveProgress, parseSse, type Progress } from './progress.js';
 import { ReplyBox } from './reply.js';
@@ -72,7 +72,7 @@ function StartPage() {
         <p>
           <label for="idea">{t.ideaLabel}</label>
           <textarea id="idea" rows={6} value={idea} onInput={(event) => setIdea(event.currentTarget.value)} />
-          <span class="muted">{t.ideaHint}</span>
+          <span class="hint">{t.ideaHint}</span>
         </p>
         <div class="actions">
           <button type="submit" disabled={busy || idea.trim() === ''}>
@@ -241,7 +241,7 @@ function CreationView({ id }: { id: string }) {
   if (state === undefined) {
     return (
       <section>
-        <h1>{t.newTitle}</h1>
+        <p class="page-kind">{t.creationLabel}</p>
         {error === undefined ? <p role="status">{t.loading}</p> : <ErrorBanner error={error} />}
       </section>
     );
@@ -253,11 +253,23 @@ function CreationView({ id }: { id: string }) {
 
   return (
     <section>
-      <h1>{t.newTitle}</h1>
-      <p class="idea" data-testid="idea">
-        {state.idea}
-      </p>
-      <p class="muted">{t.policyShown(state.policy)}</p>
+      {/* The creation is named by its idea; cancelling sits by the name, not at the page's end. */}
+      <div class="page-head">
+        <div class="page-head-text">
+          <p class="page-kind">{t.creationLabel}</p>
+          <h1 class="creation-title" data-testid="idea">
+            {state.idea}
+          </h1>
+          <p class="muted">{t.policyShown(state.policy)}</p>
+        </div>
+        {!finished && (
+          <div class="page-actions">
+            <button type="button" class="danger" disabled={state.cancelling === true} onClick={() => setAsking(true)}>
+              {t.cancelCreation}
+            </button>
+          </div>
+        )}
+      </div>
       {!connected && !finished && (
         <p class="banner banner-error" role="status">
           {t.streamLost}
@@ -267,12 +279,15 @@ function CreationView({ id }: { id: string }) {
       {problem !== undefined && <ErrorBanner error={problem} />}
 
       <div class="creation">
-        <ProgressList progress={progress} />
+        <div class="creation-side">
+          <ProgressList progress={progress} />
+          <PlanUsage state={panel} />
+        </div>
         <div class="creation-main">
           {finished ? (
             <Result state={state} progress={progress} />
           ) : pending === undefined && state.awaitingReply !== undefined && !state.cancelling ? (
-            <div class="panel" data-testid="awaiting-reply">
+            <div class="panel attention" data-testid="awaiting-reply">
               <h2>{t.awaitingReplyTitle}</h2>
               <p class="pending-for">{t.pendingFor(state.idea.length > 80 ? `${state.idea.slice(0, 80)}…` : state.idea)}</p>
               <p role="status">{t.awaitingReplyBody}</p>
@@ -280,7 +295,7 @@ function CreationView({ id }: { id: string }) {
               <ReplyBox id="creation-reply" onSend={reply} />
             </div>
           ) : pending === undefined ? (
-            <p role="status" data-testid="working">
+            <p class="panel working" role="status" data-testid="working">
               {state.cancelling ? t.cancellingNote : t.statusWorking}
             </p>
           ) : (
@@ -293,17 +308,10 @@ function CreationView({ id }: { id: string }) {
               <PendingPanel key={pending.id} id={id} pending={pending} answer={answer} />
             </div>
           )}
-          <AgentPanel state={panel} showPendingLinks={!finished} />
+          <AgentPanel state={panel} showPendingLinks={!finished} showUsage={false} />
         </div>
       </div>
 
-      {!finished && (
-        <div class="actions">
-          <button type="button" class="danger" disabled={state.cancelling === true} onClick={() => setAsking(true)}>
-            {t.cancelCreation}
-          </button>
-        </div>
-      )}
       {asking && (
         <ConfirmDialog
           title={t.cancelTitle}
@@ -447,7 +455,7 @@ function PermissionPanel({ pending, answer }: { pending: Extract<Pending, { kind
       <p>{t.permissionWhat}</p>
       <pre data-testid="permission-summary">{pending.payload.summary}</pre>
       <div class="actions">
-        <button type="button" disabled={busy} onClick={() => void decide('allow')}>
+        <button type="button" class="primary" disabled={busy} onClick={() => void decide('allow')}>
           {t.allow}
         </button>
         <button type="button" class="danger" disabled={busy} onClick={() => void decide('deny')}>
@@ -474,7 +482,7 @@ function GrantPanel({ pending, answer }: { pending: Extract<Pending, { kind: 'gr
         <code data-testid="grant-dir">{pending.payload.dir}</code>
       </p>
       <div class="actions">
-        <button type="button" disabled={busy} onClick={() => void decide(true)}>
+        <button type="button" class="primary" disabled={busy} onClick={() => void decide(true)}>
           {t.grantAllow}
         </button>
         <button type="button" class="danger" disabled={busy} onClick={() => void decide(false)}>
@@ -570,7 +578,7 @@ function SpecApproval({ id, pending, answer }: { id: string; pending: Extract<Pe
       <div class="actions">
         {!changing ? (
           <>
-            <button type="button" disabled={busy} onClick={() => void decide({ decision: 'approve' })}>
+            <button type="button" class="primary" disabled={busy} onClick={() => void decide({ decision: 'approve' })}>
               {t.approve}
             </button>
             <button type="button" disabled={busy} onClick={() => setChanging(true)}>
@@ -579,7 +587,7 @@ function SpecApproval({ id, pending, answer }: { id: string; pending: Extract<Pe
           </>
         ) : (
           <>
-            <button type="button" disabled={busy || text.trim() === ''} onClick={() => void decide({ decision: 'change', text: text.trim() })}>
+            <button type="button" class="primary" disabled={busy || text.trim() === ''} onClick={() => void decide({ decision: 'change', text: text.trim() })}>
               {t.sendChanges}
             </button>
             <button type="button" disabled={busy} onClick={() => setChanging(false)}>
@@ -614,9 +622,16 @@ function SpecApproval({ id, pending, answer }: { id: string; pending: Extract<Pe
 function Result({ state, progress }: { state: CreationState; progress: Progress }) {
   const { t, lang } = useApp();
   const outcome = state.outcome ?? 'interrupted';
+  const projects = useLoad<{ projects: ProjectListing[] }>('/api/projects');
+  // The project this creation made: found through the session id its note records.
+  const project =
+    outcome !== 'completed' || state.sessionId === undefined ? undefined : projects.data?.projects.find((candidate) => candidate.session === state.sessionId);
+  // "Ready" only when there is a project to show; a completed run without one says it finished.
   const headline =
     outcome === 'completed'
-      ? t.resultCompleted
+      ? project !== undefined
+        ? t.resultCompleted
+        : t.resultCompletedNoProject
       : outcome === 'cancelled'
         ? t.resultCancelled
         : outcome === 'failed'
@@ -631,7 +646,9 @@ function Result({ state, progress }: { state: CreationState; progress: Progress 
     <div class="panel result" data-testid="result" data-outcome={outcome}>
       <h2>{headline}</h2>
       {state.error !== undefined && <p class="banner banner-error">{state.error}</p>}
-      {outcome === 'completed' && <ProjectCard sessionId={state.sessionId} />}
+      {outcome === 'completed' && (
+        <Loader loaded={projects}>{() => (project === undefined ? <p>{t.resultNoProject}</p> : <ProjectCard project={project} />)}</Loader>
+      )}
 
       <h3>{t.deniedTitle}</h3>
       {denied.length === 0 ? (
@@ -658,34 +675,24 @@ function Result({ state, progress }: { state: CreationState; progress: Progress 
   );
 }
 
-/** The project this creation made: found through the session id its note records. */
-function ProjectCard({ sessionId }: { sessionId: string | undefined }) {
+function ProjectCard({ project }: { project: ProjectListing }) {
   const { t } = useApp();
-  const projects = useLoad<{ projects: ProjectListing[] }>('/api/projects');
   return (
-    <Loader loaded={projects}>
-      {({ projects: all }) => {
-        const project = sessionId === undefined ? undefined : all.find((candidate) => candidate.session === sessionId);
-        if (project === undefined) return <p>{t.resultNoProject}</p>;
-        return (
-          <div data-testid="project-card">
-            <h3>{t.resultProject}</h3>
-            <p>
-              <strong>{project.name}</strong>
-              {project.status !== undefined && <span class="muted"> · {project.status.target}</span>}
-            </p>
-            {project.status !== undefined && (
-              <p>
-                <code class="path">{project.status.path}</code> <CopyButton text={project.status.path} label={t.copyPath} />
-              </p>
-            )}
-            <p>{t.resultNextSteps}</p>
-            <p>
-              <a href={routeHash({ page: 'project', slug: project.slug })}>{t.resultOpen}</a>
-            </p>
-          </div>
-        );
-      }}
-    </Loader>
+    <div class="project-card" data-testid="project-card">
+      <h3>{t.resultProject}</h3>
+      <p>
+        <strong>{project.name}</strong>
+        {project.status !== undefined && <span class="muted id"> · {project.status.target}</span>}
+      </p>
+      {project.status !== undefined && (
+        <p class="path-line">
+          <code class="path">{project.status.path}</code> <CopyButton text={project.status.path} label={t.copyPath} />
+        </p>
+      )}
+      <p>{t.resultNextSteps}</p>
+      <p>
+        <a href={routeHash({ page: 'project', slug: project.slug })}>{t.resultOpen}</a>
+      </p>
+    </div>
   );
 }

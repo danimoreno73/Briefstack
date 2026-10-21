@@ -7,6 +7,16 @@ import { useApp, type Loaded } from './hooks.js';
 /** Raw HTML in notes is escaped, never rendered. */
 const markdown = new MarkdownIt({ html: false, linkify: false });
 
+/**
+ * Headings inside rendered notes sit two levels under the page's: a note's
+ * `#` becomes an `h3`, under the page's `h1` and the section's `h2`.
+ */
+markdown.core.ruler.push('demote_headings', (state) => {
+  for (const token of state.tokens) {
+    if (token.type === 'heading_open' || token.type === 'heading_close') token.tag = `h${Math.min(6, Number(token.tag.slice(1)) + 2)}`;
+  }
+});
+
 export function Markdown({ text }: { text: string }) {
   const html = useMemo(() => markdown.render(text), [text]);
   return <div class="markdown" dangerouslySetInnerHTML={{ __html: html }} />;

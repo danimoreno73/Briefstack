@@ -163,3 +163,19 @@ the git-ignored `screenshots/u2-audit/`), plus the components page.
 | M16 long Ctrl+Enter hint | partial | Now a hint under the field; the text itself is U3 |
 
 Every other finding is open and belongs to U3 (screens) or U4.
+
+## Status after U3
+
+Updated after each group of screens, checked on `audit.shots.ts` at 1280
+light and dark and 390 light (git-ignored `screenshots/u3/<group>/`).
+
+| Finding | State | Group | How |
+| --- | --- | --- | --- |
+| M4 headings inside rendered Markdown | closed | 1 creation | A note's headings are demoted two levels when rendered (`#` becomes `h3`), styled under the page's own |
+| M9 a creation titled "New project" | closed | 1 creation | The creation's page is named by its idea (kept to three lines), under a "Creation" label |
+| M12 "ready" with no project | closed | 1 creation | "Your project is ready." only with a project to show; otherwise "The creation finished." |
+| M13 status by colour alone | closed | 1 creation | Timeline rows say the status in words beside the duration |
+| M15 the panel repeats each fact | closed | 1 creation | The card holds model, time and counts; the details only what the card leaves out; plan usage moved to the side column, under the progress |
+| M16 long Ctrl+Enter hint | closed | 1 creation | The hint under the field says what the text is for; "Ctrl+Enter sends" sits by the send button |
+| M19 cancel at the page's end | closed | 1 creation | "Cancel creation" sits by the creation's name |
+| L14 timeline label cut on a phone | closed | 1 creation | On a phone the label has the row's first line and the bar the second |

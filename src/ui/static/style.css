@@ -114,9 +114,64 @@ table {
   letter-spacing: -0.015em;
 }
 
-.markdown h2 {
-  margin-top: var(--space-5);
+/* A note's own headings are demoted two levels when rendered (src/ui/common.tsx). */
+.markdown h3 {
+  margin: var(--space-5) 0 var(--space-2);
   font-size: var(--fs-lead);
+  font-weight: var(--w-heavy);
+  letter-spacing: -0.01em;
+}
+
+.markdown h4 {
+  margin: var(--space-4) 0 var(--space-1);
+  font-size: var(--fs-body);
+  font-weight: var(--w-heavy);
+}
+
+.markdown h5,
+.markdown h6 {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--fs-meta);
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+/* The head of a page about one thing: what kind of thing, its name, its actions at the right. */
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3) var(--space-5);
+  margin-bottom: var(--space-2);
+}
+
+.page-head-text {
+  flex: 1 1 28rem;
+  min-width: 0;
+}
+
+.page-head-text > p:last-child {
+  margin-bottom: 0;
+}
+
+.page-kind {
+  margin: 0 0 var(--space-1);
+  color: var(--muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--w-strong);
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.shortcut {
+  margin: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -841,8 +896,72 @@ textarea#spec-change {
   font-size: var(--fs-meta);
 }
 
+/* A creation is named by its idea: a title, kept to three lines. */
+.creation-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  font-size: 1.875rem;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+}
+
+.working {
+  color: var(--muted);
+}
+
 .result {
   padding: var(--space-5);
+  border-left-width: 4px;
+}
+
+.result[data-outcome='completed'] {
+  border-left-color: var(--ok);
+}
+
+.result[data-outcome='failed'],
+.result[data-outcome='interrupted'] {
+  border-left-color: var(--danger);
+}
+
+.result > h2:first-child {
+  margin-top: 0;
+}
+
+.project-card {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--ground);
+}
+
+.project-card h3 {
+  margin-top: 0;
+}
+
+.path-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.creation-side {
+  min-width: 0;
+}
+
+/* In the narrow side column the usage lines stack under their labels. */
+.creation-side .plan-usage dl {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.creation-side .plan-usage dd {
+  margin-bottom: var(--space-2);
 }
 
 .creation {
@@ -1111,7 +1230,7 @@ textarea#spec-change {
 
 .timeline-row {
   display: grid;
-  grid-template-columns: 9rem 1fr 4.5rem;
+  grid-template-columns: 9rem minmax(4rem, 1fr) max-content;
   align-items: center;
   gap: var(--space-2);
   min-height: 2rem;
@@ -1204,8 +1323,26 @@ textarea#spec-change {
     margin-left: var(--space-1);
   }
 
+  /* On a phone the label gets the whole first line, the bar the second (audit L14). */
   .timeline-row {
-    grid-template-columns: 6rem 1fr 4.5rem;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-areas:
+      'label time'
+      'track track';
+    row-gap: var(--space-1);
+    padding-block: var(--space-2);
+  }
+
+  .timeline-label {
+    grid-area: label;
+  }
+
+  .timeline-track {
+    grid-area: track;
+  }
+
+  .timeline-time {
+    grid-area: time;
   }
 }
 
