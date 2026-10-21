@@ -34,10 +34,10 @@ export function ProjectsView() {
                     <td>
                       <a href={routeHash({ page: 'project', slug: project.slug })}>{project.name}</a>
                     </td>
-                    <td>{project.status?.target ?? '—'}</td>
+                    <td class="id">{project.status?.target ?? '—'}</td>
                     <td>{project.status?.status ?? <span class="badge badge-warn">{t.invalidNote}</span>}</td>
                     <td>{project.status?.profile ?? '—'}</td>
-                    <td>{formatWhen(project.created, lang)}</td>
+                    <td class="num">{formatWhen(project.created, lang)}</td>
                     <td class="path">{project.status?.path ?? '—'}</td>
                   </tr>
                 ))}

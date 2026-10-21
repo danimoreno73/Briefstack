@@ -20,8 +20,9 @@ and this file describes only the chosen one.
   approval, a permission request, a free-text reply the flow waits for, a
   chat confirmation card, a safety warning, an error. Everything else is
   quiet.
-- **One system font stack**, no web fonts (the CSP allows no external
-  assets): `system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+- **Fonts served by briefstack itself** or the system stack. U1 used only
+  the system stack; U1b (§2.3) bundles OFL fonts, which BRIEF-ui §5 now
+  allows. Nothing is loaded from the internet. The system stack: `system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
   Arial, sans-serif`. A monospace only for paths, commands, code and diffs:
   `ui-monospace, 'Cascadia Mono', 'SF Mono', Consolas, monospace`.
 - **Tokens in one place** as custom properties; no raw colour in a
@@ -144,7 +145,39 @@ list with a 4 px status edge and the status word in bold at the right;
 buttons square, primary filled in ink, inside the yellow block filled in ink
 with yellow text.
 
-### 2.3 How they differ
+### 2.3 U1b: three type variants of A
+
+After U1 the user found A generic, with poor type. Three variants of A keep
+its colours, space and shapes and change only the type, with bundled OFL
+fonts (BRIEF-ui §5; sources and licenses in `design/vendor/fonts/`):
+
+| Variant | Faces | Why this pair |
+| --- | --- | --- |
+| 1 | Source Sans 3 + Source Code Pro | A neutral sans built for interface text, with true tabular figures, and the monospace drawn as its partner, so both share x-height and rhythm. |
+| 2 | Bricolage Grotesque + JetBrains Mono | A grotesque with optical sizes: ink-trapped and tight at title size, calm at text size; the tall-x-height mono matches its large lowercase. |
+| 3 | Newsreader (titles) + Instrument Sans (text) + Inconsolata | An optical-size serif gives titles a voice of their own; a crisp, narrow sans keeps the dense panel quiet; a narrow mono fits long paths. |
+
+The three share what gives A its personality without decoration:
+
+- **Mono** for paths, ids (target, slug, model), agent names (not the main
+  session) and commands; the text face for everything else.
+- **Tabular figures** in the panel (meta, counts, durations, details, plan
+  usage), the progress list, tables and the creations count.
+- **A marked scale**: label 12–13, meta 13, body 15–16, lead 18–19,
+  section 21–24, title 36–42; four weights (400, 500, 600, 700+), titles
+  tightly tracked.
+- **Section labels** (Progress, Agents, Timeline, Details, Plan usage):
+  small, heavy, a hairline running to the edge; caps and tracked in 1 and 3,
+  sentence case in ink in 2. Table headers small caps-style.
+- **A typographic logotype**: "brief" and "stack" in two weights of one
+  word (in 3, "brief" in the serif and "stack" in the sans).
+
+Screenshots (git-ignored): `screenshots/u1b/v{1,2,3}/{1280-light,
+1280-dark,390-light}/`, each with `00-specimen`, `01-projects` and
+`06-creation-spec`, taken by `tests/screenshots/type.shots.ts`, which also
+fails if a face does not load or lacks tabular figures.
+
+### 2.4 How A and B differ
 
 | | A "Quiet sheet" | B "Ink and signal" |
 | --- | --- | --- |
@@ -190,7 +223,9 @@ throwaway script; U4 adds an automated check to the tests.
 attribute from `localStorage['briefstack-direction']` at start; without it
 the app looks as before. To look at one in a running app, in the browser's
 console: `localStorage.setItem('briefstack-direction', 'a')` and reload;
-`localStorage.removeItem('briefstack-direction')` to go back. The shots
+`localStorage.removeItem('briefstack-direction')` to go back. With
+direction A, `localStorage.setItem('briefstack-type', '1')` (or `2`, `3`)
+adds a type variant (§2.3, `src/ui/static/type-variants.css`). The shots
 script sets it with `SHOTS_DIRECTION`. Only the shell, the projects list and
 the creation screen are styled; other screens show the new controls over the
 old layout.

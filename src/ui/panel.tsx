@@ -72,7 +72,7 @@ export function AgentPanel({ state, showPendingLinks = false }: { state: PanelSt
   const card = (item: PanelNode) => {
     const target = targetText(item.current?.target, labels);
     return (
-      <div class="agent-card" data-status={item.status} data-testid={`agent-${item.id}`}>
+      <div class="agent-card" data-status={item.status} data-kind={item.kind} data-testid={`agent-${item.id}`}>
         <button
           type="button"
           class="agent-select"
@@ -164,6 +164,7 @@ export function AgentPanel({ state, showPendingLinks = false }: { state: PanelSt
               class="timeline-row"
               aria-pressed={item.id === node?.id}
               data-status={item.status}
+              data-kind={item.kind}
               onClick={() => setSelected(item.id)}
             >
               <span class="timeline-label">{nodeName(item, t.panelMain)}</span>
@@ -187,7 +188,7 @@ export function AgentPanel({ state, showPendingLinks = false }: { state: PanelSt
             <dt>{t.colStatus}</dt>
             <dd>{t.nodeStatus(node.status)}</dd>
             <dt>{t.panelModel}</dt>
-            <dd>{node.model ?? '—'}</dd>
+            <dd class="id">{node.model ?? '—'}</dd>
             <dt>{t.panelEffort}</dt>
             <dd>{node.effort ?? '—'}</dd>
             <dt>{t.panelStarted}</dt>

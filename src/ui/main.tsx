@@ -139,7 +139,10 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
   return (
     <AppCtx.Provider value={context}>
       <header>
-        <strong>{t.title}</strong>
+        <strong class="logo" translate={false}>
+          <span class="logo-brief">brief</span>
+          <span class="logo-stack">stack</span>
+        </strong>
         <nav aria-label={t.navLabel}>
           {NAV.map((item) => (
             <a key={item.page} href={routeHash(item.route)} aria-current={route.page === item.page || (item.page === 'projects' && (route.page === 'project' || route.page === 'session')) ? 'page' : undefined}>

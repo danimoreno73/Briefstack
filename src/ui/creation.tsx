@@ -516,7 +516,7 @@ function SpecApproval({ id, pending, answer }: { id: string; pending: Extract<Pe
                 {view.spec.slug !== undefined && (
                   <>
                     <dt>{t.specSlug}</dt>
-                    <dd>{view.spec.slug}</dd>
+                    <dd class="id">{view.spec.slug}</dd>
                   </>
                 )}
                 {view.spec.type !== undefined && (
@@ -528,7 +528,7 @@ function SpecApproval({ id, pending, answer }: { id: string; pending: Extract<Pe
                 {view.spec.target !== undefined && (
                   <>
                     <dt>{t.colTarget}</dt>
-                    <dd>{view.spec.target}</dd>
+                    <dd class="id">{view.spec.target}</dd>
                   </>
                 )}
                 {view.spec.targetChosenBy !== undefined && (
