@@ -11,13 +11,14 @@ before each step; the work stops if the 7-day window is over 85% or the
 
 ## 0. Status
 
-Updated 2026-10-20. U0 and U1 are done. **Waiting for the user to choose a
-direction**; U2 does not start before that.
+Updated 2026-10-21. U0, U1 and U1b are done. **Waiting for the user to
+choose a type variant of direction A**; U2 does not start before that.
 
 | Step | State | What exists |
 | --- | --- | --- |
 | U0 | done | References pinned in `docs/design/vendor/` with `SOURCE.md`; `tests/screenshots/audit.shots.ts`; 108 screenshots in `docs/design/shots/u0/`; `docs/design/audit.md` (40 findings: 7 high, 19 medium, 14 low) |
 | U1 | done | `docs/DESIGN.md` §2 with directions A "Quiet sheet" and B "Ink and signal" and their tokens for both themes; `src/ui/static/directions.css` and the development flag `src/ui/direction.ts` (`localStorage['briefstack-direction']`); applied to the shell, the projects list and the creation screen; screenshots in `docs/design/shots/u1/{a,b}/` |
+| U1b | done | The user asked for direction A only, with better type. BRIEF-ui §5 allows bundled OFL fonts; seven faces in `src/ui/static/fonts/` with licenses in `docs/design/vendor/fonts/`; three variants in `src/ui/static/type-variants.css` (flag `localStorage['briefstack-type']`), `docs/DESIGN.md` §2.4; `tests/screenshots/type.shots.ts` writes the specimens and screens to `screenshots/u1b/` (git-ignored) |
 | U2 | — | — |
 | U3 | — | — |
 | U4 | — | — |
