@@ -1,5 +1,6 @@
 import { useEffect } from 'preact/hooks';
 import { Loader } from './common.js';
+import { formatWhen } from './format.js';
 import { useApp, useLoad } from './hooks.js';
 import { routeHash } from './route.js';
 import type { CreationState, SettingsView } from './types.js';
@@ -14,7 +15,7 @@ export function waitingKind(creation: CreationState): string {
 
 /** Every active creation: idea, current step, what it waits for, and a link to its page and panel. */
 export function CreationsPage() {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const list = useLoad<{ creations: CreationState[] }>('/api/creations');
   const settings = useLoad<SettingsView>('/api/settings');
 
@@ -41,10 +42,11 @@ export function CreationsPage() {
                 <p class="empty">{t.creationsEmpty}</p>
               ) : (
                 <div class="table-wrap">
-                  <table data-testid="creations">
+                  <table class="stack-on-phone" data-testid="creations">
                     <thead>
                       <tr>
                         <th scope="col">{t.colIdea}</th>
+                        <th scope="col">{t.colStarted}</th>
                         <th scope="col">{t.colStep}</th>
                         <th scope="col">{t.colWaiting}</th>
                         <th scope="col">
@@ -53,16 +55,24 @@ export function CreationsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {active.map((creation) => (
-                        <tr key={creation.id} data-creation={creation.id}>
-                          <td>{creation.idea.slice(0, 120)}</td>
-                          <td>{creation.currentStep === undefined ? '—' : t.stepLabel(creation.currentStep)}</td>
-                          <td data-testid="waiting">{t.waitingFor(waitingKind(creation))}</td>
-                          <td>
-                            <a href={routeHash({ page: 'new', id: creation.id })}>{t.openCreation}</a>
-                          </td>
-                        </tr>
-                      ))}
+                      {active.map((creation) => {
+                        const kind = waitingKind(creation);
+                        // What waits for the user is marked; working and cancelling stay quiet (audit M18).
+                        const forYou = kind !== 'working' && kind !== 'cancelling';
+                        return (
+                          <tr key={creation.id} data-creation={creation.id}>
+                            <td>{creation.idea.slice(0, 120)}</td>
+                            <td class="num">{formatWhen(creation.startedAt, lang)}</td>
+                            <td>{creation.currentStep === undefined ? '—' : t.stepLabel(creation.currentStep)}</td>
+                            <td data-testid="waiting" class={forYou ? 'for-you' : 'muted'}>
+                              {t.waitingFor(kind)}
+                            </td>
+                            <td>
+                              <a href={routeHash({ page: 'new', id: creation.id })}>{t.openCreation}</a>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

@@ -137,6 +137,10 @@ These would change behaviour, so the UI pass does not make them (BRIEF §5):
 3. The result screen could find the project of a creation by the project
    folder when the note has no session id, so M12 does not happen with real
    creations that skip the note.
+4. (U3) The sessions list (`GET /api/sessions`) could return each session's
+   idea (it is in the session folder's request), so the projects page lists
+   interrupted and cancelled creations by what they were about (M8). The
+   UI pass does not change the API.
 
 ## Status after U2 (2026-10-21)
 
@@ -186,3 +190,7 @@ light and dark and 390 light (git-ignored `screenshots/u3/<group>/`).
 | H4 Approve before the diff | closed | 3 improvements | The proposal reads in the order of a decision: request, changes, checks, then "Your decision" with Approve; the safety notice says to read the changes below |
 | M17 a long proposal page with no grouping | closed | 3 improvements | Four blocks: what was asked, changes, checks (one card), the decision (tinted); evidence and rounds under "How it was prepared" |
 | L12 the improvements page has no order | closed | 3 improvements | Open proposals first, then suggestions, the request form in its own card, then the applied ones |
+| M8 unfinished creations listed by id | partial | 4 projects | A table by when they stopped, their status and the step's name, the id last; showing the idea needs the sessions list to return it, an API change, recorded as proposal 4 below |
+| M18 "Waiting for: nothing: working", no time | closed | 4 projects | A "Started" column; what waits for the user is marked in ink with a dot, working is quiet ("nothing yet: it is working") |
+| M4 "Next steps" said twice on a project | closed | 4 projects | A note that opens with the section's own heading drops it (`withoutLeadingHeading`, unit tested) |
+| — list tables on a phone | closed | 4 projects | Every list table (projects, unfinished, creations, proposals, a project's history) becomes one block per row under 640 px |

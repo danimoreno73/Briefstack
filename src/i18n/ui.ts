@@ -271,6 +271,11 @@ export const uiMessages = defineCatalogue({
     colIdea: 'Idea',
     colStep: 'Step',
     colWaiting: 'Waiting for',
+    colStarted: 'Started',
+    colWhen: 'When',
+    colLastStep: 'Last step',
+    colSession: 'Session',
+    projectKind: 'Project',
     waitingFor: (kind: string): string => {
       const labels: Record<string, string> = {
         question: 'your answers',
@@ -279,7 +284,7 @@ export const uiMessages = defineCatalogue({
         grant: 'an output folder',
         reply: 'your reply',
         cancelling: 'cancelling',
-        working: 'nothing: working',
+        working: 'nothing yet: it is working',
       };
       return labels[kind] ?? kind;
     },
@@ -828,6 +833,11 @@ export const uiMessages = defineCatalogue({
     colIdea: 'Idea',
     colStep: 'Paso',
     colWaiting: 'Espera',
+    colStarted: 'Empezó',
+    colWhen: 'Cuándo',
+    colLastStep: 'Último paso',
+    colSession: 'Sesión',
+    projectKind: 'Proyecto',
     waitingFor: (kind: string): string => {
       const labels: Record<string, string> = {
         question: 'tus respuestas',
@@ -836,7 +846,7 @@ export const uiMessages = defineCatalogue({
         grant: 'una carpeta de salida',
         reply: 'tu respuesta',
         cancelling: 'cancelándose',
-        working: 'nada: trabajando',
+        working: 'nada aún: está trabajando',
       };
       return labels[kind] ?? kind;
     },

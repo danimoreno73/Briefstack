@@ -12,6 +12,7 @@ import {
   openCommandLines,
   quotePath,
   stripFrontmatter,
+  withoutLeadingHeading,
 } from '../../src/ui/format.js';
 import { DEFAULT_ROUTE, parseRoute, routeHash, type Route } from '../../src/ui/route.js';
 
@@ -94,6 +95,13 @@ describe('format helpers', () => {
   it('strips a leading status block for the preview', () => {
     expect(stripFrontmatter('---\nslug: x\n---\n# Title\n')).toBe('# Title\n');
     expect(stripFrontmatter('# Title\n---\nnot front matter\n')).toBe('# Title\n---\nnot front matter\n');
+  });
+  it('drops a leading heading only when it repeats the section title', () => {
+    expect(withoutLeadingHeading('# Next steps\n\n1. Open it.\n', 'Next steps')).toBe('\n1. Open it.\n');
+    expect(withoutLeadingHeading('## next STEPS ##\r\n- a\n', 'Next steps')).toBe('- a\n');
+    expect(withoutLeadingHeading('# Siguientes pasos\n- a\n', 'Next steps')).toBe('# Siguientes pasos\n- a\n');
+    expect(withoutLeadingHeading('Intro\n# Next steps\n', 'Next steps')).toBe('Intro\n# Next steps\n');
+    expect(withoutLeadingHeading('# Next steps', 'Next steps')).toBe('');
   });
 });
 

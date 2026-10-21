@@ -1,5 +1,5 @@
 import { CopyButton, Loader, Markdown } from './common.js';
-import { formatWhen, isUnfinished, openCommandLines } from './format.js';
+import { formatWhen, isUnfinished, openCommandLines, withoutLeadingHeading } from './format.js';
 import { useApp, useLoad } from './hooks.js';
 import { routeHash } from './route.js';
 import type { ProjectDetail, ProjectListing, SessionSummary } from './types.js';
@@ -17,7 +17,7 @@ export function ProjectsView() {
             <p class="empty">{t.projectsEmpty}</p>
           ) : (
             <div class="table-wrap">
-            <table data-testid="projects">
+            <table class="stack-on-phone" data-testid="projects">
               <thead>
                 <tr>
                   <th>{t.colName}</th>
@@ -53,18 +53,34 @@ export function ProjectsView() {
         {({ sessions: all }) => {
           const unfinished = all.filter(isUnfinished);
           if (unfinished.length === 0) return <p class="empty">{t.unfinishedEmpty}</p>;
+          // A table, so sessions are told apart by when and where they stopped, not by their id alone.
           return (
-            <ul data-testid="unfinished">
-              {unfinished.map((session) => (
-                <li key={session.id}>
-                  <a href={routeHash({ page: 'session', id: session.id })}>
-                    <code>{session.id}</code>
-                  </a>{' '}
-                  · {t.outcome(session.outcome ?? session.status)} ·{' '}
-                  {formatWhen(session.lastEventAt ?? session.startedAt, lang)} · {t.lastStep(session.lastStep?.step)}
-                </li>
-              ))}
-            </ul>
+            <div class="table-wrap">
+              <table class="stack-on-phone" data-testid="unfinished">
+                <thead>
+                  <tr>
+                    <th scope="col">{t.colWhen}</th>
+                    <th scope="col">{t.colStatus}</th>
+                    <th scope="col">{t.colLastStep}</th>
+                    <th scope="col">{t.colSession}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {unfinished.map((session) => (
+                    <tr key={session.id}>
+                      <td class="num">{formatWhen(session.lastEventAt ?? session.startedAt, lang)}</td>
+                      <td>{t.outcome(session.outcome ?? session.status)}</td>
+                      <td>{session.lastStep === undefined ? t.lastStep(undefined) : t.stepLabel(session.lastStep.step)}</td>
+                      <td>
+                        <a class="id" href={routeHash({ page: 'session', id: session.id })}>
+                          {session.id}
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           );
         }}
       </Loader>
@@ -88,8 +104,17 @@ export function ProjectView({ slug }: { slug: string }) {
           const commands = openCommand === null ? undefined : openCommandLines(openCommand.cwd, openCommand.command);
           return (
             <>
-              <h1>{project.name}</h1>
-              {status?.summary !== undefined && <p>{status.summary}</p>}
+              <div class="page-head">
+                <div class="page-head-text">
+                  <p class="page-kind">{t.projectKind}</p>
+                  <h1>{project.name}</h1>
+                  {status?.summary !== undefined && <p class="idea">{status.summary}</p>}
+                </div>
+                <div class="page-actions">
+                  {projectPath !== undefined && <CopyButton text={projectPath} label={t.copyPath} testId="copy-path" />}
+                  {instructions !== null && <CopyButton text={instructions} label={t.copyInstructions} testId="copy-instructions" />}
+                </div>
+              </div>
               {status === undefined && (
                 <p class="banner banner-error">
                   {t.invalidNote}. {t.invalidIssues(project.issues ?? [])}
@@ -97,11 +122,11 @@ export function ProjectView({ slug }: { slug: string }) {
               )}
 
               {status !== undefined && (
-                <>
+                <div class="panel">
                   <h2>{t.statusBlock}</h2>
                   <dl data-testid="status">
                     <dt>{t.colTarget}</dt>
-                    <dd>{status.target}</dd>
+                    <dd class="id">{status.target}</dd>
                     {targetChoice?.chosenBy !== undefined && (
                       <>
                         <dt>{t.targetChosenBy}</dt>
@@ -123,23 +148,16 @@ export function ProjectView({ slug }: { slug: string }) {
                     <dt>{t.colPath}</dt>
                     <dd class="path">{status.path}</dd>
                   </dl>
-                </>
+                </div>
               )}
 
-              <div class="actions">
-                {projectPath !== undefined && <CopyButton text={projectPath} label={t.copyPath} testId="copy-path" />}
-                {instructions !== null && (
-                  <CopyButton text={instructions} label={t.copyInstructions} testId="copy-instructions" />
-                )}
-              </div>
-
               {commands !== undefined && (
-                <>
+                <div class="panel">
                   <h2>{t.openInClaude}</h2>
                   <p>{t.openHint}</p>
                   <pre data-testid="open-command">{commands.join('\n')}</pre>
                   <CopyButton text={commands.join('\n')} label={t.copyCommand} testId="copy-command" />
-                </>
+                </div>
               )}
 
               <h2>{t.timelineTitle}</h2>
@@ -154,7 +172,7 @@ export function ProjectView({ slug }: { slug: string }) {
                 <p class="empty">{t.timelineEmpty}</p>
               ) : (
                 <div class="table-wrap">
-                <table data-testid="timeline">
+                <table class="stack-on-phone" data-testid="timeline">
                   <thead>
                     <tr>
                       <th>{t.stepColumn}</th>
@@ -180,7 +198,7 @@ export function ProjectView({ slug }: { slug: string }) {
               {nextSteps !== null && (
                 <>
                   <h2>{t.nextSteps}</h2>
-                  <Markdown text={nextSteps} />
+                  <Markdown text={withoutLeadingHeading(nextSteps, t.nextSteps)} />
                 </>
               )}
             </>

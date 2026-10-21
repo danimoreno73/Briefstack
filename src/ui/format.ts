@@ -50,6 +50,12 @@ export function hasHiddenLines(text: string): boolean {
   return text.split('\n').some((line) => line === REDACTED_LINE);
 }
 
+/** A note that opens with the same heading as the section it is shown under drops it, so it is not said twice. */
+export function withoutLeadingHeading(text: string, heading: string): string {
+  const match = /^\s*#{1,6}[ \t]+(.+?)[ \t#]*(?:\r?\n|$)/.exec(text);
+  return match !== null && match[1]?.trim().toLowerCase() === heading.trim().toLowerCase() ? text.slice(match[0].length) : text;
+}
+
 /** The note without its leading `---` status block, for the preview. */
 export function stripFrontmatter(text: string): string {
   const match = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(text);

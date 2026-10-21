@@ -127,7 +127,7 @@ function ProposalTable({ proposals, testId }: { proposals: ImproveOverview['prop
   const { t, lang } = useApp();
   return (
     <div class="table-wrap">
-      <table data-testid={testId}>
+      <table class="stack-on-phone" data-testid={testId}>
         <thead>
           <tr>
             <th scope="col">{t.colRequest}</th>

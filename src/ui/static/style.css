@@ -809,6 +809,28 @@ header nav a[aria-current='page'] {
 /* ------------------------------------------------------------------------ */
 /* Projects                                                                  */
 
+/* Cards on a page are spaced like sections. */
+section > .panel {
+  margin: var(--space-4) 0;
+}
+
+/* In a list of creations, what waits for the user is marked in words and with a dot. */
+.for-you {
+  color: var(--text);
+  font-weight: var(--w-heavy);
+}
+
+.for-you::before {
+  content: '';
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: var(--waiting);
+  vertical-align: 0.05em;
+}
+
 .history {
   padding: 0;
   list-style: none;
@@ -819,9 +841,9 @@ header nav a[aria-current='page'] {
   border-bottom: 1px solid var(--rule);
 }
 
-/* The projects table on a phone: one block per project, the name first. */
+/* A list table on a phone (`.stack-on-phone`): one block per row, the first cell as its title, the last on its own line. */
 @media (max-width: 40rem) {
-  table[data-testid='projects'] thead {
+  .stack-on-phone thead {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -829,22 +851,22 @@ header nav a[aria-current='page'] {
     clip-path: inset(50%);
   }
 
-  table[data-testid='projects'],
-  table[data-testid='projects'] tbody,
-  table[data-testid='projects'] tr {
+  .stack-on-phone,
+  .stack-on-phone tbody,
+  .stack-on-phone tr {
     display: block;
   }
 
-  table[data-testid='projects'] tr {
+  .stack-on-phone tr {
     padding: var(--space-3) 0;
     border-bottom: 1px solid var(--rule);
   }
 
-  table[data-testid='projects'] tr:last-child {
+  .stack-on-phone tr:last-child {
     border-bottom: 0;
   }
 
-  table[data-testid='projects'] td {
+  .stack-on-phone td {
     display: inline;
     padding: 0;
     border: 0;
@@ -852,7 +874,7 @@ header nav a[aria-current='page'] {
     font-size: var(--fs-meta);
   }
 
-  table[data-testid='projects'] td:first-child {
+  .stack-on-phone td:first-child {
     display: block;
     margin-bottom: var(--space-1);
     color: var(--text);
@@ -860,16 +882,16 @@ header nav a[aria-current='page'] {
     font-weight: var(--w-strong);
   }
 
-  table[data-testid='projects'] td:not(:first-child, :last-child)::after {
+  .stack-on-phone td:not(:first-child, :last-child, :nth-last-child(2))::after {
     content: ' · ';
   }
 
-  table[data-testid='projects'] td:last-child {
+  .stack-on-phone td:last-child {
     display: block;
     margin-top: var(--space-1);
   }
 
-  .table-wrap {
+  .table-wrap:has(> .stack-on-phone) {
     overflow-x: visible;
   }
 }

@@ -66,9 +66,9 @@ test.describe('projects', () => {
 
     const unfinished = page.getByTestId('unfinished');
     await expect(unfinished).toContainText('sess-cancelled');
-    await expect(unfinished).toContainText('last step: interview');
+    await expect(unfinished.getByRole('row', { name: /sess-cancelled/ })).toContainText('Interview');
     await expect(unfinished).toContainText('sess-interrupted');
-    await expect(unfinished).toContainText('last step: research');
+    await expect(unfinished.getByRole('row', { name: /sess-interrupted/ })).toContainText('Research');
     await expect(unfinished).not.toContainText('sess-done');
   });
 
