@@ -14,7 +14,7 @@ export function ProjectsView() {
       <Loader loaded={projects}>
         {({ projects: list }) =>
           list.length === 0 ? (
-            <p>{t.projectsEmpty}</p>
+            <p class="empty">{t.projectsEmpty}</p>
           ) : (
             <div class="table-wrap">
             <table data-testid="projects">
@@ -52,7 +52,7 @@ export function ProjectsView() {
       <Loader loaded={sessions}>
         {({ sessions: all }) => {
           const unfinished = all.filter(isUnfinished);
-          if (unfinished.length === 0) return <p>{t.unfinishedEmpty}</p>;
+          if (unfinished.length === 0) return <p class="empty">{t.unfinishedEmpty}</p>;
           return (
             <ul data-testid="unfinished">
               {unfinished.map((session) => (
@@ -151,7 +151,7 @@ export function ProjectView({ slug }: { slug: string }) {
                 </p>
               )}
               {timeline === null || timeline.steps.length === 0 ? (
-                <p>{t.timelineEmpty}</p>
+                <p class="empty">{t.timelineEmpty}</p>
               ) : (
                 <div class="table-wrap">
                 <table data-testid="timeline">

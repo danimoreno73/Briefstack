@@ -38,7 +38,7 @@ export function CreationsPage() {
                 </p>
               )}
               {active.length === 0 ? (
-                <p>{t.creationsEmpty}</p>
+                <p class="empty">{t.creationsEmpty}</p>
               ) : (
                 <div class="table-wrap">
                   <table data-testid="creations">

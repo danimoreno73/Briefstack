@@ -170,10 +170,10 @@ function Card({ confirmation, answer }: { confirmation: Confirmation; answer?: (
       {confirmation.sources !== undefined && <Sources sources={confirmation.sources} />}
       {confirmation.state === 'pending' && answer !== undefined && (
         <div class="actions">
-          <button type="button" disabled={busy} onClick={() => void decide('confirm')}>
+          <button type="button" class="primary" disabled={busy} onClick={() => void decide('confirm')}>
             {t.cardConfirm}
           </button>
-          <button type="button" class="danger" disabled={busy} onClick={() => void decide('decline')}>
+          <button type="button" disabled={busy} onClick={() => void decide('decline')}>
             {t.cardDecline}
           </button>
         </div>
@@ -244,7 +244,7 @@ function Messages({ messages, answer }: { messages: readonly ChatMessage[]; answ
   useEffect(() => {
     end.current?.scrollIntoView?.({ block: 'end' });
   }, [messages.length]);
-  if (messages.length === 0) return <p class="muted">{t.chatEmpty}</p>;
+  if (messages.length === 0) return <p class="empty">{t.chatEmpty}</p>;
   return (
     <ol class="chat-messages" aria-live="polite" data-testid="chat-messages">
       {messages.map((message) => (
@@ -341,7 +341,7 @@ function PastChats() {
       <Loader loaded={list}>
         {({ threads }) => {
           const past = threads.filter((thread) => thread.archivedAt !== undefined);
-          if (past.length === 0) return <p>{t.chatPastEmpty}</p>;
+          if (past.length === 0) return <p class="empty">{t.chatPastEmpty}</p>;
           return (
             <ul data-testid="chat-past">
               {past.map((thread) => (

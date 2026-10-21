@@ -201,7 +201,7 @@ function HistoryView() {
       <Loader loaded={loaded}>
         {({ commits }) =>
           commits.length === 0 ? (
-            <p>{t.historyEmpty}</p>
+            <p class="empty">{t.historyEmpty}</p>
           ) : (
             <ul class="history" data-testid="history">
               {commits.map((commit) => (

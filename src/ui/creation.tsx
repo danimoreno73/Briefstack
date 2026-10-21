@@ -85,7 +85,7 @@ function StartPage() {
       <Loader loaded={list}>
         {({ creations }) => {
           const finished = creations.filter((creation) => creation.status === 'finished').reverse();
-          if (finished.length === 0) return <p>{t.recentEmpty}</p>;
+          if (finished.length === 0) return <p class="empty">{t.recentEmpty}</p>;
           return (
             <ul>
               {finished.map((creation) => (
