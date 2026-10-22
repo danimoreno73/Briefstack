@@ -350,7 +350,6 @@ function ProposalBody({ page, reload }: { page: ProposalPage; reload: () => void
       <p>
         <a href={routeHash({ page: 'improve', id: undefined })}>← {t.improveTitle}</a>
       </p>
-      <p class="page-kind">{t.proposalKind}</p>
       <h1>{proposal.title ?? t.proposalHeading(proposal.id)}</h1>
       <StatusLine proposal={proposal} blockers={blockers} />
       {proposal.safety?.state === 'flagged' && (

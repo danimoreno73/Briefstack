@@ -245,7 +245,9 @@ function CreationView({ id }: { id: string }) {
   if (state === undefined) {
     return (
       <section>
-        <p class="page-kind">{t.creationLabel}</p>
+        <p>
+          <a href={routeHash({ page: 'creations' })}>← {t.allCreations}</a>
+        </p>
         {error === undefined ? <p role="status">{t.loading}</p> : <ErrorBanner error={error} />}
       </section>
     );
@@ -258,9 +260,11 @@ function CreationView({ id }: { id: string }) {
   return (
     <section>
       {/* The creation is named by its idea; cancelling sits by the name, not at the page's end. */}
+      <p>
+        <a href={routeHash({ page: 'creations' })}>← {t.allCreations}</a>
+      </p>
       <div class="page-head">
         <div class="page-head-text">
-          <p class="page-kind">{t.creationLabel}</p>
           <h1 class="creation-title" data-testid="idea">
             {state.idea}
           </h1>

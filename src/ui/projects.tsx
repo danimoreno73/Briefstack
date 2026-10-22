@@ -110,7 +110,6 @@ export function ProjectView({ slug }: { slug: string }) {
             <>
               <div class="page-head">
                 <div class="page-head-text">
-                  <p class="page-kind">{t.projectKind}</p>
                   <h1>{project.name}</h1>
                   {status?.summary !== undefined && <p class="idea">{status.summary}</p>}
                 </div>

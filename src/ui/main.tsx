@@ -31,6 +31,13 @@ const NAV: { page: Route['page']; route: Route; label: 'navProjects' | 'navNew' 
   { page: 'settings', route: { page: 'settings' }, label: 'navSettings' },
 ];
 
+/** The menu item a route belongs to: a project or a past session under Projects, a running creation under Creations. */
+function navPage(route: Route): Route['page'] {
+  if (route.page === 'project' || route.page === 'session') return 'projects';
+  if (route.page === 'new' && route.id !== undefined) return 'creations';
+  return route.page;
+}
+
 function useRoute(): Route {
   // The token has already been taken out of the address by now (see the bottom of this file).
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
@@ -174,7 +181,7 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
         </strong>
         <nav aria-label={t.navLabel}>
           {NAV.map((item) => (
-            <a key={item.page} href={routeHash(item.route)} aria-current={route.page === item.page || (item.page === 'projects' && (route.page === 'project' || route.page === 'session')) ? 'page' : undefined}>
+            <a key={item.page} href={routeHash(item.route)} aria-current={navPage(route) === item.page ? 'page' : undefined}>
               {t[item.label]}
               {item.page === 'creations' && activeCreations > 0 && (
                 <span class="nav-count" role="img" aria-label={t.creationsRunning(activeCreations)} title={t.creationsRunning(activeCreations)}>

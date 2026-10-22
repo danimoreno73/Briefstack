@@ -178,13 +178,6 @@ table {
   margin-bottom: 0;
 }
 
-.page-kind {
-  margin: 0 0 var(--space-1);
-  color: var(--muted);
-  font-size: var(--fs-meta);
-  font-weight: var(--w-strong);
-}
-
 .page-actions {
   display: flex;
   flex-wrap: wrap;
