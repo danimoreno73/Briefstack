@@ -76,3 +76,47 @@ export function targetText(target: PanelTarget | undefined, labels: { outside: s
 export function percent(value: number | null | undefined): string {
   return value === null || value === undefined || !Number.isFinite(value) ? '?' : `${Math.round(value)}%`;
 }
+
+const clampPercent = (value: number): number => Math.min(100, Math.max(0, value));
+
+/**
+ * One plan-usage meter: where the window was at the start and where it is
+ * now, each 0–100, and the change in whole points. `undefined` when either
+ * reading lacks the window.
+ */
+export function usageMeter(start: number | null | undefined, now: number | null | undefined): { start: number; now: number; delta: number } | undefined {
+  if (start === null || start === undefined || !Number.isFinite(start)) return undefined;
+  const latest = now === null || now === undefined || !Number.isFinite(now) ? start : now;
+  return { start: clampPercent(start), now: clampPercent(latest), delta: Math.round(latest) - Math.round(start) };
+}
+
+/**
+ * Five labels under the timeline, from 0 to its span: whole minutes from two
+ * minutes up, whole seconds from ten seconds, tenths of a second below (in
+ * the language's decimal mark); the unit only on the last label.
+ */
+export function timelineTicks(spanMs: number, lang = 'en'): string[] {
+  const span = Number.isFinite(spanMs) && spanMs > 0 ? spanMs : 0;
+  const minutes = span >= 120_000;
+  const unit = minutes ? 60_000 : 1000;
+  const digits = span >= 10_000 ? 0 : 1;
+  const number = new Intl.NumberFormat(lang, { maximumFractionDigits: digits });
+  const labels = [0, 1, 2, 3, 4].map((quarter) => number.format((span * quarter) / 4 / unit));
+  labels[4] = `${labels[4]} ${minutes ? 'min' : 's'}`;
+  return labels;
+}
+
+/** A timeline row's position as percentages of the span: never past the end, never thinner than a sliver. */
+export function barGeometry(startMs: number, endMs: number, spanMs: number): { left: number; width: number } {
+  if (!(spanMs > 0)) return { left: 0, width: 100 };
+  const left = clampPercent((startMs / spanMs) * 100);
+  const width = Math.min(100 - left, Math.max(0.5, ((endMs - startMs) / spanMs) * 100));
+  return { left, width };
+}
+
+/** The 1-based position of a step in the flow, for "step 3 / 9"; `undefined` for an unknown step. */
+export function stepNumber(steps: readonly string[], step: string | undefined): number | undefined {
+  if (step === undefined) return undefined;
+  const index = steps.indexOf(step);
+  return index === -1 ? undefined : index + 1;
+}

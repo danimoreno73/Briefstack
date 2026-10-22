@@ -14,6 +14,8 @@ export interface ReplyBoxProps {
   onSend(text: string): Promise<boolean>;
   disabled?: boolean;
   rows?: number;
+  /** `bs` on the screens built on bs.css; `legacy` (the default) on the others. */
+  look?: 'legacy' | 'bs';
 }
 
 /**
@@ -21,7 +23,7 @@ export interface ReplyBoxProps {
  * uses it when a session waits for a reply, and the chat for every message.
  * Ctrl+Enter (or Cmd+Enter) sends.
  */
-export function ReplyBox({ id, label, hint, sendLabel, onSend, disabled = false, rows = 3 }: ReplyBoxProps) {
+export function ReplyBox({ id, label, hint, sendLabel, onSend, disabled = false, rows = 3, look = 'legacy' }: ReplyBoxProps) {
   const { t } = useApp();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -37,16 +39,20 @@ export function ReplyBox({ id, label, hint, sendLabel, onSend, disabled = false,
     }
   };
 
+  const bs = look === 'bs';
   return (
     <form
-      class="reply-box"
+      class={bs ? 'reply-form' : 'reply-box'}
       onSubmit={(event) => {
         event.preventDefault();
         void send();
       }}
     >
-      <label for={id}>{label ?? t.replyLabel}</label>
+      <label class={bs ? 'label' : undefined} for={id}>
+        {label ?? t.replyLabel}
+      </label>
       <textarea
+        class={bs ? 'textarea' : undefined}
         id={id}
         rows={rows}
         maxLength={MAX_REPLY_CHARS}
@@ -61,14 +67,14 @@ export function ReplyBox({ id, label, hint, sendLabel, onSend, disabled = false,
           }
         }}
       />
-      <span class="hint" id={`${id}-hint`}>
+      <span class={bs ? 'help' : 'hint'} id={`${id}-hint`}>
         {hint ?? t.replyHint}
       </span>
-      <div class="actions">
-        <button type="submit" disabled={empty || busy || disabled}>
+      <div class={bs ? 'btn-row' : 'actions'}>
+        <button type="submit" class={bs ? 'btn btn-primary' : undefined} disabled={empty || busy || disabled}>
           {busy ? t.sending : (sendLabel ?? t.replySend)}
         </button>
-        <span class="hint shortcut">{t.sendShortcut}</span>
+        <span class={bs ? 'help' : 'hint shortcut'}>{t.sendShortcut}</span>
       </div>
     </form>
   );

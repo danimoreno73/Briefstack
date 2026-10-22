@@ -49,9 +49,8 @@ const NAV: { page: Route['page']; route: Route; label: NavLabel; icon: FunctionC
 ];
 
 /** The screens already built on bs.css; the others render inside the `.legacy` wrapper. */
-const BS_PAGES: readonly Route['page'][] = [];
 function onBs(route: Route): boolean {
-  return BS_PAGES.includes(route.page);
+  return (route.page === 'new' && route.id !== undefined) || route.page === 'session';
 }
 
 /** The menu item a route belongs to: a project or a past session under Projects, a running creation under Creations. */

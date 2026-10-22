@@ -1,26 +1,36 @@
 import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
-import { SESSION_INTERRUPTED, expect, test } from '../e2e/fixtures.js';
+import { SESSION_INTERRUPTED, clickNav, expect, test } from '../e2e/fixtures.js';
 
-const OUT = path.join(PACKAGE_ROOT, 'screenshots');
-const WIDTHS = [
-  { name: 'desktop', width: 1280, height: 900 },
-  { name: 'narrow', width: 390, height: 844 },
+// The creation screen and a finished session's panel, at desktop and phone
+// width, in both themes (U5). Output: `screenshots/u5/`, git-ignored.
+const OUT = path.join(PACKAGE_ROOT, 'screenshots', 'u5');
+const VIEWS = [
+  { name: 'desktop-dark', width: 1280, height: 900, scheme: 'dark' },
+  { name: 'desktop-light', width: 1280, height: 900, scheme: 'light' },
+  { name: 'narrow-dark', width: 390, height: 844, scheme: 'dark' },
+  { name: 'narrow-light', width: 390, height: 844, scheme: 'light' },
 ] as const;
 
-const shot = (page: Page, name: string) => page.screenshot({ path: path.join(OUT, `${name}.png`), fullPage: true });
+// A full-page picture stitches the page: what stays in place while scrolling (the creation's head, the
+// rail, the phone's top bar) would land in the middle. For the picture only, they scroll with the page.
+const shot = async (page: Page, name: string) => {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: path.join(OUT, `${name}.png`), fullPage: true, style: '.sticky, .rail, .topbar { position: static !important; } .rail { height: auto !important; align-self: stretch !important; }' });
+};
 
-for (const size of WIDTHS) {
-  test.describe(`panel at ${size.name} width`, () => {
+for (const size of VIEWS) {
+  test.describe(`panel at ${size.name}`, () => {
     test.use({
       viewport: { width: size.width, height: size.height },
+      colorScheme: size.scheme,
       appOptions: { recording: 'panel.jsonl', planUsage: [{ fiveHour: 12, sevenDay: 40 }, { fiveHour: 15, sevenDay: 41 }] },
     });
 
     test('live creation, the spec, the permission, the result', async ({ page, app }) => {
       await page.goto(app.url);
-      await page.getByRole('link', { name: 'New project' }).click();
+      await clickNav(page, 'New project');
       await page.getByLabel('Describe your idea').fill('A garden planner for my family, with a planting calendar.');
       await page.getByRole('button', { name: 'Start' }).click();
       await expect(page.getByTestId('agent-panel')).toBeVisible();
@@ -29,11 +39,12 @@ for (const size of WIDTHS) {
       await page.getByRole('button', { name: 'Send answers' }).click();
       await expect(page.getByRole('heading', { name: 'Approve the spec' })).toBeVisible();
       await page.getByTestId('agent-a1').getByRole('button', { name: /architect/ }).click();
-      await page.locator('details.panel-text summary').click();
       await shot(page, `${size.name}-2-spec-denial`);
       await page.getByRole('button', { name: 'Approve' }).click();
       await expect(page.getByTestId('agent-g1').getByTestId('node-pending')).toBeVisible();
       await shot(page, `${size.name}-3-permission`);
+      await page.getByRole('group', { name: 'Agents view' }).getByRole('button', { name: 'Text' }).click();
+      await shot(page, `${size.name}-3b-text-view`);
       await page.getByRole('button', { name: 'Allow' }).click();
       await expect(page.getByTestId('result')).toBeVisible();
       await expect(page.getByTestId('agent-main').getByTestId('node-status')).toHaveText('Done');

@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration, liveFromState, panelEventsFromStream, percent, targetText } from '../../src/ui/panelData.js';
+import {
+  barGeometry,
+  formatDuration,
+  liveFromState,
+  panelEventsFromStream,
+  percent,
+  stepNumber,
+  targetText,
+  timelineTicks,
+  usageMeter,
+} from '../../src/ui/panelData.js';
 import { parseRoute, routeHash } from '../../src/ui/route.js';
+import { resolveTheme } from '../../src/ui/themeChoice.js';
 import type { CreationState, StreamEvent } from '../../src/ui/types.js';
 
 const labels = { outside: 'outside allowed folders', root: (root: string) => `<${root}>` };
@@ -60,5 +71,52 @@ describe('panel data for the page', () => {
     expect(parseRoute('#/sessions/abc-1')).toEqual({ page: 'session', id: 'abc-1' });
     expect(parseRoute('#/sessions')).toEqual({ page: 'projects' });
     expect(routeHash({ page: 'session', id: 'a b' })).toBe('#/sessions/a%20b');
+  });
+});
+
+describe('the bs.css panel (U5)', () => {
+  it('turns two plan readings into a meter: start, now and the change in points', () => {
+    expect(usageMeter(31, 38.4)).toEqual({ start: 31, now: 38.4, delta: 7 });
+    // Only the start is known: the meter shows it as now too.
+    expect(usageMeter(12, undefined)).toEqual({ start: 12, now: 12, delta: 0 });
+    expect(usageMeter(12, null)).toEqual({ start: 12, now: 12, delta: 0 });
+    // A window that reset reads lower; the change says so.
+    expect(usageMeter(90, 4)).toEqual({ start: 90, now: 4, delta: -86 });
+    // Out of range readings stay inside the bar; the change keeps the real figures.
+    expect(usageMeter(-3, 130)).toEqual({ start: 0, now: 100, delta: 133 });
+    expect(usageMeter(null, 40)).toBeUndefined();
+    expect(usageMeter(undefined, 40)).toBeUndefined();
+    expect(usageMeter(Number.NaN, 40)).toBeUndefined();
+  });
+
+  it('labels the timeline in minutes from two minutes up, in seconds below, in tenths under ten seconds', () => {
+    expect(timelineTicks(20 * 60_000)).toEqual(['0', '5', '10', '15', '20 min']);
+    expect(timelineTicks(40_000)).toEqual(['0', '10', '20', '30', '40 s']);
+    expect(timelineTicks(800)).toEqual(['0', '0.2', '0.4', '0.6', '0.8 s']);
+    expect(timelineTicks(800, 'es')).toEqual(['0', '0,2', '0,4', '0,6', '0,8 s']);
+    expect(timelineTicks(0)).toEqual(['0', '0', '0', '0', '0 s']);
+    expect(timelineTicks(Number.NaN)).toEqual(['0', '0', '0', '0', '0 s']);
+  });
+
+  it('places a timeline bar inside the track, never thinner than a sliver', () => {
+    expect(barGeometry(0, 50, 100)).toEqual({ left: 0, width: 50 });
+    expect(barGeometry(25, 25, 100)).toEqual({ left: 25, width: 0.5 });
+    expect(barGeometry(90, 150, 100)).toEqual({ left: 90, width: 10 });
+    expect(barGeometry(0, 10, 0)).toEqual({ left: 0, width: 100 });
+  });
+
+  it('numbers a step from 1', () => {
+    const steps = ['idea', 'interview', 'spec'];
+    expect(stepNumber(steps, 'idea')).toBe(1);
+    expect(stepNumber(steps, 'spec')).toBe(3);
+    expect(stepNumber(steps, 'nope')).toBeUndefined();
+    expect(stepNumber(steps, undefined)).toBeUndefined();
+  });
+
+  it('resolves the system theme to the one the system prefers', () => {
+    expect(resolveTheme('system', true)).toBe('dark');
+    expect(resolveTheme('system', false)).toBe('light');
+    expect(resolveTheme('light', true)).toBe('light');
+    expect(resolveTheme('dark', false)).toBe('dark');
   });
 });

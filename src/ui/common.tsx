@@ -19,9 +19,10 @@ markdown.core.ruler.push('demote_headings', (state) => {
   }
 });
 
-export function Markdown({ text }: { text: string }) {
+/** `cls` is `md` on the screens built on bs.css; `markdown` (the default) is styled by the `.legacy` sheet. */
+export function Markdown({ text, cls = 'markdown' }: { text: string; cls?: string }) {
   const html = useMemo(() => markdown.render(text), [text]);
-  return <div class="markdown" dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div class={cls} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 /** A path in the monospace that wraps only between folders (audit L6). */
@@ -76,7 +77,8 @@ export function Loader<T>({ loaded, children }: { loaded: Loaded<T>; children: (
   return <>{children(loaded.data)}</>;
 }
 
-export function CopyButton({ text, label, testId }: { text: string; label?: string; testId?: string }) {
+/** `cls` gives the button bs.css classes on the screens built on it. */
+export function CopyButton({ text, label, testId, cls }: { text: string; label?: string; testId?: string; cls?: string }) {
   const { t } = useApp();
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const copy = () => {
@@ -91,7 +93,7 @@ export function CopyButton({ text, label, testId }: { text: string; label?: stri
     return () => clearTimeout(timer);
   }, [state]);
   return (
-    <button type="button" onClick={copy} data-testid={testId}>
+    <button type="button" class={cls} onClick={copy} data-testid={testId}>
       {state === 'copied' ? t.copied : state === 'failed' ? t.copyFailed : (label ?? t.copy)}
     </button>
   );

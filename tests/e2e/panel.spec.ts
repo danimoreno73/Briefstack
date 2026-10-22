@@ -11,10 +11,12 @@ async function startCreation(page: Page, app: App, idea = 'A garden planner'): P
 
 const panel = (page: Page) => page.getByTestId('agent-panel');
 const node = (page: Page, id: string) => page.getByTestId(`agent-${id}`);
-const textView = async (page: Page): Promise<string> => {
-  const details = panel(page).locator('details.panel-text');
-  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
-  return (await page.getByTestId('panel-text').innerText()).trim();
+/** The text view, one entry per agent ("name · state" and its sentence on one line each). */
+const textView = async (page: Page): Promise<string[]> => {
+  const toggle = panel(page).getByRole('group', { name: 'Agents view' }).getByRole('button', { name: 'Text' });
+  if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click();
+  const entries = page.getByTestId('panel-text').getByRole('listitem');
+  return (await entries.allInnerTexts()).map((entry) => entry.replace(/\s*\n\s*/g, ' ').trim());
 };
 
 test.describe('the live panel', () => {
@@ -37,7 +39,9 @@ test.describe('the live panel', () => {
     await expect(page.getByRole('radio', { name: /Just me \(Recommended\)/ })).toBeFocused();
 
     // Plan usage at the start, never as tokens or cost.
-    await expect(page.getByTestId('panel-usage')).toContainText('5-hour window 12% · 7-day window 40%');
+    const usage = page.getByTestId('panel-usage');
+    await expect(usage.getByRole('img', { name: /^12% at the start/ })).toBeVisible();
+    await expect(usage.getByRole('img', { name: /^40% at the start/ })).toBeVisible();
     await expect(page.getByTestId('panel-usage')).not.toContainText(/\d\s*tokens|\$|€/i);
 
     await page.getByRole('button', { name: 'Send answers' }).click();
@@ -78,7 +82,7 @@ test.describe('the live panel', () => {
     await page.getByRole('button', { name: 'Send answers' }).click();
     await page.getByRole('button', { name: 'Approve' }).click();
     await expect(node(page, 'g1').getByTestId('node-pending')).toBeVisible();
-    const before = await textView(page);
+    const before = (await textView(page)).join('\n');
     await page.close();
 
     // As a user does: the address with the launch token, then the creation in progress.
@@ -87,13 +91,14 @@ test.describe('the live panel', () => {
     await again.getByRole('link', { name: /Creations/ }).click();
     await again.getByTestId('creations').getByRole('link', { name: 'Open' }).click();
     await expect(node(again, 'g1').getByTestId('node-pending')).toBeVisible();
-    const after = await textView(again);
+    const entries = await textView(again);
+    const after = entries.join('\n');
     // Same lines, apart from running durations.
     const stable = (text: string) => text.replace(/(?:< )?[\d.]+ (?:s|min|h)\b/g, 'N');
     expect(stable(after)).toBe(stable(before));
-    expect(after).toContain('generator: Waiting for you');
+    expect(after).toContain('generator · Waiting for you');
     expect(after).toContain('2 tool calls');
-    expect(after.split('\n')).toHaveLength(4);
+    expect(entries).toHaveLength(4);
   });
 });
 
@@ -129,7 +134,7 @@ test.describe('finished sessions', () => {
     await unfinished.getByRole('row', { name: new RegExp(SESSION_CANCELLED) }).getByRole('link').click();
     await expect(page.getByTestId('session-status')).toContainText('Cancelled');
     await expect(node(page, 'main').getByTestId('node-status')).toHaveText('Cancelled');
-    await expect(page.locator('.steps-inline li[data-state="running"]')).toHaveCount(1);
+    await expect(page.getByTestId('progress').locator('li[data-state="running"]')).toHaveCount(1);
 
     await page.goBack();
     await page.getByTestId('unfinished').getByRole('row', { name: new RegExp(SESSION_INTERRUPTED) }).getByRole('link').click();
@@ -171,12 +176,14 @@ test.describe('the text alternative', () => {
     await startCreation(page, app);
     await page.getByRole('button', { name: 'Send answers' }).click();
     await expect(node(page, 'a1')).toBeVisible();
-    const text = await textView(page);
-    expect(text).toContain('Main session: Waiting for you');
-    expect(text).toContain('interviewer: Done');
-    expect(text).toContain('architect: Done');
+    const text = (await textView(page)).join('\n');
+    expect(text).toContain('Main session · Waiting for you');
+    expect(text).toContain('interviewer · Done');
+    expect(text).toContain('architect · Done');
     expect(text).toContain('1 denied');
 
+    // Back to the tree, where the timeline is.
+    await panel(page).getByRole('group', { name: 'Agents view' }).getByRole('button', { name: 'Tree' }).click();
     const row = page.getByTestId('panel-timeline').getByRole('button', { name: /architect/ });
     await row.focus();
     await page.keyboard.press('Enter');
