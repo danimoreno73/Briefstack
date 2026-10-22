@@ -398,51 +398,41 @@ export function ChatPage({ thread }: { thread: string | undefined }) {
 }
 
 /** The compact chat on every page: a button that opens a side panel. */
-export function ChatDrawer() {
+/**
+ * The open drawer. The shell opens it (its button, Ctrl J) and gives focus
+ * back to whatever opened it when `onClose` runs.
+ */
+export function ChatDrawer({ onClose }: { onClose(): void }) {
   const { t } = useApp();
-  const [open, setOpen] = useState(false);
-  const opener = useRef<HTMLButtonElement>(null);
   const drawer = useRef<HTMLElement>(null);
-  const close = () => {
-    setOpen(false);
-    // Back to where the user was.
-    setTimeout(() => opener.current?.focus(), 0);
-  };
   // Focus moves into the drawer when it opens: its close button, the first thing in it.
   useEffect(() => {
-    if (open) drawer.current?.querySelector<HTMLElement>('.chat-drawer-head button')?.focus();
-  }, [open]);
+    drawer.current?.querySelector<HTMLElement>('.chat-drawer-head button')?.focus();
+  }, []);
   return (
     <>
-      <button ref={opener} type="button" class="chat-toggle" aria-expanded={open} aria-controls="chat-drawer" onClick={() => setOpen(true)} hidden={open}>
-        {t.chatOpen}
-      </button>
-      {open && (
-        <>
-          {/* On a phone the page behind is dimmed, and a tap on it closes the drawer (audit H7). */}
-          <div class="chat-scrim" aria-hidden="true" onClick={close} />
-          <aside
-            ref={drawer}
-            id="chat-drawer"
-            class="chat-drawer"
-            aria-labelledby="chat-drawer-title"
-            data-testid="chat-drawer"
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') close();
-            }}
-          >
-            <div class="chat-drawer-head">
-              <h2 id="chat-drawer-title">{t.chatTitle}</h2>
-              <button type="button" onClick={close}>
-                {t.chatClose}
-              </button>
-            </div>
-            <div class="chat-drawer-body">
-              <ChatPanel compact />
-            </div>
-          </aside>
-        </>
-      )}
+      {/* On a phone the page behind is dimmed, and a tap on it closes the drawer (audit H7). */}
+      <div class="chat-scrim" aria-hidden="true" onClick={onClose} />
+      <aside
+        ref={drawer}
+        id="chat-drawer"
+        class="chat-drawer"
+        aria-labelledby="chat-drawer-title"
+        data-testid="chat-drawer"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose();
+        }}
+      >
+        <div class="chat-drawer-head">
+          <h2 id="chat-drawer-title">{t.chatTitle}</h2>
+          <button type="button" onClick={onClose}>
+            {t.chatClose}
+          </button>
+        </div>
+        <div class="chat-drawer-body">
+          <ChatPanel compact />
+        </div>
+      </aside>
     </>
   );
 }

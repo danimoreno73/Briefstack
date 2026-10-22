@@ -1,0 +1,501 @@
+/*
+ * What the app needs beyond bs.css (docs/diseno/bs.css, copied unchanged):
+ * the design canvas draws the shell, the dialog and the drawer inside a
+ * frame, and its screens use `style` attributes, which the CSP refuses
+ * (`style-src 'self'`). Each of those becomes a class here, with bs.css
+ * tokens only. Order: base and shell, shared parts, the creation screen.
+ */
+
+/* ------------------------------------------------------------------------ */
+/* Base and shell                                                            */
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* Side by side down to the phone breakpoint, where the rail gives way to the top bar. */
+.app {
+  flex-wrap: nowrap;
+  min-height: 100vh;
+}
+
+.rail {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.brand {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.main:focus {
+  outline: none;
+}
+
+/* Out of sight until a keyboard user reaches it. */
+.skip-link {
+  position: absolute;
+  top: var(--s-2);
+  left: var(--s-2);
+  z-index: 30;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-ctl);
+  background: var(--accent-fill);
+  color: var(--accent-fill-ink);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+/* The theme menu in the rail's foot, shaped like the button beside it. */
+.rail-select {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 34px;
+  padding: 0 var(--s-2) 0 var(--s-3);
+  border: var(--bw) solid var(--line-card);
+  border-radius: var(--r-ctl);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.rail-select:hover {
+  border-color: var(--control);
+}
+
+.rail-select:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.rail-select svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rail-select select {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.rail-select select:focus-visible {
+  outline: none;
+}
+
+.rail-chat {
+  justify-content: space-between;
+}
+
+/* The phone's menu: the rail slides over the page, which dims behind it. */
+@media (max-width: 720px) {
+  .rail.rail-open {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    display: flex;
+    width: min(300px, 86vw);
+    max-width: none;
+    box-shadow: 24px 0 48px rgba(0, 0, 0, 0.35);
+  }
+
+  .rail-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    background: var(--scrim);
+  }
+}
+
+/* Opening, no token, a refused or restarted tab. */
+.gate {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--s-8) var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.gate-title {
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* The screens not yet on bs.css keep their own sheet (style.css) inside this wrapper. */
+.legacy:empty {
+  display: none;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Shared parts                                                              */
+
+.stack-2 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-4) 0;
+}
+
+.deny {
+  color: var(--danger);
+}
+
+.push-end {
+  margin-left: auto;
+}
+
+.btn-lg {
+  min-height: 46px;
+  padding: 0 var(--s-5);
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.meta-inline {
+  display: inline;
+}
+
+.request-lg {
+  font-size: 15px;
+}
+
+/* The modal confirmation: a native dialog, so focus stays inside and Escape closes it. */
+dialog.dialog {
+  margin: auto;
+  color: var(--ink);
+}
+
+dialog.dialog:not([open]) {
+  display: none;
+}
+
+dialog.dialog::backdrop {
+  background: var(--scrim);
+}
+
+/* A decision shown as a non-modal dialog sits in the page like the other blocks. */
+dialog.dec-dialog {
+  position: static;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  border: 0;
+}
+
+/* Rendered notes, summaries and messages. */
+.md {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-width: 72ch;
+  overflow-wrap: anywhere;
+}
+
+.md :where(h3, h4, h5, h6) {
+  font-family: var(--font-heading);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.md :where(ul) {
+  padding-left: 20px;
+  list-style: disc;
+}
+
+.md :where(ol) {
+  padding-left: 20px;
+  list-style: decimal;
+}
+
+.md :where(code) {
+  font-size: 0.9em;
+}
+
+.md :where(pre) {
+  white-space: pre-wrap;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Inside a decision (cream): the text tokens of bs.css are for the page      */
+
+.dec-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dec .kv dt,
+.dec .help {
+  color: var(--dec-ink-2);
+}
+
+.dec .kv dd,
+.dec .link,
+.dec .label {
+  color: var(--dec-ink);
+}
+
+.dec .kbd {
+  border-color: var(--dec-control);
+  color: var(--dec-ink-2);
+}
+
+.dec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: var(--s-4);
+  align-items: start;
+}
+
+.dec-grid-wide {
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+}
+
+.chip-ink {
+  min-height: 22px;
+  margin-right: var(--s-1);
+  background: var(--dec-ink);
+  color: var(--dec);
+}
+
+.opt-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* The real radio or checkbox, unseen, over the whole option: a click anywhere on it is a click on the control. */
+.opt-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------------ */
+/* The creation screen                                                       */
+
+.creation-title {
+  overflow-wrap: anywhere;
+}
+
+.head-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  margin-top: var(--s-1);
+}
+
+.pending-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.pending-control:focus,
+.dec:focus {
+  outline: none;
+}
+
+.working {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+  padding: var(--s-4) var(--s-5);
+}
+
+.seg-step.fail::before {
+  background: var(--danger);
+}
+
+/* Agents: each node is a button, with what it asks on the line under it. */
+.node-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.n-dot svg {
+  width: 12px;
+  height: 12px;
+}
+
+.chip-node {
+  min-height: 22px;
+  font-size: 13px;
+}
+
+.node-pending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-3) var(--s-2) calc(16px + var(--s-3) * 2);
+}
+
+.node-pending-child {
+  margin-left: var(--s-5);
+}
+
+.nodes-none {
+  padding: var(--s-2) var(--s-3) var(--s-2) calc(var(--s-5) + var(--s-3));
+}
+
+.tl-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tl-legend {
+  margin-top: 6px;
+}
+
+.tl-dur {
+  white-space: nowrap;
+}
+
+/* Clock times may carry "PM": the time and the tool keep their width, the description takes the rest. */
+.log li {
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+}
+
+@media (max-width: 720px) {
+  .tl-axis,
+  .tl-row {
+    grid-template-columns: 80px minmax(0, 1fr) 60px;
+  }
+
+  .log li {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+}
+
+.detail-facts,
+.detail-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.detail-name {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.usage-card {
+  gap: 18px;
+}
+
+.usage-compact {
+  gap: 10px;
+}
+
+.usage-compact .use-big {
+  font-size: 22px;
+}
+
+.session-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-3);
+}
+
+/* The result. */
+.result-card {
+  gap: var(--s-5);
+  padding: 28px;
+}
+
+.result-blocks,
+.result-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.result-blocks {
+  gap: var(--s-5);
+}
+
+.result-block {
+  gap: 10px;
+}
+
+.request-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  word-break: normal;
+}
+
+.command-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-2);
+  align-items: start;
+}
+
+.denied-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.denied-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+
+.agents-summary {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}

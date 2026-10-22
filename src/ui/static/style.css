@@ -1,28 +1,30 @@
 /*
- * The web app's styles (docs/DESIGN.md). Tokens live in tokens.css; nothing
- * here uses a raw colour. Order: base, shared components, the shell, then
- * the screens.
+ * The styles of the screens not yet moved to bs.css (U5, docs/PLAN-ui.md).
+ * Everything is nested under `.legacy`, the wrapper those screens render in,
+ * so none of it reaches the new shell or the screens built on bs.css; the
+ * tokens it reads are scoped the same way in tokens.css. Nothing here uses a
+ * raw colour. Order: base, shared components, then the screens.
  */
+
+.legacy {
 
 /* ------------------------------------------------------------------------ */
 /* Base                                                                      */
 
-body {
-  margin: 0;
-  background: var(--ground);
+& {
   color: var(--text);
   font-family: var(--font);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   font-kerning: normal;
   font-optical-sizing: auto;
-  -webkit-text-size-adjust: 100%;
 }
 
-main {
+&.legacy-page {
+  width: 100%;
   max-width: var(--content-max);
-  margin: 0 auto;
-  padding: var(--space-6) var(--space-4) var(--space-7);
+  box-sizing: border-box;
+  padding: var(--space-6) var(--space-6) var(--space-7) 40px;
 }
 
 h1 {
@@ -638,219 +640,9 @@ dialog.permission {
   font-weight: var(--w-strong);
 }
 
-/* ------------------------------------------------------------------------ */
-/* The shell: a sidebar on wide screens, one sideways row of menu on phones. */
-
-header {
-  border-bottom: 1px solid var(--rule);
-  background: var(--ground);
-}
-
-/* Out of sight until a keyboard user reaches it. */
-.skip-link {
-  position: absolute;
-  top: var(--space-2);
-  left: var(--space-2);
-  z-index: 20;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-control);
-  background: var(--primary);
-  color: var(--primary-ink);
-  font-weight: var(--w-strong);
-  transform: translateY(-200%);
-}
-
-.skip-link:focus {
-  transform: none;
-}
-
-main:focus {
-  outline: none;
-}
-
-header nav {
-  display: flex;
-}
-
-header nav a {
-  color: var(--muted);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-header nav a[aria-current='page'] {
-  color: var(--text);
-  font-weight: var(--w-strong);
-}
-
-/* How many creations run, beside "Creations" in the menu: a figure on the accent, no glyph. */
-.nav-count {
-  display: inline-block;
-  min-width: 1.25rem;
-  margin-left: var(--space-1);
-  padding: 0 0.375rem;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: var(--fs-meta);
-  font-weight: var(--w-strong);
-  line-height: 1.25rem;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-/* The logotype: two weights of one word. */
-.logo {
-  display: inline-flex;
-  align-items: baseline;
-  font-size: 1.5rem;
-  line-height: 1;
-  letter-spacing: -0.045em;
-}
-
-.logo-brief {
-  font-weight: 300;
-}
-
-.logo-stack {
-  font-weight: 800;
-}
-
-.shell-tools {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-2);
-}
-
-.theme-switch {
-  display: block;
-  font-size: var(--fs-meta);
-  font-weight: var(--w-regular);
-  color: var(--muted);
-}
-
-.theme-switch select {
-  min-width: 7rem;
-  margin-top: var(--space-1);
-  font-size: 1rem;
-}
-
-@media (min-width: 64rem) {
-  #app:has(> header) {
-    display: grid;
-    grid-template-columns: var(--nav-width) minmax(0, 1fr);
-    min-height: 100vh;
-  }
-
-  #app > header {
-    position: sticky;
-    top: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-5);
-    box-sizing: border-box;
-    height: 100vh;
-    padding: var(--space-5) var(--space-3);
-    border-bottom: 0;
-  }
-
-  .logo {
-    padding: 0 var(--space-3);
-  }
-
-  header nav {
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  header nav a {
-    display: flex;
-    align-items: center;
-    min-height: 2.125rem;
-    padding: 0 var(--space-3);
-    border-radius: var(--radius-control);
-  }
-
-  header nav a[aria-current='page'] {
-    background: var(--raised);
-  }
-
-  .shell-tools {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-3);
-    margin-top: auto;
-  }
-
-  .theme-switch {
-    padding: 0 var(--space-3);
-  }
-
-  .theme-switch select {
-    max-width: none;
-  }
-
-  main {
-    margin: 0;
-    padding: var(--space-6) var(--space-6) var(--space-7);
-  }
-}
-
-@media (max-width: 63.99rem) {
-  header {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: var(--space-2) var(--space-3);
-    padding: var(--space-2) var(--space-4) 0;
-  }
-
-  header nav {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    margin: 0 calc(-1 * var(--space-4));
-    padding: 0 var(--space-4);
-    scrollbar-width: none;
-  }
-
-  header nav a {
-    display: inline-flex;
-    align-items: center;
-    min-height: 2.75rem;
-    margin-right: var(--space-4);
-  }
-
-  .shell-tools {
-    align-items: center;
-  }
-
-  .theme-switch .theme-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .theme-switch select {
-    min-width: 0;
-    width: auto;
-    min-height: 2.5rem;
-    margin-top: 0;
-    padding-inline: var(--space-2);
-  }
-
-  .chat-toggle {
-    min-height: 2.5rem;
-    padding: 0 var(--space-3);
-    white-space: nowrap;
-  }
-
-  main {
+/* On a phone the page keeps the shell's narrow gutter. */
+@media (max-width: 720px) {
+  &.legacy-page {
     padding: var(--space-5) var(--space-4) var(--space-7);
   }
 }
@@ -1712,29 +1504,6 @@ dl.paths ul {
 }
 
 /* ------------------------------------------------------------------------ */
-/* The gate: opening, no token, a refused or restarted tab (audit H2, L13)   */
-
-.gate {
-  max-width: 36rem;
-  padding-top: var(--space-7);
-}
-
-.gate .logo {
-  margin-bottom: var(--space-5);
-}
-
-.gate .panel h1 {
-  margin-top: 0;
-  font-size: var(--fs-section);
-  letter-spacing: -0.01em;
-}
-
-.gate .panel p {
-  margin-bottom: 0;
-  color: var(--text);
-}
-
-/* ------------------------------------------------------------------------ */
 /* Improvements                                                              */
 
 .suggestions {
@@ -1825,4 +1594,6 @@ dl.paths ul {
   overflow: auto;
   white-space: pre-wrap;
   font-size: var(--fs-meta);
+}
+
 }

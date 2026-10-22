@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { RESEARCHER, researcherRound, testGit } from '../improveWorld.js';
-import { expect, test, type App } from './fixtures.js';
+import { clickNav, expect, test, type App } from './fixtures.js';
 
 // Self-improvement (BRIEF-phase-5 §5) over the fake improvement runner,
 // verifier and real check, on a temp git repository.
@@ -22,7 +22,7 @@ async function say(page: Page, text: string): Promise<void> {
 /** Prepares a proposal through the API, as the page's form does, and opens its page. */
 async function prepareFromPage(page: Page, app: App, request = 'Make research reports shorter.'): Promise<void> {
   await page.goto(app.url);
-  await page.getByRole('link', { name: 'Improvements' }).click();
+  await clickNav(page, 'Improvements');
   await expect(page.getByRole('heading', { name: 'Improvements', level: 1 })).toBeVisible();
   const form = page.getByTestId('prepare-form').last();
   await form.getByLabel('What should change?').fill(request);

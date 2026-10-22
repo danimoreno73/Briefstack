@@ -1,4 +1,4 @@
-import { test as base } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -252,6 +252,22 @@ export const test = base.extend<{ app: App; appOptions: AppOptions }>({
 });
 
 export { expect } from '@playwright/test';
+
+/**
+ * Follows a link of the main menu. At phone width the menu is behind the top
+ * bar's Menu button, as a user meets it.
+ */
+export async function clickNav(page: Page, name: string | RegExp): Promise<void> {
+  const nav = page.locator('nav#rail');
+  // The shell first: until the server answers, the page shows the opening screen and neither exists.
+  await nav.waitFor({ state: 'attached' });
+  const menu = page.getByRole('button', { name: 'Menu', exact: true });
+  const phone = await menu.isVisible();
+  if (phone) await menu.click();
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name, exact: typeof name === 'string' }).click();
+  // The move closes the menu again.
+  if (phone) await expect(menu).toHaveAttribute('aria-expanded', 'false');
+}
 
 /**
  * What the skill's learn step does at the end of a creation: the project note

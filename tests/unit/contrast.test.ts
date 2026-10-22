@@ -3,12 +3,16 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 
-// WCAG 2 contrast over the design tokens (BRIEF-ui §7), in both themes. Every
-// colour token in tokens.css is `light-dark(light, dark)`; this reads them
-// and checks each pair the screens put together: text at least 4.5:1, the
-// parts of a control or a status mark at least 3:1.
+// WCAG 2 contrast over the design tokens (BRIEF-ui §7), in both themes: text
+// at least 4.5:1, the parts of a control or a status mark at least 3:1. Two
+// sets: bs.css (U5: the shell and the screens moved to it), whose dark values
+// sit in `.bs { … }` and light ones in `.bs[data-theme="light"] … { … }`; and
+// tokens.css (the `.legacy` screens), where every colour is
+// `light-dark(light, dark)`.
 
-const TOKENS = readFileSync(path.join(PACKAGE_ROOT, 'src', 'ui', 'static', 'tokens.css'), 'utf8');
+const STATIC = path.join(PACKAGE_ROOT, 'src', 'ui', 'static');
+const TOKENS = readFileSync(path.join(STATIC, 'tokens.css'), 'utf8');
+const BS = readFileSync(path.join(STATIC, 'bs.css'), 'utf8');
 
 type Scheme = 'light' | 'dark';
 
@@ -57,7 +61,70 @@ const MARKS: [string, string][] = [
 
 const tokens = readTokens(TOKENS);
 
-describe('design tokens', () => {
+/** The `--name: #rrggbb` declarations of the first rule whose selector starts with `selector`. */
+function readBlock(css: string, selector: string): Map<string, string> {
+  const start = css.indexOf(`${selector}`);
+  if (start === -1) throw new Error(`no rule ${selector}`);
+  const open = css.indexOf('{', start);
+  const body = css.slice(open + 1, css.indexOf('}', open));
+  return new Map([...body.matchAll(/--([\w-]+):\s*(#[0-9a-f]{6})\b/gi)].map((match) => [match[1] as string, match[2] as string]));
+}
+
+const bsTokens: Record<Scheme, Map<string, string>> = {
+  dark: readBlock(BS, '.bs {'),
+  light: readBlock(BS, '.bs[data-theme="light"]'),
+};
+
+/** [foreground, background] pairs of text on bs.css: 4.5:1. */
+const BS_TEXT: [string, string][] = [
+  ...['bg', 'rail', 'surface', 'surface-2', 'sunk', 'chip'].map((bg): [string, string] => ['ink', bg]),
+  ...['bg', 'rail', 'surface', 'surface-2', 'sunk'].map((bg): [string, string] => ['ink-2', bg]),
+  ...['bg', 'rail', 'surface'].map((bg): [string, string] => ['ink-3', bg]),
+  ...['bg', 'surface', 'accent-soft'].map((bg): [string, string] => ['accent', bg]),
+  ['accent-fill-ink', 'accent-fill'],
+  ...['dec', 'dec-2'].map((bg): [string, string] => ['dec-ink', bg]),
+  ...['dec', 'dec-2'].map((bg): [string, string] => ['dec-ink-2', bg]),
+  ['warn', 'warn-soft'],
+  ...['bg', 'surface', 'danger-soft'].map((bg): [string, string] => ['danger', bg]),
+  ['danger-fill-ink', 'danger'],
+  ['add-ink', 'add-bg'],
+  ['del-ink', 'del-bg'],
+];
+
+/** [mark, background] pairs of control edges, focus rings and status marks on bs.css: 3:1. */
+const BS_MARKS: [string, string][] = [
+  ...['bg', 'surface', 'sunk'].map((bg): [string, string] => ['control', bg]),
+  ['dec-control', 'dec'],
+  ...['bg', 'surface', 'rail'].map((bg): [string, string] => ['focus', bg]),
+  ['dec-ink', 'dec'],
+  ...['bg', 'surface'].map((bg): [string, string] => ['accent', bg]),
+  ...['bg', 'surface'].map((bg): [string, string] => ['danger', bg]),
+  ['dec', 'bg'],
+];
+
+describe('bs.css tokens', () => {
+  it('reads both themes', () => {
+    for (const scheme of ['light', 'dark'] as const) for (const name of ['bg', 'surface', 'ink', 'accent', 'dec', 'danger']) expect(bsTokens[scheme].has(name), `${scheme} ${name}`).toBe(true);
+  });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    const ratio = ([fg, bg]: [string, string]) => {
+      const pair = [bsTokens[scheme].get(fg), bsTokens[scheme].get(bg)];
+      if (pair[0] === undefined || pair[1] === undefined) throw new Error(`${scheme}: missing ${fg} or ${bg}`);
+      return { fg, bg, ratio: Math.round(contrast(pair[0], pair[1]) * 100) / 100 };
+    };
+
+    it(`gives text at least 4.5:1 in ${scheme}`, () => {
+      expect(BS_TEXT.map(ratio).filter((pair) => pair.ratio < 4.5)).toEqual([]);
+    });
+
+    it(`gives control edges, focus and status marks at least 3:1 in ${scheme}`, () => {
+      expect(BS_MARKS.map(ratio).filter((pair) => pair.ratio < 3)).toEqual([]);
+    });
+  }
+});
+
+describe('legacy design tokens', () => {
   it('reads every colour token as a light-dark pair', () => {
     for (const name of ['ground', 'surface', 'text', 'muted', 'accent', 'control', 'danger', 'primary']) expect(tokens.has(name), name).toBe(true);
   });

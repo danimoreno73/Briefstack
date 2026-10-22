@@ -33,18 +33,24 @@ test.describe('start-up', () => {
     await page.goto(app.url);
     const theme = page.getByLabel('Theme');
     await expect(theme).toHaveValue('system');
-    await expect(page.locator('html')).not.toHaveAttribute('data-theme');
+    // bs.css changes only through the attribute: under "System" it holds the system's theme, and follows it.
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
     await theme.selectOption('dark');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    // The page's ground is painted on <html class="bs">.
+    const background = () => page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
     const dark = await background();
     await page.reload();
     await expect(page.getByLabel('Theme')).toHaveValue('dark');
     await expect.poll(background).toBe(dark);
 
     await page.getByLabel('Theme').selectOption('system');
-    await expect(page.locator('html')).not.toHaveAttribute('data-theme');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await expect.poll(background).not.toBe(dark);
     await page.reload();
     await expect(page.getByLabel('Theme')).toHaveValue('system');
@@ -319,7 +325,7 @@ test.describe('settings, starting in Spanish', () => {
     await page.goto(app.url);
     await expect(page.getByRole('link', { name: 'Proyectos' })).toBeVisible();
     await page.getByRole('link', { name: 'Ajustes' }).click();
-    await page.getByLabel('Idioma').selectOption('en');
+    await page.getByLabel('Idioma', { exact: true }).selectOption('en');
     await page.getByRole('button', { name: 'Guardar' }).click();
     await expect(page.getByRole('status')).toContainText('Settings saved.');
     expect(await readFile(path.join(app.home, 'config.json'), 'utf8')).toContain('"lang": "en"');
@@ -335,7 +341,7 @@ test.describe('settings, starting in Spanish', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await page.unroute('**/api/settings');
     await page.getByRole('link', { name: 'Settings' }).click();
-    await expect(page.getByLabel('Language')).toHaveValue('en');
+    await expect(page.getByLabel('Language', { exact: true })).toHaveValue('en');
   });
 });
 
@@ -407,7 +413,7 @@ test.describe('settings', () => {
   test('switches the language and the permission policy', async ({ page, app }) => {
     await page.goto(app.url);
     await page.getByRole('link', { name: 'Settings' }).click();
-    await page.getByLabel('Language').selectOption('es');
+    await page.getByLabel('Language', { exact: true }).selectOption('es');
     await page.getByLabel('Unattended').check();
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByRole('status')).toContainText('Ajustes guardados.');

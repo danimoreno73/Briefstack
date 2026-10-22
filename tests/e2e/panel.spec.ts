@@ -1,9 +1,9 @@
 import type { Page } from '@playwright/test';
-import { SESSION_CANCELLED, SESSION_DONE, SESSION_INTERRUPTED, expect, test, type App } from './fixtures.js';
+import { SESSION_CANCELLED, SESSION_DONE, SESSION_INTERRUPTED, clickNav, expect, test, type App } from './fixtures.js';
 
 async function startCreation(page: Page, app: App, idea = 'A garden planner'): Promise<void> {
   await page.goto(app.url);
-  await page.getByRole('link', { name: 'New project' }).click();
+  await clickNav(page, 'New project');
   await page.getByLabel('Describe your idea').fill(idea);
   await page.getByRole('button', { name: 'Start' }).click();
   await expect(page.getByTestId('idea')).toHaveText(idea);

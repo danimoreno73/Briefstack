@@ -3,13 +3,13 @@ import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { readConfig } from '../../src/config/index.js';
 import { saveNote } from '../../src/library/index.js';
-import { expect, restartChatServer, test, type App } from './fixtures.js';
+import { clickNav, expect, restartChatServer, test, type App } from './fixtures.js';
 
 // The global chat (BRIEF-phase-4 §3.1) over the fake chat runner.
 
 async function openChat(page: Page, app: App): Promise<void> {
   await page.goto(app.url);
-  await page.getByRole('link', { name: 'Chat' }).click();
+  await clickNav(page, 'Chat');
   await expect(page.getByRole('heading', { name: 'Chat', level: 1 })).toBeVisible();
 }
 
@@ -206,7 +206,7 @@ test.describe('the chat drawer', () => {
     const sideways = () => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     // Polled: the layout settles after the message renders, so a single early reading proves nothing either way.
     await expect.poll(sideways).toBe(false);
-    await page.getByRole('link', { name: 'Projects' }).click();
+    await clickNav(page, 'Projects');
     await page.getByRole('button', { name: 'Open the chat' }).click();
     await expect(page.getByTestId('chat-drawer').locator('[data-role="assistant"]')).toBeVisible();
     await expect.poll(sideways).toBe(false);
