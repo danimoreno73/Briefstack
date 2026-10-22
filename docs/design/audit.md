@@ -140,7 +140,9 @@ These would change behaviour, so the UI pass does not make them (BRIEF §5):
 4. (U3) The sessions list (`GET /api/sessions`) could return each session's
    idea (it is in the session folder's request), so the projects page lists
    interrupted and cancelled creations by what they were about (M8). The
-   UI pass does not change the API.
+   UI pass does not change the API. **Done in U4** with the user's leave, as
+   a read-only, redacted field (`docs/decisions.md`, "U4: the idea in the
+   sessions list").
 
 ## Status after U2 (2026-10-21)
 
@@ -207,3 +209,83 @@ open: L3 (the "●" in the menu count), L6 (wide monospace paths), L10
 | M2 the tab is always "briefstack" | closed | shell | Each page names its subject in the tab title (the project, the creation's idea, the proposal, the note), then "· briefstack"; an e2e test covers it |
 | M3 no skip link | closed | shell | "Skip to content" is the first stop of every page; it moves focus to the page without changing the route |
 | — list tables on a phone | closed | 4 projects | Every list table (projects, unfinished, creations, proposals, a project's history) becomes one block per row under 640 px |
+
+## Status after U4 (final, 2026-10-22)
+
+The last open findings were closed first; then every screen was audited
+again from scratch on the final build: `audit.shots.ts` at 1280 and 390 px,
+light and dark (108 pictures, git-ignored `screenshots/u4/final/`), against
+the WIG checklist (`command.md`, every section) and the Taste Skill
+redesign route with the app-screen chapter (§2.7 check, §11 states, §12
+phone, §13 house rules, §14 tells). A selection of before and after is in
+[before-after.md](before-after.md).
+
+**Result: no high or medium finding is open.** All 7 high and 19 medium
+findings of U0 are closed, and the 5 new findings of this audit (2 medium,
+3 low) are closed too. Of the 14 low findings of U0, all are closed. What
+is left is listed under "Known and accepted" below, all low.
+
+### U0 findings closed in U4
+
+| Finding | State | How |
+| --- | --- | --- |
+| M8 unfinished creations listed by id | closed | `GET /api/sessions` returns a read-only, redacted `idea` (an exception to BRIEF-ui §5 the user allowed; `docs/api.md`, `docs/decisions.md`); the projects page names each unfinished creation by it, "Idea not recorded" when it stopped before the first step, the id in its own column |
+| L3 "●" in the menu count, late by up to 4 s | closed | A figure on the accent with a counted name ("2 creations running"); a creation page tells the shell when its status changes, so the count goes as the creation ends (e2e) |
+| L6 paths wrap inside names, widest column | closed | Paths break only after a separator (`PathText`, `pathPieces` unit tested); in the projects table the path is a muted, narrower detail |
+| L10 "0 s" on every row of short runs | closed | Under 10 s a tenth of a second in the language's decimal mark, `< 0.1 s` below that; the proposal's build, lint and test times use the same format |
+
+### New findings of the final audit
+
+| # | Screen | Problem | Severity | Guideline | State |
+| --- | --- | --- | --- | --- | --- |
+| N1 | every table | Table headers in tracked capitals | Medium | TS app-screens §13 "Still banned: uppercase tracked table headers" | closed: 13 px sentence case, muted (`DESIGN.md` updated) |
+| N2 | 02 project, 05–09 creation, 23 proposal | A small label above the title ("Project", "Creation", "Improvement proposal") | Medium | TS house rules "No eyebrows" | closed: dropped; the creation gets "← All creations" like the other detail pages |
+| N3 | 05–09 creation | The menu marked "New project" on a running creation's page | Low | TS app-screens §3 shell (the current place is shown) | closed: marked under Creations |
+| N4 | 05–09 side column | Plan usage broke "7-day window" at its hyphen | Low | WIG Typography (non-breaking units) | closed: each window kept whole |
+| N5 | 02 project | Creation history showed raw "interview" and "ok"; 11 new project said "Recent creations: none" beside "2 creations are already running" | Low | TS app-screens §2.1 words of the trade | closed: step names and "done"; the list is "Finished since briefstack started" |
+
+Also fixed during the audit, as defects rather than findings: the note
+editor could lose text typed in the instant before the note arrived (it is
+now read-only until then), and several e2e tests read the page once instead
+of waiting for a condition (`docs/decisions.md`, "U4: decisions in the
+final audit").
+
+### Checked and passing
+
+- **Contrast:** `tests/unit/contrast.test.ts` checks every text pair at
+  4.5:1 and every mark at 3:1 in both themes, now with the menu count's
+  `--on-accent`.
+- **WIG:** real buttons and links; labels on every control; visible focus
+  ring; `prefers-reduced-motion`; no `transition: all`; `…` in loading
+  texts and placeholders; tabular figures; `text-wrap: balance` on
+  headings; `color-scheme` and `theme-color`; explicit `<select>` colours;
+  16 px fields; `overscroll-behavior: contain` in the drawer; `Intl` for
+  dates, times and decimals; skip link; page titles; confirmation before
+  every destructive action.
+- **Taste Skill, app screens:** one `h1` per screen, a noun or the
+  object's name; one filled primary per block; colour only on status, the
+  waiting block and the primary; 1 px borders within the allowed contrast;
+  no gradients, glows, emoji or icons in boxes; monospace only for ids,
+  paths and code; navigation folded on a phone; tables become two-line
+  rows under 640 px; empty states keep their frame with one sentence.
+- **No sideways scroll at 390 px** on any screen (also an e2e test for the
+  chat).
+
+### Known and accepted (low)
+
+- **The phone menu scrolls sideways in its own row**, so its last items are
+  cut at the edge until scrolled.
+  TS §12 suggests a menu sheet or a bottom bar; the one-row menu was chosen
+  in U2 (H6) and approved with it. The page itself never scrolls sideways.
+- **A long idea can take three lines as a creation's title on a phone**
+  (clamped at three). It is the user's own text; cutting it more would hide
+  what tells two creations apart.
+- **"Cancel creation" appears twice on the spec screen**: by the title and
+  in the approval block. The block's one is part of the approval form
+  (phase 2); both open the same confirmation.
+- **The library index shows `[[section/name]]` links as text.** Making them
+  links is new behaviour, not styling.
+- **WIG items not adopted:** Title Case (the app uses sentence case in both
+  languages, as Spanish does); `autocomplete`/`name` on fields that are not
+  part of any account form.
+- **Behaviour proposals 1–3** above stay proposals.

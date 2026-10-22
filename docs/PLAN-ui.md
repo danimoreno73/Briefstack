@@ -11,8 +11,9 @@ before each step; the work stops if the 7-day window is over 85% or the
 
 ## 0. Status
 
-Updated 2026-10-21. U0, U1, U1b, U2 and U3 are done. **Waiting for the
-user's review of U3**; U4 does not start before that.
+Updated 2026-10-22. U0 to U4 are done. **Waiting for the user's approval
+of the final screenshots and one use of the app** (a creation and the
+chat); the tag `ui-done` comes after that, not before.
 
 | Step | State | What exists |
 | --- | --- | --- |
@@ -21,7 +22,7 @@ user's review of U3**; U4 does not start before that.
 | U1b | done | The user asked for direction A only, with better type. BRIEF-ui §5 allows bundled OFL fonts; seven faces in `src/ui/static/fonts/` with licenses in `docs/design/vendor/fonts/`; three variants in `src/ui/static/type-variants.css` (flag `localStorage['briefstack-type']`), `docs/DESIGN.md` §2.4; `tests/screenshots/type.shots.ts` writes the specimens and screens to `screenshots/u1b/` (git-ignored) |
 | U2 | done | Direction A with Bricolage Grotesque + JetBrains Mono is the only style; flags, the other direction and fonts removed. Tokens in `src/ui/static/tokens.css` (`light-dark()`), base and components in `style.css`; theme switch (`src/ui/theme.ts`); `tests/unit/contrast.test.ts`; components page and shots in `tests/screenshots/components.*` (output `screenshots/u2/`, git-ignored); 13 findings closed, 3 partial (`docs/design/audit.md`, "Status after U2") |
 | U3 | done | Every screen in six groups plus the shell, one commit each: creation; chat; improvements; projects and creations; library; usage, settings and the restart message; page titles and the skip link. All high findings and every medium but M8 (partial, API proposal) closed; `docs/design/audit.md` "Status after U3". Minimum browsers in the README and `docs/decisions.md`. Screenshots per group in `screenshots/u3/` (git-ignored); `SHOTS_VIEWS` limits the views |
-| U4 | — | — |
+| U4 | done | M8 with a read-only, redacted `idea` in `GET /api/sessions` (user-approved exception, `docs/api.md`, `docs/decisions.md`); L3, L6, L10 closed; the flaky "both library commits" test and three other one-shot readings wait for conditions (10 full e2e runs in a row green); the note editor's load race fixed; final audit on every screen with 5 new findings closed, none high or medium left (`docs/design/audit.md`, "Status after U4"); `docs/design/before-after.md` with 6 pairs in `docs/design/before-after/`; final screenshots in `screenshots/u4/final/` (git-ignored) |
 
 ## 1. Steps
 
