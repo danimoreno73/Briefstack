@@ -37,14 +37,15 @@ test.describe('start-up', () => {
 
     await theme.selectOption('dark');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    const dark = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const dark = await background();
     await page.reload();
     await expect(page.getByLabel('Theme')).toHaveValue('dark');
-    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(dark);
+    await expect.poll(background).toBe(dark);
 
     await page.getByLabel('Theme').selectOption('system');
     await expect(page.locator('html')).not.toHaveAttribute('data-theme');
-    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(dark);
+    await expect.poll(background).not.toBe(dark);
     await page.reload();
     await expect(page.getByLabel('Theme')).toHaveValue('system');
   });
@@ -54,7 +55,11 @@ test.describe('start-up', () => {
     await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
     // The server now has another token: every request of this tab is refused.
     await page.route('**/api/**', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{"code":"web.rejected.token"}' }));
-    await page.getByRole('link', { name: 'Library' }).click();
+    // A move to another page sends requests. Not a click on the menu: the menu's own periodic check may
+    // already have been refused and turned the page into the message, taking the link with it.
+    await page.evaluate(() => {
+      window.location.hash = '#/library';
+    });
     await expect(page.getByRole('heading', { name: 'briefstack was restarted' })).toBeVisible();
     await expect(page.getByRole('status')).toContainText('Open the new link from the terminal.');
     await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
@@ -173,7 +178,7 @@ test.describe('library', () => {
     await page.getByTestId('editor').fill('# Style\n\n<img src=x onerror="document.title=\'pwned\'">\n');
     await expect(page.getByTestId('preview')).toContainText('<img');
     await expect(page.getByTestId('preview').locator('img')).toHaveCount(0);
-    expect(await page.title()).toBe('style · briefstack');
+    await expect(page).toHaveTitle('style · briefstack');
   });
 
   test('asks for confirmation before reverting a commit, and reverts only after it', async ({ page, app }) => {

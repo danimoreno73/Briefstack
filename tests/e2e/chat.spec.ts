@@ -204,11 +204,12 @@ test.describe('the chat drawer', () => {
     await say(page, 'A fairly long message to see that the layout wraps it instead of growing sideways at all.');
     await expect(messages(page).locator('[data-role="assistant"]')).toBeVisible();
     const sideways = () => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
-    expect(await sideways()).toBe(false);
+    // Polled: the layout settles after the message renders, so a single early reading proves nothing either way.
+    await expect.poll(sideways).toBe(false);
     await page.getByRole('link', { name: 'Projects' }).click();
     await page.getByRole('button', { name: 'Open the chat' }).click();
     await expect(page.getByTestId('chat-drawer').locator('[data-role="assistant"]')).toBeVisible();
-    expect(await sideways()).toBe(false);
+    await expect.poll(sideways).toBe(false);
   });
 
   test('is on every page and talks to the same chat', async ({ page, app }) => {

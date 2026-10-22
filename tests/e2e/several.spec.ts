@@ -15,13 +15,11 @@ async function startCreation(page: Page, app: App, idea: string): Promise<string
   return id;
 }
 
-const until = async (probe: () => boolean, timeoutMs = 10_000): Promise<void> => {
-  const deadline = Date.now() + timeoutMs;
-  while (!probe()) {
-    if (Date.now() > deadline) throw new Error('timed out');
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-};
+/** Settles when the creation has finished and its stream has sent everything: a condition, not a deadline. */
+const ended = (app: App, id: string): Promise<void> =>
+  new Promise((resolve) => {
+    app.manager.subscribe(id, 0, () => undefined, resolve);
+  });
 
 const question = (text: string) =>
   JSON.stringify({
@@ -86,9 +84,8 @@ test.describe('two creations finishing together', () => {
     const before = Number(execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: app.libraryDir, encoding: 'utf8' }).trim());
     // Started together, so both write the library at the same moment.
     const [one, two] = await Promise.all([app.manager.create('One idea'), app.manager.create('Another idea')]);
-    await page.goto(app.url);
-    await page.getByRole('link', { name: /Creations/ }).click();
-    await until(() => app.manager.get(one.id).status === 'finished' && app.manager.get(two.id).status === 'finished');
+    await Promise.all([ended(app, one.id), ended(app, two.id)]);
+    expect(app.manager.get(one.id).status).toBe('finished');
     expect(app.manager.get(one.id).outcome).toBe('completed');
     expect(app.manager.get(two.id).outcome).toBe('completed');
 
@@ -97,6 +94,9 @@ test.describe('two creations finishing together', () => {
     expect(Number(execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: app.libraryDir, encoding: 'utf8' }).trim())).toBe(before + 2);
     // Nothing half done (the fixture's hand-written legacy note is the only untracked file).
     expect(execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: app.libraryDir, encoding: 'utf8' }).trim()).toBe('');
+    // Opened once both are over, so the page reads the final list instead of waiting for its next check.
+    await page.goto(app.url);
+    await page.getByRole('link', { name: /Creations/ }).click();
     await expect(page.getByText('No creation is running.')).toBeVisible();
   });
 });

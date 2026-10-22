@@ -2935,3 +2935,28 @@ interrupted and cancelled creations by it.
   before; nothing writes the file.
 - A session with no `idea.md` (it stopped before the first step) is shown
   as "Idea not recorded"; the id stays in its own column.
+
+## U4: decisions in the final audit (2026-10-22)
+
+1. **Table headers in sentence case.** `docs/DESIGN.md` had them as 13 px
+   caps tracked 0.04 em; the Taste Skill app-screen rules (§13, "Still
+   banned") forbid uppercase tracked table headers, and the audit counts a
+   broken checklist rule as medium. They are now 13 px, muted, weight 600,
+   in sentence case; `DESIGN.md` says so.
+2. **The note editor is read-only until it holds the loaded note.** For one
+   render after a note arrives, the box was empty and editable before the
+   effect filled it, and anything typed in that instant was replaced. It
+   showed as two intermittent e2e failures ("does not render raw HTML",
+   "after a refused save…"). Now the box is editable only when its text was
+   synced from the loaded note; nothing else about saving changed.
+3. **Tests wait for conditions, not deadlines.** "Both library commits are
+   there" waited up to 10 s in a loop of its own and then read a page that
+   refreshes every 2 s. It now waits for each creation's stream to end
+   (`subscribe`'s `onEnd`, which runs once the creation finished and
+   everything was sent) and opens the creations page afterwards. Other
+   one-shot readings became polled assertions: the narrow chat's sideways
+   scroll, the editor page's title and the theme's background. "An old tab
+   after a restart" clicked the menu after refusing every request, but the
+   menu's own 4 s check could be refused first and turn the page into the
+   message, taking the link with it; it now changes the route through the
+   hash.
