@@ -63,7 +63,8 @@ licenses in `design/vendor/fonts/`):
 Figures that change or line up (the panel, times, counts, tables) use
 tabular digits. Section labels (Progress, Agents, Timeline, Details, Plan
 usage, `.section-label`) are 15 px, weight 760, with a hairline that runs
-to the edge. Table headers are 13 px caps, tracked 0.04 em.
+to the edge. Table headers are 13 px in sentence case, muted, weight 600
+(U4: no longer caps tracked 0.04 em, which the app-screen rules ban).
 
 The logotype is the word in two weights: "brief" 300, "stack" 800, tracked
 −0.045 em.

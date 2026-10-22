@@ -454,8 +454,6 @@ th {
   color: var(--muted);
   font-size: var(--fs-label);
   font-weight: var(--w-strong);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 tbody tr:last-child td {
