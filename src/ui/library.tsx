@@ -115,6 +115,8 @@ function NoteEditor({ section, name }: { section: string; name: string | undefin
 
   const dirty = text !== saved;
   const hidden = hasHiddenLines(text);
+  // Editable once the box holds the loaded note: typed text never lands in the instant before it arrives and is then replaced.
+  const synced = original !== undefined && saved === original;
 
   const save = async () => {
     setBusy(true);
@@ -153,6 +155,7 @@ function NoteEditor({ section, name }: { section: string; name: string | undefin
               <textarea
                 data-testid="editor"
                 value={text}
+                readOnly={!synced}
                 spellcheck={false}
                 onInput={(event) => {
                   setText(event.currentTarget.value);
