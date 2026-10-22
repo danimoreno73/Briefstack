@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Propuesta de mejora</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./bs.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Inter:wght@400;500;600&amp;family=Roboto+Slab:wght@500;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="bs app" data-theme="{{theme}}" style="min-height: 2400px">
+
+  <nav class="rail" aria-label="Principal">
+    <div class="brand">
+      <a class="brand-row" href="#"><span class="logo" aria-hidden="true">b</span><span style="display: flex; flex-direction: column"><span class="brand-name">briefstack</span><span class="brand-host">127.0.0.1 · local</span></span></a>
+      <span class="engine"><span class="dot"></span>Motor local en marcha</span>
+    </div>
+    <ul class="nav">
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h5l1.5 1.5h8.5v8.5h-15z"/></svg>Proyectos</a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Proyecto nuevo</a></li>
+      <li><a href="#" aria-label="Creaciones: 2 activas, 1 te espera"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10 3l7 3.5-7 3.5-7-3.5z"/><path d="M3 10l7 3.5 7-3.5M3 13.5L10 17l7-3.5"/></svg>Creaciones<span class="badge badge-dec">2</span></a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10 5.5C8 4 5 4 3 4.5v11c2-.5 5-.5 7 1 2-1.5 5-1.5 7-1v-11c-2-.5-5-.5-7 1zM10 5.5v11"/></svg>Biblioteca</a></li>
+      <li><a href="#" aria-current="page" aria-label="Mejoras: 1 lista para decidir"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3l1.2 3.3L12.5 7.5 9.2 8.7 8 12 6.8 8.7 3.5 7.5l3.3-1.2zM14.5 11l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>Mejoras<span class="badge">1</span></a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4h13v9.5H8L4.5 16v-2.5h-1z"/></svg>Chat</a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3.5 14a6.5 6.5 0 1 1 13 0"/><path d="M10 14l3-4"/></svg>Uso</a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/></svg>Ajustes</a></li>
+    </ul>
+    <div class="rail-foot">
+      <div class="row">
+        <button class="btn btn-secondary btn-sm" type="button" aria-label="Tema: oscuro. Cambiar a claro"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/></svg>Oscuro</button>
+        <button class="btn btn-secondary btn-sm" type="button" aria-label="Idioma: español. Cambiar a inglés"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2 2 2.8 4.5 2.8 7s-.8 5-2.8 7c-2-2-2.8-4.5-2.8-7S8 5 10 3z"/></svg>ES</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" style="justify-content: space-between"><span>Abrir chat</span><span class="kbd">Ctrl J</span></button>
+      <span class="rail-ver">v0.9.4 · claude-code 2.1</span>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="topbar">
+      <a class="brand-row" href="#"><span class="logo" aria-hidden="true">b</span><span class="brand-name">briefstack</span></a>
+      <button class="btn btn-ghost btn-icon" type="button" aria-label="Menú"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14"/></svg></button>
+    </div>
+
+    <header class="page-head" style="border-bottom: 0; padding-bottom: 0">
+      <div class="page-head-text">
+        <p class="meta"><a href="#">mejoras</a><span>/</span><span>prop-031</span></p>
+        <h1 class="t-1">Pedir confirmación antes de borrar duplicados</h1>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px">
+          <span class="chip chip-dec">lista · decide tú</span>
+          <span class="chip chip-mono chip-outline">se aplicará cuando acabe bs-2026-1041</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="page">
+      <div class="cols">
+        <div class="col-main">
+          <section class="card" style="gap: 10px; padding: 24px">
+            <h2 class="t-2" style="font-size: 22px">Petición</h2>
+            <p class="t-body">«Dos creaciones borraron duplicados sin preguntar. Quiero que el generador pida confirmación explícita y deje <span class="mono">_duplicados/</span> con un manifiesto CSV.»</p>
+            <p class="meta"><span>aprendido de bs-2026-1027</span><span>·</span><span>preparada por briefstack</span></p>
+          </section>
+
+          <section class="card" style="gap: 10px; padding: 24px">
+            <h2 class="t-2" style="font-size: 22px">Evidencia</h2>
+            <pre class="request">sesión bs-2026-1027 · reviewer: «2.140 archivos movidos a la papelera sin dry-run previo» · severidad media
+sesión bs-2026-1018 · generator: «borrado de 312 duplicados sin confirmación»</pre>
+          </section>
+
+          <section style="display: flex; flex-direction: column; gap: 10px">
+            <h2 class="section-title">Cambios</h2>
+            <div class="diff">
+              <div class="diff-file"><span>agentes/generator.md</span><span class="diff-stat"><span class="a">+3</span><span class="d">−1</span></span></div>
+              <div class="diff-lines">
+                <div class="dl dl-hunk"><span class="ln"></span><span class="sg"></span><span>@@ −18,3 +18,5 @@ Borrado y duplicados</span></div>
+                <div class="dl"><span class="ln">18</span><span class="sg"> </span><span>Nunca borres sin dry-run previo.</span></div>
+                <div class="dl dl-del"><span class="ln">19</span><span class="sg">−</span><span>Envía los duplicados a la papelera.</span></div>
+                <div class="dl dl-add"><span class="ln">19</span><span class="sg">+</span><span>Pide confirmación explícita antes de mover duplicados.</span></div>
+                <div class="dl dl-add"><span class="ln">20</span><span class="sg">+</span><span>Muévelos a _duplicados/, nunca a la papelera.</span></div>
+                <div class="dl dl-add"><span class="ln">21</span><span class="sg">+</span><span>Deja _duplicados/manifiesto.csv con origen y destino.</span></div>
+              </div>
+            </div>
+            <div class="diff">
+              <div class="diff-file"><span>politicas/borrado.json</span><span class="diff-stat"><span class="a">+2</span><span class="d">−1</span></span></div>
+              <div class="diff-lines">
+                <div class="dl dl-hunk"><span class="ln"></span><span class="sg"></span><span>@@ −4,4 +4,5 @@</span></div>
+                <div class="dl"><span class="ln">4</span><span class="sg"> </span><span>  "dryRunObligatorio": true,</span></div>
+                <div class="dl dl-del"><span class="ln">5</span><span class="sg">−</span><span>  "duplicados": "papelera",</span></div>
+                <div class="dl dl-add"><span class="ln">5</span><span class="sg">+</span><span>  "duplicados": "carpeta",</span></div>
+                <div class="dl dl-add"><span class="ln">6</span><span class="sg">+</span><span>  "confirmarAntesDeMover": true,</span></div>
+                <div class="dl"><span class="ln">6</span><span class="sg"> </span><span>  "borradoRecursivo": "denegar"</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" style="gap: 14px; padding: 24px">
+            <h2 class="t-2" style="font-size: 22px">Comprobaciones</h2>
+            <ul class="checks">
+              <li><svg viewBox="0 0 20 20" fill="none" stroke="var(--accent)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M6.5 10.2l2.4 2.3 4.6-4.8"/></svg><span>validadores</span><span class="muted ct">esquema de agentes y políticas · ok</span><span class="faint num">0,8 s</span></li>
+              <li><svg viewBox="0 0 20 20" fill="none" stroke="var(--accent)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M6.5 10.2l2.4 2.3 4.6-4.8"/></svg><span>build</span><span class="muted ct">ok</span><span class="faint num">41 s</span></li>
+              <li><svg viewBox="0 0 20 20" fill="none" stroke="var(--accent)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M6.5 10.2l2.4 2.3 4.6-4.8"/></svg><span>lint</span><span class="muted ct">ok · 0 avisos</span><span class="faint num">12 s</span></li>
+              <li><svg viewBox="0 0 20 20" fill="none" stroke="var(--accent)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M6.5 10.2l2.4 2.3 4.6-4.8"/></svg><span>tests</span><span class="muted ct">14 / 14 pasan</span><span class="faint num">58 s</span></li>
+            </ul>
+          </section>
+
+          <div class="note note-danger note-sec" role="note">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.5l6 2.5v5c0 4-3 6.5-6 7.5-3-1-6-3.5-6-7.5V5z"/><path d="M10 7v4M10 13.5v.01"/></svg>
+            <div class="note-body"><p class="note-title">Aviso de seguridad</p><p>El cambio toca la política de borrado. Comprueba que <span class="mono">_duplicados/</span> nunca se limpie de forma automática.</p></div>
+          </div>
+
+          <section class="dec" aria-labelledby="dec-h" style="gap: 16px">
+            <h2 id="dec-h">Tu decisión</h2>
+            <p class="muted">Se aplicará cuando no haya creaciones activas. Podrás revertirla desde el historial.</p>
+            <div class="field">
+              <label class="label" for="cmb">Qué cambiarías <span class="muted" style="font-weight: 400">(solo si pides cambios)</span></label>
+              <textarea class="textarea" id="cmb" rows="2"></textarea>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" type="button" style="min-height: 46px; padding: 0 24px">Aprobar</button>
+              <button class="btn btn-secondary" type="button" style="min-height: 46px">Pedir cambios</button>
+              <button class="btn btn-secondary" type="button" style="min-height: 46px">Descartar</button>
+            </div>
+          </section>
+        </div>
+
+        <aside class="col-side">
+          <section class="card" style="gap: 4px">
+            <h2 class="t-2" style="margin-bottom: 4px">Historial de aplicadas</h2>
+            <ol class="history">
+              <li><span class="mono-s faint">prop-028</span><span>Reintento con backoff · aplicada 12 oct</span><button class="btn btn-secondary btn-sm" type="button" style="align-self: flex-start">Revertir</button></li>
+              <li style="border-bottom: 0"><span class="mono-s faint">prop-024</span><span>Índice de notas · aplicada 12 oct</span><button class="btn btn-secondary btn-sm" type="button" style="align-self: flex-start">Revertir</button></li>
+            </ol>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1280,"height":2400}}'>
+class Component extends DCLogic {
+  renderVals() { return { theme: this.props.theme ?? 'dark' }; }
+}
+</script>
+</body>
+</html>

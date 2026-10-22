@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Creaciones</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./bs.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Inter:wght@400;500;600&amp;family=Roboto+Slab:wght@500;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="bs app" data-theme="{{theme}}" style="min-height: 1000px">
+
+  <nav class="rail" aria-label="Principal">
+    <div class="brand">
+      <a class="brand-row" href="#"><span class="logo" aria-hidden="true">b</span><span style="display: flex; flex-direction: column"><span class="brand-name">briefstack</span><span class="brand-host">127.0.0.1 · local</span></span></a>
+      <span class="engine"><span class="dot"></span>Motor local en marcha</span>
+    </div>
+    <ul class="nav">
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h5l1.5 1.5h8.5v8.5h-15z"/></svg>Proyectos</a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Proyecto nuevo</a></li>
+      <li><a href="#" aria-current="page" aria-label="Creaciones: 2 activas, 1 te espera"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10 3l7 3.5-7 3.5-7-3.5z"/><path d="M3 10l7 3.5 7-3.5M3 13.5L10 17l7-3.5"/></svg>Creaciones<span class="badge badge-dec">2</span></a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10 5.5C8 4 5 4 3 4.5v11c2-.5 5-.5 7 1 2-1.5 5-1.5 7-1v-11c-2-.5-5-.5-7 1zM10 5.5v11"/></svg>Biblioteca</a></li>
+      <li><a href="#" aria-label="Mejoras: 1 lista para decidir"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3l1.2 3.3L12.5 7.5 9.2 8.7 8 12 6.8 8.7 3.5 7.5l3.3-1.2zM14.5 11l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>Mejoras<span class="badge">1</span></a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4h13v9.5H8L4.5 16v-2.5h-1z"/></svg>Chat</a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3.5 14a6.5 6.5 0 1 1 13 0"/><path d="M10 14l3-4"/></svg>Uso</a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/></svg>Ajustes</a></li>
+    </ul>
+    <div class="rail-foot">
+      <div class="row">
+        <button class="btn btn-secondary btn-sm" type="button" aria-label="Tema: oscuro. Cambiar a claro"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/></svg>Oscuro</button>
+        <button class="btn btn-secondary btn-sm" type="button" aria-label="Idioma: español. Cambiar a inglés"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2 2 2.8 4.5 2.8 7s-.8 5-2.8 7c-2-2-2.8-4.5-2.8-7S8 5 10 3z"/></svg>ES</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" style="justify-content: space-between"><span>Abrir chat</span><span class="kbd">Ctrl J</span></button>
+      <span class="rail-ver">v0.9.4 · claude-code 2.1</span>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="topbar">
+      <a class="brand-row" href="#"><span class="logo" aria-hidden="true">b</span><span class="brand-name">briefstack</span></a>
+      <button class="btn btn-ghost btn-icon" type="button" aria-label="Menú"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14"/></svg></button>
+    </div>
+
+    <header class="page-head">
+      <div class="page-head-text">
+        <p class="meta"><span>briefstack / creaciones</span></p>
+        <h1 class="t-1">Creaciones</h1>
+        <p class="lead">Sesiones vivas del equipo de agentes. Como mucho 3 a la vez, para no agotar tu ventana de uso.</p>
+      </div>
+      <div class="btn-row"><a class="btn btn-primary" href="#">Proyecto nuevo</a></div>
+    </header>
+
+    <div class="page">
+      <div style="display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; align-items: center">
+        <span class="mono-s faint">límite de simultáneas</span>
+        <div class="meter" role="img" aria-label="2 de 3 en uso"><span class="m-now" style="width: 66.7%"></span></div>
+        <span class="mono-s">2 de 3 en uso · <a class="link" href="#" style="font-weight: 400">cambiar</a></span>
+      </div>
+
+      <article class="cr-card dec">
+        <div class="cr-meta">
+          <div class="cr-top"><span class="mono-s" style="color: var(--dec-ink-2)">bs-2026-1042</span><span class="chip" style="background: var(--dec-ink); color: var(--dec)">entrevista · paso 3 de 9</span></div>
+          <h2 class="cr-title">Renombrar 20.000 fotos por fecha EXIF, con dry-run</h2>
+          <p class="strong">Te espera: responder 3 preguntas</p>
+        </div>
+        <a class="btn btn-primary" href="#">Responder</a>
+      </article>
+
+      <article class="cr-card">
+        <div class="cr-meta">
+          <div class="cr-top"><span class="mono-s faint">bs-2026-1041</span><span class="chip"><span class="dot pulse" style="color: var(--accent)"></span>investigación · paso 4 de 9</span></div>
+          <h2 class="cr-title">Panel para conciliar facturas de autónomos</h2>
+          <p class="muted">Nada te espera. researcher consulta 6 fuentes · 12 min</p>
+        </div>
+        <a class="btn btn-secondary" href="#">Abrir pantalla</a>
+      </article>
+
+      <div class="card card-dash" style="flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap">
+        <span class="muted">Queda 1 hueco libre.</span>
+        <a class="btn btn-ghost btn-sm" href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Empezar otra</a>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1280,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return { theme: this.props.theme ?? 'dark' }; }
+}
+</script>
+</body>
+</html>

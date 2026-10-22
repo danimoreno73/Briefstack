@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Chat</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./bs.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Inter:wght@400;500;600&amp;family=Roboto+Slab:wght@500;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="bs app" data-theme="{{theme}}" style="min-height: 1100px">
+
+  <nav class="rail" aria-label="Principal">
+    <div class="brand">
+      <a class="brand-row" href="#"><span class="logo" aria-hidden="true">b</span><span style="display: flex; flex-direction: column"><span class="brand-name">briefstack</span><span class="brand-host">127.0.0.1 · local</span></span></a>
+      <span class="engine"><span class="dot"></span>Motor local en marcha</span>
+    </div>
+    <ul class="nav">
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h5l1.5 1.5h8.5v8.5h-15z"/></svg>Proyectos</a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Proyecto nuevo</a></li>
+      <li><a href="#" aria-label="Creaciones: 2 activas, 1 te espera"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10 3l7 3.5-7 3.5-7-3.5z"/><path d="M3 10l7 3.5 7-3.5M3 13.5L10 17l7-3.5"/></svg>Creaciones<span class="badge badge-dec">2</span></a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10 5.5C8 4 5 4 3 4.5v11c2-.5 5-.5 7 1 2-1.5 5-1.5 7-1v-11c-2-.5-5-.5-7 1zM10 5.5v11"/></svg>Biblioteca</a></li>
+      <li><a href="#" aria-label="Mejoras: 1 lista para decidir"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3l1.2 3.3L12.5 7.5 9.2 8.7 8 12 6.8 8.7 3.5 7.5l3.3-1.2zM14.5 11l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>Mejoras<span class="badge">1</span></a></li>
+      <li><a href="#" aria-current="page"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4h13v9.5H8L4.5 16v-2.5h-1z"/></svg>Chat</a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3.5 14a6.5 6.5 0 1 1 13 0"/><path d="M10 14l3-4"/></svg>Uso</a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/></svg>Ajustes</a></li>
+    </ul>
+    <div class="rail-foot">
+      <div class="row">
+        <button class="btn btn-secondary btn-sm" type="button" aria-label="Tema: oscuro. Cambiar a claro"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/></svg>Oscuro</button>
+        <button class="btn btn-secondary btn-sm" type="button" aria-label="Idioma: español. Cambiar a inglés"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2 2 2.8 4.5 2.8 7s-.8 5-2.8 7c-2-2-2.8-4.5-2.8-7S8 5 10 3z"/></svg>ES</button>
+      </div>
+      <span class="rail-ver">v0.9.4 · claude-code 2.1</span>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="topbar">
+      <span class="brand-name" style="font-size: 22px">Chat</span>
+      <div class="btn-row"><button class="btn btn-secondary btn-sm" type="button">Nueva</button><button class="btn btn-ghost btn-icon" type="button" aria-label="Menú"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14"/></svg></button></div>
+    </div>
+
+    <div class="chat">
+      <nav class="chat-list" aria-label="Conversaciones">
+        <button class="btn btn-primary btn-block" type="button">Nueva conversación</button>
+        <p class="meta" style="padding: 12px 4px 4px">anteriores · solo lectura</p>
+        <a class="conv" href="#" aria-current="{{curActual}}"><span>Dudas sobre photo-exif-renamer</span><span class="meta">hoy · en curso</span></a>
+        <a class="conv" href="#" aria-current="{{curAnterior}}"><span>Por qué falló invoice-scanner</span><span class="meta">11 oct</span></a>
+        <a class="conv" href="#"><span>Ideas para el perfil máximo</span><span class="meta">09 oct</span></a>
+        <a class="conv" href="#"><span>Ordenar la biblioteca de lecciones</span><span class="meta">02 oct</span></a>
+      </nav>
+
+      <div class="chat-main">
+        <sc-if value="{{isActual}}" hint-placeholder-val="{{ true }}">
+          <div class="thread" aria-live="polite">
+            <div class="bubble bubble-user"><p>¿De dónde sacaste que conviene claude-code para las fotos?</p></div>
+            <div class="bubble bubble-bot">
+              <p>Por el volumen: 20.000 archivos locales con dry-run se prueban mejor en tu terminal. La app de Claude conviene cuando lo vas a usar desde el móvil, como pasó con meal-planner.</p>
+              <p class="cite"><span>fuentes:</span><a href="#">nota lecciones/exif-001</a><span>·</span><a href="#">sesión bs-2026-1042</a><span>·</span><a href="#">proyecto meal-planner</a></p>
+            </div>
+            <div class="bubble bubble-user"><p>Vale. Apunta en mi perfil que para herramientas de terminal prefiero Python con uv.</p></div>
+
+            <section class="dec dec-sm" aria-labelledby="cf-h" style="max-width: 640px">
+              <div style="display: flex; flex-direction: column; gap: 4px">
+                <h2 id="cf-h">Confirma: cambiar una nota</h2>
+                <p class="meta"><span>chat</span><span>·</span><span>esperando tu confirmación</span></p>
+              </div>
+              <p>Añado una línea a <span class="mono">notas/perfil.md</span>.</p>
+              <div class="diff" data-theme="dark">
+                <div class="diff-file"><span>notas/perfil.md</span><span class="diff-stat"><span class="a">+1</span><span class="d">−0</span></span></div>
+                <div class="diff-lines">
+                  <div class="dl"><span class="ln">12</span><span class="sg"> </span><span>## Herramientas</span></div>
+                  <div class="dl dl-add"><span class="ln">13</span><span class="sg">+</span><span>- CLI: Python 3.12 con uv para dependencias</span></div>
+                </div>
+              </div>
+              <div class="btn-row"><button class="btn btn-primary" type="button">Confirmar</button><button class="btn btn-secondary" type="button">Rechazar</button></div>
+            </section>
+          </div>
+          <form class="composer">
+            <label class="sr-only" for="msg">Mensaje</label>
+            <input class="input" id="msg" placeholder="Pregunta lo que sea sobre proyectos, notas o sesiones…">
+            <button class="btn btn-primary" type="submit">Enviar</button>
+          </form>
+        </sc-if>
+
+        <sc-if value="{{isAnterior}}" hint-placeholder-val="{{ false }}">
+          <div class="thread">
+            <div class="readonly"><span>Conversación del 11 oct · solo lectura</span><button class="btn btn-primary btn-sm" type="button">Nueva conversación</button></div>
+            <div class="bubble bubble-user"><p>¿Por qué falló invoice-scanner?</p></div>
+            <div class="bubble bubble-bot">
+              <p>La revisión encontró 2 avisos: el OCR no reconocía facturas giradas y faltaba un test para importes con coma. El proyecto se entregó igualmente, marcado con esos avisos.</p>
+              <p class="cite"><span>fuentes:</span><a href="#">sesión bs-2026-1009</a><span>·</span><a href="#">proyecto invoice-scanner</a></p>
+            </div>
+            <div class="bubble bubble-user"><p>Prepara una mejora para que el reviewer pruebe imágenes giradas.</p></div>
+            <div class="card" style="gap: 8px; max-width: 640px">
+              <p class="strong">Preparar una mejora</p>
+              <p class="t-small muted">«El reviewer prueba imágenes giradas en proyectos de OCR.»</p>
+              <p class="state st-done"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Confirmada · creó prop-026</p>
+            </div>
+            <div class="card" style="gap: 8px; max-width: 640px">
+              <p class="strong">Cambiar el perfil de uso a Máximo</p>
+              <p class="state st-cancel">Rechazada</p>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"modo":{"editor":"enum","options":["actual","anterior"],"default":"actual"},"$preview":{"width":1280,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const ant = (this.props.modo ?? 'actual') === 'anterior';
+    return { theme: this.props.theme ?? 'dark', isActual: !ant, isAnterior: ant, curActual: ant ? 'false' : 'true', curAnterior: ant ? 'true' : 'false' };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>briefstack · componentes</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./bs.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Inter:wght@400;500;600&amp;family=Roboto+Slab:wght@500;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="bs sheet" data-theme="dark" style="min-height: 3400px">
+
+  <header style="display: flex; flex-direction: column; gap: 8px">
+    <p class="meta"><span>briefstack / componentes</span></p>
+    <h1 class="t-1">Componentes</h1>
+  </header>
+
+  <!-- Botones -->
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+    <section class="card" style="gap: 10px">
+      <h2 class="t-2">Botones · oscuro</h2>
+      <button class="btn btn-primary btn-block" type="button">Primario · aprobar</button>
+      <button class="btn btn-secondary btn-block" type="button">Secundario</button>
+      <button class="btn btn-danger btn-block" type="button">Peligro · cancelar</button>
+      <button class="btn btn-danger-quiet btn-block" type="button">Peligro discreto</button>
+      <button class="btn btn-primary btn-block" type="button" disabled>Desactivado</button>
+      <div class="btn-row"><button class="btn btn-secondary btn-sm" type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="10" height="10" rx="1.5"/><path d="M4 13V5a1 1 0 0 1 1-1h8"/></svg>Copiar</button><button class="btn btn-ghost btn-sm" type="button">Archivar</button><button class="btn btn-ghost btn-icon" type="button" aria-label="Cerrar"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button></div>
+    </section>
+    <section class="card" data-theme="light" style="gap: 10px">
+      <h2 class="t-2">Botones · claro</h2>
+      <button class="btn btn-primary btn-block" type="button">Primario · aprobar</button>
+      <button class="btn btn-secondary btn-block" type="button">Secundario</button>
+      <button class="btn btn-danger btn-block" type="button">Peligro · cancelar</button>
+      <button class="btn btn-danger-quiet btn-block" type="button">Peligro discreto</button>
+      <button class="btn btn-primary btn-block" type="button" disabled>Desactivado</button>
+      <div class="btn-row"><button class="btn btn-secondary btn-sm" type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="10" height="10" rx="1.5"/><path d="M4 13V5a1 1 0 0 1 1-1h8"/></svg>Copiar</button><button class="btn btn-ghost btn-sm" type="button">Archivar</button></div>
+    </section>
+    <section class="dec" style="gap: 10px; padding: 24px">
+      <h2 style="font-size: 20px">Botones · decisión</h2>
+      <button class="btn btn-primary btn-block" type="button">Enviar respuestas</button>
+      <button class="btn btn-secondary btn-block" type="button">Guardar borrador</button>
+      <button class="btn btn-danger btn-block" type="button">Denegar y cancelar</button>
+      <p class="t-small muted">Dentro del crema el primario es tinta. Uno por panel.</p>
+    </section>
+  </div>
+
+  <!-- Estados y chips -->
+  <section class="card" style="gap: 16px">
+    <h2 class="t-2">Estados</h2>
+    <div style="display: flex; flex-wrap: wrap; gap: 28px; align-items: center">
+      <span class="state st-wait"><span class="ring"></span>esperando</span>
+      <span class="state st-run"><span class="dot pulse"></span>en marcha</span>
+      <span class="state st-done"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>hecho</span>
+      <span class="state st-fail"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>fallido</span>
+      <span class="state st-cancel">cancelado</span>
+      <span style="width: 1px; height: 24px; background: var(--line-card)"></span>
+      <span class="chip chip-dec">entrevista · te espera</span>
+      <span class="chip chip-ok">lista</span>
+      <span class="chip">entregado</span>
+      <span class="chip chip-warn">revisión</span>
+      <span class="chip chip-danger">fallida</span>
+      <span class="chip chip-mono chip-outline">claude-app · elegido por ti</span>
+      <span class="badge">2</span>
+      <span class="badge badge-dec" aria-label="1 te espera">1</span>
+    </div>
+    <p class="t-small muted">Los nodos no usan ámbar: «esperando» es gris con anillo. El crema queda solo para lo que te espera a ti, y el ámbar para avisos.</p>
+  </section>
+
+  <!-- Campos y opciones -->
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+    <section class="card" style="gap: 18px">
+      <h2 class="t-2">Campos</h2>
+      <div class="field">
+        <label class="label" for="k-ruta">Carpeta de proyectos</label>
+        <input class="input input-mono" id="k-ruta" value="~/briefstack">
+        <p class="msg msg-ok"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>Ruta válida y escribible</p>
+      </div>
+      <div class="field field-error">
+        <label class="label" for="k-ruta2">Carpeta de proyectos</label>
+        <input class="input input-mono" id="k-ruta2" value="/mnt/nas/briefstack" aria-invalid="true">
+        <p class="msg msg-err"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>Debe estar dentro de tu carpeta personal.</p>
+      </div>
+      <div class="field">
+        <label class="label" for="k-msg">Mensaje</label>
+        <input class="input" id="k-msg" placeholder="Pregunta lo que sea sobre proyectos, notas o sesiones…">
+      </div>
+      <fieldset class="field">
+        <legend class="label" style="margin-bottom: 8px">Política de permisos</legend>
+        <div class="choice">
+          <label><input class="sr-only" type="radio" name="k-pol" checked><span class="c-t">Preguntarme</span><span class="c-d">Recomendado. Cada comando y ruta pide tu visto bueno.</span></label>
+          <label><input class="sr-only" type="radio" name="k-pol"><span class="c-t">Desatendido</span><span class="c-d">Solo rutas de solo lectura. Nunca borra sin preguntar.</span></label>
+        </div>
+      </fieldset>
+      <div style="display: flex; flex-wrap: wrap; gap: 24px">
+        <div class="field"><span class="label" id="k-v">Vista</span><div class="seg" role="group" aria-labelledby="k-v"><button type="button" aria-pressed="true">Árbol</button><button type="button" aria-pressed="false">Texto</button></div></div>
+        <div class="field"><span class="label" id="k-l">Límite de simultáneas</span><div class="steps-pick" role="group" aria-labelledby="k-l"><button type="button" aria-pressed="false">1</button><button type="button" aria-pressed="false">2</button><button type="button" aria-pressed="true">3</button><button type="button" aria-pressed="false">4</button><button type="button" aria-pressed="false">5</button></div></div>
+      </div>
+    </section>
+
+    <section class="dec" style="gap: 16px; padding: 24px">
+      <h2 style="font-size: 20px">Pregunta de la entrevista</h2>
+      <fieldset class="dec-card">
+        <legend>¿Qué hacer con los duplicados?</legend>
+        <div class="opts">
+          <label class="opt"><input class="sr-only" type="radio" name="k-q" checked><span>Mover a _duplicados <small>(recomendada)</small></span><svg class="tick" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg></label>
+          <label class="opt"><input class="sr-only" type="radio" name="k-q"><span>Borrar tras confirmar</span><svg class="tick" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg></label>
+          <label class="opt"><input class="sr-only" type="radio" name="k-q"><span>Ignorar</span><svg class="tick" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg></label>
+        </div>
+      </fieldset>
+      <p class="t-small muted">Radio real oculto; la opción elegida se invierte y lleva marca, no solo color. «(recomendada)» va escrito.</p>
+      <div class="field">
+        <label class="label" for="k-free">Tu respuesta</label>
+        <textarea class="textarea" id="k-free" rows="2">Las del móvil están en /fotos/movil; las de la cámara, en el NAS.</textarea>
+      </div>
+      <div class="btn-row"><button class="btn btn-primary" type="button">Enviar respuesta</button><span class="t-small muted"><span class="kbd" style="border-color: var(--dec-control); color: var(--dec-ink-2)">Ctrl Enter</span></span></div>
+    </section>
+  </div>
+
+  <!-- Te espera: permiso, carpeta, confirmación, spec -->
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+    <section class="dec dec-sm" aria-labelledby="k-perm">
+      <div class="dec-head"><div class="dec-title"><span class="dec-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4-4 4M10 15h6"/></svg></span><div><h2 id="k-perm">Te espera: permiso para un comando</h2><p class="meta"><span>generator</span><span>·</span><span>hace 12 s</span></p></div></div></div>
+      <pre class="request">uv add piexif==1.1.3 reverse-geocoder==1.5.1</pre>
+      <p class="t-small muted">En <span class="mono-s">~/briefstack/photo-exif-renamer</span>. Descarga 2 paquetes y modifica pyproject.toml y uv.lock.</p>
+      <div class="btn-row"><button class="btn btn-primary" type="button">Aprobar</button><button class="btn btn-secondary" type="button">Denegar</button></div>
+    </section>
+    <section class="dec dec-sm" aria-labelledby="k-dir">
+      <div class="dec-head"><div class="dec-title"><span class="dec-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h5l2 2h7v8H3z"/></svg></span><div><h2 id="k-dir">Te espera: acceso a una carpeta</h2><p class="meta"><span>generator</span><span>·</span><span>fuera de ~/briefstack</span></p></div></div></div>
+      <pre class="request">/nas/familia/fotos/2024</pre>
+      <p class="t-small muted">Para probar el dry-run con 40 fotos reales. Con solo lectura no puede mover ni borrar nada.</p>
+      <div class="btn-row"><button class="btn btn-primary" type="button">Conceder solo lectura</button><button class="btn btn-secondary" type="button">Lectura y escritura</button><button class="btn btn-secondary" type="button">Denegar</button></div>
+    </section>
+    <section class="dec dec-sm" aria-labelledby="k-conf">
+      <h2 id="k-conf">Confirmar acción</h2>
+      <p class="t-body">¿Cambio la nota <span class="mono-s">lecciones/exif-001.md</span>?</p>
+      <div class="diff" data-theme="dark">
+        <div class="diff-file"><span>notas/lecciones/exif-001.md</span><span class="diff-stat"><span class="a">+1</span><span class="d">−0</span></span></div>
+        <div class="diff-lines"><div class="dl"><span class="ln">4</span><span class="sg"> </span><span>La fecha EXIF manda, no el nombre del archivo.</span></div><div class="dl dl-add"><span class="ln">5</span><span class="sg">+</span><span>Las fotos de WhatsApp no traen EXIF: usar la fecha del nombre.</span></div></div>
+      </div>
+      <div class="btn-row"><button class="btn btn-primary" type="button">Confirmar</button><button class="btn btn-secondary" type="button">Rechazar</button></div>
+    </section>
+    <section class="dec dec-sm" aria-labelledby="k-spec">
+      <h2 id="k-spec">Te espera: aprobar la spec</h2>
+      <p class="t-body">CLI que renombra por fecha EXIF con dry-run por defecto, mueve duplicados a <span class="mono-s">_duplicados/</span> y deja un CSV de registro.</p>
+      <p class="meta"><span>destino claude-code</span><span>·</span><span>elegido por el arquitecto</span></p>
+      <ol style="display: flex; flex-direction: column; gap: 6px" class="t-small">
+        <li><span class="chip chip-mono" style="background: var(--dec-ink); color: var(--dec); min-height: 20px; margin-right: 8px">S1</span>Las fotos sin EXIF conservan su nombre.</li>
+        <li><span class="chip chip-mono" style="background: var(--dec-ink); color: var(--dec); min-height: 20px; margin-right: 8px">S2</span>Google Fotos se lee desde una exportación de Takeout.</li>
+      </ol>
+      <div class="btn-row"><button class="btn btn-primary" type="button">Aprobar</button><button class="btn btn-secondary" type="button">Pedir cambios</button><button class="btn btn-danger-quiet" type="button">Cancelar</button></div>
+    </section>
+  </div>
+
+  <!-- Avisos -->
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+    <div class="note note-warn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3l8 14H2z"/><path d="M10 8v4M10 14.5v.01"/></svg><div class="note-body"><p><span class="strong">Ya hay 2 creaciones en marcha.</span> Puedes empezar una tercera, que es el límite actual.</p></div></div>
+    <div class="note note-ok"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 3.5 8-8"/></svg><div class="note-body"><p><span class="strong">Nota guardada.</span> Commit <span class="mono-s">a3f1c2</span>.</p></div></div>
+    <div class="note note-danger"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M7 7l6 6M13 7l-6 6"/></svg><div class="note-body"><p class="note-title">No se pudo guardar la nota: contiene un secreto</p><p class="t-small">Línea 6: clave con formato <span class="mono-s">sk-…</span>. Bórrala antes de reintentar. Nada se perdió.</p></div></div>
+    <div class="note note-danger note-sec"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.5l6 2.5v5c0 4-3 6.5-6 7.5-3-1-6-3.5-6-7.5V5z"/><path d="M10 7v4M10 13.5v.01"/></svg><div class="note-body"><p class="note-title">Aviso de seguridad</p><p class="t-small">El cambio toca la política de borrado. Revisa que <span class="mono-s">_duplicados/</span> nunca se limpie automáticamente.</p></div></div>
+  </div>
+
+  <!-- Tabla y diálogo -->
+  <div style="display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px">
+    <div class="table-card">
+      <table class="table">
+        <thead><tr><th>nombre</th><th>destino</th><th>estado</th><th>perfil</th><th class="th-num">fecha</th></tr></thead>
+        <tbody>
+          <tr><td class="td-name"><a href="#">photo-exif-renamer</a></td><td class="td-mono">claude-code</td><td><span class="chip chip-dec">entrevista · te espera</span></td><td>equilibrado</td><td class="td-mono td-num">22 oct 2026</td></tr>
+          <tr><td class="td-name"><a href="#">meal-planner</a></td><td class="td-mono">claude-app</td><td><span class="chip chip-ok">lista</span></td><td>ahorro</td><td class="td-mono td-num">18 oct 2026</td></tr>
+          <tr><td class="td-name"><a href="#">habit-tracker-cli</a></td><td class="td-mono">claude-code</td><td><span class="chip">entregado</span></td><td>equilibrado</td><td class="td-mono td-num">02 oct 2026</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="scrim">
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="k-dlg">
+        <h3 class="t-2" id="k-dlg">¿Cancelar esta creación?</h3>
+        <p class="t-small muted">Los agentes se detienen. Lo generado queda en Proyectos como «cancelada en entrevista» y podrás retomarla.</p>
+        <div class="btn-row"><button class="btn btn-secondary is-focus" type="button">Seguir creando</button><button class="btn btn-danger" type="button">Sí, cancelar</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Diff -->
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+    <div class="diff">
+      <div class="diff-file"><span>agentes/generator.md</span><span class="diff-stat"><span class="a">+2</span><span class="d">−1</span></span></div>
+      <div class="diff-lines">
+        <div class="dl dl-hunk"><span class="ln"></span><span class="sg"></span><span>@@ −18,3 +18,4 @@ borrado</span></div>
+        <div class="dl"><span class="ln">18</span><span class="sg"> </span><span>Nunca borres sin dry-run previo.</span></div>
+        <div class="dl dl-del"><span class="ln">19</span><span class="sg">−</span><span>Los duplicados se envían a la papelera.</span></div>
+        <div class="dl dl-add"><span class="ln">19</span><span class="sg">+</span><span>Pide confirmación antes de mover duplicados.</span></div>
+        <div class="dl dl-add"><span class="ln">20</span><span class="sg">+</span><span>Deja un manifiesto CSV en _duplicados/.</span></div>
+      </div>
+    </div>
+    <div class="diff" data-theme="light">
+      <div class="diff-file"><span>agentes/generator.md</span><span class="diff-stat"><span class="a">+2</span><span class="d">−1</span></span></div>
+      <div class="diff-lines">
+        <div class="dl dl-hunk"><span class="ln"></span><span class="sg"></span><span>@@ −18,3 +18,4 @@ borrado</span></div>
+        <div class="dl"><span class="ln">18</span><span class="sg"> </span><span>Nunca borres sin dry-run previo.</span></div>
+        <div class="dl dl-del"><span class="ln">19</span><span class="sg">−</span><span>Los duplicados se envían a la papelera.</span></div>
+        <div class="dl dl-add"><span class="ln">19</span><span class="sg">+</span><span>Pide confirmación antes de mover duplicados.</span></div>
+        <div class="dl dl-add"><span class="ln">20</span><span class="sg">+</span><span>Deja un manifiesto CSV en _duplicados/.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agentes: nodo, línea de tiempo, progreso -->
+  <div style="display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start">
+    <section class="card card-flush">
+      <div class="card-head"><h2 class="t-2">Nodo de agente · cinco estados</h2></div>
+      <div class="nodes">
+        <button class="node" type="button" aria-expanded="false"><span class="n-dot st-run"><span class="dot pulse"></span></span><span class="n-name"><b>sesión principal</b><span class="n-model">opus 5.5 · alto</span></span><span class="n-right"><span class="n-dur">14:32</span><span class="state st-run">en marcha</span></span><span class="n-tool">Task → interviewer</span><span class="n-count">28 llamadas · 0 deneg.</span></button>
+        <button class="node node-child" type="button" aria-expanded="true"><span class="n-dot st-run"><span class="dot pulse"></span></span><span class="n-name"><b>researcher</b><span class="n-model">sonnet 5.5 · alto</span></span><span class="n-right"><span class="n-dur">06:44</span><span class="state st-run">en marcha</span></span><span class="n-tool">WebSearch → exif tools</span><span class="n-count">34 llamadas · <span class="deny">2 deneg.</span></span></button>
+        <button class="node node-child" type="button" aria-expanded="false"><span class="n-dot st-done"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span><span class="n-name"><b>interviewer</b><span class="n-model">sonnet 5.5 · medio</span></span><span class="n-right"><span class="n-dur">04:10</span><span class="state st-done">hecho</span></span><span class="n-tool">—</span><span class="n-count">12 llamadas · 0 deneg.</span></button>
+        <button class="node node-child" type="button" aria-expanded="false"><span class="n-dot st-fail"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></span><span class="n-name"><b>generator</b><span class="n-model">sonnet 5.5 · alto</span></span><span class="n-right"><span class="n-dur">02:05</span><span class="state st-fail">fallido</span></span><span class="n-tool">Bash → pytest · 3 tests fallan</span><span class="n-count">22 llamadas · <span class="deny">1 deneg.</span></span></button>
+        <button class="node node-child" type="button" aria-expanded="false"><span class="n-dot st-cancel"><span class="ring"></span></span><span class="n-name"><b>architect</b><span class="n-model">opus 5.5 · alto</span></span><span class="n-right"><span class="n-dur">00:41</span><span class="state st-cancel">cancelado</span></span><span class="n-tool">—</span><span class="n-count">5 llamadas · 0 deneg.</span></button>
+        <button class="node node-child" type="button" aria-expanded="false"><span class="n-dot st-wait"><span class="ring"></span></span><span class="n-name"><b>reviewer</b><span class="n-model">opus 5.5 · medio</span></span><span class="n-right"><span class="n-dur">—</span><span class="state st-wait">esperando</span></span><span class="n-tool">sin empezar</span><span class="n-count">0 llamadas</span></button>
+      </div>
+      <div class="tl">
+        <div class="tl-axis"><span>línea de tiempo</span><span class="tl-ticks"><span>0</span><span>5</span><span>10</span><span>15</span><span>20 min</span></span><span></span></div>
+        <button class="tl-row" type="button" aria-pressed="false"><span>principal</span><span class="tl-track"><span class="bar bar-run" style="left: 0; width: 72%"></span><span class="bar-now" style="left: 72%"></span></span><span class="tl-dur">14:32</span></button>
+        <button class="tl-row" type="button" aria-pressed="false"><span>interviewer</span><span class="tl-track"><span class="bar bar-done" style="left: 4%; width: 21%"></span></span><span class="tl-dur">04:10</span></button>
+        <button class="tl-row" type="button" aria-pressed="true"><span>researcher</span><span class="tl-track"><span class="bar bar-run" style="left: 38%; width: 34%"></span><span class="bar-now" style="left: 72%"></span></span><span class="tl-dur">06:44</span></button>
+        <button class="tl-row" type="button" aria-pressed="false"><span>generator</span><span class="tl-track"><span class="bar bar-fail" style="left: 26%; width: 10%"></span></span><span class="tl-dur">02:05</span></button>
+      </div>
+    </section>
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <section class="card">
+        <div class="progress">
+          <div class="progress-top"><span class="meta"><span>bs-2026-1042</span><span>·</span><span>plan 38 % / semana 61 %</span></span><span class="meta">paso 3 / 9</span></div>
+          <div class="segs" role="img" aria-label="Paso 3 de 9: entrevista">
+            <span class="seg-step done"><span>idea</span></span><span class="seg-step done"><span>análisis</span></span><span class="seg-step now"><span>entrevista</span></span><span class="seg-step"><span>investig.</span></span><span class="seg-step"><span>spec</span></span><span class="seg-step"><span>gener.</span></span><span class="seg-step"><span>valid. y rev.</span></span><span class="seg-step"><span>aprend.</span></span><span class="seg-step"><span>entrega</span></span>
+          </div>
+        </div>
+      </section>
+      <section class="card" style="gap: 16px">
+        <h2 class="t-2">Uso de esta sesión</h2>
+        <div class="use-row"><div class="use-head"><span class="t-small muted">Ventana de 5 h</span><span class="use-big">38 %</span></div><div class="meter" role="img" aria-label="31 % al empezar, 38 % ahora"><span class="m-now" style="width: 38%"></span><span class="m-start" style="width: 31%"></span><span class="m-mark" style="left: 31%"></span></div><span class="meta">al empezar 31 % · ahora 38 %</span></div>
+      </section>
+      <section class="empty">
+        <span class="empty-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l2.5-6h9L17 11v5H3z"/><path d="M3 11h4l1 2h4l1-2h4"/></svg></span>
+        <h2 class="t-2">Aún no hay proyectos</h2>
+        <p class="t-small muted">Describe tu primera idea y el equipo empezará a trabajar.</p>
+        <button class="btn btn-secondary" type="button">Crear proyecto</button>
+      </section>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":3400}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Chat · cajón sobre Proyectos</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./bs.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Inter:wght@400;500;600&amp;family=Roboto+Slab:wght@500;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="bs drawer-host" data-theme="dark" style="min-height: 1300px">
+  <dc-import name="Proyectos" theme="dark" hint-size="100%,1300px"></dc-import>
+  <div class="drawer-scrim" aria-hidden="true"></div>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="dr-h">
+    <div class="drawer-head">
+      <h2 class="t-2" id="dr-h">Chat</h2>
+      <div class="btn-row">
+        <button class="btn btn-ghost btn-sm" type="button">Nueva</button>
+        <a class="btn btn-ghost btn-sm" href="#">Abrir en página</a>
+        <button class="btn btn-ghost btn-icon" type="button" aria-label="Cerrar el chat (Esc)"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
+      </div>
+    </div>
+    <div class="thread" aria-live="polite">
+      <div class="bubble bubble-user"><p>¿Qué creaciones me esperan ahora?</p></div>
+      <div class="bubble bubble-bot">
+        <p>Una: photo-exif-renamer espera 3 respuestas de la entrevista. La de facturas sigue investigando y no necesita nada.</p>
+        <p class="cite"><span>fuentes:</span><a href="#">sesión bs-2026-1042</a><span>·</span><a href="#">sesión bs-2026-1041</a></p>
+      </div>
+      <div class="bubble bubble-user"><p>Cancela la de facturas, la retomo mañana.</p></div>
+      <p class="thinking" role="status"><span class="dot pulse" style="color: var(--accent)"></span>pensando… consultando la sesión bs-2026-1041</p>
+    </div>
+    <form class="composer">
+      <label class="sr-only" for="dmsg">Mensaje</label>
+      <input class="input" id="dmsg" placeholder="Pregunta lo que sea…">
+      <button class="btn btn-primary" type="submit">Enviar</button>
+    </form>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1300}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

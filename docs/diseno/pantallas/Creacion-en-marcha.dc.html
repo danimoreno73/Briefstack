@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Creación · trabajando</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./bs.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Inter:wght@400;500;600&amp;family=Roboto+Slab:wght@500;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="bs app" data-theme="{{theme}}" style="min-height: 2100px">
+
+  <nav class="rail" aria-label="Principal">
+    <div class="brand">
+      <a class="brand-row" href="#"><span class="logo" aria-hidden="true">b</span><span style="display: flex; flex-direction: column"><span class="brand-name">briefstack</span><span class="brand-host">127.0.0.1 · local</span></span></a>
+      <span class="engine"><span class="dot"></span>Motor local en marcha</span>
+    </div>
+    <ul class="nav">
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h5l1.5 1.5h8.5v8.5h-15z"/></svg>Proyectos</a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Proyecto nuevo</a></li>
+      <li><a href="#" aria-current="page" aria-label="Creaciones: 2 activas"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10 3l7 3.5-7 3.5-7-3.5z"/><path d="M3 10l7 3.5 7-3.5M3 13.5L10 17l7-3.5"/></svg>Creaciones<span class="badge">2</span></a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10 5.5C8 4 5 4 3 4.5v11c2-.5 5-.5 7 1 2-1.5 5-1.5 7-1v-11c-2-.5-5-.5-7 1zM10 5.5v11"/></svg>Biblioteca</a></li>
+      <li><a href="#" aria-label="Mejoras: 1 lista para decidir"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3l1.2 3.3L12.5 7.5 9.2 8.7 8 12 6.8 8.7 3.5 7.5l3.3-1.2zM14.5 11l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>Mejoras<span class="badge">1</span></a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4h13v9.5H8L4.5 16v-2.5h-1z"/></svg>Chat</a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3.5 14a6.5 6.5 0 1 1 13 0"/><path d="M10 14l3-4"/></svg>Uso</a></li>
+      <li><a href="#"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/></svg>Ajustes</a></li>
+    </ul>
+    <div class="rail-foot">
+      <div class="row">
+        <button class="btn btn-secondary btn-sm" type="button" aria-label="Tema: oscuro. Cambiar a claro"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/></svg>Oscuro</button>
+        <button class="btn btn-secondary btn-sm" type="button" aria-label="Idioma: español. Cambiar a inglés"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2 2 2.8 4.5 2.8 7s-.8 5-2.8 7c-2-2-2.8-4.5-2.8-7S8 5 10 3z"/></svg>ES</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" style="justify-content: space-between"><span>Abrir chat</span><span class="kbd">Ctrl J</span></button>
+      <span class="rail-ver">v0.9.4 · claude-code 2.1</span>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="topbar">
+      <a class="brand-row" href="#"><span class="logo" aria-hidden="true">b</span><span class="brand-name">briefstack</span></a>
+      <div class="btn-row"><span class="mono-s faint">bs-1042</span><button class="btn btn-ghost btn-icon" type="button" aria-label="Menú"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14"/></svg></button></div>
+    </div>
+
+    <header class="page-head sticky">
+      <div class="page-head-text">
+        <p class="meta"><span>bs-2026-1042</span><span>·</span><span>claude-code</span><span>·</span><span>~/briefstack/photo-exif-renamer</span></p>
+        <h1 class="t-1">Renombrar 20.000 fotos por fecha EXIF, con dry-run y registro</h1>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 4px">
+          <span class="chip"><span class="dot pulse" style="color: var(--accent)"></span>generación · en marcha</span>
+          <span class="meta"><span>paso 6 / 9</span><span>·</span><span>desde 14:18</span><span>·</span><span>plan 47 % / 63 %</span></span>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary d-only" type="button">Copiar id</button>
+        <button class="btn btn-danger" type="button">Cancelar creación</button>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <div class="card card-dash" role="status" style="flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 16px 24px">
+        <span class="muted">Nada te espera ahora. Si algo necesita tu decisión aparecerá aquí, en crema, y en Creaciones.</span>
+        <label class="t-small" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: var(--accent)">Avisarme con una notificación</label>
+      </div>
+
+      <section class="card" aria-label="Progreso">
+        <div class="progress">
+          <div class="progress-top"><span class="meta"><span>bs-2026-1042</span><span>·</span><span>plan 47 % / semana 63 %</span></span><span class="meta">paso 6 / 9</span></div>
+          <div class="segs" role="img" aria-label="Paso 6 de 9: generación">
+            <span class="seg-step done"><span>idea</span></span><span class="seg-step done"><span>análisis</span></span><span class="seg-step done"><span>entrevista</span></span><span class="seg-step done"><span>investigación</span></span><span class="seg-step done"><span>spec</span></span><span class="seg-step now"><span>generación</span></span><span class="seg-step"><span>validación y revisión</span></span><span class="seg-step"><span>aprendizaje</span></span><span class="seg-step"><span>entrega</span></span>
+          </div>
+        </div>
+      </section>
+
+      <div class="cols">
+        <section class="card card-flush col-main" aria-labelledby="ag-h">
+          <div class="card-head">
+            <h2 class="t-2" id="ag-h">Agentes en vivo</h2>
+            <div class="seg" role="group" aria-label="Vista de agentes"><button type="button" aria-pressed="{{treePressed}}" onClick="{{showTree}}">Árbol</button><button type="button" aria-pressed="{{textPressed}}" onClick="{{showText}}">Texto</button></div>
+          </div>
+
+          <sc-if value="{{isTree}}" hint-placeholder-val="{{ true }}">
+            <div class="nodes">
+              <button class="node" type="button" aria-expanded="false"><span class="n-dot st-run"><span class="dot pulse"></span></span><span class="n-name"><b>sesión principal</b><span class="n-model">opus 5.5 · alto</span></span><span class="n-right"><span class="n-dur">48:20</span><span class="state st-run">en marcha</span></span><span class="n-tool">Task → generator</span><span class="n-count">52 llamadas · <span class="deny">1 deneg.</span></span></button>
+              <button class="node node-child" type="button" aria-expanded="false"><span class="n-dot st-done"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span><span class="n-name"><b>interviewer</b><span class="n-model">sonnet 5.5 · medio</span></span><span class="n-right"><span class="n-dur">14:30</span><span class="state st-done">hecho</span></span><span class="n-tool">3 respuestas recogidas</span><span class="n-count">15 llamadas · 0 deneg.</span></button>
+              <button class="node node-child" type="button" aria-expanded="false"><span class="n-dot st-done"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span><span class="n-name"><b>researcher</b><span class="n-model">sonnet 5.5 · alto</span></span><span class="n-right"><span class="n-dur">16:12</span><span class="state st-done">hecho</span></span><span class="n-tool">6 fuentes · research.md</span><span class="n-count">47 llamadas · <span class="deny">2 deneg.</span></span></button>
+              <button class="node node-child" type="button" aria-expanded="false"><span class="n-dot st-done"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span><span class="n-name"><b>architect</b><span class="n-model">opus 5.5 · alto</span></span><span class="n-right"><span class="n-dur">08:30</span><span class="state st-done">hecho</span></span><span class="n-tool">spec.md aprobada</span><span class="n-count">19 llamadas · 0 deneg.</span></button>
+              <button class="node node-child" type="button" aria-expanded="true" aria-controls="ag-detail"><span class="n-dot st-run"><span class="dot pulse"></span></span><span class="n-name"><b>generator</b><span class="n-model">sonnet 5.5 · máximo</span></span><span class="n-right"><span class="n-dur">14:17</span><span class="state st-run">en marcha</span></span><span class="n-tool">Write → src/renamer/dedupe.py</span><span class="n-count">38 llamadas · <span class="deny">1 deneg.</span></span></button>
+              <button class="node node-child" type="button" aria-expanded="false"><span class="n-dot st-wait"><span class="ring"></span></span><span class="n-name"><b>reviewer</b><span class="n-model">opus 5.5 · medio</span></span><span class="n-right"><span class="n-dur">—</span><span class="state st-wait">esperando</span></span><span class="n-tool">tras la generación</span><span class="n-count">0 llamadas</span></button>
+            </div>
+            <div class="tl">
+              <div class="tl-axis"><span>línea de tiempo</span><span class="tl-ticks" aria-hidden="true"><span>0</span><span>15</span><span>30</span><span>45</span><span>60 min</span></span><span></span></div>
+              <button class="tl-row" type="button" aria-pressed="false"><span>principal</span><span class="tl-track"><span class="bar bar-run" style="left: 0; width: 80.5%"></span><span class="bar-now" style="left: 80.5%"></span></span><span class="tl-dur">48:20</span></button>
+              <button class="tl-row" type="button" aria-pressed="false"><span>interviewer</span><span class="tl-track"><span class="bar bar-done" style="left: 8.6%; width: 24.2%"></span></span><span class="tl-dur">14:30</span></button>
+              <button class="tl-row" type="button" aria-pressed="false"><span>researcher</span><span class="tl-track"><span class="bar bar-done" style="left: 13%; width: 27%"></span></span><span class="tl-dur">16:12</span></button>
+              <button class="tl-row" type="button" aria-pressed="false"><span>architect</span><span class="tl-track"><span class="bar bar-done" style="left: 40%; width: 14.2%"></span></span><span class="tl-dur">08:30</span></button>
+              <button class="tl-row" type="button" aria-pressed="true" aria-controls="ag-detail"><span>generator</span><span class="tl-track"><span class="bar bar-run" style="left: 56.7%; width: 23.8%"></span><span class="bar-now" style="left: 80.5%"></span></span><span class="tl-dur">14:17</span></button>
+            </div>
+            <div class="detail" id="ag-detail" aria-label="Detalle de generator">
+              <div style="display: flex; flex-direction: column; gap: 14px">
+                <h3 class="mono" style="font-size: 17px; font-weight: 500">generator</h3>
+                <dl class="kv">
+                  <dt>modelo</dt><dd class="mono">claude-sonnet-5-5</dd>
+                  <dt>esfuerzo</dt><dd>máximo</dd>
+                  <dt>estado</dt><dd>en marcha</dd>
+                  <dt>inicio</dt><dd class="num">14:52:10</dd>
+                  <dt>duración</dt><dd class="num">14:17</dd>
+                  <dt>llamadas</dt><dd class="num">38</dd>
+                  <dt>denegaciones</dt><dd class="num" style="color: var(--danger)">1</dd>
+                </dl>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+                <h4 class="t-small strong">Últimas llamadas</h4>
+                <ol class="log">
+                  <li><span class="lt">14:58:41</span><span class="lk">Bash</span><span class="ld">uv add piexif==1.1.3 rich==13.9.4 · aprobado por ti</span></li>
+                  <li><span class="lt">14:59:02</span><span class="lk">Glob</span><span class="ld">/fotos/movil/2024/*.jpg · solo lectura</span></li>
+                  <li><span class="lt">15:01:30</span><span class="lk">Write</span><span class="ld">src/renamer/exif.py</span></li>
+                  <li class="denied"><span class="lt">15:03:12</span><span class="lk">Bash</span><span class="ld">rm -rf /fotos/tmp · denegado por la política</span></li>
+                  <li><span class="lt">15:04:55</span><span class="lk">Write</span><span class="ld">src/renamer/naming.py</span></li>
+                  <li><span class="lt">15:06:27</span><span class="lk">Write</span><span class="ld">src/renamer/dedupe.py · ahora</span></li>
+                </ol>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{isText}}" hint-placeholder-val="{{ false }}">
+            <ol class="textview" aria-live="polite" aria-label="Agentes, vista de texto">
+              <li><span class="mono strong">sesión principal · en marcha</span><p>opus 5.5, esfuerzo alto. Lleva 48 min 20 s. Ahora delega en generator. 52 llamadas, 1 denegada.</p></li>
+              <li class="tv-child"><span class="mono strong">interviewer · hecho</span><p>sonnet 5.5, esfuerzo medio. Trabajó 14 min 30 s. 15 llamadas, ninguna denegada.</p></li>
+              <li class="tv-child"><span class="mono strong">researcher · hecho</span><p>sonnet 5.5, esfuerzo alto. Trabajó 16 min 12 s. 47 llamadas, 2 denegadas.</p></li>
+              <li class="tv-child"><span class="mono strong">architect · hecho</span><p>opus 5.5, esfuerzo alto. Trabajó 8 min 30 s. 19 llamadas, ninguna denegada.</p></li>
+              <li class="tv-child"><span class="mono strong">generator · en marcha</span><p>sonnet 5.5, esfuerzo máximo. Lleva 14 min 17 s. Ahora escribe src/renamer/dedupe.py. 38 llamadas, 1 denegada: rm -rf /fotos/tmp.</p></li>
+              <li class="tv-child"><span class="mono strong">reviewer · esperando</span><p>Empezará cuando termine la generación.</p></li>
+            </ol>
+          </sc-if>
+        </section>
+        <div class="col-side">
+          <section class="card">
+            <h2 class="t-2">Resultado</h2>
+            <p class="t-small muted">Sin entrega todavía. Aquí verás la ruta, los siguientes pasos y las peticiones denegadas.</p>
+          </section>
+          <section class="card" style="gap: 18px">
+            <h2 class="t-2">Uso de esta sesión</h2>
+            <div class="use-row"><div class="use-head"><span class="t-small muted">Ventana de 5 h</span><span class="use-big">47 %</span></div><div class="meter" role="img" aria-label="31 % al empezar, 47 % ahora"><span class="m-now" style="width: 47%"></span><span class="m-start" style="width: 31%"></span><span class="m-mark" style="left: 31%"></span></div><span class="meta"><span>al empezar 31 %</span><span>·</span><span>+16 en esta creación</span></span></div>
+            <div class="use-row"><div class="use-head"><span class="t-small muted">Semana</span><span class="use-big">63 %</span></div><div class="meter" role="img" aria-label="58 % al empezar, 63 % ahora"><span class="m-now" style="width: 63%"></span><span class="m-start" style="width: 58%"></span><span class="m-mark" style="left: 58%"></span></div><span class="meta"><span>al empezar 58 %</span><span>·</span><span>+5 en esta creación</span></span></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"view":{"editor":"enum","options":["arbol","texto"],"default":"arbol"},"$preview":{"width":1280,"height":2100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const view = (this.state && this.state.view) || this.props.view || 'arbol';
+    return {
+      theme: this.props.theme ?? 'dark',
+      isTree: view === 'arbol',
+      isText: view === 'texto',
+      treePressed: view === 'arbol' ? 'true' : 'false',
+      textPressed: view === 'texto' ? 'true' : 'false',
+      showTree: () => this.setState({ view: 'arbol' }),
+      showText: () => this.setState({ view: 'texto' })
+    };
+  }
+}
+</script>
+</body>
+</html>
