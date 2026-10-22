@@ -122,8 +122,8 @@ test.describe('projects', () => {
     await expect(page.getByText('Mostly conversation about the garden.')).toBeVisible();
 
     const timeline = page.getByTestId('timeline');
-    await expect(timeline).toContainText('interview');
-    await expect(timeline).toContainText('ok');
+    await expect(timeline).toContainText('Interview');
+    await expect(timeline).toContainText('done');
     await expect(page.getByRole('heading', { name: 'Next steps', level: 2 })).toBeVisible();
     await expect(page.getByText('Open the Claude app.')).toBeVisible();
 

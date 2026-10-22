@@ -187,7 +187,7 @@ export function ProjectView({ slug }: { slug: string }) {
                   <tbody>
                     {timeline.steps.map((step) => (
                       <tr key={`${step.step}-${step.startedAt}`}>
-                        <td>{step.step}</td>
+                        <td>{t.stepLabel(step.step)}</td>
                         <td>{formatWhen(step.startedAt, lang)}</td>
                         <td>{formatWhen(step.finishedAt, lang)}</td>
                         <td>{step.outcome === undefined ? t.stillRunning : t.outcome(step.outcome)}</td>

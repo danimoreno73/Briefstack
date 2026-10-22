@@ -156,7 +156,7 @@ export const uiMessages = defineCatalogue({
     outcome: (value: string | undefined): string => {
       switch (value) {
         case 'ok':
-          return 'ok';
+          return 'done';
         case 'completed':
           return 'completed';
         case 'cancelled':

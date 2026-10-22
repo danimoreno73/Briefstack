@@ -108,7 +108,7 @@ test.describe('a whole creation', () => {
     // Its page has the creation history.
     await card.getByRole('link', { name: 'Open the project page' }).click();
     await expect(page.getByRole('heading', { name: 'Garden planner', level: 1 })).toBeVisible();
-    await expect(page.getByTestId('timeline')).toContainText('interview');
+    await expect(page.getByTestId('timeline')).toContainText('Interview');
   });
 });
 

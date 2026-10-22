@@ -87,6 +87,10 @@ td.path {
   font-weight: var(--w-regular);
 }
 
+.nowrap {
+  white-space: nowrap;
+}
+
 /* A creation's idea in a list: the row's name, kept to two lines. */
 .idea-cell {
   min-width: 12rem;

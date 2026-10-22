@@ -1,3 +1,4 @@
+import { Fragment } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { buildPanelState, type PanelEventInput, type PanelLive, type PanelNode, type PanelState } from '../panel/state.js';
 import { Loader } from './common.js';
@@ -55,6 +56,20 @@ function nodeName(node: PanelNode, mainLabel: string): string {
 }
 
 /** Plan usage at the start and at the latest reading; never tokens or cost. */
+/** A usage line whose parts ("5-hour window 12%") each stay whole: a narrow column breaks only between them. */
+function UsageLine({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(' · ').map((part, index) => (
+        <Fragment key={index}>
+          {index > 0 && ' · '}
+          <span class="nowrap">{part}</span>
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 export function PlanUsage({ state }: { state: PanelState }) {
   const { t, lang } = useApp();
   return (
@@ -67,12 +82,14 @@ export function PlanUsage({ state }: { state: PanelState }) {
       ) : (
         <dl>
           <dt>{t.panelUsageStart}</dt>
-          <dd>{t.panelUsageLine(percent(state.usage.start.fiveHour), percent(state.usage.start.sevenDay))}</dd>
+          <dd>
+            <UsageLine text={t.panelUsageLine(percent(state.usage.start.fiveHour), percent(state.usage.start.sevenDay))} />
+          </dd>
           {state.usage.now !== undefined && state.usage.now.at !== state.usage.start.at && (
             <>
               <dt>{t.panelUsageNow}</dt>
               <dd>
-                {t.panelUsageLine(percent(state.usage.now.fiveHour), percent(state.usage.now.sevenDay))} · {formatClock(state.usage.now.at, lang)}
+                <UsageLine text={`${t.panelUsageLine(percent(state.usage.now.fiveHour), percent(state.usage.now.sevenDay))} · ${formatClock(state.usage.now.at, lang)}`} />
               </dd>
             </>
           )}
