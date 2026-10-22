@@ -62,7 +62,9 @@ export function CreationsPage() {
                         const forYou = kind !== 'working' && kind !== 'cancelling';
                         return (
                           <tr key={creation.id} data-creation={creation.id}>
-                            <td>{creation.idea.slice(0, 120)}</td>
+                            <td class="idea-cell">
+                              <span>{creation.idea.slice(0, 300)}</span>
+                            </td>
                             <td class="num">{formatWhen(creation.startedAt, lang)}</td>
                             <td>{creation.currentStep === undefined ? '—' : t.stepLabel(creation.currentStep)}</td>
                             <td data-testid="waiting" class={forYou ? 'for-you' : 'muted'}>

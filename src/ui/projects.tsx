@@ -54,12 +54,13 @@ export function ProjectsView() {
         {({ sessions: all }) => {
           const unfinished = all.filter(isUnfinished);
           if (unfinished.length === 0) return <p class="empty">{t.unfinishedEmpty}</p>;
-          // A table, so sessions are told apart by when and where they stopped, not by their id alone.
+          // Named by their idea, then told apart by when and where they stopped; the id last (audit M8).
           return (
             <div class="table-wrap">
               <table class="stack-on-phone" data-testid="unfinished">
                 <thead>
                   <tr>
+                    <th scope="col">{t.colIdea}</th>
                     <th scope="col">{t.colWhen}</th>
                     <th scope="col">{t.colStatus}</th>
                     <th scope="col">{t.colLastStep}</th>
@@ -69,14 +70,15 @@ export function ProjectsView() {
                 <tbody>
                   {unfinished.map((session) => (
                     <tr key={session.id}>
+                      <td class="idea-cell">
+                        <a href={routeHash({ page: 'session', id: session.id })} class={session.idea === undefined ? 'muted' : undefined}>
+                          {session.idea ?? t.ideaNotRecorded}
+                        </a>
+                      </td>
                       <td class="num">{formatWhen(session.lastEventAt ?? session.startedAt, lang)}</td>
                       <td>{t.outcome(session.outcome ?? session.status)}</td>
                       <td>{session.lastStep === undefined ? t.lastStep(undefined) : t.stepLabel(session.lastStep.step)}</td>
-                      <td>
-                        <a class="id" href={routeHash({ page: 'session', id: session.id })}>
-                          {session.id}
-                        </a>
-                      </td>
+                      <td class="id">{session.id}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -125,13 +125,14 @@ test.describe('finished sessions', () => {
   test('a cancelled and an interrupted session open their panel from the projects page', async ({ page, app }) => {
     await page.goto(app.url);
     const unfinished = page.getByTestId('unfinished');
-    await unfinished.getByRole('link', { name: SESSION_CANCELLED }).click();
+    // Each row's link is its idea; the row is found by the session id beside it.
+    await unfinished.getByRole('row', { name: new RegExp(SESSION_CANCELLED) }).getByRole('link').click();
     await expect(page.getByTestId('session-status')).toContainText('Cancelled');
     await expect(node(page, 'main').getByTestId('node-status')).toHaveText('Cancelled');
     await expect(page.locator('.steps-inline li[data-state="running"]')).toHaveCount(1);
 
     await page.goBack();
-    await page.getByTestId('unfinished').getByRole('link', { name: SESSION_INTERRUPTED }).click();
+    await page.getByTestId('unfinished').getByRole('row', { name: new RegExp(SESSION_INTERRUPTED) }).getByRole('link').click();
     await expect(page.getByTestId('session-status')).toContainText('Interrupted');
     await expect(node(page, 'main').getByTestId('node-status')).toHaveText('Interrupted');
   });

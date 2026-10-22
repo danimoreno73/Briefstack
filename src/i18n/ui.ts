@@ -150,6 +150,7 @@ export const uiMessages = defineCatalogue({
     copyCommand: 'Copy commands',
     unfinishedTitle: 'Interrupted and cancelled creations',
     unfinishedEmpty: 'None.',
+    ideaNotRecorded: 'Idea not recorded',
     lastStep: (step: string | undefined) => (step === undefined ? 'before the first step' : `last step: ${step}`),
     outcome: (value: string | undefined): string => {
       switch (value) {
@@ -722,6 +723,7 @@ export const uiMessages = defineCatalogue({
     copyCommand: 'Copiar comandos',
     unfinishedTitle: 'Creaciones interrumpidas y canceladas',
     unfinishedEmpty: 'Ninguna.',
+    ideaNotRecorded: 'Idea no guardada',
     lastStep: (step: string | undefined) => (step === undefined ? 'antes del primer paso' : `último paso: ${step}`),
     outcome: (value: string | undefined): string => {
       switch (value) {

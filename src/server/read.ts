@@ -3,7 +3,7 @@ import path from 'node:path';
 import { configFilePath, maxActiveCreationsOf, permissionPolicyOf, readConfig, resolvePaths, toAbsolute, type PathEnv } from '../config/index.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
 import { readEvents, sessionEventsFile } from '../events/index.js';
-import { listSessions, sessionTimeline, type SessionTimeline } from '../events/sessions.js';
+import { listSessions, sessionIdea, sessionTimeline, type SessionTimeline } from '../events/sessions.js';
 import { projectEvent } from '../panel/project.js';
 import { buildPanelState } from '../panel/state.js';
 import { resolveLang, systemLocale, type Lang } from '../i18n/index.js';
@@ -153,7 +153,15 @@ export function readRoutes(context: ReadContext): RouteTable {
       'GET /api/sessions',
       async (_req, res) => {
         const { paths } = await load();
-        sendJson(res, 200, { sessions: await listSessions(paths.sessionsDir) });
+        const sessions = await listSessions(paths.sessionsDir);
+        // Read-only, redacted; added in the UI pass so unfinished creations are told apart (audit M8).
+        const withIdeas = await Promise.all(
+          sessions.map(async (session) => {
+            const idea = await sessionIdea(paths.sessionsDir, session.id);
+            return idea === undefined ? session : { ...session, idea };
+          }),
+        );
+        sendJson(res, 200, { sessions: withIdeas });
       },
     ],
     [

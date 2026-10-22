@@ -89,10 +89,17 @@ note's frontmatter (`target`, `path`, `status`, `profile`, `updated`,
 
 ### `GET /api/sessions`
 
-`200 { "sessions": [{ id, status, outcome?, startedAt?, lastEventAt?, lastStep?, endReason? }, …] }`,
+`200 { "sessions": [{ id, status, outcome?, startedAt?, lastEventAt?, lastStep?, endReason?, idea? }, …] }`,
 newest first. `status` is `finished | in-progress | interrupted`;
 `outcome` (`completed | cancelled | failed`) comes with `finished`. The UI
-lists `interrupted` and `cancelled` ones apart, with their `lastStep`.
+lists `interrupted` and `cancelled` ones apart, named by their `idea`, with
+their `lastStep`.
+
+`idea` (read-only, added in the UI pass) is the session's `idea.md` as the
+flow wrote it: lines that look like a secret replaced with `[redacted]`,
+whitespace collapsed to one line, cut to 300 characters (`…` at the end).
+It is absent when the file is missing, empty or over 64 KB. Only this route
+returns it; the chat's `list_sessions` tool does not.
 
 ### `GET /api/sessions/:id`
 

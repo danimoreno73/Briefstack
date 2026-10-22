@@ -31,6 +31,8 @@ export interface SessionSummary {
   lastEventAt?: string;
   lastStep?: { step: string; phase: 'started' | 'finished' };
   endReason?: string;
+  /** From the session's `idea.md`, redacted and cut; only in `GET /api/sessions`. */
+  idea?: string;
 }
 
 export interface TimelineStep {

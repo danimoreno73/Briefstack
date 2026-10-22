@@ -14,6 +14,7 @@ import {
   summarizeSession,
   type SessionEvent,
 } from '../../src/events/index.js';
+import { MAX_IDEA_CHARS, sessionIdea } from '../../src/events/sessions.js';
 import { tempDir } from '../helpers.js';
 
 const at = (minutes: number) => new Date(Date.UTC(2026, 9, 12, 10, minutes));
@@ -120,5 +121,27 @@ describe('sessions', () => {
     expect(badLines).toEqual([]);
     expect(summarizeSession(events, { now: at(3) })).toMatchObject({ status: 'interrupted', endReason: 'server_stop' });
     expect((await listSessions(sessionsDir, { now: at(3) }))[0]).toMatchObject({ id, status: 'interrupted', endReason: 'server_stop' });
+  });
+
+  it('reads a session idea redacted, on one line and cut', async () => {
+    const key = ['sk', 'ant', 'b'.repeat(30)].join('-');
+    await mkdir(path.join(sessionsDir, 'one'), { recursive: true });
+    await writeFile(path.join(sessionsDir, 'one', 'idea.md'), `A reading log\nfor my club.\nkey ${key}\n`, 'utf8');
+    expect(await sessionIdea(sessionsDir, 'one')).toBe('A reading log for my club. [redacted]');
+
+    await mkdir(path.join(sessionsDir, 'long'), { recursive: true });
+    await writeFile(path.join(sessionsDir, 'long', 'idea.md'), 'x'.repeat(MAX_IDEA_CHARS + 50), 'utf8');
+    const long = await sessionIdea(sessionsDir, 'long');
+    expect(long).toHaveLength(MAX_IDEA_CHARS);
+    expect(long?.endsWith('…')).toBe(true);
+
+    await mkdir(path.join(sessionsDir, 'blank'), { recursive: true });
+    await writeFile(path.join(sessionsDir, 'blank', 'idea.md'), ' \n\n', 'utf8');
+    expect(await sessionIdea(sessionsDir, 'blank')).toBeUndefined();
+    await mkdir(path.join(sessionsDir, 'big'), { recursive: true });
+    await writeFile(path.join(sessionsDir, 'big', 'idea.md'), 'y'.repeat(70 * 1024), 'utf8');
+    expect(await sessionIdea(sessionsDir, 'big')).toBeUndefined();
+    expect(await sessionIdea(sessionsDir, 'missing')).toBeUndefined();
+    expect(await sessionIdea(sessionsDir, '../one')).toBeUndefined();
   });
 });

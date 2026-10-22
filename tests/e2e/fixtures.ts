@@ -149,6 +149,8 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   await appendEvent(sessionsDir, sessionLifecycleEvent(SESSION_INTERRUPTED, 'started', undefined, at('07:00')));
   await appendEvent(sessionsDir, flowEvent(SESSION_INTERRUPTED, 'research', 'started', undefined, at('07:03')));
   await appendEvent(sessionsDir, sessionEndEvent(SESSION_INTERRUPTED, 'server_stop', at('07:04')));
+  // The cancelled one has the idea the flow writes first; the interrupted one stopped before it.
+  await writeFile(path.join(sessionsDir, SESSION_CANCELLED, 'idea.md'), `A reading log for my book club.\napi key ${FAKE_KEY}\n`, 'utf8');
 
   const manager = new CreationManager({
     runner:

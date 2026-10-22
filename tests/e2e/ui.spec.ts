@@ -96,9 +96,15 @@ test.describe('projects', () => {
 
     const unfinished = page.getByTestId('unfinished');
     await expect(unfinished).toContainText('sess-cancelled');
-    await expect(unfinished.getByRole('row', { name: /sess-cancelled/ })).toContainText('Interview');
+    const cancelled = unfinished.getByRole('row', { name: /sess-cancelled/ });
+    await expect(cancelled).toContainText('Interview');
+    // Named by its idea, redacted, and the idea opens the session.
+    await expect(cancelled.getByRole('link', { name: 'A reading log for my book club. [redacted]' })).toBeVisible();
+    await expect(unfinished).not.toContainText(FAKE_KEY);
     await expect(unfinished).toContainText('sess-interrupted');
-    await expect(unfinished.getByRole('row', { name: /sess-interrupted/ })).toContainText('Research');
+    const interrupted = unfinished.getByRole('row', { name: /sess-interrupted/ });
+    await expect(interrupted).toContainText('Research');
+    await expect(interrupted.getByRole('link', { name: 'Idea not recorded' })).toBeVisible();
     await expect(unfinished).not.toContainText('sess-done');
   });
 

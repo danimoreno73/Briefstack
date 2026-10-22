@@ -75,6 +75,22 @@ kbd,
   overflow-wrap: anywhere;
 }
 
+/* A creation's idea in a list: the row's name, kept to two lines. */
+.idea-cell {
+  min-width: 12rem;
+  max-width: 32rem;
+}
+
+.idea-cell > a,
+.idea-cell > span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
 pre {
   padding: var(--space-3);
   border: 1px solid var(--rule);

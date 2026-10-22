@@ -1,6 +1,7 @@
-import { readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { BriefstackError } from '../errors.js';
+import { redactSecretLines } from '../validate/secrets.js';
 import {
   EVENTS_FILE,
   EVENT_FORMAT,
@@ -104,6 +105,33 @@ export async function listSessions(sessionsDir: string, options: SummaryOptions 
     sessions.push({ id: entry.name, ...summarizeSession(events, options) });
   }
   return sessions.sort(byStartDesc);
+}
+
+/** The file the flow writes the idea to, verbatim, in its first step. */
+export const IDEA_FILE = 'idea.md';
+/** Longest idea `sessionIdea` returns, in characters; the list shows a few lines at most. */
+export const MAX_IDEA_CHARS = 300;
+/** A bigger `idea.md` is not read: it is not an idea the flow wrote. */
+const MAX_IDEA_FILE_BYTES = 64 * 1024;
+
+/**
+ * A session's idea, for the list of unfinished creations: its `idea.md` with
+ * every line that looks like a secret replaced, whitespace collapsed to
+ * single spaces and cut to `MAX_IDEA_CHARS`. `undefined` when the session is
+ * invalid, the file is missing, too big or empty.
+ */
+export async function sessionIdea(sessionsDir: string, id: string): Promise<string | undefined> {
+  if (!isSessionId(id)) return undefined;
+  const file = path.join(sessionsDir, id, IDEA_FILE);
+  try {
+    const info = await stat(file);
+    if (!info.isFile() || info.size > MAX_IDEA_FILE_BYTES) return undefined;
+    const text = redactSecretLines(await readFile(file, 'utf8')).replace(/\s+/g, ' ').trim();
+    if (text === '') return undefined;
+    return text.length <= MAX_IDEA_CHARS ? text : `${text.slice(0, MAX_IDEA_CHARS - 1)}…`;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

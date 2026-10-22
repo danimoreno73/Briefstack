@@ -2910,8 +2910,28 @@ locally in the user's own browser, and every one of these versions is from
 6. **Page titles and the skip link (M2, M3)** are set in the UI only. The
    skip link moves focus and keeps the hash, because the hash is the route.
 7. **M8 is partial**: listing unfinished creations by their idea needs the
-   sessions API to return it; recorded as proposal 4 in the audit.
+   sessions API to return it; recorded as proposal 4 in the audit. (Done in
+   U4 with the user's leave; see "U4: the idea in the sessions list".)
 8. **One e2e flake seen**: `several.spec.ts` "both library commits are
    there" timed out waiting for the menu once in a slow full run (46 s
    instead of 24 s); it passed alone five times and in two full runs after.
    Not changed; to watch in U4.
+
+## U4: the idea in the sessions list, an exception to BRIEF-ui §5 (2026-10-22)
+
+BRIEF-ui §5 says the pass changes no API. The user allowed one exception
+for audit finding M8 (U4 instruction, 2026-10-22): `GET /api/sessions` gains
+a read-only `idea` field per session, and the projects page names
+interrupted and cancelled creations by it.
+
+- Source: the session folder's `idea.md`, which the flow writes verbatim in
+  its first step (`.claude/skills/new-project/SKILL.md`, step `idea`).
+- `sessionIdea` (`src/events/sessions.ts`, unit tested) replaces every line
+  that looks like a secret, as every other text the API serves, collapses
+  whitespace to one line and cuts it to 300 characters. A file over 64 KB,
+  a missing or empty one gives no field.
+- Only the HTTP route adds it. `listSessions` and the chat's
+  `list_sessions` tool are unchanged, so the chat sees exactly what it saw
+  before; nothing writes the file.
+- A session with no `idea.md` (it stopped before the first step) is shown
+  as "Idea not recorded"; the id stays in its own column.

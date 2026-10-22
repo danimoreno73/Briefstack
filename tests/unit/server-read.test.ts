@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -84,6 +84,7 @@ describe('read API', () => {
     await appendEvent(sessions, sessionLifecycleEvent(SESSION, 'finished', 'completed', new Date('2026-10-12T09:30:00Z')));
     await appendEvent(sessions, sessionLifecycleEvent('sess-2', 'started', undefined, new Date('2026-10-12T08:00:00Z')));
     await appendEvent(sessions, sessionLifecycleEvent('sess-2', 'finished', 'cancelled', new Date('2026-10-12T08:05:00Z')));
+    await writeFile(path.join(sessions, 'sess-2', 'idea.md'), `A book log.\nkey ${FAKE_KEY}\n`, 'utf8');
 
     server = await startWebServer({
       port: 0,
@@ -218,10 +219,10 @@ describe('read API', () => {
   });
 
   it('lists sessions newest first and gives one timeline', async () => {
-    const { sessions } = await json<{ sessions: { id: string; status: string; outcome?: string }[] }>('/api/sessions');
-    expect(sessions.map((s) => [s.id, s.status, s.outcome])).toEqual([
-      [SESSION, 'finished', 'completed'],
-      ['sess-2', 'finished', 'cancelled'],
+    const { sessions } = await json<{ sessions: { id: string; status: string; outcome?: string; idea?: string }[] }>('/api/sessions');
+    expect(sessions.map((s) => [s.id, s.status, s.outcome, s.idea])).toEqual([
+      [SESSION, 'finished', 'completed', undefined],
+      ['sess-2', 'finished', 'cancelled', 'A book log. [redacted]'],
     ]);
     const timeline = await json<{ summary: { outcome: string } }>('/api/sessions/sess-2');
     expect(timeline.summary.outcome).toBe('cancelled');
