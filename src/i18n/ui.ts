@@ -302,8 +302,8 @@ export const uiMessages = defineCatalogue({
     },
     openCreation: 'Open',
     pendingFor: (idea: string) => `For the creation: ${idea}`,
-    recentTitle: 'Recent creations',
-    recentEmpty: 'None since the app started.',
+    recentTitle: 'Finished since briefstack started',
+    recentEmpty: 'None has finished yet.',
     policyShown: (policy: string) =>
       `Unexpected permission requests: ${policy === 'unattended' ? 'denied automatically (unattended)' : 'asked to you'}.`,
     progressTitle: 'Progress',
@@ -876,8 +876,8 @@ export const uiMessages = defineCatalogue({
     },
     openCreation: 'Abrir',
     pendingFor: (idea: string) => `Para la creación: ${idea}`,
-    recentTitle: 'Creaciones recientes',
-    recentEmpty: 'Ninguna desde que arrancó la app.',
+    recentTitle: 'Terminadas desde que arrancó briefstack',
+    recentEmpty: 'Aún no ha terminado ninguna.',
     policyShown: (policy: string) =>
       `Peticiones de permiso inesperadas: ${policy === 'unattended' ? 'se deniegan solas (desatendido)' : 'te las pregunto'}.`,
     progressTitle: 'Progreso',
