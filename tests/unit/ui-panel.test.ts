@@ -38,6 +38,12 @@ describe('panel data for the page', () => {
 
   it('formats durations, percents and targets', () => {
     expect(formatDuration(undefined)).toBe('—');
+    expect(formatDuration(40)).toBe('< 0.1 s');
+    expect(formatDuration(0)).toBe('< 0.1 s');
+    expect(formatDuration(480)).toBe('0.4 s');
+    expect(formatDuration(2_390, 'es')).toBe('2,3 s');
+    expect(formatDuration(9_990)).toBe('9.9 s');
+    expect(formatDuration(10_000)).toBe('10 s');
     expect(formatDuration(45_500)).toBe('45 s');
     expect(formatDuration(185_000)).toBe('3 min 5 s');
     expect(formatDuration(3_720_000)).toBe('1 h 2 min');

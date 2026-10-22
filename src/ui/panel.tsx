@@ -121,7 +121,7 @@ export function AgentPanel({ state, showPendingLinks = false, showUsage = true }
           </span>
         </button>
         <div class="agent-meta muted">
-          {[item.model, item.effort, formatClock(item.startedAt, lang), formatDuration(item.durationMs)]
+          {[item.model, item.effort, formatClock(item.startedAt, lang), formatDuration(item.durationMs, lang)]
             .filter((value) => value !== undefined)
             .join(' · ')}
         </div>
@@ -210,7 +210,7 @@ export function AgentPanel({ state, showPendingLinks = false, showUsage = true }
               </span>
               {/* The status in words too, not only the bar's colour (audit M13). */}
               <span class="timeline-time muted">
-                <span class="timeline-status">{t.nodeStatus(item.status)}</span> · {formatDuration(item.durationMs)}
+                <span class="timeline-status">{t.nodeStatus(item.status)}</span> · {formatDuration(item.durationMs, lang)}
               </span>
             </button>
           );
@@ -251,7 +251,7 @@ export function AgentPanel({ state, showPendingLinks = false, showUsage = true }
             return (
               <li key={item.id}>
                 {nodeName(item, t.panelMain)}: {t.nodeStatus(item.status)}. {t.panelStarted} {formatClock(item.startedAt, lang)}, {t.panelDuration.toLowerCase()}{' '}
-                {formatDuration(item.durationMs)}. {item.current === undefined ? t.panelNoTool : `${t.panelNow}: ${item.current.tool}${target === undefined ? '' : ` ${target}`}`}.{' '}
+                {formatDuration(item.durationMs, lang)}. {item.current === undefined ? t.panelNoTool : `${t.panelNow}: ${item.current.tool}${target === undefined ? '' : ` ${target}`}`}.{' '}
                 {t.panelToolCalls(item.toolCalls)}
                 {item.denials.length > 0 ? `, ${t.panelDenialCount(item.denials.length)}` : ''}.
                 {item.pending !== undefined ? ` ${t.panelAsks(item.pending.kind)}.` : ''}
@@ -292,7 +292,7 @@ function SessionPanel({ events, badLines }: { events: PanelEventInput[]; badLine
     <>
       <p data-testid="session-status">
         <strong>{t.panelSessionStatus(state.session.status, state.session.outcome)}</strong> · {formatClock(state.session.startedAt, lang)} ·{' '}
-        {formatDuration(state.nodes[0]?.durationMs)}
+        {formatDuration(state.nodes[0]?.durationMs, lang)}
         {state.session.profile !== undefined && <> · {state.session.profile}</>}
       </p>
       {badLines > 0 && <p class="banner banner-warn">{t.panelBadLines(badLines)}</p>}

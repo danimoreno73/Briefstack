@@ -89,7 +89,7 @@ test.describe('the live panel', () => {
     await expect(node(again, 'g1').getByTestId('node-pending')).toBeVisible();
     const after = await textView(again);
     // Same lines, apart from running durations.
-    const stable = (text: string) => text.replace(/\d+ (?:s|min|h)\b/g, 'N');
+    const stable = (text: string) => text.replace(/(?:< )?[\d.]+ (?:s|min|h)\b/g, 'N');
     expect(stable(after)).toBe(stable(before));
     expect(after).toContain('generator: Waiting for you');
     expect(after).toContain('2 tool calls');

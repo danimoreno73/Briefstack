@@ -35,9 +35,17 @@ export function liveFromState(state: CreationState): PanelLive {
   return live;
 }
 
-/** `45 s`, `3 min 5 s`, `1 h 2 min`. */
-export function formatDuration(ms: number | undefined): string {
+/**
+ * `< 0.1 s`, `2.4 s`, `45 s`, `3 min 5 s`, `1 h 2 min`. Under ten seconds with
+ * a tenth, in the language's decimal mark, so short runs do not all read
+ * `0 s` beside bars of very different lengths (audit L10).
+ */
+export function formatDuration(ms: number | undefined, lang = 'en'): string {
   if (ms === undefined || !Number.isFinite(ms)) return '—';
+  if (ms < 10_000) {
+    const tenths = new Intl.NumberFormat(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    return ms < 100 ? `< ${tenths.format(0.1)} s` : `${tenths.format(Math.floor(ms / 100) / 10)} s`;
+  }
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return `${seconds} s`;
   const minutes = Math.floor(seconds / 60);
