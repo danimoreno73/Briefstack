@@ -527,7 +527,7 @@ export const uiMessages = defineCatalogue({
         unexplained: 'No rationale given',
       })[kind] ?? kind,
     proposalTests: 'Build, lint and tests',
-    testStep: (name: string, ok: boolean, seconds: number) => `${name}: ${ok ? 'passed' : 'failed'} (${seconds} s)`,
+    testStep: (name: string, ok: boolean, duration: string) => `${name}: ${ok ? 'passed' : 'failed'} (${duration})`,
     proposalNotTested: 'Not run: the checks on the change must pass first.',
     safetyFlaggedTitle: 'Safety notice: this change may weaken a rule',
     safetyFlaggedNote: (model: string) =>
@@ -1101,7 +1101,7 @@ export const uiMessages = defineCatalogue({
         unexplained: 'Sin justificación',
       })[kind] ?? kind,
     proposalTests: 'Build, lint y tests',
-    testStep: (name: string, ok: boolean, seconds: number) => `${name}: ${ok ? 'correcto' : 'fallido'} (${seconds} s)`,
+    testStep: (name: string, ok: boolean, duration: string) => `${name}: ${ok ? 'correcto' : 'fallido'} (${duration})`,
     proposalNotTested: 'No se ejecutaron: antes deben pasar las comprobaciones del cambio.',
     safetyFlaggedTitle: 'Aviso de seguridad: este cambio puede debilitar una regla',
     safetyFlaggedNote: (model: string) =>

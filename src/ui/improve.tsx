@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { ConfirmDialog, ErrorBanner, Loader } from './common.js';
 import { formatWhen } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
+import { formatDuration } from './panelData.js';
 import { routeHash } from './route.js';
 import type { DiffHunkView, ImproveOverview, ProposalDetail, ProposalPage, SuggestionView, UsageView } from './types.js';
 
@@ -342,7 +343,7 @@ function StatusLine({ proposal, blockers }: { proposal: ProposalDetail; blockers
  * the changes.
  */
 function ProposalBody({ page, reload }: { page: ProposalPage; reload: () => void }) {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const { proposal, blockers } = page;
   return (
     <section class="proposal">
@@ -427,7 +428,7 @@ function ProposalBody({ page, reload }: { page: ProposalPage; reload: () => void
             {proposal.checks.error !== undefined && <li>{proposal.checks.error}</li>}
             {proposal.checks.steps.map((step) => (
               <li key={step.name} data-step={step.name} data-ok={String(step.ok)}>
-                {t.testStep(step.name, step.ok, Math.round(step.ms / 1000))}
+                {t.testStep(step.name, step.ok, formatDuration(step.ms, lang))}
                 {!step.ok && <pre class="tail">{step.tail}</pre>}
               </li>
             ))}
