@@ -53,6 +53,13 @@ async function hideTempDir(page: Page): Promise<void> {
   const variants = [tempDir, tempDir.replaceAll('\\', '/')];
   await page.evaluate((prefixes) => {
     const swap = (text: string) => prefixes.reduce((out, prefix) => out.split(prefix).join('<tmp>'), text);
+    // A path is cut into one text node per folder (`PathText`), so it is swapped whole and cut again.
+    for (const element of document.querySelectorAll<HTMLElement>('.path-text')) {
+      const text = element.textContent ?? '';
+      if (!prefixes.some((prefix) => text.includes(prefix))) continue;
+      const pieces = swap(text).split(/(?<=[\\/])/);
+      element.replaceChildren(...pieces.flatMap((piece, index) => (index === 0 ? [piece] : [document.createElement('wbr'), piece])));
+    }
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
       if (node.nodeValue !== null && prefixes.some((prefix) => node.nodeValue?.includes(prefix))) node.nodeValue = swap(node.nodeValue);

@@ -56,6 +56,14 @@ export function withoutLeadingHeading(text: string, heading: string): string {
   return match !== null && match[1]?.trim().toLowerCase() === heading.trim().toLowerCase() ? text.slice(match[0].length) : text;
 }
 
+/**
+ * A path cut after each `/` or `\`, so a long one wraps between folders, never
+ * inside a folder's name. Joined again, the pieces are the path.
+ */
+export function pathPieces(value: string): string[] {
+  return value.split(/(?<=[\\/])/).filter((piece) => piece !== '');
+}
+
 /** The note without its leading `---` status block, for the preview. */
 export function stripFrontmatter(text: string): string {
   const match = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(text);

@@ -75,6 +75,18 @@ kbd,
   overflow-wrap: anywhere;
 }
 
+/* A path wraps between folders (`PathText` marks the places), and inside a name only when one folder is wider than its box. */
+.path {
+  overflow-wrap: break-word;
+}
+
+/* In a list a path is a detail, not the row's name: quiet and narrower, so the name gets the width (audit L6). */
+td.path {
+  max-width: 18rem;
+  color: var(--muted);
+  font-weight: var(--w-regular);
+}
+
 /* A creation's idea in a list: the row's name, kept to two lines. */
 .idea-cell {
   min-width: 12rem;

@@ -1,8 +1,9 @@
-import type { ComponentChildren } from 'preact';
+import { Fragment, type ComponentChildren } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import MarkdownIt from 'markdown-it';
 import { ApiError } from './apiError.js';
 import { describeError } from './errors.js';
+import { pathPieces } from './format.js';
 import { useApp, type Loaded } from './hooks.js';
 
 /** Raw HTML in notes is escaped, never rendered. */
@@ -21,6 +22,20 @@ markdown.core.ruler.push('demote_headings', (state) => {
 export function Markdown({ text }: { text: string }) {
   const html = useMemo(() => markdown.render(text), [text]);
   return <div class="markdown" dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+/** A path in the monospace that wraps only between folders (audit L6). */
+export function PathText({ value }: { value: string }) {
+  return (
+    <span class="path-text">
+      {pathPieces(value).map((piece, index) => (
+        <Fragment key={index}>
+          {index > 0 && <wbr />}
+          {piece}
+        </Fragment>
+      ))}
+    </span>
+  );
 }
 
 export function ErrorBanner({ error }: { error: unknown }) {

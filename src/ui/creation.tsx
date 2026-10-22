@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import { CreationSuggestions } from './improve.js';
 import { ApiError, CREATIONS_CHANGED_EVENT, TOKEN_HEADER, noteRejection } from './api.js';
 import { answersFor, defaultSelection, type Selection } from './answers.js';
-import { ConfirmDialog, CopyButton, ErrorBanner, Loader, Markdown, Notice } from './common.js';
+import { ConfirmDialog, CopyButton, ErrorBanner, Loader, Markdown, Notice, PathText } from './common.js';
 import { formatWhen } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { AgentPanel, PENDING_CONTROL_ID, PlanUsage, usePanelState } from './panel.js';
@@ -690,7 +690,7 @@ function ProjectCard({ project }: { project: ProjectListing }) {
       </p>
       {project.status !== undefined && (
         <p class="path-line">
-          <code class="path">{project.status.path}</code> <CopyButton text={project.status.path} label={t.copyPath} />
+          <code class="path"><PathText value={project.status.path} /></code> <CopyButton text={project.status.path} label={t.copyPath} />
         </p>
       )}
       <p>{t.resultNextSteps}</p>

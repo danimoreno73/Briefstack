@@ -10,6 +10,7 @@ import {
   isUnfinished,
   levelIndex,
   openCommandLines,
+  pathPieces,
   quotePath,
   stripFrontmatter,
   withoutLeadingHeading,
@@ -102,6 +103,14 @@ describe('format helpers', () => {
     expect(withoutLeadingHeading('# Siguientes pasos\n- a\n', 'Next steps')).toBe('# Siguientes pasos\n- a\n');
     expect(withoutLeadingHeading('Intro\n# Next steps\n', 'Next steps')).toBe('Intro\n# Next steps\n');
     expect(withoutLeadingHeading('# Next steps', 'Next steps')).toBe('');
+  });
+  it('cuts a path after each separator, so it wraps between folders', () => {
+    expect(pathPieces('/home/me/garden planner')).toEqual(['/', 'home/', 'me/', 'garden planner']);
+    const windows = ['C:', 'Users', 'me', 'projects'].join(BS);
+    expect(pathPieces(windows)).toEqual([`C:${BS}`, `Users${BS}`, `me${BS}`, 'projects']);
+    expect(pathPieces(`${BS}${BS}server${BS}share/x`)).toEqual([BS, BS, `server${BS}`, 'share/', 'x']);
+    expect(pathPieces('name').join('')).toBe('name');
+    expect(pathPieces('')).toEqual([]);
   });
 });
 

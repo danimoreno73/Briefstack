@@ -1,4 +1,4 @@
-import { CopyButton, Loader, Markdown } from './common.js';
+import { CopyButton, Loader, Markdown, PathText } from './common.js';
 import { formatWhen, isUnfinished, openCommandLines, withoutLeadingHeading } from './format.js';
 import { useApp, useDocumentTitle, useLoad } from './hooks.js';
 import { routeHash } from './route.js';
@@ -39,7 +39,7 @@ export function ProjectsView() {
                     <td>{project.status?.status ?? <span class="badge badge-warn">{t.invalidNote}</span>}</td>
                     <td>{project.status?.profile ?? '—'}</td>
                     <td class="num">{formatWhen(project.created, lang)}</td>
-                    <td class="path">{project.status?.path ?? '—'}</td>
+                    <td class="path">{project.status?.path === undefined ? '—' : <PathText value={project.status.path} />}</td>
                   </tr>
                 ))}
               </tbody>
@@ -150,7 +150,7 @@ export function ProjectView({ slug }: { slug: string }) {
                     <dt>{t.colCreated}</dt>
                     <dd>{formatWhen(project.created, lang)}</dd>
                     <dt>{t.colPath}</dt>
-                    <dd class="path">{status.path}</dd>
+                    <dd class="path"><PathText value={status.path} /></dd>
                   </dl>
                 </div>
               )}

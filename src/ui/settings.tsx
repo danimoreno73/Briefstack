@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { MANY_CREATIONS_NOTE_ABOVE } from '../config/limits.js';
 import { isLang } from '../i18n/index.js';
 import { api } from './api.js';
-import { ErrorBanner, Loader, Notice } from './common.js';
+import { ErrorBanner, Loader, Notice, PathText } from './common.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import type { PathsView, SettingsView } from './types.js';
 
@@ -150,17 +150,17 @@ export function SettingsPage() {
         {(view) => (
           <dl class="panel paths" data-testid="paths">
             <dt>{t.pathHome}</dt>
-            <dd class="path">{view.home}</dd>
+            <dd class="path"><PathText value={view.home} /></dd>
             <dt>{t.pathConfig}</dt>
-            <dd class="path">{view.configFile}</dd>
+            <dd class="path"><PathText value={view.configFile} /></dd>
             <dt>{t.pathLibrary}</dt>
-            <dd class="path">{view.libraryDir}</dd>
+            <dd class="path"><PathText value={view.libraryDir} /></dd>
             <dt>{t.pathProjects}</dt>
-            <dd class="path">{view.projectsDir}</dd>
+            <dd class="path"><PathText value={view.projectsDir} /></dd>
             <dt>{t.pathSessions}</dt>
-            <dd class="path">{view.sessionsDir}</dd>
+            <dd class="path"><PathText value={view.sessionsDir} /></dd>
             <dt>{t.pathRepo}</dt>
-            <dd class="path">{view.repoDir}</dd>
+            <dd class="path"><PathText value={view.repoDir} /></dd>
             <dt>{t.pathAllowed}</dt>
             <dd>
               {view.allowedDirs.length === 0 ? (
@@ -169,7 +169,7 @@ export function SettingsPage() {
                 <ul>
                   {view.allowedDirs.map((dir) => (
                     <li key={dir} class="path">
-                      {dir}
+                      <PathText value={dir} />
                     </li>
                   ))}
                 </ul>
