@@ -2960,3 +2960,100 @@ interrupted and cancelled creations by it.
    menu's own 4 s check could be refused first and turn the page into the
    message, taking the link with it; it now changes the route through the
    hash.
+
+## U5: the design from the canvas, shell and creation screen (2026-10-22)
+
+The user brought a design made on a design canvas, in `docs/diseno/`
+(`LEEME.md`, `bs.css`, the markup of every screen; Spanish, kept as given),
+and asked for the app's structure and the creation screen in Preact. It
+replaces direction A. Answers the user gave before any code:
+
+1. **What the canvas shows and the app does not do is left out and
+   proposed**, as BRIEF-ui §5 asks (no behaviour change in a UI pass). The
+   proposals: "Save draft" on the questions; "Don't ask again for `uv add`
+   in this creation" on a permission (security); "Read only" versus "Read
+   and write" for a folder grant (today it is yes or no; security); "Notify
+   me" while it works; "Open folder" on the result; the spec's flagged
+   assumptions, stack, generated files and a link to the whole `spec.md`
+   (the API does not return them); "Latest calls" per agent (the panel state
+   keeps denials, not every call); agents that have not started shown as
+   waiting; the rail's version line and "local engine running"; a count on
+   Improvements.
+2. **The screens not yet moved keep their look**, nested under `.legacy`
+   (see below), instead of moving all screens at once or living with a mix.
+3. **The theme follows the system by default**, as BRIEF-ui §2 says;
+   `LEEME.md` says dark by default. The switch keeps System, Light and Dark.
+4. **Roboto Slab is Apache License 2.0**, not OFL as `LEEME.md` says and
+   BRIEF-ui §5 requires. The user approved bundling it as an exception;
+   license and source in `docs/design/vendor/fonts/`.
+
+Decisions taken while building it:
+
+- **bs.css is copied unchanged** to `src/ui/static/bs.css` (the build copies
+  that folder; `LEEME.md` says `src/styles/`, which the build does not
+  serve). What the app needs beyond it is in `src/ui/static/app.css`: the
+  canvas draws the dialog and the drawer inside a frame (absolute, not
+  fixed), has no open state for the phone's menu, and its screens use
+  `style` attributes, which the CSP (`style-src 'self'`) refuses; each of
+  those is a class there. Fonts are declared in `fonts.css`.
+- **Widths that depend on data** (plan meters, timeline bars) are set
+  through Preact's `style` object, which writes the CSSOM. CSP Level 3
+  restricts `style` attributes in markup and `setAttribute('style')`, not
+  CSSOM changes (W3C CSP3, "style-src-attr"). Checked in headless Chromium
+  under the app's CSP: the meters and bars render at their widths
+  (`npm run screenshots -- panel.shots.ts`, `screenshots/u5/`).
+- **`.legacy`.** `style.css` is wrapped in one `.legacy { … }` rule with
+  native CSS nesting (the README's minimum browsers support it), and the
+  tokens of `tokens.css` are declared on `.legacy` instead of `:root`,
+  because several names are also bs.css tokens (`--surface`, `--accent`,
+  `--focus`…). The shell renders a screen not yet moved inside
+  `<div class="legacy legacy-page">`; the chat drawer too. Their
+  `light-dark()` colours follow the `color-scheme` bs.css sets. The old
+  shell and gate rules were removed. When the last screen moves,
+  `tokens.css`, `style.css` and the two old fonts go.
+- **`<html data-theme>` always holds the theme in use.** bs.css changes its
+  tokens only through the attribute, so "System" resolves it from
+  `prefers-color-scheme` and follows changes (`src/ui/theme.ts`, the pure
+  part in `themeChoice.ts`). The e2e test now checks the attribute under an
+  emulated light and dark system.
+- **Strings.** Headings and button labels keep the app's current strings
+  ("The flow needs your answers", "Approve", "Keep going"…) rather than the
+  canvas's sample copy; the canvas's "Te espera" pattern is the cream chip
+  in the header ("Interview · waiting for you"). New strings are in
+  `src/i18n/ui.ts`, both languages.
+- **Questions** keep one "own answer" field per question (the API answers
+  per question); the canvas has one shared box. A multi-select question
+  uses checkboxes styled as the canvas's options. The real input lies
+  unseen over the whole option, so a click anywhere on it is a click on the
+  control and keyboard focus shows on the option.
+- **The permission request stays a non-modal `<dialog open>`**, so Cancel
+  stays reachable; app.css resets the UA's dialog box to sit in the page.
+- **The cancel confirmation** is a native modal dialog; focus starts on
+  "Keep going", Escape backs out.
+- **Waiting for the user** is announced in a polite live region ("Waiting
+  for you: your answers") and a "Go to what waits for you" button at the
+  top of the page moves focus to the control; focus never jumps on its own.
+- **Agents.** Each node is a button that selects it (`aria-expanded`), with
+  the request it asks and "Go to the answer" on the line below (a button
+  cannot hold another). Tree and Text are a segmented control; the text view
+  is a polite live region and replaces the `<details>` it was. Timeline rows
+  carry their state in words for screen readers. On a finished creation the
+  panel is folded behind "Show agents and timeline" (rendered, hidden).
+- **The result** shows where the project is, the commands to open it and
+  its next steps from `GET /api/projects/:slug`, the route the project page
+  already reads.
+- **The shell.** Rail order and icons from the canvas. The Creations count
+  turns cream when a creation waits (from `status: 'waiting'` in
+  `GET /api/creations`, already polled). The language button saves `lang`
+  through `PUT /api/settings`, as the Settings page does. "Open the chat"
+  and Ctrl J (Cmd J) open the drawer; on a phone the top bar has the chat
+  and Menu buttons, and the menu is the rail over the dimmed page (focus
+  goes in, Escape and a tap outside close it). The drawer's focus trap from
+  `LEEME.md` waits for the chat screen's move.
+- **Tests.** e2e selectors stay roles, labels and test ids. Changes: a
+  `clickNav` helper opens the phone's menu before a menu link; the text view
+  helper presses "Text"; the plan usage is checked through the meters'
+  labels; the language select is found by its exact label (the rail's
+  button also mentions the language); the theme test reads the background
+  from `<html>`, where bs.css paints it. `tests/unit/contrast.test.ts` also
+  checks bs.css's tokens in both themes; all pairs pass.

@@ -11,9 +11,12 @@ before each step; the work stops if the 7-day window is over 85% or the
 
 ## 0. Status
 
-Updated 2026-10-22. U0 to U4 are done. **Waiting for the user's approval
-of the final screenshots and one use of the app** (a creation and the
-chat); the tag `ui-done` comes after that, not before.
+Updated 2026-10-22. U0 to U4 are done. The user then brought a new design
+(`docs/diseno/`), which becomes step U5: the shell and the creation screen
+are on it; the other screens still use direction A inside `.legacy` and move
+next, one group per commit. The final screenshots, the user's approval and
+one use of the app (a creation and the chat) come after U5; the tag
+`ui-done` after that.
 
 | Step | State | What exists |
 | --- | --- | --- |
@@ -23,6 +26,7 @@ chat); the tag `ui-done` comes after that, not before.
 | U2 | done | Direction A with Bricolage Grotesque + JetBrains Mono is the only style; flags, the other direction and fonts removed. Tokens in `src/ui/static/tokens.css` (`light-dark()`), base and components in `style.css`; theme switch (`src/ui/theme.ts`); `tests/unit/contrast.test.ts`; components page and shots in `tests/screenshots/components.*` (output `screenshots/u2/`, git-ignored); 13 findings closed, 3 partial (`docs/design/audit.md`, "Status after U2") |
 | U3 | done | Every screen in six groups plus the shell, one commit each: creation; chat; improvements; projects and creations; library; usage, settings and the restart message; page titles and the skip link. All high findings and every medium but M8 (partial, API proposal) closed; `docs/design/audit.md` "Status after U3". Minimum browsers in the README and `docs/decisions.md`. Screenshots per group in `screenshots/u3/` (git-ignored); `SHOTS_VIEWS` limits the views |
 | U4 | done | M8 with a read-only, redacted `idea` in `GET /api/sessions` (user-approved exception, `docs/api.md`, `docs/decisions.md`); L3, L6, L10 closed; the flaky "both library commits" test and three other one-shot readings wait for conditions (10 full e2e runs in a row green); the note editor's load race fixed; final audit on every screen with 5 new findings closed, none high or medium left (`docs/design/audit.md`, "Status after U4"); `docs/design/before-after.md` with 6 pairs in `docs/design/before-after/`; final screenshots in `screenshots/u4/final/` (git-ignored) |
+| U5 | in progress | The design from the canvas in `docs/diseno/`. Done: `bs.css` copied unchanged, `app.css`, `fonts.css` with Inter, Roboto Slab (Apache 2.0, user-approved exception) and IBM Plex Mono; the old sheet and tokens nested under `.legacy`; the shell (rail, phone top bar and menu, Ctrl J, theme and language, opening and restart screens); the creation screen (questions, spec, permission, folder, free-text reply, progress, live agents, usage, result) and a finished session's panel; contrast test over bs.css; screenshots `npm run screenshots -- panel.shots.ts` (`screenshots/u5/`). Left: the other screens; proposals for what the canvas shows and the app does not do (`docs/decisions.md`, "U5") |
 
 ## 1. Steps
 
@@ -49,6 +53,13 @@ chat); the tag `ui-done` comes after that, not before.
   screenshots with the same script, `docs/design/before-after.md`, the
   automated contrast check over the tokens, tag `ui-done` after the user's
   approval and use.
+- **U5 The canvas design.** The user's design in `docs/diseno/` replaces
+  direction A. bs.css unchanged, plus `app.css` for what the canvas leaves
+  to the app; the screens not yet moved keep direction A under `.legacy`.
+  Order: the shell and the creation screen; then projects and project; new
+  project and creations; library; usage and settings; chat page, drawer and
+  cards; improvements. Then the final screenshots, `.legacy` removed, and
+  the approval and use above.
 
 ## 2. Tools
 

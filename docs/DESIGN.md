@@ -7,8 +7,19 @@ DESIGN.md convention (theme, colour roles, type, components, layout, depth,
 do's and don'ts, responsive behaviour) noted in
 `design/vendor/awesome-design-md/`; no value here comes from any brand.
 
-**Status: U2.** The user chose direction A "Quiet sheet" (U1) with type
-variant 2 (U1b). It is the only style: tokens in `src/ui/static/tokens.css`,
+**Status: U5, in progress.** The user brought a new design from a design
+canvas, in [diseno/](diseno/) (Spanish, as given): `bs.css` with its tokens
+and components, the guide `LEEME.md` and the markup of every screen. It
+replaces direction A screen by screen. Done: the shell (rail, phone top bar,
+opening and restart screens) and the creation screen with the live panel,
+plus a finished session's panel. They use `src/ui/static/bs.css` (copied
+unchanged) and `src/ui/static/app.css` (what the canvas leaves to the app;
+see its header). The other screens keep direction A below, its tokens and
+sheet nested under `.legacy`, until they move. Decisions: `docs/decisions.md`,
+"U5".
+
+Direction A, still used by the screens not yet moved: the user chose "Quiet
+sheet" (U1) with type variant 2 (U1b); tokens in `src/ui/static/tokens.css`,
 everything else in `src/ui/static/style.css`. The other direction, the other
 type variants and the development flags are gone; their screenshots stay in
 `design/shots/u1/` for the record.
