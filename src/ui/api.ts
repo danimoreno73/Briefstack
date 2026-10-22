@@ -29,6 +29,9 @@ export function takeToken(): string | undefined {
 /** Sent on `window` when the server refuses this tab's token: briefstack was restarted with a new one. */
 export const TOKEN_REJECTED_EVENT = 'briefstack:token-rejected';
 
+/** Sent on `window` when a creation page sees its creation change status, so the menu's count is read again. */
+export const CREATIONS_CHANGED_EVENT = 'briefstack:creations-changed';
+
 /** Tells the page when an error means the token is no longer valid, so it shows the restart message instead of a retry. */
 export function noteRejection(error: unknown): void {
   if (error instanceof ApiError && error.code === 'web.rejected.token') window.dispatchEvent(new Event(TOKEN_REJECTED_EVENT));

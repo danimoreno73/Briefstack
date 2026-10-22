@@ -55,7 +55,7 @@ test.describe('two creations at once', () => {
     await expect(rows.filter({ hasText: 'A garden planner' }).getByTestId('waiting')).toHaveText('your answers');
     await expect(rows.filter({ hasText: 'A recipe box' }).getByTestId('waiting')).toHaveText('your answers');
     await expect(page.getByTestId('creations-count')).toHaveText('2 of 2 at the same time.');
-    await expect(page.getByRole('link', { name: /Creations/ }).getByRole('img', { name: 'Creation in progress' })).toContainText('2');
+    await expect(page.getByRole('link', { name: /Creations/ }).getByRole('img', { name: '2 creations running' })).toHaveText('2');
 
     // Cancelling one leaves the other as it was.
     await rows.filter({ hasText: 'A recipe box' }).getByRole('link', { name: 'Open' }).click();

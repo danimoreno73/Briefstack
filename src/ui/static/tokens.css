@@ -73,6 +73,7 @@
   --text: light-dark(#161a18, #edf0ee);
   --muted: light-dark(#565d59, #a8b0ab);
   --accent: light-dark(#0b6b5f, #5fc4b3);
+  --on-accent: light-dark(#ffffff, #111312);
   --primary: light-dark(#1c201e, #edf0ee);
   --primary-ink: light-dark(#ffffff, #111312);
   --attention-bg: light-dark(#e6f2ef, #12302a);

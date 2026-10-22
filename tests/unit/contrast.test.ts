@@ -39,6 +39,7 @@ const TEXT: [string, string][] = [
   ['danger', 'surface'],
   ['danger', 'ground'],
   ['primary-ink', 'primary'],
+  ['on-accent', 'accent'],
   ['danger-ink', 'danger'],
   ['warn-ink', 'warn-bg'],
   ['ok', 'surface'],

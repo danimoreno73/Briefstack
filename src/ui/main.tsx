@@ -2,7 +2,7 @@ import { render } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { langFromLocale, type Lang } from '../i18n/index.js';
 import { uiMessages } from '../i18n/ui.js';
-import { ApiError, TOKEN_REJECTED_EVENT, api, takeToken } from './api.js';
+import { ApiError, CREATIONS_CHANGED_EVENT, TOKEN_REJECTED_EVENT, api, takeToken } from './api.js';
 import { NewProjectPage } from './creation.js';
 import { CreationsPage } from './creations.js';
 import { ChatDrawer, ChatPage } from './chat.js';
@@ -113,9 +113,12 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
     };
     check();
     const timer = setInterval(check, 4000);
+    // A creation page says at once when its creation changes status, so the count does not lag behind.
+    window.addEventListener(CREATIONS_CHANGED_EVENT, check);
     return () => {
       stopped = true;
       clearInterval(timer);
+      window.removeEventListener(CREATIONS_CHANGED_EVENT, check);
     };
   }, [gate, token, route]);
 
@@ -174,9 +177,8 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
             <a key={item.page} href={routeHash(item.route)} aria-current={route.page === item.page || (item.page === 'projects' && (route.page === 'project' || route.page === 'session')) ? 'page' : undefined}>
               {t[item.label]}
               {item.page === 'creations' && activeCreations > 0 && (
-                <span class="dot" role="img" aria-label={t.creationInProgress} title={t.creationInProgress}>
-                  {' '}
-                  ● {activeCreations}
+                <span class="nav-count" role="img" aria-label={t.creationsRunning(activeCreations)} title={t.creationsRunning(activeCreations)}>
+                  {activeCreations}
                 </span>
               )}
             </a>

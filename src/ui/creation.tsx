@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import { CreationSuggestions } from './improve.js';
-import { ApiError, TOKEN_HEADER, noteRejection } from './api.js';
+import { ApiError, CREATIONS_CHANGED_EVENT, TOKEN_HEADER, noteRejection } from './api.js';
 import { answersFor, defaultSelection, type Selection } from './answers.js';
 import { ConfirmDialog, CopyButton, ErrorBanner, Loader, Markdown, Notice } from './common.js';
 import { formatWhen } from './format.js';
@@ -167,6 +167,7 @@ function useCreation(id: string) {
             last = (batch[batch.length - 1] as StreamEvent).seq;
             setEvents((previous) => [...previous, ...batch]);
             if (batch.some(changesState)) void refresh();
+            if (batch.some((event) => event.kind === 'status')) window.dispatchEvent(new Event(CREATIONS_CHANGED_EVENT));
             if (batch.some((event) => event.kind === 'status' && event.data.status === 'finished')) finished = true;
           }
         } catch {
