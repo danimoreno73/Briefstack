@@ -5,10 +5,7 @@ import { describeError } from './errors.js';
 import { useApp, type Loaded } from './hooks.js';
 import { IconAlert, IconCheck, IconInfo } from './icons.js';
 
-/**
- * Shared parts built on bs.css (U5). The screens not yet moved to it keep
- * the parts in common.tsx, styled by the `.legacy` sheet.
- */
+/** Shared parts built on bs.css (U5): notices, loading, empty states and the modal confirmation. */
 
 /** A notice: `warn` informs, `danger` is an error or a risk, `ok` confirms. */
 export function Note({

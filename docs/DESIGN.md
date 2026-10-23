@@ -7,184 +7,118 @@ DESIGN.md convention (theme, colour roles, type, components, layout, depth,
 do's and don'ts, responsive behaviour) noted in
 `design/vendor/awesome-design-md/`; no value here comes from any brand.
 
-**Status: U5, in progress.** The user brought a new design from a design
-canvas, in [diseno/](diseno/) (Spanish, as given): `bs.css` with its tokens
-and components, the guide `LEEME.md` and the markup of every screen. It
-replaces direction A screen by screen. Done: the shell (rail, phone top bar,
-opening and restart screens) and the creation screen with the live panel,
-plus a finished session's panel. They use `src/ui/static/bs.css` (copied,
-with one phone rule removed) and `src/ui/static/app.css` (what the canvas leaves to the app;
-see its header). The other screens keep direction A below, its tokens and
-sheet nested under `.legacy`, until they move. Decisions: `docs/decisions.md`,
-"U5".
-
-Direction A, still used by the screens not yet moved: the user chose "Quiet
-sheet" (U1) with type variant 2 (U1b); tokens in `src/ui/static/tokens.css`,
-everything else in `src/ui/static/style.css`. The other direction, the other
-type variants and the development flags are gone; their screenshots stay in
-`design/shots/u1/` for the record.
+**Status: U5.** Every screen uses the design the user brought from a
+design canvas, in [diseno/](diseno/) (Spanish, as given): `bs.css` with its
+tokens and components, the guide `LEEME.md` and the markup of every screen.
+The app serves `src/ui/static/bs.css` (copied, with one phone rule
+removed), `src/ui/static/app.css` (what the canvas leaves to the app: the
+shell's phone menu, the fixed dialog and drawer, and the classes that
+replace the canvas's `style` attributes, which the CSP refuses) and
+`src/ui/static/fonts.css`. Decisions: `docs/decisions.md`, "U5". The
+earlier direction A ("Quiet sheet", U1–U4) and its sheet, tokens and fonts
+are gone; its screenshots stay in `design/shots/` and
+`design/before-after/` for the record.
 
 ## 1. Principles
 
 - **Functional and typographic.** Hierarchy from size, weight and space.
-  Few colours, one accent. No gradients, no illustrations, no emoji, no glass,
-  no glow, no shadows on things at rest.
-- **Calm by default, loud only when it matters.** Loud: a question, the spec
-  approval, a permission request, a free-text reply the flow waits for, a
-  chat confirmation card, a safety warning, an error. Everything else is
-  quiet.
-- **Tokens in one place**, as custom properties; no raw colour in a
-  component.
+  Few colours, one accent. No gradients, no illustrations, no emoji.
+- **Calm by default, loud only when it matters.** The four rules of
+  `LEEME.md`:
+  1. **Cream** (`.dec`, `.chip-dec`, `.badge-dec`) only for what waits for
+     the user's answer: questions, the spec, permissions, folders, the
+     free-text reply, the chat's confirmation cards, a proposal's decision.
+     If nothing waits, it is not cream.
+  2. **Green** (the accent): running, valid, primary.
+  3. **Amber**: an informative notice, never an agent's state.
+  4. **Coral**: an error, a danger, a safety notice (before the decision),
+     and where an ended session stopped short.
+- **Nothing told by colour alone**: every state also has a word, a dot, a
+  ring, a ✓ or a ✕.
+- **Tokens in one place**, as custom properties in `bs.css`; app.css uses
+  only those tokens.
 - **Both themes** with the same hierarchy. The theme follows the system, or
   the switch (System, Light, Dark), remembered per browser.
 - **Accessibility**: text at least 4.5:1, control edges, focus and status
   marks at least 3:1 (checked by `tests/unit/contrast.test.ts`), a visible
-  2 px focus ring, 44 px targets on a phone, 16 px text in fields so phones
-  do not zoom, nothing told by colour alone, reduced motion respected.
-- **The phone is its own layout**: one row of menu that scrolls sideways,
-  what waits for the user before the progress list, tables that become
-  blocks.
+  2 px focus ring (dark ink inside cream), 42 px targets on a desktop and
+  44 px on a phone, real controls (radios hidden visually but focusable),
+  reduced motion respected.
 
-## 2. The look: "Quiet sheet"
-
-A tool you keep open all day. A labelled sidebar on the page ground, white
-sheets with a 1 px edge for each block, one teal accent. What waits for the
-user is a tinted sheet with a 4 px teal edge: clear, not alarming. The type
-gives it its personality.
+## 2. The look
 
 ### 2.1 Type
 
-Two bundled OFL faces, served by briefstack itself (BRIEF-ui §5; sources and
-licenses in `design/vendor/fonts/`):
+Three bundled faces, served by briefstack itself (sources and licenses in
+`design/vendor/fonts/`; Roboto Slab is Apache 2.0, an approved exception to
+the OFL rule):
 
-- **Bricolage Grotesque** for all text. Its optical sizes make it tight and
-  characterful at title size and calm at text size.
-- **JetBrains Mono** for paths, ids (target, slug, model), agent names (not
-  the main session), commands, code and diffs. Its tall x-height matches the
-  text face. Set at 0.84 em.
+- **Roboto Slab** 500 and 700 for titles.
+- **Inter** 400, 500 and 600 for text and actions.
+- **IBM Plex Mono** 400 and 500 for paths, ids, agents, models and figures.
 
-| Role | Size / line height | Weight |
-| --- | --- | --- |
-| Page title (h1) | 40 / 1.05, tracking −0.035 em | 760 |
-| Section (h2) | 22 / 1.3 | 600 |
-| Lead (the idea under a title) | 18 / 1.4 | 400 |
-| Body, controls | 15 / 1.5 (fields 16) | 400, 600 |
-| Meta, labels, table headers | 13 | 400; labels 760 |
+The scale is in `bs.css` (`--fs-display` 48, `--fs-1` 34, `--fs-2` 20,
+`--fs-3` 16, body 15, small 13.5, mono 13 and 12), smaller on a phone.
 
-Figures that change or line up (the panel, times, counts, tables) use
-tabular digits. Section labels (Progress, Agents, Timeline, Details, Plan
-usage, `.section-label`) are 15 px, weight 760, with a hairline that runs
-to the edge. Table headers are 13 px in sentence case, muted, weight 600
-(U4: no longer caps tracked 0.04 em, which the app-screen rules ban).
+### 2.2 Space, shape, colour, motion
 
-The logotype is the word in two weights: "brief" 300, "stack" 800, tracked
-−0.045 em.
+All in `bs.css`: a 4 px space scale (`--s-1` … `--s-8`), radii for chips,
+controls, cards and decisions (4, 8, 12, 20), 1 and 2 px borders, two
+durations (120 and 200 ms). The colours of both themes are its tokens:
+ground, rail, surfaces, lines, three inks, the green accent, the cream of
+decisions (which turns dark ink on paper in the light theme), amber, coral,
+and the diff colours.
 
-### 2.2 Space and shape
+### 2.3 Theme
 
-4 px base: 4, 8, 12, 16, 24, 32, 48. Sidebar 224 px; content up to 1120 px
-with 32 px gutters; 16 px gutters on a phone. Card radius 8, control radius
-6, chip radius 4. Borders 1 px. Controls 36 px tall (40 px in the phone's
-top bar, 44 px menu rows on a phone).
+`<html class="bs" data-theme="light|dark">`. bs.css changes its tokens only
+through the attribute, so `src/ui/theme.ts` always sets it: from the switch
+in the rail, or, for System, from `prefers-color-scheme`, kept current when
+the system changes. The choice is stored as
+`localStorage['briefstack-theme']`; the switch also sets
+`<meta name="theme-color">` to the page's ground.
 
-### 2.3 Colour
+## 3. Layout
 
-Each token is `light-dark(light, dark)` in `tokens.css`:
+- **Desktop**: the rail (brand, menu with a count on Creations, cream when
+  one waits for the user, the theme and language switches, "Open the chat"
+  with Ctrl J) beside the page: its head (`.page-head`) and its body
+  (`.page`), with a main and a side column (`.cols`) where it helps.
+- **Phone (≤ 720 px)**: the top bar with the chat and Menu buttons; the
+  menu is the rail over the dimmed page. Columns stack. On the creation
+  screen only a compact bar with the state and an outlined Cancel stays in
+  sight. The progress segments carry no names; the current step is named
+  beside "step 3 / 9".
 
-| Token | Light | Dark | Role |
-| --- | --- | --- | --- |
-| `--ground` | #f6f7f6 | #111312 | page and sidebar |
-| `--surface` | #ffffff | #191c1a | sheets, fields, buttons |
-| `--raised` | #eff1f0 | #222624 | active menu row, code, disabled |
-| `--border` | #dfe3e1 | #2d322f | sheet edge |
-| `--rule` | #eaedeb | #242826 | row rules |
-| `--control` | #858d89 | #737c77 | field and button edge |
-| `--text` | #161a18 | #edf0ee | ink |
-| `--muted` | #565d59 | #a8b0ab | secondary text |
-| `--accent` | #0b6b5f | #5fc4b3 | links, running state, focus |
-| `--primary` / `--primary-ink` | #1c201e / #fff | #edf0ee / #111312 | the one filled button |
-| `--attention-bg` / `--attention-line` | #e6f2ef / #0b6b5f | #12302a / #5fc4b3 | what waits for the user |
-| `--warn-bg` / `--warn-ink` | #fbf1d3 / #5e3d00 | #3a2c0a / #f2d27c | notices |
-| `--danger` / `--danger-bg` / `--danger-ink` | #b0222a / #fcebeb / #fff | #f2898e / #3b1618 / #111312 | errors, destructive |
-| `--ok` / `--ok-bg` | #1d7343 / #e2f3e7 | #72d39d / #11301e | done, added lines |
-| `--waiting` | #9a5b00 | #f0b34a | an agent waiting for you |
+## 4. Components
 
-### 2.4 Depth, focus, motion
+`LEEME.md` maps each component to its classes (buttons, fields, question
+options, choices and tiers, segmented controls, chips, states, cards,
+decisions, notices, tables, dialogs, diffs, progress, usage meters, agents,
+chat and drawer, library, empty and loading). app.css adds:
 
-No shadow at rest; a sheet is told from the ground by its surface and edge.
-Only dialogs and the chat drawer float (dialog 0 12px 32px at 22% black,
-scrim 45% light, 65% dark). Focus: 2 px solid `--focus`, 2 px offset.
-Motion: colour changes on hover in 140 ms `ease`; nothing moves; with
-reduced motion there are no transitions.
+- **Notes** (`Note` in `src/ui/kit.tsx`): a notice with an icon, in the
+  tone of its meaning; errors use `role="alert"`.
+- **Loading** and **Empty**: the loader bar, and a dashed frame that says
+  what is missing with the way to make the first one.
+- **Modal confirmation** (`ConfirmModal`): a native modal dialog, focus on
+  the button that backs out; destructive actions confirm in coral, others
+  (approving, a new chat) in the primary button.
+- **In-line confirmation**: reverting a library commit asks in cream under
+  the commit (LEEME).
+- **The chat drawer**: a modal dialog that keeps focus inside.
+- **Diffs** with line numbers worked out from the hunks
+  (`src/ui/diffLines.ts`).
 
-### 2.5 Theme
+## 5. Do and don't
 
-`tokens.css` sets `color-scheme: light dark`, so the system decides.
-`src/ui/theme.ts` sets `<html data-theme="light|dark">` from the switch in
-the shell (stored as `localStorage['briefstack-theme']`; System removes
-it), which turns `color-scheme` to one value and with it every
-`light-dark()` token. The switch also sets `<meta name="theme-color">` to
-the page's ground.
-
-## 3. Components
-
-All in `style.css`, in its "shared components" sections. The components
-page (`tests/screenshots/components.html`, served only by
-`tests/screenshots/components.shots.ts`, never by the app) shows each in its
-states.
-
-- **Buttons.** Secondary: surface with a 1 px control edge. Primary
-  (`.primary`, a form's submit, or the first action of what waits for the
-  user): filled in `--primary`. Danger (`.danger`): outlined in red; a
-  destructive action being confirmed (`.danger.primary`, the confirm
-  dialogs): filled in red. Disabled: raised, muted text. Link button:
-  accent, underlined.
-- **Fields.** Label above, hint below (`.hint`), 16 px text, one height,
-  explicit colours in both themes (selects included); radios, checkboxes and
-  the range slider in `--primary`.
-- **Cards.** `.panel` / `.card`: surface, 1 px edge, radius 8. What waits
-  for the user (`.attention`, the creation's pending control, the free-text
-  reply): tinted, 4 px accent edge, title at section size. Agent cards: a
-  3 px status edge and the status in words.
-- **Dialogs.** Surface, edge, shadow, scrim; actions at the right, the
-  confirming one last.
-- **Tables.** Rules, no bands, caps headers, tabular figures, inside a sheet
-  that scrolls sideways; the projects table becomes one block per project
-  under 640 px.
-- **Notices.** `.banner-ok`, `.banner-warn`, `.banner-error`: a tint and a
-  1 px edge in the matching colour, text at AA.
-- **Empty states.** `.empty`: a muted sentence in a dashed frame.
-- **Chat confirmation card.** Waiting: tinted with the 4 px accent edge,
-  the state line in ink, Confirm primary, Decline secondary (declining
-  destroys nothing). Answered: a quiet sheet with the state in muted text.
-- **Diffs.** One block line per line, the `+` / `−` sign carries the change;
-  added lines on `--ok-bg`, removed on `--danger-bg`, both in `--text`.
-
-Added while restyling the screens (U3):
-
-- **Page head** (`.page-head`): a small kind label (`.page-kind`: Creation,
-  Project, Improvement proposal), the name as `h1`, and the page's actions
-  at the right (under it on a phone). A creation is named by its idea.
-- **List tables on a phone** (`.stack-on-phone`): one block per row, the
-  first cell as its title, the middle ones in a meta line, the last on its
-  own line.
-- **For you** (`.for-you`): in a list, what waits for the user is in ink
-  with a dot; the rest is quiet.
-- **Tabs** (`.tabs`): a row on a rule, the current one with an ink bar.
-- **Row action** (`.row-action`): a small quiet button at the end of a row.
-- **Hint** (`.hint`) under a field; a keyboard shortcut sits by its button.
-- **Section label** (`.section-label`) for a page's own groups.
-- **The gate**: the logotype and one card with a title and what to do.
-- **Skip link**: first on every page, visible when focused.
-- **Tab title**: the page's subject, then "· briefstack".
-
-## 4. Do and don't
-
-- Do put what waits for the user first, at the top of the creation's main
-  column, and above the progress list on a phone.
+- Do put what waits for the user first, in cream, and announce it without
+  moving focus.
 - Do say a status in words wherever a colour shows it.
 - Do use tabular figures for times, durations and percentages.
-- Don't add a second accent or colour a heading.
-- Don't put a shadow on a resting block or a border and a shadow together.
-- Don't show the user's machine paths in screenshots (the shots scripts show
-  the temp folder as `<tmp>`).
+- Don't use cream for anything that does not wait for an answer, or coral
+  for anything that is not an error, a danger or a stop.
+- Don't add a `style` attribute: the CSP refuses it; widths that depend on
+  data go through Preact's style object (the CSSOM).
+- Don't show the user's machine paths in committed pictures (the U5
+  screenshots stay in the git-ignored `screenshots/` folder).

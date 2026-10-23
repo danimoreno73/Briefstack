@@ -167,7 +167,7 @@ export function ProjectView({ slug }: { slug: string }) {
                       <h2 class="t-2" id="next-title">
                         {t.nextSteps}
                       </h2>
-                      <Markdown text={withoutLeadingHeading(nextSteps, t.nextSteps)} cls="md" />
+                      <Markdown text={withoutLeadingHeading(nextSteps, t.nextSteps)} />
                     </section>
                   )}
                   {isApp && instructions !== null && (

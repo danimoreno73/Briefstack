@@ -556,11 +556,10 @@ function ProposalBody({ page, reload }: { page: ProposalPage; reload: () => void
                     </li>
                   )}
                   {proposal.checks.steps.map((step) => (
+                    // The line already names the step, its result and its time: the icon and that line.
                     <li key={step.name} data-step={step.name} data-ok={String(step.ok)}>
                       <span class={step.ok ? 'st-run' : 'st-fail'}>{step.ok ? <IconCheck /> : <IconCross />}</span>
-                      <span>{step.name}</span>
-                      <span class="muted ct">{t.testStep(step.name, step.ok, formatDuration(step.ms, lang))}</span>
-                      <span class="faint num">{formatDuration(step.ms, lang)}</span>
+                      <span class="ct">{t.testStep(step.name, step.ok, formatDuration(step.ms, lang))}</span>
                       {!step.ok && <pre class="request check-tail">{step.tail}</pre>}
                     </li>
                   ))}

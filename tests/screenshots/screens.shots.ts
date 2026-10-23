@@ -214,6 +214,8 @@ const SCREENS: Screen[] = [
 
 // A full-page picture stitches the page: what stays in place while scrolling would land in the middle.
 const shot = async (page: Page, name: string) => {
+  // Back to the top after the page's own scrolling (the chat follows its last message) has settled.
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
     path: path.join(OUT, `${name}.png`),

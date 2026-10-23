@@ -3259,3 +3259,17 @@ used `style.css`; they move with group 2, next to "Start again".
 - **ReplyBox** has two looks now, `form` (the creation's reply) and
   `composer` (the chat); the old one went with the last `.legacy` screen.
 - **Tests.** The note card's diff is read through `data-op`.
+
+### Group 6: clean-up
+
+- Removed: `style.css` and `tokens.css` (direction A), the `.legacy`
+  wrapper and its rules, Bricolage Grotesque and JetBrains Mono with their
+  licenses, the parts of `common.tsx` only direction A used (`ErrorBanner`,
+  `Notice`, `Loader`, `ConfirmDialog`), and the U0/U2 screenshot tools
+  (`audit.shots.ts` and the components page), which drove the old shell
+  and loaded the old sheets. `screens.shots.ts` and `panel.shots.ts` take
+  every screen now.
+- The contrast test checks only bs.css; the README's browser note no longer
+  names `light-dark()` or CSS nesting, which only the old sheets used.
+- `docs/DESIGN.md` describes the design as it is now; direction A's values
+  live in its history and in the U1–U4 entries above.

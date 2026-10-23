@@ -376,7 +376,7 @@ function CreationView({ id }: { id: string }) {
                 <DecHead icon={<IconReply />} titleId="reply-title" title={t.awaitingReplyTitle} idea={state.idea} note={t.questionsPaused} request={false} />
                 <p role="status">{t.awaitingReplyBody}</p>
                 <div class="dec-card">
-                  <Markdown text={state.awaitingReply.lastMessage} cls="md" />
+                  <Markdown text={state.awaitingReply.lastMessage} />
                 </div>
                 <ReplyBox id="creation-reply" onSend={reply} />
               </section>
@@ -691,7 +691,7 @@ function SpecApproval({ id, idea, pending, answer }: { id: string; idea: string;
           <div class="dec-grid dec-grid-wide">
             <div class="dec-card">
               <h3 class="t-3">{t.specSummaryTitle}</h3>
-              <div data-testid="spec-summary">{view.summary === null ? <p>{t.specNone}</p> : <Markdown text={view.summary} cls="md" />}</div>
+              <div data-testid="spec-summary">{view.summary === null ? <p>{t.specNone}</p> : <Markdown text={view.summary} />}</div>
             </div>
             {view.spec !== null && (
               <div class="dec-card">
@@ -948,7 +948,7 @@ function ProjectResult({ project }: { project: ProjectListing }) {
               {nextSteps !== null && (
                 <div class="result-block">
                   <h3 class="t-3">{t.nextSteps}</h3>
-                  <Markdown text={withoutLeadingHeading(nextSteps, t.nextSteps)} cls="md" />
+                  <Markdown text={withoutLeadingHeading(nextSteps, t.nextSteps)} />
                 </div>
               )}
             </>

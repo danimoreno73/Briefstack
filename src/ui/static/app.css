@@ -145,11 +145,6 @@ body {
   line-height: 1.2;
 }
 
-/* The screens not yet on bs.css keep their own sheet (style.css) inside this wrapper. */
-.legacy:empty {
-  display: none;
-}
-
 /* ------------------------------------------------------------------------ */
 /* Shared parts                                                              */
 
@@ -804,6 +799,20 @@ dialog.dec-dialog {
 
 .diff-path {
   overflow-wrap: anywhere;
+}
+
+/* Each step: its mark and its line ("build: passed (41 s)"), at every width. */
+.checks li {
+  grid-template-columns: 20px minmax(0, 1fr);
+}
+
+/* bs.css puts the line in a third column on a phone; here it is the second. */
+.checks li .ct {
+  grid-column: 2;
+}
+
+.checks li .check-tail {
+  grid-column: 1 / -1;
 }
 
 /* A failed step's output under its line, across the whole row. */

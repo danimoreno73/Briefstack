@@ -95,7 +95,7 @@ function IndexView() {
             <p class="muted">{t.noNotes}</p>
           ) : (
             <article class="md-preview">
-              <Markdown text={text} cls="md" />
+              <Markdown text={text} />
             </article>
           )
         }
@@ -247,7 +247,7 @@ function NoteEditor({ section, name }: { section: string; name: string | undefin
             )}
             {mode !== 'edit' && (
               <article class="md-preview" aria-label={t.previewLabel} data-testid="preview">
-                <Markdown text={hideSecrets(stripFrontmatter(text))} cls="md" />
+                <Markdown text={hideSecrets(stripFrontmatter(text))} />
               </article>
             )}
           </div>

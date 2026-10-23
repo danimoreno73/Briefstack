@@ -209,7 +209,7 @@ function Message({ message, answer }: { message: ChatMessage; answer?: ((id: str
       return (
         <li class="bubble bubble-bot" data-role="assistant">
           <span class="sr-only">{t.chatClaude}: </span>
-          <Markdown text={message.text ?? ''} cls="md" />
+          <Markdown text={message.text ?? ''} />
         </li>
       );
     case 'tool':
