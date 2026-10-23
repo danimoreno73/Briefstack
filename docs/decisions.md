@@ -3188,3 +3188,27 @@ used `style.css`; they move with group 2, next to "Start again".
 - **Tests.** Projects and creations are found as list items, not table
   rows. The Projects page now has its own "New project" button, so tests
   follow the main menu's link. A new test covers "Start again".
+- **A unit test given more time.** The git worktree tests (improvements)
+  take about 3 s alone on Windows and timed out at vitest's 5 s default in
+  every full run at this point; their block now has 20 s.
+
+### Group 3: library
+
+- **Layout.** The design's two panes: the sections as a tree, and the open
+  section, note or history beside it. A section's notes appear under it in
+  the tree once one is open; before that the page lists them as cards, so
+  no note has two links on screen. The design's per-section counts are left
+  out (they would take one request per section). On a phone the tree is a
+  wrapping row above the page.
+- **Editor.** Edit, Split and Preview (UI only; Split by default). A save
+  refused for a secret marks the editor `aria-invalid` until the text
+  changes, with the error in an alert, as `LEEME.md` asks.
+- **Revert** is confirmed in line and in cream, under its commit, as
+  `LEEME.md` asks: a non-modal dialog that takes focus (on Cancel) before
+  the browser paints, closes on Escape and gives focus back to Revert. The
+  confirmation sits inside the commit's list item, so the list keeps its
+  count. Focus moved in `useEffect` came too late for a key pressed as soon
+  as the dialog showed; it now moves in `useLayoutEffect`, here and in the
+  modal confirmation.
+- **Tests.** A new test covers the secret refusal; the revert test is
+  unchanged and passed 5 runs in a row.

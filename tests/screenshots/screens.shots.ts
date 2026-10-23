@@ -75,6 +75,47 @@ const SCREENS: Screen[] = [
     },
   },
   {
+    name: 'library-index',
+    open: async (page) => {
+      await clickNav(page, 'Library');
+      await expect(page.getByRole('heading', { name: 'Personal library' })).toBeVisible();
+    },
+  },
+  {
+    name: 'library-list',
+    open: async (page) => {
+      await clickNav(page, 'Library');
+      await page.getByRole('link', { name: 'Profile' }).click();
+      await expect(page.getByTestId('notes')).toBeVisible();
+    },
+  },
+  {
+    name: 'library-editor-secret',
+    open: async (page) => {
+      await clickNav(page, 'Library');
+      await page.getByRole('link', { name: 'Profile' }).click();
+      await page.getByRole('link', { name: 'style' }).click();
+      // A key in the text: the save is refused and the editor marked.
+      await page.getByTestId('editor').fill(`# Style\n\nShort answers.\n\nkey: ${['sk', 'ant', 'a'.repeat(30)].join('-')}\n`);
+      await page.getByRole('button', { name: 'Save' }).click();
+      await expect(page.getByRole('alert').first()).toBeVisible();
+    },
+  },
+  {
+    name: 'library-history-revert',
+    open: async (page) => {
+      await clickNav(page, 'Library');
+      await page.getByRole('link', { name: 'Profile' }).click();
+      await page.getByRole('link', { name: 'style' }).click();
+      await page.getByTestId('editor').fill('# Style\n\nLonger answers.\n');
+      await page.getByRole('button', { name: 'Save' }).click();
+      await expect(page.getByRole('status')).toContainText('Saved.');
+      await page.getByRole('link', { name: 'History' }).click();
+      await page.getByTestId('history').getByRole('listitem').first().getByRole('button', { name: 'Revert', exact: true }).click();
+      await expect(page.getByRole('dialog', { name: 'Revert this commit?' })).toBeVisible();
+    },
+  },
+  {
     name: 'usage',
     open: async (page) => {
       await clickNav(page, 'Usage');

@@ -191,6 +191,22 @@ test.describe('library', () => {
     await expect(page.getByTestId('history').getByRole('listitem').first()).toContainText('profile/style');
   });
 
+  test('refuses to save a secret: the editor is marked, nothing is written, typing clears the mark', async ({ page, app }) => {
+    await page.goto(app.url);
+    await page.getByRole('link', { name: 'Library' }).click();
+    await page.getByRole('link', { name: 'Profile' }).click();
+    await page.getByRole('link', { name: 'style' }).click();
+    const editor = page.getByTestId('editor');
+    await expect(editor).toHaveValue(/Short answers\./);
+    await editor.fill(`# Style\n\nkey: ${FAKE_KEY}\n`);
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('alert')).toContainText('secret');
+    await expect(editor).toHaveAttribute('aria-invalid', 'true');
+    expect(await readFile(path.join(app.libraryDir, 'profile', 'style.md'), 'utf8')).not.toContain(FAKE_KEY);
+    await editor.fill('# Style\n\nShort answers.\n');
+    await expect(editor).not.toHaveAttribute('aria-invalid', 'true');
+  });
+
   test('does not render raw HTML from a note', async ({ page, app }) => {
     await page.goto(app.url);
     await page.getByRole('link', { name: 'Library' }).click();

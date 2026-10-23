@@ -650,6 +650,99 @@ dialog.dec-dialog {
 }
 
 /* ------------------------------------------------------------------------ */
+/* Library                                                                   */
+
+.tree-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* The head of the open section or note: its name and file, the view and Save. */
+.lib-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4) var(--s-6);
+}
+
+.note-title {
+  overflow-wrap: anywhere;
+}
+
+.unsaved-mark {
+  color: var(--warn);
+}
+
+/* Editor alone or preview alone take the whole width; split follows bs.css. */
+.editor-edit,
+.editor-preview {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.md-editor[aria-invalid='true'] {
+  border-color: var(--danger);
+  border-width: var(--bw-strong);
+}
+
+/* Each commit is a row, with its confirmation under it when asked. */
+.commits li.commit-item {
+  display: block;
+}
+
+.commit-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto auto;
+  gap: var(--s-4);
+  align-items: center;
+}
+
+.commit-subject {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s-3);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.revert-confirm {
+  margin-top: var(--s-3);
+}
+
+/* On a phone the tree is a wrapping row of sections over the page, not a tall column. */
+@media (max-width: 720px) {
+  .lib {
+    align-content: flex-start;
+  }
+
+  .lib-tree {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: var(--s-3) var(--s-4);
+  }
+
+  .tree-group {
+    display: contents;
+  }
+
+  .tree-child {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .commit-row {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+  }
+
+  .commit-row .when {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
 /* Usage and settings                                                        */
 
 /* The real radio lies over each card, as in the question options. */

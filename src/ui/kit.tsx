@@ -1,5 +1,5 @@
 import { Fragment, type ComponentChildren } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useLayoutEffect, useRef } from 'preact/hooks';
 import { ApiError } from './apiError.js';
 import { describeError } from './errors.js';
 import { useApp, type Loaded } from './hooks.js';
@@ -125,7 +125,8 @@ export interface ModalProps {
 export function ConfirmModal({ title, body, confirmLabel, cancelLabel, onConfirm, onCancel }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const keep = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
+  // Before the browser paints, so the dialog never shows with focus still behind it.
+  useLayoutEffect(() => {
     const dialog = ref.current;
     if (dialog !== null && !dialog.open) dialog.showModal();
     keep.current?.focus();
