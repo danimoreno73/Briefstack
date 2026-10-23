@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   barGeometry,
+  formatClockDuration,
+  nodeLabels,
+  stepLooks,
   formatDuration,
   liveFromState,
   panelEventsFromStream,
@@ -89,13 +92,73 @@ describe('the bs.css panel (U5)', () => {
     expect(usageMeter(Number.NaN, 40)).toBeUndefined();
   });
 
-  it('labels the timeline in minutes from two minutes up, in seconds below, in tenths under ten seconds', () => {
-    expect(timelineTicks(20 * 60_000)).toEqual(['0', '5', '10', '15', '20 min']);
-    expect(timelineTicks(40_000)).toEqual(['0', '10', '20', '30', '40 s']);
-    expect(timelineTicks(800)).toEqual(['0', '0.2', '0.4', '0.6', '0.8 s']);
-    expect(timelineTicks(800, 'es')).toEqual(['0', '0,2', '0,4', '0,6', '0,8 s']);
-    expect(timelineTicks(0)).toEqual(['0', '0', '0', '0', '0 s']);
-    expect(timelineTicks(Number.NaN)).toEqual(['0', '0', '0', '0', '0 s']);
+  it('marks the timeline with round values, five at most and none repeated, each at its place', () => {
+    const labels = (spanMs: number, lang?: string) => timelineTicks(spanMs, lang).ticks.map((tick) => tick.label);
+    expect(timelineTicks(20 * 60_000).unit).toBe('min');
+    expect(labels(20 * 60_000)).toEqual(['0', '5', '10', '15', '20']);
+    expect(timelineTicks(40_000).unit).toBe('s');
+    expect(labels(40_000)).toEqual(['0', '10', '20', '30', '40']);
+    expect(labels(800)).toEqual(['0', '0.2', '0.4', '0.6', '0.8']);
+    expect(labels(800, 'es')).toEqual(['0', '0,2', '0,4', '0,6', '0,8']);
+    // The short spans that used to read "0 · 0.1 · 0.1 · 0.2 · 0.2 s".
+    expect(labels(200)).toEqual(['0', '0.05', '0.1', '0.15', '0.2']);
+    expect(labels(250)).toEqual(['0', '0.1', '0.2']);
+    expect(labels(600)).toEqual(['0', '0.2', '0.4', '0.6']);
+    // The real H10 run (8 min 9 s): every two minutes, not just 0 and 5.
+    expect(labels(8 * 60_000 + 9_000)).toEqual(['0', '2', '4', '6', '8']);
+    expect(labels(4 * 60_000)).toEqual(['0', '1', '2', '3', '4']);
+    // Odd spans: the marks stop before the end and sit where their value is.
+    expect(timelineTicks(7 * 60_000 + 30_000)).toEqual({
+      unit: 'min',
+      ticks: [
+        { label: '0', at: 0 },
+        { label: '2', at: (2 / 7.5) * 100 },
+        { label: '4', at: (4 / 7.5) * 100 },
+        { label: '6', at: (6 / 7.5) * 100 },
+      ],
+    });
+    expect(timelineTicks(0)).toEqual({ unit: 's', ticks: [{ label: '0', at: 0 }] });
+    expect(labels(Number.NaN)).toEqual(['0']);
+    for (const span of [130, 999, 4321, 59_000, 61_000, 3_600_000, 5_432_100]) {
+      const marks = labels(span);
+      expect(new Set(marks).size, String(span)).toBe(marks.length);
+      expect(marks.length, String(span)).toBeLessThanOrEqual(5);
+      expect(marks.length, String(span)).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('writes the timeline durations as a clock from one minute up', () => {
+    expect(formatClockDuration(4 * 60_000)).toBe('4:00');
+    expect(formatClockDuration(8 * 60_000 + 9_400)).toBe('8:09');
+    expect(formatClockDuration(3_723_000)).toBe('1:02:03');
+    expect(formatClockDuration(45_000)).toBe('45 s');
+    expect(formatClockDuration(2_400)).toBe('2.4 s');
+    expect(formatClockDuration(undefined)).toBe('—');
+  });
+
+  it('reads passed steps as done and a step cut short as stopped, never as waiting for you', () => {
+    const states = ['waiting', 'waiting', 'waiting', 'running', 'waiting'];
+    expect(stepLooks(states, undefined).map((s) => s.look)).toEqual(['done', 'done', 'done', 'now', 'todo']);
+    expect(stepLooks(states, undefined)[0]?.word).toBe('passed');
+    expect(stepLooks(states, 'interrupted')[3]).toEqual({ look: 'fail', word: 'interrupted' });
+    expect(stepLooks(states, 'failed')[3]).toEqual({ look: 'fail', word: 'interrupted' });
+    expect(stepLooks(states, 'cancelled')[3]).toEqual({ look: 'halt', word: 'stopped' });
+    expect(stepLooks(states, 'completed')[3]).toEqual({ look: 'done', word: 'passed' });
+    expect(stepLooks(['ok', 'skipped', 'failed', 'waiting'], 'failed').map((s) => s.look)).toEqual(['done', 'done', 'fail', 'todo']);
+    expect(stepLooks(['waiting', 'waiting'], undefined).map((s) => s.look)).toEqual(['todo', 'todo']);
+  });
+
+  it('numbers an agent type that ran more than once', () => {
+    const labels = nodeLabels(
+      [
+        { id: 'main', kind: 'main', agentType: 'main' },
+        { id: 'a1', kind: 'agent', agentType: 'interviewer' },
+        { id: 'a2', kind: 'agent', agentType: 'interviewer' },
+        { id: 'a3', kind: 'agent', agentType: 'architect' },
+      ],
+      'Main session',
+    );
+    expect([...labels.values()]).toEqual(['Main session', 'interviewer · 1', 'interviewer · 2', 'architect']);
   });
 
   it('places a timeline bar inside the track, never thinner than a sliver', () => {

@@ -8,8 +8,8 @@ import { formatWhen, openCommandLines, withoutLeadingHeading } from './format.js
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { IconCheck, IconFolder, IconQuestion, IconReply, IconSpec, IconTerminal } from './icons.js';
 import { ConfirmModal, ErrorNote, LoadState, Loading, MetaLine, Note } from './kit.js';
-import { AgentPanel, PENDING_CONTROL_ID, PlanUsage, StepBar, stepPosition, usePanelState } from './panel.js';
-import { formatClock, formatDuration, liveFromState, panelEventsFromStream, percent } from './panelData.js';
+import { AgentPanel, PENDING_CONTROL_ID, PlanUsage, StepBar, StepCount, stepPosition, usePanelState } from './panel.js';
+import { formatClock, formatDuration, liveFromState, panelEventsFromStream, percent, stepLooks } from './panelData.js';
 import { STEPS, deriveProgress, parseSse, type Progress } from './progress.js';
 import { ReplyBox } from './reply.js';
 import { routeHash } from './route.js';
@@ -289,8 +289,9 @@ function CreationView({ id }: { id: string }) {
 
   return (
     <>
-      {/* The creation is named by its idea; its state and Cancel stay in sight while the page scrolls. */}
-      <header class="page-head sticky">
+      {/* The creation is named by its idea; on a desktop its state and Cancel stay in sight while the page
+          scrolls. On a phone that head would fill half the screen: only the compact bar below it stays. */}
+      <header class="page-head sticky sticky-desktop">
         <div class="page-head-text">
           <p class="meta">
             <a class="link" href={routeHash({ page: 'creations' })}>
@@ -305,13 +306,17 @@ function CreationView({ id }: { id: string }) {
             {state.idea}
           </h1>
           <div class="head-status">
-            <HeadState state={state} waiting={waitingKind !== undefined} stepName={stepName} />
+            {/* On a phone the state is in the compact bar below, while it runs. */}
+            <span class={finished ? undefined : 'd-only'}>
+              <HeadState state={state} waiting={waitingKind !== undefined} stepName={stepName} />
+            </span>
             <MetaLine parts={[position !== undefined && t.headStep(position.index, STEPS.length), t.headSince(formatClock(state.startedAt, lang)), planLine]} />
           </div>
-          <p class="t-small muted">{t.policyShown(state.policy)}</p>
+          {/* What happens to an unexpected request matters while it runs; once over, the denied list says it. */}
+          {!finished && <p class="t-small muted">{t.policyShown(state.policy)}</p>}
         </div>
-        <div class="btn-row">
-          <CopyButton text={state.id} label={t.copyId} cls="btn btn-secondary d-only" />
+        <div class="btn-row d-only">
+          <CopyButton text={state.id} label={t.copyId} cls="btn btn-secondary" />
           {!finished && (
             <button type="button" class="btn btn-danger" disabled={state.cancelling === true} onClick={() => setAsking(true)}>
               {t.cancelCreation}
@@ -319,6 +324,15 @@ function CreationView({ id }: { id: string }) {
           )}
         </div>
       </header>
+      {!finished && (
+        <div class="head-bar m-only">
+          <HeadState state={state} waiting={waitingKind !== undefined} stepName={stepName} />
+          {/* Outlined: on a phone a full coral button would outshout the cream block that waits for an answer. */}
+          <button type="button" class="btn btn-danger-quiet btn-sm" disabled={state.cancelling === true} onClick={() => setAsking(true)}>
+            {t.cancelCreation}
+          </button>
+        </div>
+      )}
 
       <div class="page">
         {/* Focus does not jump when something starts waiting: it is announced, with a way to go there. */}
@@ -371,7 +385,7 @@ function CreationView({ id }: { id: string }) {
                       </span>
                     )}
                   </span>
-                  {position !== undefined && <span class="meta">{t.headStep(position.index, STEPS.length)}</span>}
+                  {position !== undefined && <StepCount position={position} />}
                 </div>
                 <StepBar steps={steps} current={progress.current} />
               </div>
@@ -794,7 +808,12 @@ function FinishedView({
   const [showAgents, setShowAgents] = useState(false);
   const calls = panel.nodes.reduce((sum, node) => sum + node.toolCalls, 0);
   const denials = panel.nodes.reduce((sum, node) => sum + node.denials.length, 0);
-  const done = steps.filter((item) => item.state === 'ok' || item.state === 'skipped').length;
+  const ended = state.outcome ?? 'interrupted';
+  // Passed steps count as done, as the bar shows them.
+  const done = stepLooks(
+    steps.map((item) => item.state),
+    ended,
+  ).filter((item) => item.look === 'done').length;
 
   return (
     <>
@@ -816,7 +835,7 @@ function FinishedView({
             <MetaLine parts={[state.id, planLine]} />
             <span class="meta">{done === steps.length ? t.progressDone(steps.length) : t.headStep(done, steps.length)}</span>
           </div>
-          <StepBar steps={steps} current={undefined} />
+          <StepBar steps={steps} current={undefined} ended={ended} />
         </div>
       </section>
 
@@ -956,6 +975,8 @@ function Denied({ state, progress }: { state: CreationState; progress: Progress 
           ))}
         </ul>
       )}
+      {/* The policy this creation ran with, here once it is over (beside the title while it runs). */}
+      <p class="t-small muted">{t.policyShown(state.policy)}</p>
     </section>
   );
 }

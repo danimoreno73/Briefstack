@@ -2,8 +2,21 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { PANEL_STEPS, buildPanelState, type PanelEventInput, type PanelLive, type PanelNode, type PanelState, type PanelStepState } from '../panel/state.js';
 import { useApp, useDocumentTitle, useLoad } from './hooks.js';
 import { IconCheck, IconCross } from './icons.js';
-import { LoadState, Note } from './kit.js';
-import { barGeometry, formatClock, formatDuration, percent, stepNumber, targetText, timelineTicks, usageMeter } from './panelData.js';
+import { LoadState, MetaLine, Note } from './kit.js';
+import {
+  barGeometry,
+  formatClock,
+  formatClockDuration,
+  formatDuration,
+  nodeLabels,
+  percent,
+  stepLooks,
+  stepNumber,
+  targetText,
+  timelineTicks,
+  usageMeter,
+  type StepLook,
+} from './panelData.js';
 import { routeHash } from './route.js';
 
 /**
@@ -51,33 +64,34 @@ export function usePanelState(events: readonly PanelEventInput[], live: PanelLiv
   return state;
 }
 
-function nodeName(node: PanelNode, mainLabel: string): string {
-  return node.kind === 'main' ? mainLabel : node.agentType || '?';
-}
-
 // ---------------------------------------------------------------------------
 // Progress
 
+const SEGMENT_CLASS: Record<StepLook, string> = { done: ' done', now: ' now', todo: '', fail: ' fail', halt: ' halt' };
+
 /**
- * The nine steps as segments: done in the accent, the current one in cream.
- * Each step's state is in words for screen readers; the line above says
- * which step it is.
+ * The nine steps as segments: done in the accent, the current one in cream
+ * while the session runs; where an ended session stopped, coral or neutral
+ * (`stepLooks`). Each step's state is in words for screen readers; the line
+ * above says which step it is. `ended` is the outcome once it is over.
  */
-export function StepBar({ steps, current }: { steps: { step: string; state: PanelStepState }[]; current: string | undefined }) {
+export function StepBar({ steps, current, ended }: { steps: { step: string; state: PanelStepState }[]; current: string | undefined; ended?: string | undefined }) {
   const { t } = useApp();
+  const looks = stepLooks(
+    steps.map((item) => item.state),
+    ended,
+  );
   return (
     <ol class="segs" aria-label={t.progressTitle} data-testid="progress">
-      {steps.map(({ step, state }) => (
-        <li
-          key={step}
-          class={`seg-step${state === 'ok' || state === 'skipped' ? ' done' : ''}${state === 'running' ? ' now' : ''}${state === 'failed' ? ' fail' : ''}`}
-          data-state={state}
-          aria-current={current === step ? 'step' : undefined}
-        >
-          <span>{t.stepLabel(step)}</span>
-          <small class="sr-only">{t.stepState(state)}</small>
-        </li>
-      ))}
+      {steps.map(({ step, state }, index) => {
+        const { look, word } = looks[index] ?? { look: 'todo', word: state };
+        return (
+          <li key={step} class={`seg-step${SEGMENT_CLASS[look]}`} data-state={state} aria-current={current === step ? 'step' : undefined}>
+            <span>{t.stepLabel(step)}</span>
+            <small class="sr-only">{t.stepState(word)}</small>
+          </li>
+        );
+      })}
     </ol>
   );
 }
@@ -87,6 +101,20 @@ export function stepPosition(steps: { step: string; state: PanelStepState }[], c
   const reached = current ?? [...steps].reverse().find((item) => item.state !== 'waiting')?.step;
   const index = stepNumber(PANEL_STEPS, reached);
   return index === undefined || reached === undefined ? undefined : { index, step: reached };
+}
+
+/** "step 3 / 9", and on a phone, where the segments carry no names, the step's name beside it. */
+export function StepCount({ position }: { position: { index: number; step: string } }) {
+  const { t } = useApp();
+  return (
+    <span class="meta">
+      <span>{t.headStep(position.index, PANEL_STEPS.length)}</span>
+      <span class="m-only" aria-hidden="true">
+        ·
+      </span>
+      <span class="m-only">{t.stepLabel(position.step)}</span>
+    </span>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +253,8 @@ export function AgentPanel({ state, showPendingLinks = false, title }: { state: 
   const node = state.nodes.find((item) => item.id === selected) ?? state.nodes[0];
   const labels = { outside: t.targetOutside, root: t.targetRoot };
   const [main, ...agents] = state.nodes;
+  const names = nodeLabels(state.nodes, t.panelMain);
+  const nameOf = (entry: PanelNode): string => names.get(entry.id) ?? (entry.agentType || '?');
 
   const goToControl = () => {
     const control = document.getElementById(PENDING_CONTROL_ID);
@@ -236,7 +266,7 @@ export function AgentPanel({ state, showPendingLinks = false, title }: { state: 
 
   const item = (entry: PanelNode) => {
     const target = targetText(entry.current?.target, labels);
-    const name = nodeName(entry, t.panelMain);
+    const name = nameOf(entry);
     return (
       <li key={entry.id} class="node-item" data-status={entry.status} data-kind={entry.kind} data-testid={`agent-${entry.id}`}>
         <button
@@ -323,12 +353,16 @@ export function AgentPanel({ state, showPendingLinks = false, title }: { state: 
           <div class="tl" data-testid="panel-timeline">
             <div class="tl-axis">
               <span>{t.panelTimeline}</span>
-              <span class="tl-ticks" aria-hidden="true">
-                {ticks.map((tick, index) => (
-                  <span key={index}>{tick}</span>
+              {/* Each mark sits at its value; the last one may stop short of the end. */}
+              <span class="tl-ticks tl-ticks-at" aria-hidden="true">
+                {ticks.ticks.map((tick, index) => (
+                  <span key={index} class={index === 0 ? 'tick-start' : tick.at > 88 ? 'tick-end' : undefined} style={{ left: `${tick.at}%` }}>
+                    {tick.label}
+                  </span>
                 ))}
               </span>
-              <span />
+              {/* The marks' unit, over the durations column. */}
+              <span class="tl-unit">{ticks.unit}</span>
             </div>
             {state.timeline.rows.map((row) => {
               const entry = state.nodes.find((candidate) => candidate.id === row.nodeId);
@@ -345,7 +379,7 @@ export function AgentPanel({ state, showPendingLinks = false, title }: { state: 
                   onClick={() => setSelected(entry.id)}
                 >
                   <span class="tl-label">
-                    {nodeName(entry, t.panelMain)}
+                    {nameOf(entry)}
                     {/* The state in words too, not only the bar's colour (audit M13). */}
                     <span class="sr-only">, {t.nodeStatus(entry.status)}</span>
                   </span>
@@ -353,15 +387,13 @@ export function AgentPanel({ state, showPendingLinks = false, title }: { state: 
                     <span class={`bar ${barKind(entry)}`} style={{ left: `${left}%`, width: `${width}%` }} />
                     {row.open && <span class="bar-now" style={{ left: `${left + width}%` }} />}
                   </span>
-                  <span class="tl-dur">{formatDuration(entry.durationMs, lang)}</span>
+                  <span class="tl-dur">{formatClockDuration(entry.durationMs, lang)}</span>
                 </button>
               );
             })}
-            <p class="meta tl-legend">
-              {t.panelLegend.map((part) => (
-                <span key={part}>{part}</span>
-              ))}
-              <span>{t.panelTimelineHint}</span>
+            <p class="tl-legend">
+              <MetaLine parts={t.panelLegend} />
+              <span class="meta">{t.panelTimelineHint}</span>
             </p>
           </div>
 
@@ -370,7 +402,7 @@ export function AgentPanel({ state, showPendingLinks = false, title }: { state: 
               <div class="detail-facts">
                 <h3 class="mono detail-name">
                   <span class="sr-only">{t.panelDetail}: </span>
-                  {nodeName(node, t.panelMain)}
+                  {nameOf(node)}
                 </h3>
                 <dl class="kv">
                   <dt>{t.panelModel}</dt>
@@ -396,13 +428,19 @@ export function AgentPanel({ state, showPendingLinks = false, title }: { state: 
                 ) : (
                   <ol class="log" data-testid="panel-denials">
                     {node.denials.map((denial, index) => (
+                      // Time, tool, who and where on one line; the reason, often long, on its own line under them.
                       <li key={`${denial.at}-${index}`} class="denied">
                         <span class="lt">{formatClock(denial.at, lang)}</span> <span class="lk">{denial.tool}</span>{' '}
                         <span class="ld">
                           {t.denialBy(denial.by)}
                           {denial.target !== undefined && ` · ${targetText(denial.target, labels) ?? ''}`}
-                          {denial.reason !== undefined && ` · ${denial.reason}`}
                         </span>
+                        {denial.reason !== undefined && (
+                          <>
+                            {' '}
+                            <span class="ld log-reason">{denial.reason}</span>
+                          </>
+                        )}
                       </li>
                     ))}
                   </ol>
@@ -418,7 +456,7 @@ export function AgentPanel({ state, showPendingLinks = false, title }: { state: 
             return (
               <li key={entry.id} class={entry.kind === 'main' ? undefined : 'tv-child'}>
                 <span class="mono strong">
-                  {nodeName(entry, t.panelMain)} · {t.nodeStatus(entry.status)}
+                  {nameOf(entry)} · {t.nodeStatus(entry.status)}
                 </span>
                 <p>
                   {[entry.model, entry.effort].filter((value) => value !== undefined).join(', ')}
@@ -473,6 +511,9 @@ function SessionPanel({ events, badLines }: { events: PanelEventInput[]; badLine
   const state = usePanelState(events, undefined);
   const current = state.steps.find((item) => item.state === 'running')?.step;
   const position = stepPosition(state.steps, current);
+  // Once it is over, a step left running is where it stopped, not where it waits.
+  const ended =
+    state.session.status === 'running' ? undefined : state.session.status === 'interrupted' ? 'interrupted' : (state.session.outcome ?? 'completed');
   return (
     <>
       <p class="session-status" data-testid="session-status">
@@ -494,10 +535,10 @@ function SessionPanel({ events, badLines }: { events: PanelEventInput[]; badLine
         <div class="progress">
           {position !== undefined && (
             <div class="progress-top">
-              <span class="meta">{t.headStep(position.index, PANEL_STEPS.length)}</span>
+              <StepCount position={position} />
             </div>
           )}
-          <StepBar steps={state.steps} current={current} />
+          <StepBar steps={state.steps} current={ended === undefined ? current : undefined} ended={ended} />
         </div>
       </section>
       <div class="cols">

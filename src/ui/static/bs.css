@@ -537,7 +537,6 @@
   .dec-icon { display: none; }
   .segs { grid-template-columns: repeat(9, minmax(0, 1fr)); }
   .seg-step span { display: none; }
-  .seg-step.now span { display: block; position: absolute; }
   .node { grid-template-columns: 16px minmax(0, 1fr); }
   .node .n-right { grid-column: 2; justify-self: start; }
   .node .n-count { grid-column: 2; justify-self: start; }

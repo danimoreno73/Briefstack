@@ -1,5 +1,7 @@
 /*
- * What the app needs beyond bs.css (docs/diseno/bs.css, copied unchanged):
+ * What the app needs beyond bs.css (copied from docs/diseno/bs.css with one
+ * rule removed: on a phone the current step's name was placed absolutely and
+ * spilled out of the progress card; it now sits beside "step 3 / 9"):
  * the design canvas draws the shell, the dialog and the drawer inside a
  * frame, and its screens use `style` attributes, which the CSP refuses
  * (`style-src 'self'`). Each of those becomes a class here, with bs.css
@@ -345,8 +347,34 @@ dialog.dec-dialog {
   padding: var(--s-4) var(--s-5);
 }
 
+/* Where an ended session stopped: coral after a failure or an interruption, neutral after a cancel. */
 .seg-step.fail::before {
   background: var(--danger);
+}
+
+.seg-step.halt::before {
+  background: var(--ink-3);
+}
+
+/* On a phone only this bar stays in sight: the state and an outlined Cancel, under the top bar. */
+.head-bar {
+  position: sticky;
+  top: 67px;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-4);
+  border-bottom: var(--bw) solid var(--line);
+  background: var(--bg);
+}
+
+@media (max-width: 720px) {
+  .page-head.sticky-desktop {
+    position: static;
+  }
 }
 
 /* Agents: each node is a button, with what it asks on the line under it. */
@@ -389,7 +417,48 @@ dialog.dec-dialog {
 }
 
 .tl-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin-top: 6px;
+}
+
+/* The axis marks sit at their values, not spread evenly. */
+.tl-ticks-at {
+  position: relative;
+  display: block;
+  min-height: 1.5em;
+}
+
+.tl-ticks-at span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.tl-ticks-at .tick-start {
+  transform: none;
+}
+
+.tl-ticks-at .tick-end {
+  transform: translateX(-100%);
+}
+
+.tl-unit {
+  text-align: right;
+}
+
+/* A phone's track is narrow: every other mark, starting at 0. */
+@media (max-width: 720px) {
+  .tl-ticks-at span:nth-child(even) {
+    display: none;
+  }
+}
+
+/* A denial's reason on its own line, under the time and the tool. */
+.log .log-reason {
+  grid-column: 1 / -1;
 }
 
 .tl-dur {

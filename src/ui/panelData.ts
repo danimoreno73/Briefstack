@@ -91,18 +91,96 @@ export function usageMeter(start: number | null | undefined, now: number | null 
 }
 
 /**
- * Five labels under the timeline, from 0 to its span: whole minutes from two
- * minutes up, whole seconds from ten seconds, tenths of a second below (in
- * the language's decimal mark); the unit only on the last label.
+ * The marks under the timeline: round values (1, 2 or 5 times a power of
+ * ten) from 0 up to the span, five at most, never two alike; each with its
+ * place as a percentage of the span. Minutes from two minutes up, seconds
+ * below, in the language's decimal mark. The unit goes with the axis's name,
+ * so the marks stay short.
  */
-export function timelineTicks(spanMs: number, lang = 'en'): string[] {
+export function timelineTicks(spanMs: number, lang = 'en'): { unit: 'min' | 's'; ticks: { label: string; at: number }[] } {
   const span = Number.isFinite(spanMs) && spanMs > 0 ? spanMs : 0;
   const minutes = span >= 120_000;
-  const unit = minutes ? 60_000 : 1000;
-  const digits = span >= 10_000 ? 0 : 1;
+  const unit = minutes ? 'min' : 's';
+  if (span === 0) return { unit, ticks: [{ label: '0', at: 0 }] };
+  const inUnit = span / (minutes ? 60_000 : 1000);
+  // The smallest round step that leaves five marks at most (four steps from 0).
+  const power = 10 ** Math.floor(Math.log10(inUnit / 5));
+  const step = [1, 2, 5, 10].map((factor) => factor * power).find((candidate) => Math.floor(inUnit / candidate + 1e-9) <= 4) ?? 10 * power;
+  const digits = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
   const number = new Intl.NumberFormat(lang, { maximumFractionDigits: digits });
-  const labels = [0, 1, 2, 3, 4].map((quarter) => number.format((span * quarter) / 4 / unit));
-  labels[4] = `${labels[4]} ${minutes ? 'min' : 's'}`;
+  const ticks: { label: string; at: number }[] = [];
+  for (let index = 0; index * step <= inUnit + 1e-9 && index <= 4; index += 1) {
+    const value = Number((index * step).toFixed(digits));
+    ticks.push({ label: number.format(value), at: Math.min(100, (value / inUnit) * 100) });
+  }
+  return { unit, ticks };
+}
+
+/**
+ * A duration as a clock reads it, for the timeline's narrow column: `4:00`,
+ * `8:09`, `1:02:03`. Under a minute it stays in seconds (`45 s`, `2.4 s`).
+ */
+export function formatClockDuration(ms: number | undefined, lang = 'en'): string {
+  if (ms === undefined || !Number.isFinite(ms) || ms < 60_000) return formatDuration(ms, lang);
+  const seconds = Math.floor(ms / 1000);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds % 60)}` : `${minutes}:${pad(seconds % 60)}`;
+}
+
+/** What a segment of the progress bar shows. */
+export type StepLook = 'done' | 'now' | 'todo' | 'fail' | 'halt';
+
+/** The word a segment says for screen readers: a step state, or what the bar infers. */
+export type StepWord = 'waiting' | 'running' | 'ok' | 'skipped' | 'failed' | 'passed' | 'stopped' | 'interrupted';
+
+/**
+ * How each step reads once the states are known. A step before the furthest
+ * one reached was passed, even with no event of its own (sessions recorded
+ * before step events, or cut short); it reads as done. A step still running
+ * after the session ended is where it stopped: neutral after a cancel, coral
+ * after an interruption or a failure, never cream, which means "waiting for
+ * you". `ended` is the outcome once the session is over, `undefined` while
+ * it runs.
+ */
+export function stepLooks(states: readonly string[], ended: string | undefined): { look: StepLook; word: StepWord }[] {
+  let reached = -1;
+  states.forEach((state, index) => {
+    if (state !== 'waiting') reached = index;
+  });
+  return states.map((state, index): { look: StepLook; word: StepWord } => {
+    if (state === 'ok' || state === 'skipped') return { look: 'done', word: state };
+    if (state === 'failed') return { look: 'fail', word: 'failed' };
+    if (state === 'running') {
+      if (ended === undefined) return { look: 'now', word: 'running' };
+      if (ended === 'completed') return { look: 'done', word: 'passed' };
+      return ended === 'cancelled' ? { look: 'halt', word: 'stopped' } : { look: 'fail', word: 'interrupted' };
+    }
+    return index < reached ? { look: 'done', word: 'passed' } : { look: 'todo', word: 'waiting' };
+  });
+}
+
+/**
+ * The name each node is shown with: the main session's label, or the agent's
+ * type; when a type ran more than once (two interviewer rounds), each run is
+ * numbered in order: `interviewer · 1`, `interviewer · 2`.
+ */
+export function nodeLabels(nodes: readonly { id: string; kind: 'main' | 'agent'; agentType: string }[], mainLabel: string): Map<string, string> {
+  const totals = new Map<string, number>();
+  for (const node of nodes) if (node.kind === 'agent') totals.set(node.agentType, (totals.get(node.agentType) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  const labels = new Map<string, string>();
+  for (const node of nodes) {
+    if (node.kind === 'main') {
+      labels.set(node.id, mainLabel);
+      continue;
+    }
+    const type = node.agentType || '?';
+    const run = (seen.get(node.agentType) ?? 0) + 1;
+    seen.set(node.agentType, run);
+    labels.set(node.id, (totals.get(node.agentType) ?? 0) > 1 ? `${type} · ${run}` : type);
+  }
   return labels;
 }
 

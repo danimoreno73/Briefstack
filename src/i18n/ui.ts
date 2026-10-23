@@ -305,7 +305,9 @@ export const uiMessages = defineCatalogue({
     recentTitle: 'Finished since briefstack started',
     recentEmpty: 'None has finished yet.',
     policyShown: (policy: string) =>
-      `Unexpected permission requests: ${policy === 'unattended' ? 'denied automatically (unattended)' : 'asked to you'}.`,
+      policy === 'unattended'
+        ? 'If Claude asks to do something outside the plan, it is denied automatically (unattended).'
+        : 'If Claude asks to do something outside the plan, you decide here.',
     progressTitle: 'Progress',
     stepLabel: (step: string): string => {
       const labels: Record<string, string> = {
@@ -322,7 +324,16 @@ export const uiMessages = defineCatalogue({
       return labels[step] ?? step;
     },
     stepState: (state: string): string => {
-      const labels: Record<string, string> = { waiting: 'waiting', running: 'running', ok: 'done', skipped: 'skipped', failed: 'failed' };
+      const labels: Record<string, string> = {
+        waiting: 'waiting',
+        running: 'running',
+        ok: 'done',
+        skipped: 'skipped',
+        failed: 'failed',
+        passed: 'passed',
+        stopped: 'stopped here',
+        interrupted: 'interrupted here',
+      };
       return labels[state] ?? state;
     },
     agentsNow: 'Working now',
@@ -601,7 +612,7 @@ export const uiMessages = defineCatalogue({
     agentsView: 'Agents view',
     viewTree: 'Tree',
     viewText: 'Text',
-    panelLegend: ['green fill: running', 'grey: done', 'cream outline: waiting for you'],
+    panelLegend: ['green fill: running', 'grey: done', 'cream outline: waiting for you', 'coral: interrupted or failed'],
     panelStatus: 'Status',
     panelCalls: 'Tool calls',
     panelDeniedLabel: 'Denied',
@@ -923,7 +934,9 @@ export const uiMessages = defineCatalogue({
     recentTitle: 'Terminadas desde que arrancó briefstack',
     recentEmpty: 'Aún no ha terminado ninguna.',
     policyShown: (policy: string) =>
-      `Peticiones de permiso inesperadas: ${policy === 'unattended' ? 'se deniegan solas (desatendido)' : 'te las pregunto'}.`,
+      policy === 'unattended'
+        ? 'Si Claude pide hacer algo fuera del plan, se deniega automáticamente (desatendido).'
+        : 'Si Claude pide hacer algo fuera del plan, decides tú aquí.',
     progressTitle: 'Progreso',
     stepLabel: (step: string): string => {
       const labels: Record<string, string> = {
@@ -940,7 +953,16 @@ export const uiMessages = defineCatalogue({
       return labels[step] ?? step;
     },
     stepState: (state: string): string => {
-      const labels: Record<string, string> = { waiting: 'pendiente', running: 'en curso', ok: 'hecho', skipped: 'omitido', failed: 'fallido' };
+      const labels: Record<string, string> = {
+        waiting: 'pendiente',
+        running: 'en curso',
+        ok: 'hecho',
+        skipped: 'omitido',
+        failed: 'fallido',
+        passed: 'superado',
+        stopped: 'se detuvo aquí',
+        interrupted: 'se interrumpió aquí',
+      };
       return labels[state] ?? state;
     },
     agentsNow: 'Trabajando ahora',
@@ -1220,7 +1242,7 @@ export const uiMessages = defineCatalogue({
     agentsView: 'Vista de agentes',
     viewTree: 'Árbol',
     viewText: 'Texto',
-    panelLegend: ['relleno verde: en marcha', 'gris: hecho', 'contorno crema: esperándote'],
+    panelLegend: ['relleno verde: en marcha', 'gris: hecho', 'contorno crema: esperándote', 'coral: interrumpido o fallido'],
     panelStatus: 'Estado',
     panelCalls: 'Llamadas',
     panelDeniedLabel: 'Denegaciones',

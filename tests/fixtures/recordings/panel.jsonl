@@ -29,7 +29,7 @@
 {"do":"emit","event":{"kind":"denial","toolName":"Write","summary":"write","agentType":"architect","agentId":"a1","toolUseId":"a1w1","reason":"Writes are only allowed inside the projects folder, this creation's session folder and folders the user granted for it."}}
 {"do":"hook","type":"subagent.stop","agentId":"a1","agentType":"architect"}
 {"do":"hook","type":"tool.post","tool":"Agent","toolUseId":"m4"}
-{"do":"spec","onChange":"write-spec","spec":"{\"name\":\"Garden planner\",\"target\":\"claude-app\",\"targetChosenBy\":\"architect\"}\n","summary":"# Garden planner\n\nA planting calendar for a home gardener.\n"}
+{"do":"spec","onChange":"write-spec","spec":"{\"name\":\"Garden planner\",\"target\":\"claude-app\",\"targetChosenBy\":\"architect\"}\n","summary":"# Garden planner\n\nA planting calendar for a home gardener.\n\n## Assumptions\n\n- Assumption: one garden per household.\n- Assumption: frost dates come from the user, not from a weather service.\n"}
 {"do":"flow","step":"spec","phase":"finished","outcome":"ok"}
 {"do":"flow","step":"generate","phase":"started"}
 {"do":"hook","type":"tool.pre","tool":"Agent","toolUseId":"m5"}
@@ -37,7 +37,7 @@
 {"do":"hook","type":"tool.pre","agentId":"g1","agentType":"generator","tool":"Write","toolUseId":"g1w1","target":{"root":"projects","path":"garden-planner/docs/BRIEF.md"},"effort":"low"}
 {"do":"hook","type":"tool.post","agentId":"g1","agentType":"generator","tool":"Write","toolUseId":"g1w1"}
 {"do":"hook","type":"tool.pre","agentId":"g1","agentType":"generator","tool":"Bash","toolUseId":"g1b1","target":{"root":"cli","path":"validate"}}
-{"do":"permission","toolName":"Bash","summary":"git status","agentType":"generator"}
+{"do":"permission","toolName":"Bash","summary":"briefstack validate","agentType":"generator"}
 {"do":"hook","type":"tool.post","agentId":"g1","agentType":"generator","tool":"Bash","toolUseId":"g1b1"}
 {"do":"hook","type":"subagent.stop","agentId":"g1","agentType":"generator"}
 {"do":"hook","type":"tool.post","tool":"Agent","toolUseId":"m5"}

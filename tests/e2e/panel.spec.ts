@@ -48,6 +48,8 @@ test.describe('the live panel', () => {
 
     // The spec: the architect was refused a write, with the guard's reason, and the target is not shown in full.
     await expect(page.getByRole('heading', { name: 'Approve the spec' })).toBeVisible();
+    // The architect's assumptions come inside the summary and are shown with it.
+    await expect(page.getByTestId('spec-summary')).toContainText('Assumption: one garden per household.');
     await expect(node(page, 'a1').getByTestId('denial-count')).toHaveText('1 denied');
     await expect(node(page, 'main').getByTestId('node-pending')).toContainText('Asks you to approve the spec');
     await node(page, 'a1').getByRole('button', { name: /architect/ }).click();
@@ -66,6 +68,8 @@ test.describe('the live panel', () => {
     await expect(generator.getByTestId('node-status')).toHaveText('Waiting for you');
     await expect(generator.getByTestId('agent-now')).toContainText('Bash');
     await expect(generator.getByTestId('agent-now')).toContainText('briefstack validate');
+    // The request is that same call.
+    await expect(page.getByTestId('permission-summary')).toHaveText('briefstack validate');
     await expect(node(page, 'main').getByTestId('node-pending')).toHaveCount(0);
     await generator.getByRole('button', { name: 'Go to the answer' }).click();
     await expect(page.getByRole('button', { name: 'Allow' })).toBeFocused();
@@ -140,6 +144,28 @@ test.describe('finished sessions', () => {
     await page.getByTestId('unfinished').getByRole('row', { name: new RegExp(SESSION_INTERRUPTED) }).getByRole('link').click();
     await expect(page.getByTestId('session-status')).toContainText('Interrupted');
     await expect(node(page, 'main').getByTestId('node-status')).toHaveText('Interrupted');
+    // Only "research" was recorded: the steps before it were passed, and research is where it was cut,
+    // not a step that waits for the user.
+    const segment = (name: string) => page.getByTestId('progress').getByRole('listitem').filter({ hasText: name });
+    for (const name of ['Idea', 'Gap analysis', 'Interview']) await expect(segment(name)).toContainText('passed');
+    await expect(segment('Research')).toContainText('interrupted here');
+    await expect(segment('Research')).not.toHaveAttribute('aria-current', 'step');
+    await expect(segment('Spec')).toContainText('waiting');
+  });
+
+  test('numbers an agent type that ran twice, as in the real H10 run', async ({ page, app }) => {
+    const { cp } = await import('node:fs/promises');
+    const { PACKAGE_ROOT } = await import('../../src/packageRoot.js');
+    const path = await import('node:path');
+    await cp(path.join(PACKAGE_ROOT, 'tests', 'fixtures', 'sessions', 'h10-run3.jsonl'), path.join(app.sessionsDir, 'h10-run3-session', 'events.jsonl'));
+    await page.goto(app.url);
+    await expect(page.getByRole('link', { name: 'Garden planner' })).toBeVisible();
+    await page.evaluate(() => (window.location.hash = '#/sessions/h10-run3-session'));
+    await expect(page.getByTestId('session-status')).toContainText('Completed');
+    await expect(node(page, 'agent-1')).toContainText('interviewer · 1');
+    await expect(node(page, 'agent-2')).toContainText('interviewer · 2');
+    await expect(node(page, 'agent-4')).toContainText('architect');
+    await expect(node(page, 'agent-4')).not.toContainText('architect ·');
   });
 
   test('a session recorded before phase 3 still renders, from the project page', async ({ page, app }) => {
@@ -175,7 +201,8 @@ test.describe('the text alternative', () => {
   test('lists every agent, and the timeline is usable with the keyboard', async ({ page, app }) => {
     await startCreation(page, app);
     await page.getByRole('button', { name: 'Send answers' }).click();
-    await expect(node(page, 'a1')).toBeVisible();
+    // Not just the architect's node: it starts a moment before the spec approval reaches the main session.
+    await expect(node(page, 'main').getByTestId('node-pending')).toContainText('Asks you to approve the spec');
     const text = (await textView(page)).join('\n');
     expect(text).toContain('Main session · Waiting for you');
     expect(text).toContain('interviewer · Done');

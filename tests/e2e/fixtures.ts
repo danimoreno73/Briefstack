@@ -274,13 +274,20 @@ export async function clickNav(page: Page, name: string | RegExp): Promise<void>
  * in the library, linked to the creation's session. The fake runner writes no
  * library, so a test calls this before the creation ends.
  */
-export async function recordProject(app: App, slug: string, name: string, session: string): Promise<string> {
+export async function recordProject(
+  app: App,
+  slug: string,
+  name: string,
+  session: string,
+  options: { target?: 'claude-code' | 'claude-app'; nextSteps?: string } = {},
+): Promise<string> {
   const projectDir = path.join(app.projectsDir, slug);
   await mkdir(projectDir, { recursive: true });
+  if (options.nextSteps !== undefined) await writeFile(path.join(projectDir, 'NEXT_STEPS.md'), options.nextSteps, 'utf8');
   const file = path.join(app.dir, `${slug}.note.md`);
   const text = [
     '---',
-    'target: claude-code',
+    `target: ${options.target ?? 'claude-code'}`,
     `path: ${projectDir.replaceAll(String.fromCharCode(92), '/')}`,
     'status: created',
     'profile: balanced',
