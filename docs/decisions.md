@@ -3116,6 +3116,12 @@ Checked, and what was found:
   the architect's node appeared, which happens a moment before the spec
   approval reaches the main session; it now waits for that request. The
   panel suite passed 5 runs in a row (45 of 45).
-- **A short flash.** On opening a creation, the panel may read "Interrupted"
-  for up to 200 ms, until its first recompute has the creation's live
-  state. Seen in a screenshot; not changed in this round.
+- **A short flash, fixed after the review.** On opening a creation, the
+  panel could read "Interrupted" for up to 200 ms: `usePanelState` mounts
+  before the creation's state arrives, and its throttle kept computing
+  without the live state, which reads as a session that is over. The first
+  live state now goes straight in. Until the state arrives the page shows
+  "Loading…" and no panel. An e2e test holds every request for the state,
+  records each text the main session's state takes (a MutationObserver, so
+  even an unpainted render counts) and fails on any ended state; it failed
+  3 of 3 without the fix and passed 15 of 15 with it.
