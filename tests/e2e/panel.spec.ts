@@ -171,14 +171,14 @@ test.describe('finished sessions', () => {
   test('a cancelled and an interrupted session open their panel from the projects page', async ({ page, app }) => {
     await page.goto(app.url);
     const unfinished = page.getByTestId('unfinished');
-    // Each row's link is its idea; the row is found by the session id beside it.
-    await unfinished.getByRole('row', { name: new RegExp(SESSION_CANCELLED) }).getByRole('link').click();
+    // Each card's title links its idea; the card is found by the session id beside it.
+    await unfinished.getByRole('listitem').filter({ hasText: SESSION_CANCELLED }).getByRole('heading').getByRole('link').click();
     await expect(page.getByTestId('session-status')).toContainText('Cancelled');
     await expect(node(page, 'main').getByTestId('node-status')).toHaveText('Cancelled');
     await expect(page.getByTestId('progress').locator('li[data-state="running"]')).toHaveCount(1);
 
     await page.goBack();
-    await page.getByTestId('unfinished').getByRole('row', { name: new RegExp(SESSION_INTERRUPTED) }).getByRole('link').click();
+    await page.getByTestId('unfinished').getByRole('listitem').filter({ hasText: SESSION_INTERRUPTED }).getByRole('heading').getByRole('link').click();
     await expect(page.getByTestId('session-status')).toContainText('Interrupted');
     await expect(node(page, 'main').getByTestId('node-status')).toHaveText('Interrupted');
     // Only "research" was recorded: the steps before it were passed, and research is where it was cut,

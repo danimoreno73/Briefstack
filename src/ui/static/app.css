@@ -573,6 +573,13 @@ dialog.dec-dialog {
   align-items: start;
 }
 
+@media (max-width: 720px) {
+  .command-row {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+}
+
 .denied-list {
   display: flex;
   flex-direction: column;
@@ -584,6 +591,62 @@ dialog.dec-dialog {
   flex-direction: column;
   gap: 2px;
   overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Projects, creations, new project                                          */
+
+/* Cards side by side as the width allows, one column on a phone. */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: var(--s-4);
+}
+
+/* A path in a table cell or a detail wraps between folders, never pushing the page sideways. */
+.table .td-path,
+.kv .td-path {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.table .td-path {
+  min-width: 12rem;
+}
+
+.kv .td-path {
+  min-width: 0;
+}
+
+/* A creation that waits for the user is cream: bs.css gives .cr-card the surface after .dec, which hid it. */
+.cr-card.dec {
+  background: var(--dec);
+}
+
+/* Long instructions: a window onto them, the button copies the whole text. */
+.request-clip {
+  max-height: 14rem;
+  overflow: auto;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.limit-meter {
+  max-width: 420px;
+}
+
+.free-slots {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-4) var(--s-5);
+}
+
+.recent {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
 }
 
 /* ------------------------------------------------------------------------ */

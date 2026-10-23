@@ -1,7 +1,8 @@
 import { useEffect } from 'preact/hooks';
-import { Loader } from './common.js';
 import { formatWhen } from './format.js';
 import { useApp, useDocumentTitle, useLoad } from './hooks.js';
+import { Empty, LoadState } from './kit.js';
+import { STEPS } from './progress.js';
 import { routeHash } from './route.js';
 import type { CreationState, SettingsView } from './types.js';
 
@@ -26,64 +27,90 @@ export function CreationsPage() {
     return () => clearInterval(timer);
   }, [list.reload]);
 
+  const newHref = routeHash({ page: 'new', id: undefined });
+
   return (
-    <section>
-      <h1>{t.creationsTitle}</h1>
-      <Loader loaded={list}>
-        {({ creations }) => {
-          const active = creations.filter((creation) => creation.status !== 'finished');
-          return (
-            <>
-              {settings.data !== undefined && (
-                <p class="muted" data-testid="creations-count">
-                  {t.creationsCount(active.length, settings.data.maxActiveCreations)}
-                </p>
-              )}
-              {active.length === 0 ? (
-                <p class="empty">{t.creationsEmpty}</p>
-              ) : (
-                <div class="table-wrap">
-                  <table class="stack-on-phone" data-testid="creations">
-                    <thead>
-                      <tr>
-                        <th scope="col">{t.colIdea}</th>
-                        <th scope="col">{t.colStarted}</th>
-                        <th scope="col">{t.colStep}</th>
-                        <th scope="col">{t.colWaiting}</th>
-                        <th scope="col">
-                          <span class="visually-hidden">{t.openCreation}</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {active.map((creation) => {
-                        const kind = waitingKind(creation);
-                        // What waits for the user is marked; working and cancelling stay quiet (audit M18).
-                        const forYou = kind !== 'working' && kind !== 'cancelling';
-                        return (
-                          <tr key={creation.id} data-creation={creation.id}>
-                            <td class="idea-cell">
-                              <span>{creation.idea.slice(0, 300)}</span>
-                            </td>
-                            <td class="num">{formatWhen(creation.startedAt, lang)}</td>
-                            <td>{creation.currentStep === undefined ? '—' : t.stepLabel(creation.currentStep)}</td>
-                            <td data-testid="waiting" class={forYou ? 'for-you' : 'muted'}>
-                              {t.waitingFor(kind)}
-                            </td>
-                            <td>
-                              <a href={routeHash({ page: 'new', id: creation.id })}>{t.openCreation}</a>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          );
-        }}
-      </Loader>
-    </section>
+    <>
+      <header class="page-head">
+        <div class="page-head-text">
+          <h1 class="t-1">{t.creationsTitle}</h1>
+          <p class="lead">{t.creationsIntro}</p>
+        </div>
+        <div class="btn-row">
+          <a class="btn btn-primary" href={newHref}>
+            {t.navNew}
+          </a>
+        </div>
+      </header>
+      <div class="page">
+        <LoadState loaded={list}>
+          {({ creations }) => {
+            const active = creations.filter((creation) => creation.status !== 'finished');
+            const limit = settings.data?.maxActiveCreations;
+            return (
+              <>
+                {limit !== undefined && (
+                  <div class="use-row limit-meter">
+                    <span class="mono-s faint">{t.maxActiveLabel}</span>
+                    <div class="meter" role="img" aria-label={t.creationsCount(active.length, limit)}>
+                      <span class="m-now" style={{ width: `${Math.min(100, (active.length / Math.max(1, limit)) * 100)}%` }} />
+                    </div>
+                    <span class="mono-s">
+                      <span data-testid="creations-count">{t.creationsCount(active.length, limit)}</span>{' '}
+                      <a class="link" href={routeHash({ page: 'settings' })}>
+                        {t.changeLimit}
+                      </a>
+                    </span>
+                  </div>
+                )}
+                {active.length === 0 ? (
+                  <Empty title={t.creationsEmpty} action={{ href: newHref, label: t.navNew }} />
+                ) : (
+                  <ul class="stack-4" data-testid="creations">
+                    {active.map((creation) => {
+                      const kind = waitingKind(creation);
+                      // What waits for the user is cream; working and cancelling stay quiet (audit M18).
+                      const forYou = kind !== 'working' && kind !== 'cancelling';
+                      const stepIndex = creation.currentStep === undefined ? -1 : (STEPS as readonly string[]).indexOf(creation.currentStep);
+                      return (
+                        <li key={creation.id} class={forYou ? 'cr-card dec' : 'cr-card'} data-creation={creation.id}>
+                          <div class="cr-meta">
+                            <div class="cr-top">
+                              <span class="mono-s">{formatWhen(creation.startedAt, lang)}</span>
+                              {creation.currentStep !== undefined && (
+                                <span class="chip">
+                                  {!forYou && kind === 'working' && <span class="dot pulse" />}
+                                  {stepIndex === -1 ? t.stepLabel(creation.currentStep) : t.stepOf(t.stepLabel(creation.currentStep), stepIndex + 1, STEPS.length)}
+                                </span>
+                              )}
+                            </div>
+                            <h2 class="cr-title">{creation.idea.slice(0, 300)}</h2>
+                            <p class={forYou ? 'strong' : 'muted'}>
+                              {forYou ? `${t.waitingForYou}: ` : ''}
+                              <span data-testid="waiting">{t.waitingFor(kind)}</span>
+                            </p>
+                          </div>
+                          <a class={forYou ? 'btn btn-primary' : 'btn btn-secondary'} href={routeHash({ page: 'new', id: creation.id })}>
+                            {t.openCreation}
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {active.length > 0 && limit !== undefined && active.length < limit && (
+                  <div class="card card-dash free-slots">
+                    <span class="muted">{t.freeSlots(limit - active.length)}</span>
+                    <a class="btn btn-ghost btn-sm" href={newHref}>
+                      {t.startAnother}
+                    </a>
+                  </div>
+                )}
+              </>
+            );
+          }}
+        </LoadState>
+      </div>
+    </>
   );
 }

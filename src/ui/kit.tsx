@@ -50,6 +50,21 @@ export function MetaLine({ parts }: { parts: (ComponentChildren | false | undefi
   );
 }
 
+/** Nothing to list yet: what is missing, and the way to make the first one. */
+export function Empty({ title, body, action }: { title: string; body?: string; action?: { href: string; label: string } }) {
+  return (
+    <div class="empty">
+      <p class="t-3">{title}</p>
+      {body !== undefined && <p class="t-small muted">{body}</p>}
+      {action !== undefined && (
+        <a class="btn btn-primary" href={action.href}>
+          {action.label}
+        </a>
+      )}
+    </div>
+  );
+}
+
 export function ErrorNote({ error }: { error: unknown }) {
   const { t } = useApp();
   return (

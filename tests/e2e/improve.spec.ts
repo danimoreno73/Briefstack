@@ -272,7 +272,7 @@ test.describe('suggestions after a creation', () => {
 
   test('appear on the result screen and in the chat, change nothing, and can be prepared', async ({ page, app }) => {
     await page.goto(app.url);
-    await page.getByRole('link', { name: 'New project' }).click();
+    await page.getByRole('navigation', { name: /^(Main|Principal)$/ }).getByRole('link', { name: 'New project' }).click();
     await page.getByLabel('Describe your idea').fill('A seed tracker');
     await page.getByRole('button', { name: 'Start' }).click();
     const box = page.getByTestId('awaiting-reply').getByLabel('Your reply');

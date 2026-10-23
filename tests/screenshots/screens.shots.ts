@@ -22,7 +22,58 @@ interface Screen {
   open(page: Page, app: App): Promise<void>;
 }
 
+/** Starts a creation from the New project page; it then waits for the first answers. */
+async function startCreation(page: Page, idea: string): Promise<void> {
+  await clickNav(page, 'New project');
+  await page.getByLabel('Describe your idea').fill(idea);
+  await page.getByRole('button', { name: 'Start' }).click();
+  await expect(page.getByTestId('idea')).toHaveText(idea);
+}
+
 const SCREENS: Screen[] = [
+  {
+    name: 'projects',
+    open: async (page) => {
+      await expect(page.getByTestId('projects')).toBeVisible();
+      await expect(page.getByTestId('unfinished')).toBeVisible();
+    },
+  },
+  {
+    name: 'project-detail',
+    open: async (page) => {
+      await page.getByRole('link', { name: 'Garden planner' }).click();
+      await expect(page.getByTestId('timeline')).toBeVisible();
+    },
+  },
+  {
+    name: 'new-project',
+    open: async (page) => {
+      await clickNav(page, 'New project');
+      await expect(page.getByLabel('Describe your idea')).toBeVisible();
+    },
+  },
+  {
+    name: 'new-project-start-again',
+    open: async (page) => {
+      await page.getByTestId('unfinished').getByRole('listitem').filter({ hasText: 'sess-cancelled' }).getByRole('button', { name: 'Start again with this idea' }).click();
+      await expect(page.getByLabel('Describe your idea')).not.toHaveValue('');
+    },
+  },
+  {
+    name: 'creations',
+    open: async (page) => {
+      await startCreation(page, 'A garden planner for my family, with a planting calendar.');
+      await clickNav(page, /Creations/);
+      await expect(page.getByTestId('creations')).toBeVisible();
+    },
+  },
+  {
+    name: 'creations-empty',
+    open: async (page) => {
+      await clickNav(page, /Creations/);
+      await expect(page.getByText('No creation is running.')).toBeVisible();
+    },
+  },
   {
     name: 'usage',
     open: async (page) => {

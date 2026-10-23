@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import { CreationSuggestions } from './improve.js';
 import { ApiError, CREATIONS_CHANGED_EVENT, TOKEN_HEADER, noteRejection } from './api.js';
 import { answersFor, defaultSelection, type Selection } from './answers.js';
-import { CopyButton, ErrorBanner, Loader, Markdown, PathText } from './common.js';
+import { CopyButton, Markdown, PathText } from './common.js';
+import { takeIdeaDraft } from './ideaDraft.js';
 import { formatWhen, openCommandLines, withoutLeadingHeading } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { IconCheck, IconFolder, IconQuestion, IconReply, IconSpec, IconTerminal } from './icons.js';
@@ -33,7 +34,8 @@ function StartPage() {
   const { t, lang } = useApp();
   const send = useSend();
   const list = useLoad<{ creations: CreationState[] }>('/api/creations');
-  const [idea, setIdea] = useState('');
+  // "Start again with this idea" on the Projects page leaves the idea here.
+  const [idea, setIdea] = useState(() => takeIdeaDraft() ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
   const [atLimit, setAtLimit] = useState(false);
@@ -59,52 +61,67 @@ function StartPage() {
   };
 
   return (
-    <section>
-      <h1>{t.newTitle}</h1>
-      <form onSubmit={(event) => void start(event)}>
-        {error !== undefined && <ErrorBanner error={error} />}
+    <div class="page">
+      <div class="hero">
+        <h1 class="t-display">{t.newTitle}</h1>
+        <p class="lead">{t.newIntro}</p>
+        {error !== undefined && <ErrorNote error={error} />}
         {atLimit && (
-          <p class="banner banner-error" role="alert" data-testid="limit-reached">
-            {t.limitMessage} <a href={routeHash({ page: 'creations' })}>{t.creationsOpen}</a>
-          </p>
+          <Note tone="danger" role="alert" testId="limit-reached">
+            {t.limitMessage}{' '}
+            <a class="link" href={routeHash({ page: 'creations' })}>
+              {t.creationsOpen}
+            </a>
+          </Note>
         )}
         {running > 0 && !atLimit && (
-          <p class="banner banner-warn" role="status" data-testid="usage-adds-up">
-            {t.usageAddsUp(running)} <a href={routeHash({ page: 'creations' })}>{t.creationsOpen}</a>
-          </p>
+          <Note tone="warn" role="status" testId="usage-adds-up">
+            {t.usageAddsUp(running)}{' '}
+            <a class="link" href={routeHash({ page: 'creations' })}>
+              {t.creationsOpen}
+            </a>
+          </Note>
         )}
-        <p>
-          <label for="idea">{t.ideaLabel}</label>
-          <textarea id="idea" rows={6} value={idea} onInput={(event) => setIdea(event.currentTarget.value)} />
-          <span class="hint">{t.ideaHint}</span>
-        </p>
-        <div class="actions">
-          <button type="submit" disabled={busy || idea.trim() === ''}>
-            {busy ? t.ideaStarting : t.ideaStart}
-          </button>
-        </div>
-      </form>
+        <form class="idea-box" onSubmit={(event) => void start(event)}>
+          <label class="label" for="idea">
+            {t.ideaLabel}
+          </label>
+          <textarea id="idea" rows={5} value={idea} aria-describedby="idea-hint" onInput={(event) => setIdea(event.currentTarget.value)} />
+          <div class="idea-foot">
+            <span class="meta" id="idea-hint">
+              {t.ideaHint}
+            </span>
+            <button type="submit" class="btn btn-primary btn-lg" disabled={busy || idea.trim() === ''}>
+              {busy ? t.ideaStarting : t.ideaStart}
+            </button>
+          </div>
+        </form>
+      </div>
 
-      <h2>{t.recentTitle}</h2>
-      <Loader loaded={list}>
-        {({ creations }) => {
-          const finished = creations.filter((creation) => creation.status === 'finished').reverse();
-          if (finished.length === 0) return <p class="empty">{t.recentEmpty}</p>;
-          return (
-            <ul>
-              {finished.map((creation) => (
-                <li key={creation.id}>
-                  <a href={routeHash({ page: 'new', id: creation.id })}>{creation.idea.slice(0, 80)}</a>{' '}
-                  <span class="muted">
-                    · {t.outcome(creation.outcome)} · {formatWhen(creation.finishedAt ?? creation.startedAt, lang)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          );
-        }}
-      </Loader>
-    </section>
+      <section class="stack-4 recent" aria-labelledby="recent-title">
+        <h2 class="section-title" id="recent-title">
+          {t.recentTitle}
+        </h2>
+        <LoadState loaded={list}>
+          {({ creations }) => {
+            const finished = creations.filter((creation) => creation.status === 'finished').reverse();
+            if (finished.length === 0) return <p class="muted">{t.recentEmpty}</p>;
+            return (
+              <ul class="card-grid">
+                {finished.map((creation) => (
+                  <li key={creation.id} class="card">
+                    <a class="link" href={routeHash({ page: 'new', id: creation.id })}>
+                      {creation.idea.slice(0, 80)}
+                    </a>
+                    <MetaLine parts={[t.outcome(creation.outcome), formatWhen(creation.finishedAt ?? creation.startedAt, lang)]} />
+                  </li>
+                ))}
+              </ul>
+            );
+          }}
+        </LoadState>
+      </section>
+    </div>
   );
 }
 

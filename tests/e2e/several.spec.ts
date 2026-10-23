@@ -6,7 +6,7 @@ import { expect, test, type App } from './fixtures.js';
 
 async function startCreation(page: Page, app: App, idea: string): Promise<string> {
   await page.goto(app.url);
-  await page.getByRole('link', { name: 'New project' }).click();
+  await page.getByRole('navigation', { name: /^(Main|Principal)$/ }).getByRole('link', { name: 'New project' }).click();
   await page.getByLabel('Describe your idea').fill(idea);
   await page.getByRole('button', { name: 'Start' }).click();
   await expect(page.getByTestId('idea')).toHaveText(idea);
@@ -48,7 +48,7 @@ test.describe('two creations at once', () => {
 
     // The Creations page lists both, each with what it waits for.
     await page.getByRole('link', { name: /Creations/ }).click();
-    const rows = page.getByTestId('creations').locator('tbody tr');
+    const rows = page.getByTestId('creations').getByRole('listitem');
     await expect(rows).toHaveCount(2);
     await expect(rows.filter({ hasText: 'A garden planner' }).getByTestId('waiting')).toHaveText('your answers');
     await expect(rows.filter({ hasText: 'A recipe box' }).getByTestId('waiting')).toHaveText('your answers');

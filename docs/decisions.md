@@ -3159,3 +3159,32 @@ used `style.css`; they move with group 2, next to "Start again".
   the language tests press a button in the "Language" group. A new test
   checks both pages never scroll sideways at 390 px (long paths in chips
   did).
+
+### Group 2: projects and detail, creations and new project
+
+- **Projects.** A table card for the projects; the unfinished creations
+  are cards titled by their idea, with the id, outcome, last step and date.
+  "Start again with this idea" (shown only when an idea was recorded) puts
+  the idea, as `/api/sessions` returns it (redacted and possibly cut), in a
+  module variable and opens New project, which takes it once
+  (`src/ui/ideaDraft.ts`): no route, no storage, nothing starts by itself,
+  and a reload starts empty. Left off and in IDEAS: "Export CSV" and
+  "Archive".
+- **Project detail.** Next steps, then "Open it in the Claude app" with the
+  instructions (claude-app) and "Open in Claude Code" with the commands,
+  kept for every target as before (the design shows one or the other); the
+  history with the link to the panel; a side card with the status details
+  and Copy path. Left off and in IDEAS: "Open folder".
+- **Creations.** A meter of the limit, then one card per creation: cream
+  when it waits for the user (the cream is forced in app.css: bs.css gives
+  `.cr-card` its surface after `.dec`, which hid it), the step as "Interview
+  · step 3 of 9", the link "Open" kept on every card (the design says
+  "Answer" for a waiting one; tests and the panel's reopening rely on
+  "Open"). A dashed card says how many slots are left.
+- **New project.** The design's hero and idea box, with the label visible
+  (the design hides it); the same notes for usage adding up and the limit.
+  The design's step line and character count are left out: they repeat
+  the intro.
+- **Tests.** Projects and creations are found as list items, not table
+  rows. The Projects page now has its own "New project" button, so tests
+  follow the main menu's link. A new test covers "Start again".

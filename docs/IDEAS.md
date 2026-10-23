@@ -45,6 +45,30 @@ read the plan usage outside a creation (today it is read for each creation's
 panel), know the reset day, and count the running creations; the reading
 costs a call each time.
 
+### Projects: "Export CSV"
+
+Download the projects list as a CSV file. The page could build it from
+`GET /api/projects`, but it would need a decision on columns and on paths
+(the list shows absolute paths of the user's machine), a file download from
+a page whose CSP allows nothing but `'self'` (a `blob:` URL would need
+checking against the CSP), and English and Spanish column names.
+
+### Projects: "Archive" an interrupted or cancelled creation
+
+Hide an unfinished creation from the list without deleting it. It would
+need a place to keep the choice (a field in the session's folder or in the
+briefstack home, written by code with tests), a write route with the
+token, a way to see and restore what was archived, and a rule for the chat's
+`list_sessions` tool.
+
+### Project and result: "Open folder"
+
+Open the project's folder in the system's file manager. The server would
+have to start a program on the user's machine (`explorer`, `open` or
+`xdg-open`, one per platform), from a browser request: a new kind of action
+for a local server, with its own confirmation, path checks (only folders
+this tool created) and tests on the three systems.
+
 ### Settings: folders with read-only access
 
 A list of folders agents may read without asking, with add and remove. It

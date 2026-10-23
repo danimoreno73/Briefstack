@@ -119,7 +119,7 @@ for (const size of SIZES) {
         test.use({ appOptions: { recording: 'panel.jsonl', planUsage: PANEL_USAGE } });
         test('screens', async ({ page, app }) => {
           await page.goto(app.url);
-          await page.getByRole('link', { name: 'New project' }).click();
+          await page.getByRole('navigation', { name: /^(Main|Principal)$/ }).getByRole('link', { name: 'New project' }).click();
           await page.getByLabel('Describe your idea').fill('A garden planner for my family, with a planting calendar.');
           await shot(page, '04-new-project');
           await page.getByRole('button', { name: 'Start' }).click();
@@ -143,7 +143,7 @@ for (const size of SIZES) {
         test.use({ appOptions: { recordingText: AWAITING_REPLY } });
         test('screens', async ({ page, app }) => {
           await page.goto(app.url);
-          await page.getByRole('link', { name: 'New project' }).click();
+          await page.getByRole('navigation', { name: /^(Main|Principal)$/ }).getByRole('link', { name: 'New project' }).click();
           await page.getByLabel('Describe your idea').fill('A garden planner for my family.');
           await page.getByRole('button', { name: 'Start' }).click();
           await expect(page.getByTestId('awaiting-reply')).toBeVisible();
@@ -160,7 +160,7 @@ for (const size of SIZES) {
           await page.getByRole('link', { name: /Creations/ }).click();
           await expect(page.getByTestId('creations')).toBeVisible();
           await shot(page, '10-creations');
-          await page.getByRole('link', { name: 'New project' }).click();
+          await page.getByRole('navigation', { name: /^(Main|Principal)$/ }).getByRole('link', { name: 'New project' }).click();
           await expect(page.getByTestId('usage-adds-up')).toBeVisible();
           await shot(page, '11-new-project-busy');
           await page.evaluate((id) => (window.location.hash = `#/new/${id}`), second.id);
@@ -257,7 +257,7 @@ for (const size of SIZES) {
           await page.goto(app.url);
           await expect(page.getByRole('link', { name: 'Garden planner' })).toBeVisible();
           await shot(page, '26-es-projects');
-          await page.getByRole('link', { name: 'Proyecto nuevo' }).click();
+          await page.getByRole('navigation', { name: /^(Main|Principal)$/ }).getByRole('link', { name: 'Proyecto nuevo' }).click();
           await page.getByRole('textbox').first().fill('Un planificador de huerto para mi familia.');
           await page.getByRole('button', { name: 'Empezar' }).click();
           await expect(page.getByTestId('node-pending')).toBeVisible();

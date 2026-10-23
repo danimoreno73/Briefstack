@@ -29,7 +29,7 @@ const sessionId = async (app: App): Promise<string> => {
 
 async function startCreation(page: Page, app: App, idea = 'A garden planner'): Promise<void> {
   await page.goto(app.url);
-  await page.getByRole('link', { name: 'New project' }).click();
+  await page.getByRole('navigation', { name: /^(Main|Principal)$/ }).getByRole('link', { name: 'New project' }).click();
   await page.getByLabel('Describe your idea').fill(idea);
   await page.getByRole('button', { name: 'Start' }).click();
   await expect(page.getByTestId('idea')).toHaveText(idea);
@@ -266,7 +266,7 @@ test.describe('closing and reopening the tab', () => {
     await updateConfig(path.join(app.home, 'config.json'), { maxActiveCreations: 1 });
     // This tab has the empty form open.
     await page.goto(app.url);
-    await page.getByRole('link', { name: 'New project' }).click();
+    await page.getByRole('navigation', { name: /^(Main|Principal)$/ }).getByRole('link', { name: 'New project' }).click();
     await page.getByLabel('Describe your idea').fill('A second idea');
     await expect(page.getByRole('button', { name: 'Start' })).toBeEnabled();
     await expect(page.getByTestId('usage-adds-up')).toHaveCount(0);
@@ -275,7 +275,7 @@ test.describe('closing and reopening the tab', () => {
     const other = await context.newPage();
     await startCreation(other, app, 'The first idea');
     await expect(other.getByRole('heading', { name: 'The flow needs your answers' })).toBeVisible();
-    await other.getByRole('link', { name: 'New project' }).click();
+    await other.getByRole('navigation', { name: /^(Main|Principal)$/ }).getByRole('link', { name: 'New project' }).click();
     await expect(other.getByTestId('usage-adds-up')).toContainText('One creation is already running.');
 
     await page.getByRole('button', { name: 'Start' }).click();
@@ -402,7 +402,7 @@ test.describe('in Spanish', () => {
 
   test('shows the flow in the saved language', async ({ page, app }) => {
     await page.goto(app.url);
-    await page.getByRole('link', { name: 'Proyecto nuevo' }).click();
+    await page.getByRole('navigation', { name: /^(Main|Principal)$/ }).getByRole('link', { name: 'Proyecto nuevo' }).click();
     await page.getByLabel('Describe tu idea').fill('Un planificador');
     await page.getByRole('button', { name: 'Empezar' }).click();
     await expect(page.getByRole('heading', { name: 'El flujo necesita tus respuestas' })).toBeVisible();

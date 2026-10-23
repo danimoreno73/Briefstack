@@ -107,16 +107,31 @@ test.describe('projects', () => {
 
     const unfinished = page.getByTestId('unfinished');
     await expect(unfinished).toContainText('sess-cancelled');
-    const cancelled = unfinished.getByRole('row', { name: /sess-cancelled/ });
+    const cancelled = unfinished.getByRole('listitem').filter({ hasText: 'sess-cancelled' });
     await expect(cancelled).toContainText('Interview');
     // Named by its idea, redacted, and the idea opens the session.
     await expect(cancelled.getByRole('link', { name: 'A reading log for my book club. [redacted]' })).toBeVisible();
     await expect(unfinished).not.toContainText(FAKE_KEY);
     await expect(unfinished).toContainText('sess-interrupted');
-    const interrupted = unfinished.getByRole('row', { name: /sess-interrupted/ });
+    const interrupted = unfinished.getByRole('listitem').filter({ hasText: 'sess-interrupted' });
     await expect(interrupted).toContainText('Research');
     await expect(interrupted.getByRole('link', { name: 'Idea not recorded' })).toBeVisible();
+    // With no idea recorded there is nothing to start again from.
+    await expect(interrupted.getByRole('button', { name: 'Start again with this idea' })).toHaveCount(0);
     await expect(unfinished).not.toContainText('sess-done');
+  });
+
+  test('starts again from an unfinished idea: New project opens with it written, nothing starts by itself', async ({ page, app }) => {
+    await page.goto(app.url);
+    const cancelled = page.getByTestId('unfinished').getByRole('listitem').filter({ hasText: 'sess-cancelled' });
+    await cancelled.getByRole('button', { name: 'Start again with this idea' }).click();
+    await expect(page).toHaveURL(/#\/new$/);
+    await expect(page.getByLabel('Describe your idea')).toHaveValue('A reading log for my book club. [redacted]');
+    expect(app.manager.list()).toHaveLength(0);
+    // Only once: the next visit starts with an empty box.
+    await clickNav(page, 'Projects');
+    await clickNav(page, 'New project');
+    await expect(page.getByLabel('Describe your idea')).toHaveValue('');
   });
 
   test('shows the detail, the history, the next steps and the copy buttons', async ({ page, app }) => {

@@ -78,7 +78,7 @@ for (const view of VIEWS) {
       test.use({ appOptions: { recording: 'panel.jsonl', planUsage: PANEL_USAGE } });
       test('creation', async ({ page, app }) => {
         await page.goto(app.url);
-        await page.getByRole('link', { name: 'New project' }).click();
+        await page.getByRole('navigation', { name: /^(Main|Principal)$/ }).getByRole('link', { name: 'New project' }).click();
         await page.getByLabel('Describe your idea').fill('A garden planner for my family, with a planting calendar.');
         await page.getByRole('button', { name: 'Start' }).click();
         await expect(page.getByTestId('node-pending')).toBeVisible();
