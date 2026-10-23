@@ -61,7 +61,9 @@ afterEach(async () => {
   await cleanup();
 });
 
-describe('worktrees', () => {
+// Dozens of git processes each: about 3 s alone on Windows, past vitest's 5 s default when the whole suite
+// runs in parallel.
+describe('worktrees', { timeout: 20_000 }, () => {
   it('creates a worktree outside the repo, commits a round, lists changes and removes it all', async () => {
     const base = await revParse(repo, 'HEAD');
     const wt = path.join(dir, 'worktrees', 'p1');
