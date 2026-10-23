@@ -2,9 +2,13 @@ import { useEffect, useState } from 'preact/hooks';
 import { MANY_CREATIONS_NOTE_ABOVE } from '../config/limits.js';
 import { isLang } from '../i18n/index.js';
 import { api } from './api.js';
-import { ErrorBanner, Loader, Notice, PathText } from './common.js';
+import { PathText } from './common.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
+import { ErrorNote, LoadState, Note } from './kit.js';
 import type { PathsView, SettingsView } from './types.js';
+
+/** The quick picks beside the limit's field; any whole number from 1 up is still allowed (BRIEF-phase-4 §8). */
+const QUICK_LIMITS = [1, 2, 3, 4, 5];
 
 export function SettingsPage() {
   const { t, setLang, token } = useApp();
@@ -74,110 +78,192 @@ export function SettingsPage() {
     }
   };
 
-  return (
-    <section>
-      <h1>{t.settingsTitle}</h1>
-      <Loader loaded={loaded}>
-        {() => (
-          <form class="panel settings-form" onSubmit={(event) => void save(event)}>
-            {error !== undefined && <ErrorBanner error={error} />}
-            {saved && <Notice>{t.settingsSaved}</Notice>}
-            <p>
-              <label for="projects-dir">{t.projectsDirLabel}</label>
-              <input
-                id="projects-dir"
-                type="text"
-                value={projectsDir}
-                spellcheck={false}
-                onInput={(event) => setProjectsDir(event.currentTarget.value)}
-              />
-              <span class="hint">{t.projectsDirHint}</span>
-              {willCreate && (
-                <span class="banner banner-warn" role="status" data-testid="folder-note">
-                  {t.folderWillBeCreated}
-                </span>
-              )}
-            </p>
-            <p>
-              <label for="language">{t.languageLabel}</label>
-              <select id="language" value={language} onChange={(event) => setLanguage(event.currentTarget.value)}>
-                <option value="">{t.langSystem}</option>
-                <option value="en">{t.langEn}</option>
-                <option value="es">{t.langEs}</option>
-              </select>
-            </p>
-            <fieldset>
-              <legend>{t.policyLabel}</legend>
-              <label>
-                <input type="radio" name="policy" checked={policy === 'ask'} onChange={() => setPolicy('ask')} /> {t.policyAsk}
-                <span class="muted"> — {t.policyAskHint}</span>
-              </label>
-              <label>
-                <input type="radio" name="policy" checked={policy === 'unattended'} onChange={() => setPolicy('unattended')} />{' '}
-                {t.policyUnattended}
-                <span class="muted"> — {t.policyUnattendedHint}</span>
-              </label>
-            </fieldset>
-            <p>
-              <label for="max-active">{t.maxActiveLabel}</label>
-              <input
-                id="max-active"
-                type="number"
-                min={1}
-                step={1}
-                inputMode="numeric"
-                value={maxActive}
-                onInput={(event) => setMaxActive(event.currentTarget.value)}
-              />
-              <span class="hint">{t.maxActiveHint}</span>
-              {Number(maxActive) > MANY_CREATIONS_NOTE_ABOVE && (
-                <span class="banner banner-warn" role="status" data-testid="max-active-note">
-                  {t.maxActiveNote}
-                </span>
-              )}
-            </p>
-            <div class="actions">
-              <button type="submit" disabled={busy}>
-                {busy ? t.saving : t.save}
-              </button>
-            </div>
-          </form>
-        )}
-      </Loader>
+  const languages: { value: string; label: string }[] = [
+    { value: '', label: t.langSystem },
+    { value: 'en', label: t.langEn },
+    { value: 'es', label: t.langEs },
+  ];
+  const policies: { value: 'ask' | 'unattended'; label: string; hint: string }[] = [
+    { value: 'ask', label: t.policyAsk, hint: t.policyAskHint },
+    { value: 'unattended', label: t.policyUnattended, hint: t.policyUnattendedHint },
+  ];
 
-      <h2>{t.pathsTitle}</h2>
-      <Loader loaded={paths}>
-        {(view) => (
-          <dl class="panel paths" data-testid="paths">
-            <dt>{t.pathHome}</dt>
-            <dd class="path"><PathText value={view.home} /></dd>
-            <dt>{t.pathConfig}</dt>
-            <dd class="path"><PathText value={view.configFile} /></dd>
-            <dt>{t.pathLibrary}</dt>
-            <dd class="path"><PathText value={view.libraryDir} /></dd>
-            <dt>{t.pathProjects}</dt>
-            <dd class="path"><PathText value={view.projectsDir} /></dd>
-            <dt>{t.pathSessions}</dt>
-            <dd class="path"><PathText value={view.sessionsDir} /></dd>
-            <dt>{t.pathRepo}</dt>
-            <dd class="path"><PathText value={view.repoDir} /></dd>
-            <dt>{t.pathAllowed}</dt>
-            <dd>
-              {view.allowedDirs.length === 0 ? (
-                t.none
-              ) : (
-                <ul>
-                  {view.allowedDirs.map((dir) => (
-                    <li key={dir} class="path">
-                      <PathText value={dir} />
-                    </li>
-                  ))}
-                </ul>
+  return (
+    <>
+      <header class="page-head">
+        <div class="page-head-text">
+          <h1 class="t-1">{t.settingsTitle}</h1>
+          <p class="lead">{t.settingsIntro}</p>
+        </div>
+      </header>
+      <div class="page">
+        <LoadState loaded={loaded}>
+          {() => (
+            <form class="settings" onSubmit={(event) => void save(event)}>
+              {error !== undefined && <ErrorNote error={error} />}
+              {saved && (
+                <Note tone="ok" role="status">
+                  {t.settingsSaved}
+                </Note>
               )}
-            </dd>
-          </dl>
-        )}
-      </Loader>
-    </section>
+
+              <section class="card card-roomy">
+                <h2 class="t-2" id="dir-title">
+                  {t.projectsDirLabel}
+                </h2>
+                <div class="field">
+                  <label class="label" for="projects-dir">
+                    {t.projectsDirLabel}
+                  </label>
+                  <input
+                    id="projects-dir"
+                    class="input input-mono"
+                    type="text"
+                    value={projectsDir}
+                    spellcheck={false}
+                    aria-describedby="projects-dir-hint"
+                    onInput={(event) => setProjectsDir(event.currentTarget.value)}
+                  />
+                  <p class="help" id="projects-dir-hint">
+                    {t.projectsDirHint}
+                  </p>
+                  {willCreate && (
+                    <Note tone="warn" role="status" testId="folder-note">
+                      {t.folderWillBeCreated}
+                    </Note>
+                  )}
+                </div>
+              </section>
+
+              <section class="card card-roomy" aria-labelledby="lang-title">
+                <h2 class="t-2" id="lang-title">
+                  {t.languageLabel}
+                </h2>
+                <div class="seg" role="group" aria-labelledby="lang-title">
+                  {languages.map((option) => (
+                    <button key={option.value} type="button" aria-pressed={language === option.value} onClick={() => setLanguage(option.value)}>
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section class="card card-roomy" aria-labelledby="policy-title">
+                <h2 class="t-2" id="policy-title">
+                  {t.policyLabel}
+                </h2>
+                <fieldset>
+                  <legend class="sr-only">{t.policyLabel}</legend>
+                  <div class="choice">
+                    {policies.map((option) => (
+                      <label key={option.value} class="choice-item">
+                        <input class="opt-input" type="radio" name="policy" checked={policy === option.value} onChange={() => setPolicy(option.value)} />
+                        <span class="c-t">{option.label}</span>
+                        <span class="c-d">{option.hint}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </section>
+
+              <section class="card card-roomy">
+                <h2 class="t-2" id="limit-title">
+                  {t.maxActiveLabel}
+                </h2>
+                <div class="limit-row">
+                  <div class="field">
+                    <label class="label" for="max-active">
+                      {t.maxActiveLabel}
+                    </label>
+                    <input
+                      id="max-active"
+                      class="input input-mono limit-input"
+                      type="number"
+                      min={1}
+                      step={1}
+                      inputMode="numeric"
+                      value={maxActive}
+                      aria-describedby="max-active-hint"
+                      onInput={(event) => setMaxActive(event.currentTarget.value)}
+                    />
+                  </div>
+                  <div class="steps-pick" role="group" aria-label={t.maxActiveQuick}>
+                    {QUICK_LIMITS.map((value) => (
+                      <button key={value} type="button" aria-pressed={maxActive.trim() === String(value)} onClick={() => setMaxActive(String(value))}>
+                        {value}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p class="help" id="max-active-hint">
+                  {t.maxActiveHint}
+                </p>
+                {Number(maxActive) > MANY_CREATIONS_NOTE_ABOVE && (
+                  <Note tone="warn" role="status" testId="max-active-note">
+                    {t.maxActiveNote}
+                  </Note>
+                )}
+              </section>
+
+              <div class="btn-row">
+                <button type="submit" class="btn btn-primary" disabled={busy}>
+                  {busy ? t.saving : t.save}
+                </button>
+              </div>
+            </form>
+          )}
+        </LoadState>
+
+        <section class="card card-roomy settings" aria-labelledby="paths-title">
+          <h2 class="t-2" id="paths-title">
+            {t.pathsTitle}
+          </h2>
+          <LoadState loaded={paths}>
+            {(view) => (
+              <dl class="kv paths-kv" data-testid="paths">
+                <dt>{t.pathHome}</dt>
+                <dd class="mono">
+                  <PathText value={view.home} />
+                </dd>
+                <dt>{t.pathConfig}</dt>
+                <dd class="mono">
+                  <PathText value={view.configFile} />
+                </dd>
+                <dt>{t.pathLibrary}</dt>
+                <dd class="mono">
+                  <PathText value={view.libraryDir} />
+                </dd>
+                <dt>{t.pathProjects}</dt>
+                <dd class="mono">
+                  <PathText value={view.projectsDir} />
+                </dd>
+                <dt>{t.pathSessions}</dt>
+                <dd class="mono">
+                  <PathText value={view.sessionsDir} />
+                </dd>
+                <dt>{t.pathRepo}</dt>
+                <dd class="mono">
+                  <PathText value={view.repoDir} />
+                </dd>
+                <dt>{t.pathAllowed}</dt>
+                <dd>
+                  {view.allowedDirs.length === 0 ? (
+                    t.none
+                  ) : (
+                    <ul class="path-list">
+                      {view.allowedDirs.map((dir) => (
+                        <li key={dir} class="chip chip-mono">
+                          <PathText value={dir} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </dd>
+              </dl>
+            )}
+          </LoadState>
+        </section>
+      </div>
+    </>
   );
 }

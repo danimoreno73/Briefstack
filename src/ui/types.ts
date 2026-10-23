@@ -85,6 +85,8 @@ export interface UsagePreset {
   label: { en: string; es: string };
   sessionModel: string;
   effort: string;
+  /** The model of each tier (`light`, `standard`, `heavy`). */
+  tiers?: Record<string, string>;
 }
 
 export interface UsageView {
@@ -92,6 +94,8 @@ export interface UsageView {
   label: string;
   sessionModel: string;
   chat: { model: string; effort: string };
+  /** The model and effort each flow agent runs with under the active profile. */
+  agents?: Record<string, { model: string; effort: string }>;
   drift: { file: string; field: string; committed: string | null; current: string | null }[];
   envWarnings: { field: string; variable: string; value: string }[];
   presets: UsagePreset[];

@@ -159,6 +159,30 @@ body {
   gap: var(--s-2);
 }
 
+.stack-4 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+/* A page of a few large blocks breathes more than the default. */
+.page-roomy {
+  gap: var(--s-6);
+}
+
+.card-roomy {
+  gap: 14px;
+  padding: var(--s-5);
+}
+
+.card-foot {
+  padding: var(--s-3) var(--s-5) var(--s-4);
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
 .loading {
   display: flex;
   flex-direction: column;
@@ -560,6 +584,50 @@ dialog.dec-dialog {
   flex-direction: column;
   gap: 2px;
   overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Usage and settings                                                        */
+
+/* The real radio lies over each card, as in the question options. */
+.choice-item {
+  position: relative;
+}
+
+.limit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-3) var(--s-5);
+}
+
+.limit-input {
+  width: 8rem;
+}
+
+.paths-kv dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A path in a chip wraps between folders instead of pushing the page sideways. */
+.path-list .chip {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* On a phone each path goes under its name. */
+@media (max-width: 720px) {
+  .paths-kv {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .paths-kv dd {
+    margin-bottom: var(--s-2);
+  }
 }
 
 .agents-summary {

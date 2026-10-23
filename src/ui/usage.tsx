@@ -1,118 +1,168 @@
 import { useState } from 'preact/hooks';
-import { ErrorBanner, Loader, Notice } from './common.js';
 import { USAGE_LEVELS, levelIndex } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
-import type { UsageView as UsageData } from './types.js';
+import { ErrorNote, LoadState, Note } from './kit.js';
+import type { UsagePreset, UsageView as UsageData } from './types.js';
+
+/** The models a preset uses, from its tiers, in the order they first appear. */
+const modelsOf = (preset: UsagePreset | undefined): string => (preset?.tiers === undefined ? (preset?.sessionModel ?? '') : [...new Set(Object.values(preset.tiers))].join(' · '));
 
 export function UsageView() {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const loaded = useLoad<UsageData>('/api/usage');
   const send = useSend();
   const [error, setError] = useState<unknown>(undefined);
   const [notice, setNotice] = useState<string | undefined>(undefined);
-  const [pending, setPending] = useState<number | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  // The card just chosen, shown as chosen while the server applies it and the page reloads.
+  const [chosen, setChosen] = useState<string | undefined>(undefined);
   useDocumentTitle(t.usageTitle);
 
   const apply = async (profile: string) => {
     setError(undefined);
     setNotice(undefined);
+    setBusy(true);
+    setChosen(profile);
     try {
       await send('PUT', '/api/usage', { profile });
       setNotice(t.usageSaved(profile));
     } catch (failure) {
+      setChosen(undefined);
       setError(failure);
     } finally {
-      setPending(undefined);
+      setBusy(false);
       loaded.reload();
     }
   };
 
-  const levelNames = [t.levelSaver, t.levelBalanced, t.levelMax];
+  const levelNames: Record<string, string> = { saver: t.levelSaver, balanced: t.levelBalanced, max: t.levelMax };
 
   return (
-    <section>
-      <h1>{t.usageTitle}</h1>
-      <p>{t.usageIntro}</p>
-      {error !== undefined && <ErrorBanner error={error} />}
-      {notice !== undefined && <Notice>{notice}</Notice>}
-      <Loader loaded={loaded}>
-        {(usage) => {
-          const activeLevel = levelIndex(usage.profile);
-          const position = pending ?? activeLevel ?? 1;
-          const userPresets = usage.presets.filter((preset) => preset.source === 'user');
-          return (
-            <>
-              <div class="panel usage-level">
-                <div class="slider">
-                  <label for="usage-level">{t.usageSlider}</label>
-                  <input
-                    id="usage-level"
-                    type="range"
-                    min="0"
-                    max="2"
-                    step="1"
-                    value={position}
-                    aria-valuetext={levelNames[position]}
-                    onInput={(event) => setPending(Number(event.currentTarget.value))}
-                    onChange={(event) => {
-                      const level = USAGE_LEVELS[Number(event.currentTarget.value)];
-                      if (level !== undefined) void apply(level);
-                    }}
-                  />
-                  <ol class="ticks" aria-hidden="true">
-                    {levelNames.map((name, index) => (
-                      <li key={name} class={index === position ? 'on' : undefined}>
-                        {name}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-                <p data-testid="level-hint">{t.levelHint(USAGE_LEVELS[position] ?? 'balanced')}</p>
+    <>
+      <header class="page-head">
+        <div class="page-head-text">
+          <h1 class="t-1">{t.usageTitle}</h1>
+          <p class="lead">{t.usageIntro}</p>
+        </div>
+      </header>
+      <div class="page page-roomy">
+        {error !== undefined && <ErrorNote error={error} />}
+        {notice !== undefined && (
+          <Note tone="ok" role="status">
+            {notice}
+          </Note>
+        )}
+        <LoadState loaded={loaded}>
+          {(usage) => {
+            const activeLevel = levelIndex(usage.profile);
+            const userPresets = usage.presets.filter((preset) => preset.source === 'user');
+            const card = (name: string, title: string, hint: string, preset: UsagePreset | undefined) => {
+              const active = (chosen ?? usage.profile) === name;
+              return (
+                <label class="tier" key={name}>
+                  <input class="opt-input" type="radio" name="profile" checked={active} disabled={busy} onChange={() => void apply(name)} />
+                  <span class="tier-name">{title}</span>
+                  <span class="muted" data-testid={active ? 'level-hint' : undefined}>
+                    {hint}
+                  </span>
+                  {preset !== undefined && <span class="mono-s faint">{t.usageModels(modelsOf(preset), preset.effort)}</span>}
+                  <span class="tier-state">
+                    <span class={active ? 'btn btn-primary btn-block' : 'btn btn-secondary btn-block'} aria-hidden="true">
+                      {active ? t.usageActiveTag : t.usageChoose}
+                    </span>
+                  </span>
+                </label>
+              );
+            };
+            return (
+              <>
+                <fieldset class="stack-4">
+                  <legend class="sr-only">{t.usageSlider}</legend>
+                  <div class="tiers">
+                    {USAGE_LEVELS.map((level) =>
+                      card(
+                        level,
+                        levelNames[level] ?? level,
+                        t.levelHint(level),
+                        usage.presets.find((preset) => preset.name === level),
+                      ),
+                    )}
+                  </div>
+                  {userPresets.length > 0 && (
+                    <div class="stack-2">
+                      <h2 class="section-title">{t.presetsLabel}</h2>
+                      <div class="tiers">
+                        {userPresets.map((preset) => card(preset.name, preset.label[lang], preset.name, preset))}
+                      </div>
+                    </div>
+                  )}
+                </fieldset>
+
                 <p data-testid="active-profile">
-                  {t.usageActive(usage.label)}
+                  <span class="strong">{t.usageActive(usage.label)}</span>
                   {activeLevel === undefined && ` · ${t.usageCustomActive}`}
                 </p>
-                <p data-testid="chat-model">{t.usageChatModel(usage.chat.model, usage.chat.effort)}</p>
-              </div>
 
-              {userPresets.length > 0 && (
-                <p>
-                  <label for="usage-preset">{t.presetsLabel}</label>{' '}
-                  <select
-                    id="usage-preset"
-                    value={activeLevel === undefined ? usage.profile : ''}
-                    onChange={(event) => {
-                      if (event.currentTarget.value !== '') void apply(event.currentTarget.value);
-                    }}
-                  >
-                    <option value="">{t.presetsChoose}</option>
-                    {userPresets.map((preset) => (
-                      <option key={preset.name} value={preset.name}>
-                        {preset.label.en === preset.label.es ? preset.label.en : preset.name}
-                      </option>
-                    ))}
-                  </select>
-                </p>
-              )}
+                {usage.agents !== undefined && (
+                  <section class="card card-flush" aria-labelledby="agents-title">
+                    <div class="card-head">
+                      <h2 class="t-2" id="agents-title">
+                        {t.usageAgentsTitle(usage.label)}
+                      </h2>
+                    </div>
+                    <div class="table-scroll">
+                      <table class="table">
+                        <thead>
+                          <tr>
+                            <th scope="col">{t.colAgent}</th>
+                            <th scope="col">{t.panelModel}</th>
+                            <th scope="col">{t.panelEffort}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(usage.agents).map(([agent, setting]) => (
+                            <tr key={agent}>
+                              <td class="td-mono">{agent}</td>
+                              <td class="td-mono">{setting.model}</td>
+                              <td>{setting.effort}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p class="t-small muted card-foot" data-testid="chat-model">
+                      {t.usageChatModel(usage.chat.model, usage.chat.effort)}
+                    </p>
+                  </section>
+                )}
 
-              <h2>{t.warningsTitle}</h2>
-              {usage.drift.length === 0 && usage.envWarnings.length === 0 ? (
-                <p>{t.warningsNone}</p>
-              ) : (
-                <ul data-testid="warnings">
-                  {usage.envWarnings.map((warning) => (
-                    <li key={warning.variable}>{t.warnEnv(warning.variable)}</li>
-                  ))}
-                  {usage.drift.map((item) => (
-                    <li key={`${item.file}-${item.field}`}>{t.warnDrift(item.file, item.field)}</li>
-                  ))}
-                </ul>
-              )}
-              <p class="hint">{t.openUsageHint}</p>
-            </>
-          );
-        }}
-      </Loader>
-    </section>
+                <section class="stack-2" aria-labelledby="warnings-title">
+                  <h2 class="section-title" id="warnings-title">
+                    {t.warningsTitle}
+                  </h2>
+                  {usage.drift.length === 0 && usage.envWarnings.length === 0 ? (
+                    <p class="muted">{t.warningsNone}</p>
+                  ) : (
+                    <ul class="stack-2" data-testid="warnings">
+                      {usage.envWarnings.map((warning) => (
+                        <li key={warning.variable}>
+                          <Note tone="warn">{t.warnEnv(warning.variable)}</Note>
+                        </li>
+                      ))}
+                      {usage.drift.map((item) => (
+                        <li key={`${item.file}-${item.field}`}>
+                          <Note tone="warn">{t.warnDrift(item.file, item.field)}</Note>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+                <p class="t-small muted">{t.openUsageHint}</p>
+              </>
+            );
+          }}
+        </LoadState>
+      </div>
+    </>
   );
 }

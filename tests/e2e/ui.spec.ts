@@ -1,7 +1,7 @@
 import { mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
-import { FAKE_KEY, expect, test } from './fixtures.js';
+import { FAKE_KEY, clickNav, expect, test } from './fixtures.js';
 
 const readClipboard = (page: Page) => page.evaluate(() => navigator.clipboard.readText());
 
@@ -279,31 +279,32 @@ test.describe('secrets', () => {
 });
 
 test.describe('usage', () => {
-  test('changes the level with the slider and keeps it after a reload', async ({ page, app }) => {
+  test('changes the level with its card and keeps it after a reload', async ({ page, app }) => {
     await page.goto(app.url);
     await page.getByRole('link', { name: 'Usage' }).click();
-    const slider = page.getByRole('slider', { name: 'Usage level' });
-    await expect(slider).toHaveValue('1');
+    const levels = page.getByRole('group', { name: 'Usage level' });
+    await expect(levels.getByRole('radio', { name: /^Balanced/ })).toBeChecked();
     await expect(page.getByTestId('level-hint')).toContainText('Moderate use');
+    // Each agent's model and effort under the active profile.
+    await expect(page.getByRole('table')).toContainText('architect');
 
-    await slider.fill('2');
+    await levels.getByRole('radio', { name: /^Max/ }).check();
     await expect(page.getByRole('status')).toContainText('Profile set to max.');
     await expect(page.getByTestId('active-profile')).toContainText('Max');
     await expect(page.getByTestId('level-hint')).toContainText('Heaviest use');
     await page.reload();
-    await expect(page.getByRole('slider', { name: 'Usage level' })).toHaveValue('2');
+    await expect(page.getByRole('group', { name: 'Usage level' }).getByRole('radio', { name: /^Max/ })).toBeChecked();
 
     const agents = await readFile(path.join(app.repoDir, '.claude', 'agents', 'architect.md'), 'utf8');
     expect(agents).toMatch(/^model: /m);
     await expect(page.getByTestId('active-profile')).toContainText('Max');
   });
 
-  test('offers the user presets in a selector', async ({ page, app }) => {
+  test('offers the user presets as cards of their own', async ({ page, app }) => {
     await page.goto(app.url);
     await page.getByRole('link', { name: 'Usage' }).click();
-    const select = page.getByLabel('Your presets');
-    await expect(select).toBeVisible();
-    await select.selectOption('deep-dive');
+    await expect(page.getByRole('heading', { name: 'Your presets' })).toBeVisible();
+    await page.getByRole('radio', { name: /^Deep dive/ }).check();
     await expect(page.getByRole('status')).toContainText('Profile set to deep-dive.');
     await expect(page.getByTestId('active-profile')).toContainText('Deep dive: my own preset');
     await expect(page.getByTestId('active-profile')).toContainText('A custom preset is active.');
@@ -318,6 +319,21 @@ test.describe('usage', () => {
   });
 });
 
+test.describe('usage and settings at phone width', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('never scroll sideways, even with long paths', async ({ page, app }) => {
+    const sideways = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    await page.goto(app.url);
+    await clickNav(page, 'Usage');
+    await expect(page.getByTestId('active-profile')).toBeVisible();
+    await expect.poll(sideways).toBeLessThanOrEqual(0);
+    await clickNav(page, 'Settings');
+    await expect(page.getByTestId('paths')).toContainText(app.libraryDir);
+    await expect.poll(sideways).toBeLessThanOrEqual(0);
+  });
+});
+
 test.describe('settings, starting in Spanish', () => {
   test.use({ appOptions: { lang: 'es' }, locale: 'es-ES' });
 
@@ -325,7 +341,7 @@ test.describe('settings, starting in Spanish', () => {
     await page.goto(app.url);
     await expect(page.getByRole('link', { name: 'Proyectos' })).toBeVisible();
     await page.getByRole('link', { name: 'Ajustes' }).click();
-    await page.getByLabel('Idioma', { exact: true }).selectOption('en');
+    await page.getByRole('group', { name: 'Idioma' }).getByRole('button', { name: 'English' }).click();
     await page.getByRole('button', { name: 'Guardar' }).click();
     await expect(page.getByRole('status')).toContainText('Settings saved.');
     expect(await readFile(path.join(app.home, 'config.json'), 'utf8')).toContain('"lang": "en"');
@@ -341,7 +357,7 @@ test.describe('settings, starting in Spanish', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await page.unroute('**/api/settings');
     await page.getByRole('link', { name: 'Settings' }).click();
-    await expect(page.getByLabel('Language', { exact: true })).toHaveValue('en');
+    await expect(page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
   });
 });
 
@@ -413,7 +429,7 @@ test.describe('settings', () => {
   test('switches the language and the permission policy', async ({ page, app }) => {
     await page.goto(app.url);
     await page.getByRole('link', { name: 'Settings' }).click();
-    await page.getByLabel('Language', { exact: true }).selectOption('es');
+    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'Español' }).click();
     await page.getByLabel('Unattended').check();
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByRole('status')).toContainText('Ajustes guardados.');

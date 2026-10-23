@@ -3125,3 +3125,37 @@ Checked, and what was found:
   records each text the main session's state takes (a MutationObserver, so
   even an unpainted render counts) and fails on any ended state; it failed
   3 of 3 without the fix and passed 15 of 15 with it.
+
+## U5: the other screens (from 2026-10-23)
+
+The user asked for the remaining screens in six groups, one commit each,
+and gave two rules: "Retomar" becomes "Start again with this idea" (opens
+New project with the idea written, UI only, with the idea `/api/sessions`
+already returns); "Open folder", "Archive", "Export CSV" and "add read-only
+folders" are not built: their controls are left off and recorded in
+`docs/IDEAS.md` with what each would take, as is any other new function a
+screen shows. The list did not name Creations and New project, which still
+used `style.css`; they move with group 2, next to "Start again".
+
+### Group 1: usage and settings
+
+- **Usage.** The level slider becomes the design's three cards (real radios
+  over each card, as the question options). User presets are cards of their
+  own instead of a select. The per-agent table uses `agents`, which
+  `GET /api/usage` already returned (now typed in the UI); the design's
+  "notes" column has no data and is left out. A chosen card stays chosen
+  while the server applies it and the page reloads. Left off and in IDEAS:
+  "New preset based on Balanced" and the week's plan-window note.
+- **Settings.** Cards for the projects folder, language, policy and limit.
+  Language is a segmented control with the config's three values (follow
+  the system, English, Español). The theme is not repeated here: it is in
+  the rail, and two controls would need keeping in step. The limit keeps
+  its number field, since any whole number from 1 up is allowed
+  (BRIEF-phase-4 §8); the design's 1–5 buttons are quick picks beside it.
+  The design's "valid and writable" message is not shown: the path check
+  only says whether the folder exists. Left off and in IDEAS: read-only
+  folders.
+- **Tests.** The usage tests choose a card instead of moving the slider;
+  the language tests press a button in the "Language" group. A new test
+  checks both pages never scroll sideways at 390 px (long paths in chips
+  did).

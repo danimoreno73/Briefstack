@@ -50,7 +50,8 @@ const NAV: { page: Route['page']; route: Route; label: NavLabel; icon: FunctionC
 
 /** The screens already built on bs.css; the others render inside the `.legacy` wrapper. */
 function onBs(route: Route): boolean {
-  return (route.page === 'new' && route.id !== undefined) || route.page === 'session';
+  if (route.page === 'new') return route.id !== undefined;
+  return route.page === 'session' || route.page === 'usage' || route.page === 'settings';
 }
 
 /** The menu item a route belongs to: a project or a past session under Projects, a running creation under Creations. */
