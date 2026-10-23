@@ -12,8 +12,8 @@ canvas, in [diseno/](diseno/) (Spanish, as given): `bs.css` with its tokens
 and components, the guide `LEEME.md` and the markup of every screen. It
 replaces direction A screen by screen. Done: the shell (rail, phone top bar,
 opening and restart screens) and the creation screen with the live panel,
-plus a finished session's panel. They use `src/ui/static/bs.css` (copied
-unchanged) and `src/ui/static/app.css` (what the canvas leaves to the app;
+plus a finished session's panel. They use `src/ui/static/bs.css` (copied,
+with one phone rule removed) and `src/ui/static/app.css` (what the canvas leaves to the app;
 see its header). The other screens keep direction A below, its tokens and
 sheet nested under `.legacy`, until they move. Decisions: `docs/decisions.md`,
 "U5".

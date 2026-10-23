@@ -2989,7 +2989,8 @@ replaces direction A. Answers the user gave before any code:
 
 Decisions taken while building it:
 
-- **bs.css is copied unchanged** to `src/ui/static/bs.css` (the build copies
+- **bs.css is copied unchanged** (one rule removed later, see "U5: the
+  user's review") to `src/ui/static/bs.css` (the build copies
   that folder; `LEEME.md` says `src/styles/`, which the build does not
   serve). What the app needs beyond it is in `src/ui/static/app.css`: the
   canvas draws the dialog and the drawer inside a frame (absolute, not
@@ -3057,3 +3058,64 @@ Decisions taken while building it:
   button also mentions the language); the theme test reads the background
   from `<html>`, where bs.css paints it. `tests/unit/contrast.test.ts` also
   checks bs.css's tokens in both themes; all pairs pass.
+
+## U5: the user's review of the creation screen (2026-10-23)
+
+Fixed before the push, as the user asked:
+
+1. **bs.css is no longer an exact copy.** On request, the phone rule
+   `.seg-step.now span { display: block; position: absolute; }` is removed
+   from `src/ui/static/bs.css`: the current step's name spilled out of the
+   progress card. `docs/diseno/bs.css` stays as the design gave it. On a
+   phone the name now sits beside "step 3 / 9".
+2. **Timeline durations** read as a clock from one minute up (`4:00`,
+   `8:09`, `1:02:03`), so they fit the column.
+3. **Axis marks** are round values (1, 2 or 5 times a power of ten), the
+   smallest step that leaves five marks at most, none repeated, each placed
+   at its value; the unit sits over the durations column, and a phone shows
+   every other mark.
+4. **Steps of an ended session.** A step before the furthest one reached
+   reads as done ("passed"), even with no event of its own; the step where
+   an ended session stopped is coral after an interruption or a failure and
+   neutral after a cancel, never cream (`stepLooks` in
+   `src/ui/panelData.ts`). This is display only: the panel state and the
+   chat's `get_panel_state` are unchanged.
+5. **The legend** has a dot between entries and a coral entry.
+6. **On a phone** the creation's head scrolls away; a compact bar with the
+   state and an outlined Cancel stays under the top bar.
+7. **Denied calls** in the details put the reason on its own line.
+8. **An agent type that ran twice** is numbered (`interviewer · 1`,
+   `interviewer · 2`), as in the real H10 run: one round in the gap
+   analysis, one in the interview.
+9. **The policy line** is reworded ("If Claude asks to do something outside
+   the plan, you decide here." or "…, it is denied automatically
+   (unattended).") and shown beside the title while the creation runs, in
+   the denied requests card once it is over.
+
+Checked, and what was found:
+
+- **Spec assumptions.** No brief asks for a separate list: the architect
+  writes them inside the summary, each marked as an assumption
+  (`.claude/agents/architect.md`), and the summary is rendered whole. The
+  recording `panel.jsonl` had none; it now has two and the e2e test checks
+  they show. "Request changes" opens the text field: already covered by
+  `creation.spec.ts` ("a change request comes back to the spec screen").
+- **Permission versus node.** In `panel.jsonl` the permission said
+  `git status` while the hook line of the same call said
+  `briefstack validate`: an inconsistency of the recording, not of the
+  page. The recording now asks for `briefstack validate`, and the e2e test
+  checks both match.
+- **h10 session.** Its recording has no `model` or `effort` field (it was
+  recorded before phase 3 added them), so there is nothing to show; the
+  page shows a dash in the details.
+- **Suggestions** are capped at three per creation by the server
+  (`MAX_SUGGESTIONS_PER_CREATION`); a screenshot run makes three and checks
+  them. They still use the improvements screen's style (`.legacy`) until
+  that screen moves.
+- **Flaky e2e test.** "the text alternative" read the text view once after
+  the architect's node appeared, which happens a moment before the spec
+  approval reaches the main session; it now waits for that request. The
+  panel suite passed 5 runs in a row (45 of 45).
+- **A short flash.** On opening a creation, the panel may read "Interrupted"
+  for up to 200 ms, until its first recompute has the creation's live
+  state. Seen in a screenshot; not changed in this round.
