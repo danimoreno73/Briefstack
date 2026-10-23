@@ -824,6 +824,104 @@ dialog.dec-dialog {
 }
 
 /* ------------------------------------------------------------------------ */
+/* Chat: page, drawer, cards                                                 */
+
+.chat-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--s-3) var(--s-5) 0;
+}
+
+.thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.bubble-user .chat-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* What a tool did: a quiet line between the bubbles. */
+.tool-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+}
+
+.chat-empty {
+  padding: var(--s-4) 0;
+}
+
+.dec .quote {
+  border-left-color: var(--dec-control);
+}
+
+.chat-card .state svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* The box: text and Send side by side, the hint under them. */
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.composer-input {
+  min-height: 44px;
+  resize: vertical;
+}
+
+.composer-send {
+  min-height: 44px;
+}
+
+.composer-hint {
+  grid-column: 1 / -1;
+}
+
+/* The drawer floats over any page; the canvas drew it inside a frame. */
+.drawer-scrim {
+  position: fixed;
+  z-index: 30;
+}
+
+.drawer {
+  position: fixed;
+  z-index: 31;
+}
+
+.drawer .chat-panel {
+  overflow: hidden;
+}
+
+.drawer .chat-bar {
+  padding: var(--s-2) var(--s-4) 0;
+}
+
+.drawer .thread {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ------------------------------------------------------------------------ */
 /* Usage and settings                                                        */
 
 /* The real radio lies over each card, as in the question options. */

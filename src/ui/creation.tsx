@@ -378,7 +378,7 @@ function CreationView({ id }: { id: string }) {
                 <div class="dec-card">
                   <Markdown text={state.awaitingReply.lastMessage} cls="md" />
                 </div>
-                <ReplyBox id="creation-reply" onSend={reply} look="bs" />
+                <ReplyBox id="creation-reply" onSend={reply} />
               </section>
             ) : pending === undefined ? (
               <div class="card card-dash working" role="status" data-testid="working">

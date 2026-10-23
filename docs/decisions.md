@@ -3238,3 +3238,24 @@ used `style.css`; they move with group 2, next to "Start again".
   absolutely positioned; with the card not positioned it escaped the card's
   scroll box and widened the page to 630 px. Table cards are now
   positioned, and the children of the page and of the stacks may shrink.
+
+### Group 5: chat page, drawer and cards
+
+- **Page.** The list of chats beside the thread: the current chat, then
+  the past ones (read-only, opened in the same pane with a bar back to the
+  current chat). Messages are bubbles; a tool's use is a quiet line with
+  its sources; the model line and "New chat" sit above the thread; the box
+  is the design's composer (a textarea, so Ctrl+Enter still sends and a
+  message can have several lines).
+- **Cards.** A card that waits is cream with Confirm and Decline; once
+  answered it stays in the thread as a quiet card that says Confirmed or
+  Declined (LEEME). A note change uses the proposal page's numbered diff.
+- **Drawer.** A modal dialog over any page with the dimmed page behind:
+  focus starts on its close button (moved before the browser paints), Tab
+  and Shift+Tab wrap inside it, Escape or a tap outside closes it, and the
+  shell gives focus back to whatever opened it. "Full page" and the close
+  button are in its head. A new e2e test covers Ctrl J, the trap, Escape
+  and the focus coming back.
+- **ReplyBox** has two looks now, `form` (the creation's reply) and
+  `composer` (the chat); the old one went with the last `.legacy` screen.
+- **Tests.** The note card's diff is read through `data-op`.

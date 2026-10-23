@@ -87,7 +87,7 @@ test.describe('actions wait for a confirmation', () => {
     const style = path.join(app.libraryDir, 'profile', 'style.md');
     const before = await readFile(style, 'utf8');
     await say(page, 'Remember metric units');
-    await expect(card(page).getByTestId('card-diff')).toContainText('+ Use metric units.');
+    await expect(card(page).getByTestId('card-diff').locator('[data-op="+"]')).toContainText('Use metric units.');
     await expect(card(page)).toContainText('Add to the end of the note profile/style.md');
     await card(page).getByRole('button', { name: 'Decline' }).click();
     await expect(card(page)).toHaveAttribute('data-state', 'declined');
@@ -210,6 +210,27 @@ test.describe('the chat drawer', () => {
     await page.getByRole('button', { name: 'Open the chat' }).click();
     await expect(page.getByTestId('chat-drawer').locator('[data-role="assistant"]')).toBeVisible();
     await expect.poll(sideways).toBe(false);
+  });
+
+  test('opens with Ctrl J, keeps focus inside, closes with Escape and gives focus back', async ({ page, app }) => {
+    await page.goto(app.url);
+    const opener = page.getByRole('button', { name: 'Open the chat' });
+    await opener.focus();
+    await page.keyboard.press('Control+j');
+    const drawer = page.getByRole('dialog', { name: 'Chat' });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole('button', { name: 'Close the chat' })).toBeFocused();
+    // Tab never leaves the drawer: after its last control it comes back to the first, and back again.
+    for (let i = 0; i < 12; i += 1) {
+      await page.keyboard.press('Tab');
+      expect(await drawer.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+    }
+    await drawer.getByRole('button', { name: 'Close the chat' }).focus();
+    await page.keyboard.press('Shift+Tab');
+    expect(await drawer.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(drawer).toHaveCount(0);
+    await expect(opener).toBeFocused();
   });
 
   test('is on every page and talks to the same chat', async ({ page, app }) => {

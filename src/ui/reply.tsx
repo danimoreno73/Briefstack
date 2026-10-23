@@ -14,8 +14,8 @@ export interface ReplyBoxProps {
   onSend(text: string): Promise<boolean>;
   disabled?: boolean;
   rows?: number;
-  /** `bs` on the screens built on bs.css; `legacy` (the default) on the others. */
-  look?: 'legacy' | 'bs';
+  /** `form` (the default): label, box, hint and button stacked, as the creation's reply; `composer`: the chat's box and button side by side. */
+  look?: 'form' | 'composer';
 }
 
 /**
@@ -23,7 +23,7 @@ export interface ReplyBoxProps {
  * uses it when a session waits for a reply, and the chat for every message.
  * Ctrl+Enter (or Cmd+Enter) sends.
  */
-export function ReplyBox({ id, label, hint, sendLabel, onSend, disabled = false, rows = 3, look = 'legacy' }: ReplyBoxProps) {
+export function ReplyBox({ id, label, hint, sendLabel, onSend, disabled = false, rows = 3, look = 'form' }: ReplyBoxProps) {
   const { t } = useApp();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -39,20 +39,20 @@ export function ReplyBox({ id, label, hint, sendLabel, onSend, disabled = false,
     }
   };
 
-  const bs = look === 'bs';
+  const composer = look === 'composer';
   return (
     <form
-      class={bs ? 'reply-form' : 'reply-box'}
+      class={composer ? 'composer' : 'reply-form'}
       onSubmit={(event) => {
         event.preventDefault();
         void send();
       }}
     >
-      <label class={bs ? 'label' : undefined} for={id}>
+      <label class={composer ? 'sr-only' : 'label'} for={id}>
         {label ?? t.replyLabel}
       </label>
       <textarea
-        class={bs ? 'textarea' : undefined}
+        class={composer ? 'textarea composer-input' : 'textarea'}
         id={id}
         rows={rows}
         maxLength={MAX_REPLY_CHARS}
@@ -67,15 +67,28 @@ export function ReplyBox({ id, label, hint, sendLabel, onSend, disabled = false,
           }
         }}
       />
-      <span class={bs ? 'help' : 'hint'} id={`${id}-hint`}>
-        {hint ?? t.replyHint}
-      </span>
-      <div class={bs ? 'btn-row' : 'actions'}>
-        <button type="submit" class={bs ? 'btn btn-primary' : undefined} disabled={empty || busy || disabled}>
-          {busy ? t.sending : (sendLabel ?? t.replySend)}
-        </button>
-        <span class={bs ? 'help' : 'hint shortcut'}>{t.sendShortcut}</span>
-      </div>
+      {composer ? (
+        <>
+          <button type="submit" class="btn btn-primary composer-send" disabled={empty || busy || disabled}>
+            {busy ? t.sending : (sendLabel ?? t.replySend)}
+          </button>
+          <span class="help composer-hint" id={`${id}-hint`}>
+            {hint ?? t.replyHint} {t.sendShortcut}
+          </span>
+        </>
+      ) : (
+        <>
+          <span class="help" id={`${id}-hint`}>
+            {hint ?? t.replyHint}
+          </span>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" disabled={empty || busy || disabled}>
+              {busy ? t.sending : (sendLabel ?? t.replySend)}
+            </button>
+            <span class="help">{t.sendShortcut}</span>
+          </div>
+        </>
+      )}
     </form>
   );
 }

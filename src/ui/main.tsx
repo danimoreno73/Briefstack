@@ -48,11 +48,6 @@ const NAV: { page: Route['page']; route: Route; label: NavLabel; icon: FunctionC
   { page: 'settings', route: { page: 'settings' }, label: 'navSettings', icon: IconSettings },
 ];
 
-/** The screens already built on bs.css; the others render inside the `.legacy` wrapper. */
-function onBs(route: Route): boolean {
-  return route.page !== 'chat';
-}
-
 /** The menu item a route belongs to: a project or a past session under Projects, a running creation under Creations. */
 function navPage(route: Route): Route['page'] {
   if (route.page === 'project' || route.page === 'session') return 'projects';
@@ -361,13 +356,9 @@ function Shell({ route, activeCreations, children }: { route: Route; activeCreat
             </button>
           </div>
         </div>
-        {onBs(route) ? children : <div class="legacy legacy-page">{children}</div>}
+        {children}
       </main>
-      {chatAllowed && chatOpen && (
-        <div class="legacy">
-          <ChatDrawer onClose={closeChat} />
-        </div>
-      )}
+      {chatAllowed && chatOpen && <ChatDrawer onClose={closeChat} />}
     </div>
   );
 }

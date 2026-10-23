@@ -24,6 +24,23 @@ interface Screen {
   open(page: Page, app: App): Promise<void>;
 }
 
+/** A chat that answers from the projects, then proposes a note change. */
+const CHAT: AppOptions = {
+  chatScript: {
+    turns: [
+      [{ call: 'list_projects' }, { say: 'You have one project: **Garden planner**, a claude-app project (projects/garden).' }],
+      [{ call: 'set_usage_profile', args: { profile: 'saver' } }, { say: 'Left as it was.' }],
+      [{ call: 'propose_note_change', args: { section: 'profile', name: 'style', text: '# Style\n\nShort answers.\nUse metric units.\n' } }, { say: 'Saved.' }],
+    ],
+  },
+};
+
+async function say(page: Page, text: string): Promise<void> {
+  const box = page.getByLabel('Your message').last();
+  await box.fill(text);
+  await box.press('Control+Enter');
+}
+
 /** An improvement that weakens a rule: ready, with the safety notice. */
 const FLAGGED_IMPROVEMENT: AppOptions = {
   improveScript: {
@@ -90,6 +107,30 @@ const SCREENS: Screen[] = [
     open: async (page) => {
       await clickNav(page, /Creations/);
       await expect(page.getByText('No creation is running.')).toBeVisible();
+    },
+  },
+  {
+    name: 'chat-page',
+    options: CHAT,
+    open: async (page) => {
+      await clickNav(page, 'Chat');
+      await say(page, 'What projects do I have?');
+      await expect(page.getByTestId('chat-messages').locator('[data-role="assistant"]')).toBeVisible();
+      await say(page, 'Use less of my plan');
+      await page.getByTestId('chat-card').last().getByRole('button', { name: 'Decline' }).click();
+      await expect(page.getByTestId('chat-card').last()).toHaveAttribute('data-state', 'declined');
+      // The last card waits: cream, with Confirm and Decline.
+      await say(page, 'Remember metric units');
+      await expect(page.getByTestId('chat-card').last()).toHaveAttribute('data-state', 'pending');
+    },
+  },
+  {
+    name: 'chat-drawer',
+    options: CHAT,
+    open: async (page) => {
+      await page.getByRole('button', { name: 'Open the chat' }).click();
+      await say(page, 'What projects do I have?');
+      await expect(page.getByTestId('chat-drawer').locator('[data-role="assistant"]')).toBeVisible();
     },
   },
   {
@@ -177,7 +218,7 @@ const shot = async (page: Page, name: string) => {
   await page.screenshot({
     path: path.join(OUT, `${name}.png`),
     fullPage: true,
-    style: '.sticky, .rail, .topbar, .head-bar { position: static !important; } .rail { height: auto !important; align-self: stretch !important; }',
+    style: '.sticky, .rail, .topbar, .head-bar, .composer { position: static !important; } .rail { height: auto !important; align-self: stretch !important; }',
   });
 };
 
