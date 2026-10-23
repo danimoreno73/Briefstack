@@ -16,6 +16,7 @@ import {
   withoutLeadingHeading,
 } from '../../src/ui/format.js';
 import { DEFAULT_ROUTE, parseRoute, routeHash, type Route } from '../../src/ui/route.js';
+import { diffRows } from '../../src/ui/diffLines.js';
 
 // Built at run time so the test file holds no secret-looking string.
 const BS = String.fromCharCode(92);
@@ -125,5 +126,28 @@ describe('describeError', () => {
     expect(describeError(new ApiError(400, 'scaffold.notADirectory', {}), t)).toMatch(/file/);
     expect(describeError(new ApiError(500, 'weird.code'), t)).toContain('weird.code');
     expect(describeError(new Error('boom'), t)).not.toContain('boom');
+  });
+});
+
+describe('diffRows', () => {
+  it('numbers each line in its file: removed ones in the old file, the rest in the new one', () => {
+    const rows = diffRows([
+      { skipped: 17, lines: [{ op: ' ', text: 'keep' }, { op: '-', text: 'old' }, { op: '+', text: 'new' }, { op: '+', text: 'more' }] },
+      { skipped: 3, lines: [{ op: ' ', text: 'later' }] },
+    ]);
+    expect(rows).toEqual([
+      { kind: 'gap', count: 17 },
+      { kind: 'line', op: ' ', text: 'keep', number: 18 },
+      { kind: 'line', op: '-', text: 'old', number: 19 },
+      { kind: 'line', op: '+', text: 'new', number: 19 },
+      { kind: 'line', op: '+', text: 'more', number: 20 },
+      { kind: 'gap', count: 3 },
+      // Old file: 19 + 3 + 1 = 23; new file: 20 + 3 + 1 = 24.
+      { kind: 'line', op: ' ', text: 'later', number: 24 },
+    ]);
+  });
+
+  it('starts at line 1 when nothing is skipped', () => {
+    expect(diffRows([{ skipped: 0, lines: [{ op: '+', text: 'first' }] }])).toEqual([{ kind: 'line', op: '+', text: 'first', number: 1 }]);
   });
 });

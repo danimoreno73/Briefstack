@@ -50,7 +50,7 @@ const NAV: { page: Route['page']; route: Route; label: NavLabel; icon: FunctionC
 
 /** The screens already built on bs.css; the others render inside the `.legacy` wrapper. */
 function onBs(route: Route): boolean {
-  return route.page !== 'improve' && route.page !== 'chat';
+  return route.page !== 'chat';
 }
 
 /** The menu item a route belongs to: a project or a past session under Projects, a running creation under Creations. */

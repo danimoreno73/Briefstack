@@ -840,9 +840,7 @@ function FinishedView({
         </div>
         <div class="col-side">
           <Denied state={state} progress={progress} />
-          <div class="legacy legacy-inset">
-            <CreationSuggestions creationId={state.id} />
-          </div>
+          <CreationSuggestions creationId={state.id} />
         </div>
       </div>
 

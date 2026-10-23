@@ -76,7 +76,7 @@ test.describe('prepared from the chat, approved and reverted on the page', () =>
     const file = page.getByTestId('proposal-file');
     await expect(file).toHaveAttribute('data-path', RESEARCHER);
     await expect(file).toContainText('The reviewer asked twice for a shorter report.');
-    await expect(file.getByTestId('proposal-diff').locator('.diff-add')).toContainText('Keep the report under one page.');
+    await expect(file.getByTestId('proposal-diff').locator('[data-op="+"]')).toContainText('Keep the report under one page.');
     await expect(page.getByTestId('validation')).toHaveAttribute('data-ok', 'true');
     await expect(page.getByTestId('checks')).toHaveAttribute('data-ok', 'true');
     await expect(page.getByTestId('checks').locator('li')).toHaveCount(3);
@@ -173,7 +173,7 @@ test.describe('discard and ask for changes', () => {
     await expect(status(page)).toHaveAttribute('data-status', 'ready');
     await expect(page.getByTestId('rounds').locator('li')).toHaveCount(2);
     await expect(page.getByTestId('rounds')).toContainText('You asked: Even shorter, please.');
-    await expect(page.getByTestId('proposal-diff').locator('.diff-add')).toContainText('under half a page');
+    await expect(page.getByTestId('proposal-diff').locator('[data-op="+"]')).toContainText('under half a page');
     expect(app.improveRunner.started[1]?.feedback).toBe('Even shorter, please.');
 
     const id = /#\/improve\/(imp-[a-z0-9-]+)/.exec(page.url())?.[1] ?? '';

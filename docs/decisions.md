@@ -3212,3 +3212,29 @@ used `style.css`; they move with group 2, next to "Start again".
   modal confirmation.
 - **Tests.** A new test covers the secret refusal; the revert test is
   unchanged and passed 5 runs in a row.
+
+### Group 4: improvements
+
+- **Overview.** The order stays decision first (audit L12): proposals, then
+  suggestions, the form to ask for one, and the applied history; the design
+  puts suggestions first. A proposal's status is a chip coloured by what it
+  means: cream when it is ready for the user's decision. The head's "Ask for
+  an improvement" moves focus to the form. Revert stays on the proposal's
+  page (the design also puts it in the history list). Left off and in
+  IDEAS: "Discard" a suggestion (there is no route for it).
+- **Proposal.** Request, changes, checks, then the safety notice in coral
+  right before the decision, as `LEEME.md` says (it was at the top; its
+  text now points to the changes above), then the decision in cream with
+  the real-check offer, approve, ask for changes and discard or revert.
+  How it was prepared (evidence and rounds) is a side card.
+- **Diff.** The design's diff with line numbers. `DiffHunkView` has none,
+  but each hunk's `skipped` counts the unchanged lines since the previous
+  one, so both files' numbers follow (`src/ui/diffLines.ts`, unit-tested).
+  Each line carries `data-op`, which the tests read instead of a styling
+  class. The chat's note-change card uses the same component.
+- **The modal confirmation** gained a `normal` tone: approving is not a
+  destructive action and gets the primary button.
+- **Page width on a phone.** A table card's visually hidden header text is
+  absolutely positioned; with the card not positioned it escaped the card's
+  scroll box and widened the page to 630 px. Table cards are now
+  positioned, and the children of the page and of the stacks may shrink.

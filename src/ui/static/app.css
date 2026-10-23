@@ -183,6 +183,22 @@ body {
   overflow-x: auto;
 }
 
+/* A wide table scrolls inside its card. Flex children default to their content's width, so anything that
+   holds one (the page, a stack of blocks) lets its children shrink instead of widening the page. */
+.table-card,
+.page > *,
+.stack-2 > *,
+.stack-4 > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Positioned, so the visually hidden text in its header cells stays inside its scroll box instead of
+   escaping it and widening the page. */
+.table-card {
+  position: relative;
+}
+
 .loading {
   display: flex;
   flex-direction: column;
@@ -740,6 +756,71 @@ dialog.dec-dialog {
   .commit-row .when {
     display: none;
   }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Improvements                                                              */
+
+.suggestion-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4) 0;
+  border-top: var(--bw) solid var(--line);
+}
+
+.suggestion:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.suggestion:last-child {
+  padding-bottom: 0;
+}
+
+.check-line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 44px;
+}
+
+.check-line input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-fill);
+}
+
+.quote {
+  padding-left: var(--s-4);
+  border-left: var(--bw-strong) solid var(--line-card);
+  white-space: pre-wrap;
+}
+
+.diff-path {
+  overflow-wrap: anywhere;
+}
+
+/* A failed step's output under its line, across the whole row. */
+.checks .check-tail {
+  grid-column: 1 / -1;
+  max-height: 14rem;
+  overflow: auto;
+}
+
+.checks .st-run,
+.checks .st-fail {
+  display: grid;
+  place-items: center;
+}
+
+.history li {
+  overflow-wrap: anywhere;
 }
 
 /* ------------------------------------------------------------------------ */

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
-import { ConfirmDialog, ErrorBanner, Loader } from './common.js';
+import { diffRows } from './diffLines.js';
 import { formatWhen } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
+import { IconAlert, IconCheck, IconCross } from './icons.js';
+import { ConfirmModal, ErrorNote, LoadState, Note } from './kit.js';
 import { formatDuration } from './panelData.js';
 import { routeHash } from './route.js';
 import type { DiffHunkView, ImproveOverview, ProposalDetail, ProposalPage, SuggestionView, UsageView } from './types.js';
@@ -9,7 +11,7 @@ import type { DiffHunkView, ImproveOverview, ProposalDetail, ProposalPage, Sugge
 /**
  * Improvements of the creation flow (BRIEF-phase-5 §3.3–§3.5): suggestions,
  * proposals and the applied history, and one proposal's page, the only place
- * where an improvement is approved, discarded or reverted.
+ * where an improvement is approved, discarded or reverted. On bs.css (U5).
  */
 
 const LIVE = new Set(['preparing', 'verifying', 'waiting', 'revertWaiting']);
@@ -26,20 +28,42 @@ function usePoll(reload: () => void, active: boolean, ms = 2000): void {
   }, [reload, active, ms]);
 }
 
-/** A unified diff, as the note-change card shows one. */
-export function Diff({ hunks, testId }: { hunks: readonly DiffHunkView[]; testId?: string }) {
+/**
+ * A diff with line numbers, as the proposal page and the chat's note-change
+ * card show one. `file` adds the header with the path and the counts. Each
+ * line also says `data-op`, so tests need no styling class.
+ */
+export function Diff({ hunks, testId, file }: { hunks: readonly DiffHunkView[]; testId?: string; file?: { path: string; added: number; removed: number } }) {
   const { t } = useApp();
   return (
-    <pre class="diff" data-testid={testId}>
-      {hunks.flatMap((hunk, index) => [
-        ...(hunk.skipped > 0 ? [<span key={`s${index}`} class="diff-skip">{`${t.cardSkipped(hunk.skipped)}\n`}</span>] : []),
-        ...hunk.lines.map((line, position) => (
-          <span key={`${index}-${position}`} class={line.op === '+' ? 'diff-add' : line.op === '-' ? 'diff-del' : undefined}>
-            {`${line.op} ${line.text}\n`}
+    <div class="diff" data-testid={testId}>
+      {file !== undefined && (
+        <div class="diff-file">
+          <span class="diff-path">{file.path}</span>
+          <span class="diff-stat" aria-label={t.cardNoteCounts(file.added, file.removed)}>
+            <span class="a">+{file.added}</span>
+            <span class="d">−{file.removed}</span>
           </span>
-        )),
-      ])}
-    </pre>
+        </div>
+      )}
+      <div class="diff-lines">
+        {diffRows(hunks).map((row, index) =>
+          row.kind === 'gap' ? (
+            <div key={index} class="dl dl-hunk">
+              <span class="ln" />
+              <span class="sg" />
+              <span>{t.cardSkipped(row.count)}</span>
+            </div>
+          ) : (
+            <div key={index} class={row.op === '+' ? 'dl dl-add' : row.op === '-' ? 'dl dl-del' : 'dl'} data-op={row.op}>
+              <span class="ln">{row.number}</span>
+              <span class="sg">{row.op === '-' ? '−' : row.op}</span>
+              <span>{row.text}</span>
+            </div>
+          ),
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -52,6 +76,7 @@ export function PrepareForm({ initial, suggestionId, lessons: lessonsDefault = f
   const [lessons, setLessons] = useState(lessonsDefault);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
+  const id = `improve-request-${suggestionId ?? 'new'}`;
   const submit = async (event: Event) => {
     event.preventDefault();
     setBusy(true);
@@ -70,25 +95,35 @@ export function PrepareForm({ initial, suggestionId, lessons: lessonsDefault = f
     }
   };
   return (
-    <form class="improve-form" onSubmit={(event) => void submit(event)} data-testid="prepare-form">
-      <label>
-        {t.improveRequestLabel}
-        <textarea rows={4} value={request} maxLength={10_000} onInput={(event) => setRequest((event.target as HTMLTextAreaElement).value)} required />
-      </label>
-      <label class="inline">
+    <form class="stack-4" onSubmit={(event) => void submit(event)} data-testid="prepare-form">
+      <div class="field">
+        <label class="label" for={id}>
+          {t.improveRequestLabel}
+        </label>
+        <textarea
+          id={id}
+          class="textarea"
+          rows={4}
+          value={request}
+          maxLength={10_000}
+          onInput={(event) => setRequest((event.target as HTMLTextAreaElement).value)}
+          required
+        />
+      </div>
+      <label class="check-line">
         <input type="checkbox" checked={lessons} onChange={(event) => setLessons((event.target as HTMLInputElement).checked)} /> {t.improveLessonsLabel}
       </label>
-      <p class="hint">{t.improveUsesPlan(usage.data?.sessionModel ?? '…')}</p>
-      {error !== undefined && <ErrorBanner error={error} />}
-      <div class="actions">
+      <p class="help">{t.improveUsesPlan(usage.data?.sessionModel ?? '…')}</p>
+      {error !== undefined && <ErrorNote error={error} />}
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary" disabled={busy || request.trim() === ''}>
+          {t.improvePrepareButton}
+        </button>
         {onCancel !== undefined && (
-          <button type="button" onClick={onCancel}>
+          <button type="button" class="btn btn-secondary" onClick={onCancel}>
             {t.cancel}
           </button>
         )}
-        <button type="submit" disabled={busy || request.trim() === ''}>
-          {t.improvePrepareButton}
-        </button>
       </div>
     </form>
   );
@@ -99,23 +134,28 @@ export function SuggestionList({ suggestions }: { suggestions: readonly Suggesti
   const { t } = useApp();
   const [open, setOpen] = useState<string | undefined>(undefined);
   return (
-    <ul class="suggestions" data-testid="suggestions">
+    <ul class="suggestion-list" data-testid="suggestions">
       {suggestions.map((s) => {
         const text = t.suggestionText(s.kind, s.params, s.target);
         return (
-          <li key={s.id} data-testid="suggestion" data-kind={s.kind}>
-            <p>{text}</p>
-            <p class="muted">{t.suggestionFrom(s.idea)}</p>
+          <li key={s.id} class="suggestion" data-testid="suggestion" data-kind={s.kind}>
+            <p class="strong">{text}</p>
+            <p class="t-small muted">{t.suggestionFrom(s.idea)}</p>
             {s.proposalId !== undefined ? (
-              <p>
-                {t.suggestionPrepared} <a href={routeHash({ page: 'improve', id: s.proposalId })}>{s.proposalId}</a>
+              <p class="t-small">
+                {t.suggestionPrepared}{' '}
+                <a class="link" href={routeHash({ page: 'improve', id: s.proposalId })}>
+                  {s.proposalId}
+                </a>
               </p>
             ) : open === s.id ? (
               <PrepareForm initial={t.suggestionRequest(s.kind, text)} suggestionId={s.id} lessons={s.kind === 'lessons'} onCancel={() => setOpen(undefined)} />
             ) : (
-              <button type="button" onClick={() => setOpen(s.id)}>
-                {t.suggestionPrepare}
-              </button>
+              <div class="btn-row">
+                <button type="button" class="btn btn-secondary btn-sm" onClick={() => setOpen(s.id)}>
+                  {t.suggestionPrepare}
+                </button>
+              </div>
             )}
           </li>
         );
@@ -124,19 +164,39 @@ export function SuggestionList({ suggestions }: { suggestions: readonly Suggesti
   );
 }
 
+/** A proposal's status in words, coloured by what it means: cream when it waits for the user's decision. */
+function StatusMark({ status }: { status: string }) {
+  const { t } = useApp();
+  const word = t.proposalStatus(status);
+  if (status === 'ready') return <span class="chip chip-dec">{word}</span>;
+  if (status === 'preparing' || status === 'verifying')
+    return (
+      <span class="state st-run">
+        <span class="dot pulse" />
+        {word}
+      </span>
+    );
+  if (status === 'applied') return <span class="chip chip-ok">{word}</span>;
+  if (status === 'failed' || status === 'rejected') return <span class="chip chip-danger">{word}</span>;
+  if (status === 'discarded') return <span class="state st-cancel">{word}</span>;
+  return <span class="chip chip-outline">{word}</span>;
+}
+
 function ProposalTable({ proposals, testId }: { proposals: ImproveOverview['proposals']; testId: string }) {
   const { t, lang } = useApp();
   return (
-    <div class="table-wrap">
-      <table class="stack-on-phone" data-testid={testId}>
+    <div class="table-card">
+      <table class="table" data-testid={testId}>
         <thead>
           <tr>
             <th scope="col">{t.colRequest}</th>
             <th scope="col">{t.colStatus}</th>
             <th scope="col">{t.colFiles}</th>
-            <th scope="col">{t.colUpdated}</th>
+            <th scope="col" class="th-num">
+              {t.colUpdated}
+            </th>
             <th scope="col">
-              <span class="visually-hidden">{t.openProposal}</span>
+              <span class="sr-only">{t.openProposal}</span>
             </th>
           </tr>
         </thead>
@@ -144,11 +204,15 @@ function ProposalTable({ proposals, testId }: { proposals: ImproveOverview['prop
           {proposals.map((p) => (
             <tr key={p.id} data-proposal={p.id}>
               <td>{p.title ?? p.request.slice(0, 120)}</td>
-              <td data-testid="proposal-row-status">{t.proposalStatus(p.status)}</td>
-              <td class="path">{p.files.join(', ')}</td>
-              <td class="num">{formatWhen(p.updatedAt, lang)}</td>
+              <td data-testid="proposal-row-status">
+                <StatusMark status={p.status} />
+              </td>
+              <td class="td-mono td-path">{p.files.join(', ')}</td>
+              <td class="td-mono td-num">{formatWhen(p.updatedAt, lang)}</td>
               <td>
-                <a href={routeHash({ page: 'improve', id: p.id })}>{t.openProposal}</a>
+                <a class="link" href={routeHash({ page: 'improve', id: p.id })}>
+                  {t.openProposal}
+                </a>
               </td>
             </tr>
           ))}
@@ -164,36 +228,70 @@ function Overview() {
   usePoll(loaded.reload, true, 3000);
   useDocumentTitle(t.improveTitle);
   return (
-    <section>
-      <h1>{t.improveTitle}</h1>
-      <p class="muted">{t.improveIntro}</p>
-      <Loader loaded={loaded}>
-        {(data) => {
-          const applied = data.proposals.filter((p) => p.status === 'applied' || p.status === 'reverted' || p.status === 'revertWaiting');
-          const open = data.proposals.filter((p) => !applied.includes(p));
-          return (
-            <>
-              {data.active !== undefined && (
-                <p class="banner banner-ok" role="status">
-                  {t.improveRunning} <a href={routeHash({ page: 'improve', id: data.active })}>{data.active}</a>
-                </p>
-              )}
-              {/* What waits for a decision first, then what could be asked, then the record (audit L12). */}
-              <h2>{t.improveProposals}</h2>
-              {open.length === 0 ? <p class="empty">{t.improveNoProposals}</p> : <ProposalTable proposals={open} testId="proposals" />}
-              <h2>{t.improveSuggestions}</h2>
-              {data.suggestions.length === 0 ? <p class="empty">{t.improveNoSuggestions}</p> : <SuggestionList suggestions={data.suggestions} />}
-              <div class="panel">
-                <h2>{t.improvePrepareTitle}</h2>
-                <PrepareForm initial="" />
-              </div>
-              <h2>{t.improveHistory}</h2>
-              {applied.length === 0 ? <p class="empty">{t.improveNoHistory}</p> : <ProposalTable proposals={applied} testId="history" />}
-            </>
-          );
-        }}
-      </Loader>
-    </section>
+    <>
+      <header class="page-head">
+        <div class="page-head-text">
+          <h1 class="t-1">{t.improveTitle}</h1>
+          <p class="lead">{t.improveIntro}</p>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" onClick={() => document.getElementById('improve-request-new')?.focus()}>
+            {t.improveAsk}
+          </button>
+        </div>
+      </header>
+      <div class="page page-roomy">
+        <LoadState loaded={loaded}>
+          {(data) => {
+            const applied = data.proposals.filter((p) => p.status === 'applied' || p.status === 'reverted' || p.status === 'revertWaiting');
+            const open = data.proposals.filter((p) => !applied.includes(p));
+            return (
+              <>
+                {data.active !== undefined && (
+                  <Note tone="ok" role="status">
+                    {t.improveRunning}{' '}
+                    <a class="link" href={routeHash({ page: 'improve', id: data.active })}>
+                      {data.active}
+                    </a>
+                  </Note>
+                )}
+                {/* What waits for a decision first, then what could be asked, then the record (audit L12). */}
+                <section class="stack-4" aria-labelledby="proposals-title">
+                  <h2 class="section-title" id="proposals-title">
+                    {t.improveProposals}
+                  </h2>
+                  {open.length === 0 ? <p class="muted">{t.improveNoProposals}</p> : <ProposalTable proposals={open} testId="proposals" />}
+                </section>
+                <section class="stack-4" aria-labelledby="suggestions-title">
+                  <h2 class="section-title" id="suggestions-title">
+                    {t.improveSuggestions}
+                  </h2>
+                  {data.suggestions.length === 0 ? (
+                    <p class="muted">{t.improveNoSuggestions}</p>
+                  ) : (
+                    <div class="card">
+                      <SuggestionList suggestions={data.suggestions} />
+                    </div>
+                  )}
+                </section>
+                <section class="card" aria-labelledby="prepare-title">
+                  <h2 class="t-2" id="prepare-title">
+                    {t.improvePrepareTitle}
+                  </h2>
+                  <PrepareForm initial="" />
+                </section>
+                <section class="stack-4" aria-labelledby="history-title">
+                  <h2 class="section-title" id="history-title">
+                    {t.improveHistory}
+                  </h2>
+                  {applied.length === 0 ? <p class="muted">{t.improveNoHistory}</p> : <ProposalTable proposals={applied} testId="history" />}
+                </section>
+              </>
+            );
+          }}
+        </LoadState>
+      </div>
+    </>
   );
 }
 
@@ -223,72 +321,88 @@ function Actions({ proposal, check, reload }: { proposal: ProposalDetail; check:
   const canChange = ['ready', 'rejected', 'failed'].includes(proposal.status);
   const canDiscard = canChange || proposal.status === 'preparing' || proposal.status === 'waiting';
   const dialogs = {
-    approve: { title: t.proposalApproveTitle, body: t.proposalApproveBody, label: t.proposalApprove, path: 'approve' },
-    discard: { title: t.proposalDiscardTitle, body: t.proposalDiscardBody, label: t.proposalDiscard, path: 'discard' },
-    revert: { title: t.proposalRevertTitle, body: t.proposalRevertBody, label: t.proposalRevert, path: 'revert' },
+    approve: { title: t.proposalApproveTitle, body: t.proposalApproveBody, label: t.proposalApprove, path: 'approve', tone: 'normal' },
+    discard: { title: t.proposalDiscardTitle, body: t.proposalDiscardBody, label: t.proposalDiscard, path: 'discard', tone: 'danger' },
+    revert: { title: t.proposalRevertTitle, body: t.proposalRevertBody, label: t.proposalRevert, path: 'revert', tone: 'danger' },
   } as const;
   return (
-    <div>
-      {error !== undefined && <ErrorBanner error={error} />}
+    <>
+      {error !== undefined && <ErrorNote error={error} />}
       {check !== undefined && proposal.status === 'ready' && proposal.realCheck?.state !== 'running' && (
-        <div class="improve-check" data-testid="real-check-offer">
-          <h3>{t.proposalCheckTitle(check.name)}</h3>
-          <p class="muted">{check.cost[lang]}</p>
-          <button type="button" disabled={busy} onClick={() => void run(() => send('POST', `${base}/check`))}>
-            {t.proposalCheck}
-          </button>
+        <div class="dec-card" data-testid="real-check-offer">
+          <h3 class="t-3">{t.proposalCheckTitle(check.name)}</h3>
+          <p class="t-small muted">{check.cost[lang]}</p>
+          <div class="btn-row">
+            <button type="button" class="btn btn-secondary btn-sm" disabled={busy} onClick={() => void run(() => send('POST', `${base}/check`))}>
+              {t.proposalCheck}
+            </button>
+          </div>
         </div>
       )}
-      <div class="actions">
-        {proposal.status === 'ready' && (
-          <button type="button" class="primary" disabled={busy} data-testid="approve" onClick={() => setConfirm('approve')}>
-            {t.proposalApprove}
-          </button>
-        )}
-        {canChange && changes === undefined && (
-          <button type="button" disabled={busy} data-testid="ask-changes" onClick={() => setChanges('')}>
-            {t.proposalAskChanges}
-          </button>
-        )}
-        {canDiscard && (
-          <button type="button" class="danger" disabled={busy} data-testid="discard" onClick={() => setConfirm('discard')}>
-            {t.proposalDiscard}
-          </button>
-        )}
-        {proposal.status === 'applied' && (
-          <button type="button" class="danger" disabled={busy} data-testid="revert" onClick={() => setConfirm('revert')}>
-            {t.proposalRevert}
-          </button>
-        )}
-      </div>
       {changes !== undefined && (
         <form
-          class="improve-form"
+          class="stack-4"
           data-testid="changes-form"
           onSubmit={(event) => {
             event.preventDefault();
             void run(() => send('POST', `${base}/changes`, { text: changes })).then(() => setChanges(undefined));
           }}
         >
-          <label>
-            {t.proposalChangesLabel}
-            <textarea rows={3} value={changes} maxLength={10_000} onInput={(event) => setChanges((event.target as HTMLTextAreaElement).value)} required />
-          </label>
-          <div class="actions">
-            <button type="button" onClick={() => setChanges(undefined)}>
-              {t.cancel}
-            </button>
-            <button type="submit" disabled={busy || changes.trim() === ''}>
+          <div class="field">
+            <label class="label" for="proposal-changes">
+              {t.proposalChangesLabel}
+            </label>
+            <textarea
+              id="proposal-changes"
+              class="textarea"
+              rows={3}
+              value={changes}
+              maxLength={10_000}
+              onInput={(event) => setChanges((event.target as HTMLTextAreaElement).value)}
+              required
+            />
+          </div>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" disabled={busy || changes.trim() === ''}>
               {t.proposalSendChanges}
+            </button>
+            <button type="button" class="btn btn-secondary" onClick={() => setChanges(undefined)}>
+              {t.cancel}
             </button>
           </div>
         </form>
       )}
+      {changes === undefined && (
+        <div class="btn-row">
+          {proposal.status === 'ready' && (
+            <button type="button" class="btn btn-primary btn-lg" disabled={busy} data-testid="approve" onClick={() => setConfirm('approve')}>
+              {t.proposalApprove}
+            </button>
+          )}
+          {canChange && (
+            <button type="button" class="btn btn-secondary btn-lg" disabled={busy} data-testid="ask-changes" onClick={() => setChanges('')}>
+              {t.proposalAskChanges}
+            </button>
+          )}
+          {canDiscard && (
+            <button type="button" class="btn btn-danger-quiet btn-lg push-end" disabled={busy} data-testid="discard" onClick={() => setConfirm('discard')}>
+              {t.proposalDiscard}
+            </button>
+          )}
+          {proposal.status === 'applied' && (
+            <button type="button" class="btn btn-danger-quiet btn-lg" disabled={busy} data-testid="revert" onClick={() => setConfirm('revert')}>
+              {t.proposalRevert}
+            </button>
+          )}
+        </div>
+      )}
       {confirm !== undefined && (
-        <ConfirmDialog
+        <ConfirmModal
           title={dialogs[confirm].title}
           body={dialogs[confirm].body}
           confirmLabel={dialogs[confirm].label}
+          cancelLabel={t.cancel}
+          tone={dialogs[confirm].tone}
           onCancel={() => setConfirm(undefined)}
           onConfirm={() =>
             void run(() =>
@@ -298,7 +412,7 @@ function Actions({ proposal, check, reload }: { proposal: ProposalDetail; check:
           }
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -322,158 +436,203 @@ function StatusLine({ proposal, blockers }: { proposal: ProposalDetail; blockers
                   ? t.proposalDiscarded
                   : undefined;
   return (
-    <>
-      <p data-testid="proposal-status" data-status={proposal.status}>
-        <strong>{t.proposalStatus(proposal.status)}</strong>
-        {text !== undefined && ` · ${text}`}
-      </p>
-      {proposal.error !== undefined && (
-        <p class="banner banner-error" role="alert" data-testid="proposal-error">
-          {proposal.error}
-        </p>
-      )}
-    </>
+    <p class="head-status" data-testid="proposal-status" data-status={proposal.status}>
+      <StatusMark status={proposal.status} />
+      {text !== undefined && <span class="t-small muted">{text}</span>}
+    </p>
   );
 }
 
 /**
  * One proposal, in the order a decision needs (audit H4, M17): what was
- * asked, the changes, the checks on them, then the decision; how it was
- * prepared comes last. A safety notice sits at the top and points down to
- * the changes.
+ * asked, the changes, the checks on them, the safety notice right before the
+ * decision (LEEME), then the decision; how it was prepared sits beside.
  */
 function ProposalBody({ page, reload }: { page: ProposalPage; reload: () => void }) {
   const { t, lang } = useApp();
   const { proposal, blockers } = page;
   return (
-    <section class="proposal">
-      <p>
-        <a href={routeHash({ page: 'improve', id: undefined })}>← {t.improveTitle}</a>
-      </p>
-      <h1>{proposal.title ?? t.proposalHeading(proposal.id)}</h1>
-      <StatusLine proposal={proposal} blockers={blockers} />
-      {proposal.safety?.state === 'flagged' && (
-        <div class="banner banner-warn" role="alert" data-testid="safety-warning">
-          <strong>{t.safetyFlaggedTitle}</strong>
-          <p>{proposal.safety.reason}</p>
-          <p>{t.safetyFlaggedNote(proposal.safety.model)}</p>
-        </div>
-      )}
-
-      <div class="panel">
-        <h2>{t.proposalRequest}</h2>
-        <blockquote data-testid="proposal-request">{proposal.request}</blockquote>
-        {proposal.expectedEffect !== undefined && (
-          <>
-            <h3>{t.proposalExpected}</h3>
-            <p data-testid="proposal-expected">{proposal.expectedEffect}</p>
-          </>
-        )}
-      </div>
-
-      <h2 class="section-label">{t.proposalChanges}</h2>
-      {proposal.files.length === 0 && <p class="empty">{t.proposalNoChanges}</p>}
-      {proposal.files.map((file) => (
-        <div key={file.path} class="improve-file" data-testid="proposal-file" data-path={file.path}>
-          <h3>
-            <code>{file.path}</code> <span class="muted">{t.cardNoteCounts(file.added, file.removed)}</span>
-          </h3>
-          {file.rationale !== undefined && (
-            <p>
-              <strong>{t.proposalRationale}</strong> {file.rationale}
-              {file.evidence !== undefined && file.evidence.length > 0 && <span class="muted"> ({file.evidence.join(', ')})</span>}
-            </p>
-          )}
-          <Diff hunks={file.hunks} testId="proposal-diff" />
-        </div>
-      ))}
-
-      <h2 class="section-label">{t.proposalChecks}</h2>
-      <div class="panel checks">
-        <h3>{t.proposalValidation}</h3>
-        {proposal.validation === undefined ? (
-          <p class="muted">…</p>
-        ) : proposal.validation.ok ? (
-          <p data-testid="validation" data-ok="true">
-            {t.proposalValidationOk}
+    <>
+      <header class="page-head">
+        <div class="page-head-text">
+          <p class="meta">
+            <a class="link" href={routeHash({ page: 'improve', id: undefined })}>
+              ← {t.improveTitle}
+            </a>
+            <span aria-hidden="true">·</span>
+            <span>{proposal.id}</span>
           </p>
-        ) : (
-          <ul data-testid="validation" data-ok="false">
-            {proposal.validation.problems.map((problem, index) => (
-              <li key={index} data-kind={problem.kind}>
-                <strong>{t.problemKind(problem.kind)}</strong>
-                {problem.file !== undefined && (
-                  <>
-                    {' '}
-                    <code>{problem.file}</code>
-                    {problem.line !== undefined && `:${problem.line}`}
-                  </>
-                )}
-                {` — ${problem.detail}`}
-              </li>
-            ))}
-          </ul>
-        )}
-        {proposal.safety !== undefined && proposal.safety.state !== 'flagged' && (
-          <p class="muted" data-testid="safety" data-state={proposal.safety.state}>
-            {proposal.safety.state === 'clear' ? t.safetyClear(proposal.safety.model) : t.safetyUnavailable(proposal.safety.reason)}
-          </p>
-        )}
-        <h3>{t.proposalTests}</h3>
-        {proposal.checks === undefined ? (
-          <p class="muted">{proposal.validation?.ok === false ? t.proposalNotTested : '…'}</p>
-        ) : (
-          <ul data-testid="checks" data-ok={String(proposal.checks.ok)}>
-            {proposal.checks.error !== undefined && <li>{proposal.checks.error}</li>}
-            {proposal.checks.steps.map((step) => (
-              <li key={step.name} data-step={step.name} data-ok={String(step.ok)}>
-                {t.testStep(step.name, step.ok, formatDuration(step.ms, lang))}
-                {!step.ok && <pre class="tail">{step.tail}</pre>}
-              </li>
-            ))}
-          </ul>
-        )}
-        {proposal.realCheck !== undefined && (
-          <div data-testid="real-check" data-state={proposal.realCheck.state}>
-            <h3>{t.proposalCheckTitle(proposal.realCheck.name)}</h3>
-            <p>{t.realCheckState(proposal.realCheck.state)}</p>
-            {proposal.realCheck.output !== undefined && <pre class="tail">{proposal.realCheck.output}</pre>}
-          </div>
-        )}
-      </div>
-
-      {DECIDABLE.has(proposal.status) && (
-        <div class="panel attention decision">
-          <h2>{t.proposalDecision}</h2>
-          {proposal.status === 'ready' && <p class="hint">{t.proposalDecisionNote}</p>}
-          <Actions proposal={proposal} check={page.check} reload={reload} />
+          <h1 class="t-1">{proposal.title ?? t.proposalHeading(proposal.id)}</h1>
+          <StatusLine proposal={proposal} blockers={blockers} />
         </div>
-      )}
+      </header>
+      <div class="page">
+        {proposal.error !== undefined && (
+          <Note tone="danger" role="alert" testId="proposal-error">
+            {proposal.error}
+          </Note>
+        )}
+        <div class="cols">
+          <div class="col-main">
+            <section class="card" aria-labelledby="request-title">
+              <h2 class="t-2" id="request-title">
+                {t.proposalRequest}
+              </h2>
+              <p class="t-body quote" data-testid="proposal-request">
+                {proposal.request}
+              </p>
+              {proposal.expectedEffect !== undefined && (
+                <>
+                  <h3 class="t-3">{t.proposalExpected}</h3>
+                  <p data-testid="proposal-expected">{proposal.expectedEffect}</p>
+                </>
+              )}
+            </section>
 
-      <h2 class="section-label">{t.proposalMaking}</h2>
-      <h3>{t.proposalEvidence}</h3>
-      <ul data-testid="evidence">
-        {proposal.evidence.map((item) => (
-          <li key={item.file}>
-            {item.kind === 'session' ? <a href={routeHash({ page: 'session', id: item.ref })}>{item.ref}</a> : <code>{item.file}</code>}
-          </li>
-        ))}
-      </ul>
-      <h3>{t.proposalRounds}</h3>
-      <ol data-testid="rounds">
-        {proposal.rounds.map((round) => (
-          <li key={round.n}>
-            {t.roundLine(round.n, round.outcome, round.denials.length)}
-            {round.feedback !== undefined && (
-              <span class="muted">
-                {' '}
-                {t.roundFeedback} {round.feedback}
-              </span>
+            <section class="stack-4" aria-labelledby="changes-title">
+              <h2 class="section-title" id="changes-title">
+                {t.proposalChanges}
+              </h2>
+              {proposal.files.length === 0 && <p class="muted">{t.proposalNoChanges}</p>}
+              {proposal.files.map((file) => (
+                <div key={file.path} class="stack-2" data-testid="proposal-file" data-path={file.path}>
+                  {file.rationale !== undefined && (
+                    <p>
+                      <span class="strong">{t.proposalRationale}</span> {file.rationale}
+                      {file.evidence !== undefined && file.evidence.length > 0 && <span class="muted"> ({file.evidence.join(', ')})</span>}
+                    </p>
+                  )}
+                  <Diff hunks={file.hunks} testId="proposal-diff" file={{ path: file.path, added: file.added, removed: file.removed }} />
+                </div>
+              ))}
+            </section>
+
+            <section class="card" aria-labelledby="checks-title">
+              <h2 class="t-2" id="checks-title">
+                {t.proposalChecks}
+              </h2>
+              <h3 class="t-3">{t.proposalValidation}</h3>
+              {proposal.validation === undefined ? (
+                <p class="muted">…</p>
+              ) : proposal.validation.ok ? (
+                <p class="msg msg-ok" data-testid="validation" data-ok="true">
+                  <IconCheck />
+                  {t.proposalValidationOk}
+                </p>
+              ) : (
+                <ul class="stack-2" data-testid="validation" data-ok="false">
+                  {proposal.validation.problems.map((problem, index) => (
+                    <li key={index} class="msg msg-err" data-kind={problem.kind}>
+                      <IconCross />
+                      <span>
+                        <span class="strong">{t.problemKind(problem.kind)}</span>
+                        {problem.file !== undefined && (
+                          <>
+                            {' '}
+                            <code class="mono-s">{problem.file}</code>
+                            {problem.line !== undefined && `:${problem.line}`}
+                          </>
+                        )}
+                        {` — ${problem.detail}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {proposal.safety !== undefined && proposal.safety.state !== 'flagged' && (
+                <p class="t-small muted" data-testid="safety" data-state={proposal.safety.state}>
+                  {proposal.safety.state === 'clear' ? t.safetyClear(proposal.safety.model) : t.safetyUnavailable(proposal.safety.reason)}
+                </p>
+              )}
+              <h3 class="t-3">{t.proposalTests}</h3>
+              {proposal.checks === undefined ? (
+                <p class="muted">{proposal.validation?.ok === false ? t.proposalNotTested : '…'}</p>
+              ) : (
+                <ul class="checks" data-testid="checks" data-ok={String(proposal.checks.ok)}>
+                  {proposal.checks.error !== undefined && (
+                    <li class="st-fail">
+                      <IconCross />
+                      <span class="ct">{proposal.checks.error}</span>
+                    </li>
+                  )}
+                  {proposal.checks.steps.map((step) => (
+                    <li key={step.name} data-step={step.name} data-ok={String(step.ok)}>
+                      <span class={step.ok ? 'st-run' : 'st-fail'}>{step.ok ? <IconCheck /> : <IconCross />}</span>
+                      <span>{step.name}</span>
+                      <span class="muted ct">{t.testStep(step.name, step.ok, formatDuration(step.ms, lang))}</span>
+                      <span class="faint num">{formatDuration(step.ms, lang)}</span>
+                      {!step.ok && <pre class="request check-tail">{step.tail}</pre>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {proposal.realCheck !== undefined && (
+                <div class="stack-2" data-testid="real-check" data-state={proposal.realCheck.state}>
+                  <h3 class="t-3">{t.proposalCheckTitle(proposal.realCheck.name)}</h3>
+                  <p>{t.realCheckState(proposal.realCheck.state)}</p>
+                  {proposal.realCheck.output !== undefined && <pre class="request check-tail">{proposal.realCheck.output}</pre>}
+                </div>
+              )}
+            </section>
+
+            {/* The safety notice comes right before the decision, in coral (LEEME). */}
+            {proposal.safety?.state === 'flagged' && (
+              <div class="note note-danger note-sec" role="alert" data-testid="safety-warning">
+                <IconAlert />
+                <div class="note-body">
+                  <p class="note-title">{t.safetyFlaggedTitle}</p>
+                  <p>{proposal.safety.reason}</p>
+                  <p class="t-small">{t.safetyFlaggedNote(proposal.safety.model)}</p>
+                </div>
+              </div>
             )}
-          </li>
-        ))}
-      </ol>
-    </section>
+
+            {DECIDABLE.has(proposal.status) && (
+              <section class="dec" aria-labelledby="decision-title">
+                <h2 id="decision-title">{t.proposalDecision}</h2>
+                {proposal.status === 'ready' && <p class="muted">{t.proposalDecisionNote}</p>}
+                <Actions proposal={proposal} check={page.check} reload={reload} />
+              </section>
+            )}
+          </div>
+
+          <aside class="col-side">
+            <section class="card" aria-labelledby="making-title">
+              <h2 class="t-2" id="making-title">
+                {t.proposalMaking}
+              </h2>
+              <h3 class="t-3">{t.proposalEvidence}</h3>
+              <ul class="stack-2" data-testid="evidence">
+                {proposal.evidence.map((item) => (
+                  <li key={item.file} class="mono-s">
+                    {item.kind === 'session' ? (
+                      <a class="link" href={routeHash({ page: 'session', id: item.ref })}>
+                        {item.ref}
+                      </a>
+                    ) : (
+                      <code>{item.file}</code>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <h3 class="t-3">{t.proposalRounds}</h3>
+              <ol class="history" data-testid="rounds">
+                {proposal.rounds.map((round) => (
+                  <li key={round.n}>
+                    <span>{t.roundLine(round.n, round.outcome, round.denials.length)}</span>
+                    {round.feedback !== undefined && (
+                      <span class="t-small muted">
+                        {t.roundFeedback} {round.feedback}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -483,7 +642,11 @@ function ProposalView({ id }: { id: string }) {
   useDocumentTitle(loaded.data?.proposal.title ?? t.proposalKind);
   const live = loaded.data === undefined || LIVE.has(loaded.data.proposal.status) || loaded.data.proposal.realCheck?.state === 'running';
   usePoll(loaded.reload, live, 1500);
-  return <Loader loaded={loaded}>{(page) => <ProposalBody page={page} reload={loaded.reload} />}</Loader>;
+  return (
+    <LoadState loaded={loaded}>
+      {(page) => <ProposalBody page={page} reload={loaded.reload} />}
+    </LoadState>
+  );
 }
 
 export function ImprovePage({ id }: { id: string | undefined }) {
@@ -506,9 +669,12 @@ export function CreationSuggestions({ creationId }: { creationId: string }) {
   }, [loaded.data, mine.length, tries, loaded.reload]);
   if (mine.length === 0) return null;
   return (
-    <div data-testid="creation-suggestions">
-      <h2>{t.creationSuggestions}</h2>
+    <section class="card" aria-labelledby="creation-suggestions-title" data-testid="creation-suggestions">
+      <h2 class="t-2" id="creation-suggestions-title">
+        {t.creationSuggestions}
+      </h2>
+      <p class="t-small muted">{t.suggestionsNothingYet}</p>
       <SuggestionList suggestions={mine} />
-    </div>
+    </section>
   );
 }

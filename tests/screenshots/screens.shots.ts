@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
-import { clickNav, expect, test, type App } from '../e2e/fixtures.js';
+import { clickNav, expect, test, type App, type AppOptions } from '../e2e/fixtures.js';
 
 // The screens moved to bs.css in U5, one entry per screen, at desktop and
 // phone width in both themes. Output: `screenshots/u5/screens/`, git-ignored.
@@ -18,9 +18,27 @@ const VIEWS = [
 
 interface Screen {
   name: string;
+  /** What the test app starts with, when the screen needs more than the default. */
+  options?: AppOptions;
   /** Opens the screen and waits until it shows what the picture is for. */
   open(page: Page, app: App): Promise<void>;
 }
+
+/** An improvement that weakens a rule: ready, with the safety notice. */
+const FLAGGED_IMPROVEMENT: AppOptions = {
+  improveScript: {
+    rounds: [
+      {
+        edits: [{ file: '.claude/agents/interviewer.md', find: 'Rules:', replace: 'When unsure, you may ask in plain text.\n\nRules:' }],
+        submission: {
+          title: 'Faster interviews',
+          expectedEffect: 'Fewer form questions.',
+          changes: [{ file: '.claude/agents/interviewer.md', rationale: 'Forms felt slow.', evidence: ['request.md'] }],
+        },
+      },
+    ],
+  },
+};
 
 /** Starts a creation from the New project page; it then waits for the first answers. */
 async function startCreation(page: Page, idea: string): Promise<void> {
@@ -72,6 +90,26 @@ const SCREENS: Screen[] = [
     open: async (page) => {
       await clickNav(page, /Creations/);
       await expect(page.getByText('No creation is running.')).toBeVisible();
+    },
+  },
+  {
+    name: 'improve-overview',
+    options: FLAGGED_IMPROVEMENT,
+    open: async (page, app) => {
+      await app.improvements.prepare('Faster interviews.');
+      await clickNav(page, 'Improvements');
+      await expect(page.getByTestId('proposals')).toBeVisible();
+    },
+  },
+  {
+    name: 'improve-proposal',
+    options: FLAGGED_IMPROVEMENT,
+    open: async (page, app) => {
+      await app.improvements.prepare('Faster interviews.');
+      await clickNav(page, 'Improvements');
+      await page.getByTestId('proposals').getByRole('link', { name: 'Open' }).click();
+      await expect(page.getByTestId('proposal-status')).toHaveAttribute('data-status', 'ready');
+      await expect(page.getByTestId('safety-warning')).toBeVisible();
     },
   },
   {
@@ -147,10 +185,13 @@ for (const view of VIEWS) {
   test.describe(`screens at ${view.name}`, () => {
     test.use({ viewport: { width: view.width, height: view.height }, colorScheme: view.scheme });
     for (const screen of SCREENS.filter((item) => ONLY === undefined || ONLY.some((prefix) => item.name.startsWith(prefix)))) {
-      test(screen.name, async ({ page, app }) => {
-        await page.goto(app.url);
-        await screen.open(page, app);
-        await shot(page, `${screen.name}-${view.name}`);
+      test.describe(screen.name, () => {
+        if (screen.options !== undefined) test.use({ appOptions: screen.options });
+        test(screen.name, async ({ page, app }) => {
+          await page.goto(app.url);
+          await screen.open(page, app);
+          await shot(page, `${screen.name}-${view.name}`);
+        });
       });
     }
   });

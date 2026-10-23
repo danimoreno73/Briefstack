@@ -116,13 +116,15 @@ export interface ModalProps {
   cancelLabel: string;
   onConfirm(): void;
   onCancel(): void;
+  /** `danger` (the default) for what stops, destroys or undoes something; `normal` for the rest, like approving. */
+  tone?: 'danger' | 'normal';
 }
 
 /**
- * A modal confirmation for what stops or destroys something. Focus starts on
- * the button that backs out; Escape backs out too.
+ * A modal confirmation. Focus starts on the button that backs out; Escape
+ * backs out too.
  */
-export function ConfirmModal({ title, body, confirmLabel, cancelLabel, onConfirm, onCancel }: ModalProps) {
+export function ConfirmModal({ title, body, confirmLabel, cancelLabel, onConfirm, onCancel, tone = 'danger' }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const keep = useRef<HTMLButtonElement>(null);
   // Before the browser paints, so the dialog never shows with focus still behind it.
@@ -149,7 +151,7 @@ export function ConfirmModal({ title, body, confirmLabel, cancelLabel, onConfirm
         <button ref={keep} type="button" class="btn btn-secondary" onClick={onCancel}>
           {cancelLabel}
         </button>
-        <button type="button" class="btn btn-danger" onClick={onConfirm}>
+        <button type="button" class={tone === 'danger' ? 'btn btn-danger' : 'btn btn-primary'} onClick={onConfirm}>
           {confirmLabel}
         </button>
       </div>

@@ -69,6 +69,13 @@ have to start a program on the user's machine (`explorer`, `open` or
 for a local server, with its own confirmation, path checks (only folders
 this tool created) and tests on the three systems.
 
+### Improvements: "Discard" a suggestion
+
+Remove a suggestion from the list without preparing it. Suggestions are
+kept by the improvement manager; it would need a discard route with the
+token, a stored state for discarded suggestions (so they do not come back
+after a restart), the same for the chat's view of suggestions, and tests.
+
 ### Settings: folders with read-only access
 
 A list of folders agents may read without asking, with add and remove. It
