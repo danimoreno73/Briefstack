@@ -130,6 +130,43 @@ test.describe('a burst of events', () => {
   });
 });
 
+test.describe('before the server has said where the creation stands', () => {
+  test.use({ appOptions: { recording: 'panel.jsonl' } });
+
+  test('shows Loading, and never an ended state for the main session', async ({ page, app }) => {
+    // Every text the main session's state takes, from the first render on, painted or not.
+    await page.addInitScript(() => {
+      const seen: string[] = [];
+      (window as unknown as { __mainStates: string[] }).__mainStates = seen;
+      new MutationObserver(() => {
+        const status = document.querySelector('[data-testid="agent-main"] [data-testid="node-status"]');
+        const text = status?.textContent ?? undefined;
+        if (text !== undefined && seen[seen.length - 1] !== text) seen.push(text);
+      }).observe(document, { subtree: true, childList: true, characterData: true });
+    });
+    // The creation's state answers late (every request for it, also the ones its stream's events
+    // trigger); the stream itself does not wait.
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route(/\/api\/creations\/[0-9a-f-]+$/, async (route) => {
+      if (route.request().method() === 'GET') await held;
+      await route.continue();
+    });
+
+    await page.goto(app.url);
+    await clickNav(page, 'New project');
+    await page.getByLabel('Describe your idea').fill('A garden planner');
+    await page.getByRole('button', { name: 'Start' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Loading…' })).toBeVisible();
+    await expect(node(page, 'main')).toHaveCount(0);
+    release();
+
+    await expect(node(page, 'main').getByTestId('node-status')).toHaveText('Waiting for you');
+    const states = await page.evaluate(() => (window as unknown as { __mainStates: string[] }).__mainStates);
+    for (const ended of ['Interrupted', 'Done', 'Failed', 'Cancelled', 'No end recorded']) expect(states, states.join(' → ')).not.toContain(ended);
+  });
+});
+
 test.describe('finished sessions', () => {
   test('a cancelled and an interrupted session open their panel from the projects page', async ({ page, app }) => {
     await page.goto(app.url);

@@ -53,8 +53,11 @@ export function usePanelState(events: readonly PanelEventInput[], live: PanelLiv
   }, [events, live]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  // The first live state goes straight in, not after the throttle: without it, lines with no live state
+  // read as a session that is over, and the panel would say "Interrupted" until the next recompute.
+  const input = live !== undefined && shown.live === undefined ? { events, live } : shown;
   const [tick, setTick] = useState(0);
-  const state = useMemo(() => buildPanelState(shown.events, { now: new Date(), ...(shown.live === undefined ? {} : { live: shown.live }) }), [shown, tick]);
+  const state = useMemo(() => buildPanelState(input.events, { now: new Date(), ...(input.live === undefined ? {} : { live: input.live }) }), [input, tick]);
   const running = state.session.status === 'running';
   useEffect(() => {
     if (!running) return undefined;
