@@ -95,7 +95,23 @@ export interface ErrorParams {
   'improve.noCheck': { id: string };
   'improve.checkBusy': { id: string };
   'improve.suggestionNotFound': { id: string };
+  'skills.invalidUrl': { url: string; reason: SkillUrlProblem };
+  'skills.repoNotFound': { owner: string; repo: string };
+  'skills.refNotFound': { ref: string };
+  'skills.pathNotFound': { path: string };
+  'skills.noSkillFile': Record<string, never>;
+  'skills.rateLimited': { reset: string | null };
+  'skills.network': { detail: string };
+  'skills.tooLarge': { what: 'file' | 'files' | 'total'; limit: number; actual: number; path?: string };
+  'skills.forbiddenEntry': { path: string; kind: SkillEntryProblem };
+  'skills.integrity': { path: string };
 }
+
+/** Why a skill link is refused. */
+export type SkillUrlProblem = 'notHttps' | 'notGithub' | 'shape' | 'notSkillFile';
+
+/** Why an entry of a skill folder is refused. */
+export type SkillEntryProblem = 'symlink' | 'submodule' | 'lfs' | 'gitControl' | 'unsafePath' | 'caseCollision' | 'truncated';
 
 export type ErrorCode = keyof ErrorParams;
 

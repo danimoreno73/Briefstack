@@ -5,6 +5,8 @@ import type {
   FieldExpectation,
   ProtectedRoot,
   SettingsField,
+  SkillEntryProblem,
+  SkillUrlProblem,
 } from '../errors.js';
 import { defineCatalogue, type Lang } from './index.js';
 import { formatSpecIssue } from './spec.js';
@@ -48,6 +50,38 @@ const settingsFieldEs: Record<SettingsField, string> = {
   root: 'el archivo debe contener un objeto JSON',
   permissions: '"permissions" debe ser un objeto',
   additionalDirectories: '"permissions.additionalDirectories" debe ser una lista de rutas',
+};
+
+const skillUrlEn: Record<SkillUrlProblem, string> = {
+  notHttps: 'use an https:// link.',
+  notGithub: 'only github.com links are supported.',
+  shape: 'use a link to a repository, a folder (…/tree/<branch>/<folder>) or a SKILL.md (…/blob/<branch>/<folder>/SKILL.md).',
+  notSkillFile: 'a file link must point at a SKILL.md.',
+};
+const skillUrlEs: Record<SkillUrlProblem, string> = {
+  notHttps: 'usa un enlace https://.',
+  notGithub: 'solo se admiten enlaces de github.com.',
+  shape: 'usa un enlace a un repositorio, a una carpeta (…/tree/<rama>/<carpeta>) o a un SKILL.md (…/blob/<rama>/<carpeta>/SKILL.md).',
+  notSkillFile: 'un enlace a un archivo debe apuntar a un SKILL.md.',
+};
+
+const skillEntryEn: Record<SkillEntryProblem, string> = {
+  symlink: 'it holds a symbolic link',
+  submodule: 'it holds a git submodule',
+  lfs: 'it holds a Git LFS pointer instead of a file',
+  gitControl: 'it holds a .gitattributes or .gitmodules file, which would change how the library stores files',
+  unsafePath: 'it holds a file name that is not safe on every system',
+  caseCollision: 'two of its names differ only in upper or lower case',
+  truncated: 'GitHub cut the folder listing short, so it is too large',
+};
+const skillEntryEs: Record<SkillEntryProblem, string> = {
+  symlink: 'contiene un enlace simbólico',
+  submodule: 'contiene un submódulo de git',
+  lfs: 'contiene un puntero de Git LFS en lugar de un archivo',
+  gitControl: 'contiene un archivo .gitattributes o .gitmodules, que cambiaría cómo guarda los archivos la biblioteca',
+  unsafePath: 'contiene un nombre de archivo que no es seguro en todos los sistemas',
+  caseCollision: 'dos de sus nombres solo se distinguen por mayúsculas o minúsculas',
+  truncated: 'GitHub recortó el listado de la carpeta, así que es demasiado grande',
 };
 
 const bullets = (lines: readonly string[]): string => lines.map((line) => `\n  - ${line}`).join('');
@@ -166,6 +200,22 @@ const errors = defineCatalogue<ErrorMessages>({
     'improve.noCheck': (p) => `Proposal ${p.id} has no real check to run.`,
     'improve.checkBusy': (p) => `The real check of proposal ${p.id} is already running.`,
     'improve.suggestionNotFound': (p) => `There is no suggestion ${p.id}.`,
+    'skills.invalidUrl': (p) => `${p.url} is not a link briefstack can fetch a skill from: ${skillUrlEn[p.reason]}`,
+    'skills.repoNotFound': (p) => `GitHub has no public repository ${p.owner}/${p.repo}. Private repositories are not supported.`,
+    'skills.refNotFound': (p) => `GitHub does not know the branch, tag or commit in "${p.ref}".`,
+    'skills.pathNotFound': (p) => `The folder ${p.path === '' ? '(root)' : p.path} does not exist at that branch, tag or commit.`,
+    'skills.noSkillFile': () => 'That folder has no SKILL.md at its top level, so it is not a skill.',
+    'skills.rateLimited': (p) =>
+      `GitHub's limit for requests without a token was reached.${p.reset === null ? ' Try again later.' : ` Try again after ${p.reset}.`}`,
+    'skills.network': (p) => `The skill could not be fetched: ${p.detail}.`,
+    'skills.tooLarge': (p) =>
+      p.what === 'files'
+        ? `The skill has ${p.actual} files; the limit is ${p.limit}.`
+        : p.what === 'file'
+          ? `${p.path ?? 'A file'} has ${p.actual} bytes; the limit per file is ${p.limit}.`
+          : `The skill has ${p.actual} bytes in all; the limit is ${p.limit}.`,
+    'skills.forbiddenEntry': (p) => `The skill was refused: ${skillEntryEn[p.kind]}${p.path === '' ? '' : ` (${p.path})`}.`,
+    'skills.integrity': (p) => `${p.path} did not match the commit's content, so nothing was kept. Try again.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -283,6 +333,22 @@ const errors = defineCatalogue<ErrorMessages>({
     'improve.noCheck': (p) => `La propuesta ${p.id} no tiene comprobación real que ejecutar.`,
     'improve.checkBusy': (p) => `La comprobación real de la propuesta ${p.id} ya está en marcha.`,
     'improve.suggestionNotFound': (p) => `No existe la sugerencia ${p.id}.`,
+    'skills.invalidUrl': (p) => `${p.url} no es un enlace del que briefstack pueda traer una skill: ${skillUrlEs[p.reason]}`,
+    'skills.repoNotFound': (p) => `GitHub no tiene ningún repositorio público ${p.owner}/${p.repo}. Los repositorios privados no se admiten.`,
+    'skills.refNotFound': (p) => `GitHub no conoce la rama, etiqueta o commit de "${p.ref}".`,
+    'skills.pathNotFound': (p) => `La carpeta ${p.path === '' ? '(raíz)' : p.path} no existe en esa rama, etiqueta o commit.`,
+    'skills.noSkillFile': () => 'Esa carpeta no tiene SKILL.md en su primer nivel, así que no es una skill.',
+    'skills.rateLimited': (p) =>
+      `Se alcanzó el límite de GitHub para peticiones sin token.${p.reset === null ? ' Inténtalo más tarde.' : ` Inténtalo después de ${p.reset}.`}`,
+    'skills.network': (p) => `No se pudo traer la skill: ${p.detail}.`,
+    'skills.tooLarge': (p) =>
+      p.what === 'files'
+        ? `La skill tiene ${p.actual} archivos; el límite es ${p.limit}.`
+        : p.what === 'file'
+          ? `${p.path ?? 'Un archivo'} tiene ${p.actual} bytes; el límite por archivo es ${p.limit}.`
+          : `La skill tiene ${p.actual} bytes en total; el límite es ${p.limit}.`,
+    'skills.forbiddenEntry': (p) => `Se rechazó la skill: ${skillEntryEs[p.kind]}${p.path === '' ? '' : ` (${p.path})`}.`,
+    'skills.integrity': (p) => `${p.path} no coincidía con el contenido del commit, así que no se guardó nada. Inténtalo de nuevo.`,
   },
 });
 
