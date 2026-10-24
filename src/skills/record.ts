@@ -100,10 +100,12 @@ const licenseSchema = z.object({
 });
 
 const modelSchema = z.object({
-  state: z.enum(['flagged', 'clear', 'unavailable']),
+  state: z.enum(['flagged', 'clear', 'failed', 'unavailable']),
   reason: z.string().max(4000),
   model: z.string().max(80),
   at: iso,
+  /** Files the model saw only in part or not at all. */
+  cut: z.array(z.string().max(400)).max(1000).optional(),
 });
 
 /** One fetched version: what it is, where it came from and what the review found. */
@@ -187,7 +189,7 @@ function versionBody(version: SkillVersion, heading: string): string[] {
     `- License: ${version.license.spdx ?? (version.license.source === 'none' ? 'none found' : 'not recognised')}${version.license.file === undefined ? '' : ` (${code(version.license.file)})`}`,
     `- Scripts: ${version.hasScripts ? 'yes' : 'no'}; network: ${version.network ? 'yes' : 'no'}${version.allowedTools === undefined ? '' : `; allowed-tools: ${code(version.allowedTools)}`}`,
     `- Findings: ${counts.high} high, ${counts.medium} medium, ${counts.low} low, ${counts.info} info`,
-    `- Model review (${version.model.model}): ${version.model.state}. ${cleanLine(version.model.reason, 600)}`,
+    `- Model review (${version.model.model}): ${version.model.state}${version.model.cut === undefined ? '' : ` (partial: ${version.model.cut.length} file(s) cut or left out)`}. ${cleanLine(version.model.reason, 600)}`,
     '',
     '### Findings',
     '',

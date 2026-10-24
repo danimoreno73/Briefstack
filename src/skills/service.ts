@@ -305,9 +305,12 @@ export class SkillService {
   private async fetchVersion(url: string): Promise<{ fetched: FetchedSkill; version: SkillVersion; frontmatterName: string | undefined }> {
     const fetched = await fetchSkill(url, this.options.fetch);
     const review = reviewSkill({ files: fetched.files, rootLicense: fetched.rootLicense });
-    const text = (file: string) => fetched.files.find((f) => f.path === file)?.bytes.toString('utf8') ?? '';
-    const scripts = review.inventory.filter((i) => i.kind === 'script').map((i) => ({ path: i.path, text: text(i.path) }));
-    const model = await modelReview(this.options.reviewer, { skillMd: text('SKILL.md'), scripts }, this.now);
+    // Every text file goes to the model, decoded as the static review read it.
+    const files = review.inventory.flatMap((item) => {
+      const file = fetched.files.find((f) => f.path === item.path);
+      return item.kind === 'binary' || file === undefined ? [] : [{ path: item.path, kind: item.kind, text: decodeText(file.bytes).text }];
+    });
+    const model = await modelReview(this.options.reviewer, { files }, this.now);
     const source = {
       url: fetched.url,
       repo: `${fetched.owner}/${fetched.repo}`,

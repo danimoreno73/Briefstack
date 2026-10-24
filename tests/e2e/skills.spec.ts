@@ -97,6 +97,14 @@ test.describe('adding a skill from the page', () => {
     await expect(page.getByText('No skills yet.')).toBeVisible();
   });
 
+  test('a file too long for the model review marks the review as partial', async ({ page, app }) => {
+    await openSkills(page, app);
+    await addFromPage(page, 'https://github.com/acme/skills/tree/main/skills/long');
+    await expect(page).toHaveURL(/#\/skills\/long-notes$/);
+    await expect(page.getByTestId('skill-model-partial')).toContainText('Partial review');
+    await expect(page.getByTestId('skill-model-partial')).toContainText('SKILL.md');
+  });
+
   test('text aimed at the agent shows as text, never as markup', async ({ page, app }) => {
     await openSkills(page, app);
     await addFromPage(page, 'https://github.com/acme/skills/tree/main/skills/odd');

@@ -700,7 +700,11 @@ export const uiMessages = defineCatalogue({
     skillScriptsWarning:
       'This skill holds scripts. Read them below before approving: once it is in a project, Claude Code can run them with that project’s permissions. briefstack itself never runs them.',
     skillModelTitle: 'Model review',
-    skillModelState: (state: string) => ({ flagged: 'Something looks harmful', clear: 'Nothing harmful found', unavailable: 'Not available' })[state] ?? state,
+    skillModelState: (state: string) =>
+      ({ flagged: 'Something looks harmful', clear: 'Nothing harmful found', failed: 'The review failed', unavailable: 'Not available' })[state] ?? state,
+    skillModelPartialTitle: 'Partial review',
+    skillModelPartial: (count: number) =>
+      `The model saw ${count === 1 ? 'one file' : `${count} files`} only in part, or not at all, because of the size limit: read ${count === 1 ? 'it' : 'them'} yourself.`,
     skillFindingsTitle: (count: number) => `Findings (${count})`,
     skillNoFindings: 'No findings.',
     severity: (severity: string) => ({ high: 'High', medium: 'Medium', low: 'Low', info: 'Info' })[severity] ?? severity,
@@ -1512,7 +1516,11 @@ export const uiMessages = defineCatalogue({
     skillScriptsWarning:
       'Esta skill contiene scripts. Léelos abajo antes de aprobarla: una vez en un proyecto, Claude Code puede ejecutarlos con los permisos de ese proyecto. briefstack nunca los ejecuta.',
     skillModelTitle: 'Revisión del modelo',
-    skillModelState: (state: string) => ({ flagged: 'Algo parece dañino', clear: 'No encontró nada dañino', unavailable: 'No disponible' })[state] ?? state,
+    skillModelState: (state: string) =>
+      ({ flagged: 'Algo parece dañino', clear: 'No encontró nada dañino', failed: 'La revisión falló', unavailable: 'No disponible' })[state] ?? state,
+    skillModelPartialTitle: 'Revisión parcial',
+    skillModelPartial: (count: number) =>
+      `El modelo vio ${count === 1 ? 'un archivo' : `${count} archivos`} solo en parte, o nada, por el límite de tamaño: ${count === 1 ? 'léelo' : 'léelos'} tú.`,
     skillFindingsTitle: (count: number) => `Hallazgos (${count})`,
     skillNoFindings: 'Ningún hallazgo.',
     severity: (severity: string) => ({ high: 'Alta', medium: 'Media', low: 'Baja', info: 'Info' })[severity] ?? severity,

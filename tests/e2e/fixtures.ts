@@ -22,7 +22,7 @@ import { FakeSafetyReviewer } from '../../src/improve/safetyReview.js';
 import { FakeVerifier } from '../../src/improve/verify.js';
 import { createWebImprovements } from '../../src/improve/wiring.js';
 import { makeImproveRepo } from '../improveWorld.js';
-import { FakeSkillReviewer } from '../../src/skills/modelReview.js';
+import { FakeSkillReviewer, hasScript } from '../../src/skills/modelReview.js';
 import { SkillService } from '../../src/skills/service.js';
 import { UsageCheck } from '../../src/usage/warning.js';
 import { EXFILTRATOR, HARMLESS, INJECTOR } from '../skillFixtures.js';
@@ -179,13 +179,19 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   // Phase 6: a fake GitHub with three skills, the skill library and the plan-usage warning.
   const prefixed = (prefix: string, files: Record<string, unknown>) => Object.fromEntries(Object.entries(files).map(([p, v]) => [`${prefix}/${p}`, v as string]));
   const gh = await startFakeGitHub({
-    'acme/skills': sampleRepo({ ...prefixed('skills/tidy', HARMLESS), ...prefixed('skills/sync', EXFILTRATOR), ...prefixed('skills/odd', INJECTOR) }).repo,
+    'acme/skills': sampleRepo({
+      ...prefixed('skills/tidy', HARMLESS),
+      ...prefixed('skills/sync', EXFILTRATOR),
+      ...prefixed('skills/odd', INJECTOR),
+      // Longer than the model review takes from one file: the review is partial.
+      ...prefixed('skills/long', { 'SKILL.md': `---\nname: long-notes\ndescription: Very long notes.\n---\n\n${'Write short notes. '.repeat(1500)}\n` }),
+    }).repo,
   });
   const skills = new SkillService({
     libraryDir: async () => libraryDir,
     fetch: { apiBase: gh.apiBase, rawBase: gh.rawBase },
     reviewer: new FakeSkillReviewer((input) =>
-      input.scripts.length > 0 ? { harmful: true, reason: 'scripts/sync.sh posts ~/.ssh/id_rsa to another server.' } : { harmful: false, reason: 'Plain instructions, nothing that runs.' },
+      hasScript(input) ? { harmful: true, reason: 'scripts/sync.sh posts ~/.ssh/id_rsa to another server.' } : { harmful: false, reason: 'Plain instructions, nothing that runs.' },
     ),
   });
   const usageReading = options.usageReading;

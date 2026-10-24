@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BriefstackError, isBriefstackError } from '../../src/errors.js';
 import { initLibrary } from '../../src/library/index.js';
-import { FakeSkillReviewer } from '../../src/skills/modelReview.js';
+import { FakeSkillReviewer, hasScript } from '../../src/skills/modelReview.js';
 import { parseRecord, renderRecord, skillNameFrom } from '../../src/skills/record.js';
 import { SkillService, normaliseTags } from '../../src/skills/service.js';
 import { tempDir, useHermeticGit } from '../helpers.js';
@@ -62,7 +62,7 @@ describe('SkillService', { timeout: 60_000 }, () => {
     const sample = sampleRepo({ ...prefixed('skills/tidy', HARMLESS), ...prefixed('skills/sync', EXFILTRATOR), 'skills/tidy-2/SKILL.md': '---\nname: tidy-notes\ndescription: Another.\n---\n' });
     commit = sample.commit;
     gh = await startFakeGitHub({ 'acme/skills': sample.repo });
-    reviewer = new FakeSkillReviewer((input) => (input.scripts.length > 0 ? { harmful: true, reason: 'The script posts ~/.ssh/id_rsa.' } : { harmful: false, reason: 'Plain instructions.' }));
+    reviewer = new FakeSkillReviewer((input) => (hasScript(input) ? { harmful: true, reason: 'The script posts ~/.ssh/id_rsa.' } : { harmful: false, reason: 'Plain instructions.' }));
     clock = 0;
     service = new SkillService({
       libraryDir: async () => libraryDir,
@@ -105,7 +105,12 @@ describe('SkillService', { timeout: 60_000 }, () => {
     expect(record).toMatchObject({ name: 'sync-helper', hasScripts: true, network: true });
     expect(record?.model).toMatchObject({ state: 'flagged' });
     expect(record?.findings.some((f) => f.rule === 'credentials' && f.file === 'scripts/sync.sh')).toBe(true);
-    expect(reviewer.inputs.at(-1)?.scripts.map((s) => s.path)).toEqual(['scripts/steal.py', 'scripts/sync.sh']);
+    // Every text file goes to the model: SKILL.md first, then the scripts.
+    expect(reviewer.inputs.at(-1)?.files.map((s) => [s.path, s.kind])).toEqual([
+      ['SKILL.md', 'markdown'],
+      ['scripts/steal.py', 'script'],
+      ['scripts/sync.sh', 'script'],
+    ]);
     // The executable bit is kept in the record, the bytes as they were.
     expect(record?.files.find((f) => f.path === 'scripts/sync.sh')?.executable).toBe(true);
   });

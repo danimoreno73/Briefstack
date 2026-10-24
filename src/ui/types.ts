@@ -138,7 +138,7 @@ export interface SkillSummaryView {
   network: boolean;
   license: string | null;
   high: number;
-  model: 'flagged' | 'clear' | 'unavailable';
+  model: 'flagged' | 'clear' | 'failed' | 'unavailable';
   update: boolean;
   statusChanged: string;
 }
@@ -161,7 +161,7 @@ export interface SkillVersionView {
   allowedTools?: string;
   files: { path: string; size: number; kind: string; sha256: string; executable: boolean }[];
   findings: SkillFindingView[];
-  model: { state: 'flagged' | 'clear' | 'unavailable'; reason: string; model: string; at: string };
+  model: { state: 'flagged' | 'clear' | 'failed' | 'unavailable'; reason: string; model: string; at: string; cut?: string[] };
 }
 
 export interface SkillRecordView extends SkillVersionView {

@@ -273,7 +273,8 @@ function VersionSummary({ version }: { version: SkillVersionView }) {
   const { t, lang } = useApp();
   const yesNo = (value: boolean) => (value ? t.skillYes : t.skillNo);
   const license = version.license.spdx ?? (version.license.source === 'none' ? t.skillLicenseNone : t.skillLicenseUnknown);
-  const modelTone = version.model.state === 'flagged' ? 'danger' : version.model.state === 'clear' ? 'ok' : 'plain';
+  const modelTone = version.model.state === 'flagged' ? 'danger' : version.model.state === 'clear' ? 'ok' : version.model.state === 'failed' ? 'warn' : 'plain';
+  const cut = version.model.cut ?? [];
   return (
     <div class="stack-4">
       <div class="stack-2">
@@ -313,6 +314,11 @@ function VersionSummary({ version }: { version: SkillVersionView }) {
       <Note tone={modelTone} title={`${t.skillModelTitle}: ${t.skillModelState(version.model.state)}`} testId="skill-model">
         {version.model.reason}
       </Note>
+      {cut.length > 0 && (
+        <Note tone="warn" title={t.skillModelPartialTitle} testId="skill-model-partial">
+          {t.skillModelPartial(cut.length)} <span class="mono">{cut.join(', ')}</span>
+        </Note>
+      )}
     </div>
   );
 }
