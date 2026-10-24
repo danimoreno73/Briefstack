@@ -42,7 +42,9 @@ const text = z.string().trim().min(1);
 
 // Windows forbids these in file names; keeping specs portable means refusing
 // them everywhere.
-const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+// COM and LPT with a superscript digit, and CONIN$/CONOUT$, are devices too;
+// spaces before the extension do not make a name safe.
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³]|conin\$|conout\$)\s*(\..*)?$/i;
 // eslint-disable-next-line no-control-regex
 const INVALID_CHARS = /[<>:"|?*\\\u0000-\u001f]/;
 

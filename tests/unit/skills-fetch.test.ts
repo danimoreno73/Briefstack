@@ -101,6 +101,15 @@ describe('fetchSkill', () => {
   it('refuses names that are not portable and names that differ only in case', async () => {
     const cases: [Record<string, FakeFile | string>, string][] = [
       [{ 'skills/bad/CON.md': 'x' }, 'unsafePath'],
+      [{ 'skills/bad/COM¹.md': 'x' }, 'unsafePath'],
+      [{ 'skills/bad/lpt³': 'x' }, 'unsafePath'],
+      [{ 'skills/bad/CONOUT$': 'x' }, 'unsafePath'],
+      [{ 'skills/bad/conin$.txt': 'x' }, 'unsafePath'],
+      [{ 'skills/bad/nul .txt': 'x' }, 'unsafePath'],
+      // Reads as "exe.md" but ends in ".exe" (right-to-left override), and a zero-width space.
+      [{ [`skills/bad/a${String.fromCharCode(0x202e)}dm.exe`]: 'x' }, 'unsafePath'],
+      [{ [`skills/bad/SKI${String.fromCharCode(0x200b)}LL.md`]: 'x' }, 'unsafePath'],
+      [{ [`skills/bad/soft${String.fromCharCode(0x00ad)}hyphen.md`]: 'x' }, 'unsafePath'],
       [{ 'skills/bad/a:b.md': 'x' }, 'unsafePath'],
       [{ 'skills/bad/trailing. ': 'x' }, 'unsafePath'],
       [{ 'skills/bad/notes.md': 'x', 'skills/bad/NOTES.md': 'y' }, 'caseCollision'],

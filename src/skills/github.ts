@@ -88,6 +88,25 @@ const LFS_POINTER = Buffer.from('version https://git-lfs.github.com/spec/v1');
 const LICENSE_NAME = /^(?:licen[cs]e|copying|unlicense)(?:[-._][a-z0-9.-]*)?$/i;
 const SHA_RE = /^[0-9a-f]{40}$/;
 const MAX_PATH_LENGTH = 200;
+/**
+ * Characters that change how a name reads without showing: bidirectional
+ * controls (a name can read `exe.md` and be `md.exe`), zero-width ones and
+ * the soft hyphen. A skill's file names may not hold any.
+ */
+const INVISIBLE_RANGES: readonly [number, number][] = [
+  [0x00ad, 0x00ad],
+  [0x061c, 0x061c],
+  [0x180e, 0x180e],
+  [0x200b, 0x200f],
+  [0x202a, 0x202e],
+  [0x2060, 0x2064],
+  [0x2066, 0x2069],
+  [0xfeff, 0xfeff],
+];
+const INVISIBLE = new RegExp(`[${INVISIBLE_RANGES.map(([a, b]) => (a === b ? String.fromCharCode(a) : `${String.fromCharCode(a)}-${String.fromCharCode(b)}`)).join('')}]`);
+
+/** Whether a name holds a character that changes how it reads without showing. */
+export const hasInvisibleCharacter = (value: string): boolean => INVISIBLE.test(value);
 const MAX_DEPTH = 10;
 
 /** The git blob hash of `bytes`: what a tree entry's `sha` is. */
@@ -260,6 +279,7 @@ export function checkEntries(entries: readonly TreeEntry[], truncated: boolean, 
     const segments = entry.path.split('/');
     if (
       !isSafeRelativePath(entry.path) ||
+      hasInvisibleCharacter(entry.path) ||
       entry.path.length > MAX_PATH_LENGTH ||
       segments.length > MAX_DEPTH ||
       segments.some((segment) => segment.toLowerCase() === '.git' || segment.toLowerCase().startsWith('.git~'))
