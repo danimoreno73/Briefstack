@@ -216,6 +216,21 @@ const errors = defineCatalogue<ErrorMessages>({
           : `The skill has ${p.actual} bytes in all; the limit is ${p.limit}.`,
     'skills.forbiddenEntry': (p) => `The skill was refused: ${skillEntryEn[p.kind]}${p.path === '' ? '' : ` (${p.path})`}.`,
     'skills.integrity': (p) => `${p.path} did not match the commit's content, so nothing was kept. Try again.`,
+    'skills.unavailable': () => 'Skills are not available in this server.',
+    'skills.notFound': (p) => `There is no skill ${p.name} in the library.`,
+    'skills.unreadable': (p) => `The metadata note of skill ${p.name} cannot be read. Fix it in the library or delete the skill.`,
+    'skills.invalidName': (p) => `"${p.name}" cannot be a skill name: use lower-case letters, digits and hyphens, at most 64 characters.`,
+    'skills.invalidTag': (p) => `"${p.tag}" is not a tag: use lower-case letters, digits and hyphens, at most 30 characters, and at most 10 tags.`,
+    'skills.exists': (p) =>
+      p.sameSource
+        ? `Skill ${p.name} is already in the library. Use "Check for a new version" on its page.`
+        : `The library already has a skill named ${p.name}, from another source. Delete it first to add this one.`,
+    'skills.wrongStatus': (p) => `Skill ${p.name} is ${p.status}, so it cannot ${p.action === 'checkUpdate' ? 'look for a new version (only approved skills can)' : p.action === 'approve' ? 'be approved' : p.action === 'reject' ? 'be rejected' : p.action}.`,
+    'skills.modified': (p) => `The files of skill ${p.name} changed since they were reviewed (${p.path}). Delete the skill and add it again.`,
+    'skills.fileNotFound': (p) => `Skill ${p.name} has no file ${p.path}.`,
+    'skills.updatePending': (p) => `A new version of skill ${p.name} already waits for approval. Approve or reject it first.`,
+    'skills.noUpdate': (p) => `Skill ${p.name} has no new version waiting.`,
+    'skills.notApproved': (p) => `Skill ${p.name} is ${p.status}; only approved skills can be installed.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -349,6 +364,21 @@ const errors = defineCatalogue<ErrorMessages>({
           : `La skill tiene ${p.actual} bytes en total; el límite es ${p.limit}.`,
     'skills.forbiddenEntry': (p) => `Se rechazó la skill: ${skillEntryEs[p.kind]}${p.path === '' ? '' : ` (${p.path})`}.`,
     'skills.integrity': (p) => `${p.path} no coincidía con el contenido del commit, así que no se guardó nada. Inténtalo de nuevo.`,
+    'skills.unavailable': () => 'Las skills no están disponibles en este servidor.',
+    'skills.notFound': (p) => `No hay ninguna skill ${p.name} en la biblioteca.`,
+    'skills.unreadable': (p) => `No se puede leer la nota de metadatos de la skill ${p.name}. Corrígela en la biblioteca o borra la skill.`,
+    'skills.invalidName': (p) => `"${p.name}" no puede ser el nombre de una skill: usa minúsculas, dígitos y guiones, como mucho 64 caracteres.`,
+    'skills.invalidTag': (p) => `"${p.tag}" no es una etiqueta: usa minúsculas, dígitos y guiones, como mucho 30 caracteres y 10 etiquetas.`,
+    'skills.exists': (p) =>
+      p.sameSource
+        ? `La skill ${p.name} ya está en la biblioteca. Usa "Buscar una versión nueva" en su página.`
+        : `La biblioteca ya tiene una skill llamada ${p.name}, de otro origen. Bórrala primero para añadir esta.`,
+    'skills.wrongStatus': (p) => `La skill ${p.name} está en estado ${p.status}, así que no puede ${p.action === 'checkUpdate' ? 'buscar una versión nueva (solo las aprobadas pueden)' : p.action === 'approve' ? 'aprobarse' : p.action === 'reject' ? 'rechazarse' : p.action}.`,
+    'skills.modified': (p) => `Los archivos de la skill ${p.name} cambiaron desde que se revisaron (${p.path}). Borra la skill y añádela de nuevo.`,
+    'skills.fileNotFound': (p) => `La skill ${p.name} no tiene ningún archivo ${p.path}.`,
+    'skills.updatePending': (p) => `Ya hay una versión nueva de la skill ${p.name} esperando aprobación. Apruébala o recházala primero.`,
+    'skills.noUpdate': (p) => `La skill ${p.name} no tiene ninguna versión nueva esperando.`,
+    'skills.notApproved': (p) => `La skill ${p.name} está en estado ${p.status}; solo se pueden instalar las aprobadas.`,
   },
 });
 

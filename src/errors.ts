@@ -105,6 +105,18 @@ export interface ErrorParams {
   'skills.tooLarge': { what: 'file' | 'files' | 'total'; limit: number; actual: number; path?: string };
   'skills.forbiddenEntry': { path: string; kind: SkillEntryProblem };
   'skills.integrity': { path: string };
+  'skills.unavailable': Record<string, never>;
+  'skills.notFound': { name: string };
+  'skills.unreadable': { name: string };
+  'skills.invalidName': { name: string };
+  'skills.invalidTag': { tag: string };
+  'skills.exists': { name: string; sameSource: boolean };
+  'skills.wrongStatus': { name: string; status: string; action: string };
+  'skills.modified': { name: string; path: string };
+  'skills.fileNotFound': { name: string; path: string };
+  'skills.updatePending': { name: string };
+  'skills.noUpdate': { name: string };
+  'skills.notApproved': { name: string; status: string };
 }
 
 /** Why a skill link is refused. */
