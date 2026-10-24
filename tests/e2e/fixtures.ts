@@ -29,6 +29,18 @@ import { EXFILTRATOR, HARMLESS, INJECTOR } from '../skillFixtures.js';
 import { sampleRepo, startFakeGitHub, type FakeGitHub } from '../skillsWorld.js';
 import { isolateEnvironment } from '../sandboxEnv.js';
 
+/**
+ * Where Playwright keeps its browsers by default: under the user's home on
+ * Linux and macOS. Kept before the sandbox moves the home, or the browser
+ * is looked for in the temp home (the first CI run of the suite, phase 6).
+ */
+function defaultBrowsersPath(): string {
+  if (process.platform === 'win32') return path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local'), 'ms-playwright');
+  if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Caches', 'ms-playwright');
+  return path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'ms-playwright');
+}
+process.env.PLAYWRIGHT_BROWSERS_PATH ??= defaultBrowsersPath();
+
 // The server gets explicit paths, but anything read from the environment must not reach real data either.
 const removeSandbox = isolateEnvironment();
 process.once('exit', removeSandbox);
