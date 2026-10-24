@@ -1,6 +1,7 @@
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { BriefstackError } from '../errors.js';
+import { SkillService, type ApprovedSkill } from '../skills/service.js';
 import { readTextIfExists } from './notes.js';
 import { INDEX_FILE, LESSONS_FILE, toNative } from './layout.js';
 
@@ -63,6 +64,8 @@ export interface LibraryContext {
   profile: ContextNote[];
   lessons: string | undefined;
   similarProjects: SimilarProject[];
+  /** Approved third-party skills: name, description and tags only (BRIEF-phase-6 §3.5). */
+  approvedSkills: ApprovedSkill[];
 }
 
 const byCodePoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -111,7 +114,7 @@ export async function buildLibraryContext(options: ContextOptions): Promise<Libr
 
   const index = await readTextIfExists(path.join(libraryDir, INDEX_FILE));
   if (index === undefined) {
-    return { libraryDir, exists: false, index: undefined, profile: [], lessons: undefined, similarProjects: [] };
+    return { libraryDir, exists: false, index: undefined, profile: [], lessons: undefined, similarProjects: [], approvedSkills: [] };
   }
   const read = async (file: string): Promise<ContextNote> => ({
     file,
@@ -131,6 +134,7 @@ export async function buildLibraryContext(options: ContextOptions): Promise<Libr
         logs: await linkedLogs(libraryDir, project.text),
       })),
     ),
+    approvedSkills: await new SkillService({ libraryDir: async () => libraryDir }).approvedIndex().catch(() => []),
   };
 }
 
