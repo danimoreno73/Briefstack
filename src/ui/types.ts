@@ -11,6 +11,8 @@ export interface ProjectStatus {
   created?: string;
   session?: string;
   summary?: string;
+  /** Set when the project is archived: the date. */
+  archived?: string;
 }
 
 export interface ProjectListing {
@@ -107,6 +109,86 @@ export interface SettingsView {
   configLang: 'en' | 'es' | null;
   permissionPolicy: 'ask' | 'unattended';
   maxActiveCreations: number;
+  /** Plan usage (percent) from which a start shows a warning. */
+  usageWarning: { fiveHour: number; week: number };
+}
+
+/** The plan-usage warning a start can answer with (`usage.high`). */
+export interface UsageWarningView {
+  fiveHour: number | null;
+  sevenDay: number | null;
+  warnFiveHour: number;
+  warnWeek: number;
+}
+
+/** Third-party skills (phase 6), as `/api/skills` sends them (docs/api.md). */
+export type SkillStatus = 'quarantine' | 'approved' | 'rejected';
+export type FindingSeverity = 'high' | 'medium' | 'low' | 'info';
+
+export interface SkillSummaryView {
+  name: string;
+  description: string;
+  status: SkillStatus;
+  tags: string[];
+  repo: string;
+  path: string;
+  commit: string;
+  link: string;
+  hasScripts: boolean;
+  network: boolean;
+  license: string | null;
+  high: number;
+  model: 'flagged' | 'clear' | 'unavailable';
+  update: boolean;
+  statusChanged: string;
+}
+
+export interface SkillFindingView {
+  rule: string;
+  severity: FindingSeverity;
+  file: string;
+  line?: number;
+  excerpt?: string;
+}
+
+export interface SkillVersionView {
+  description: string;
+  source: { url: string; repo: string; path: string; ref: string; commit: string; link: string };
+  fetched: string;
+  license: { spdx: string | null; source: string; file?: string };
+  hasScripts: boolean;
+  network: boolean;
+  allowedTools?: string;
+  files: { path: string; size: number; kind: string; sha256: string; executable: boolean }[];
+  findings: SkillFindingView[];
+  model: { state: 'flagged' | 'clear' | 'unavailable'; reason: string; model: string; at: string };
+}
+
+export interface SkillRecordView extends SkillVersionView {
+  name: string;
+  status: SkillStatus;
+  tags: string[];
+  statusChanged: string;
+  next?: SkillVersionView;
+}
+
+export interface SkillFileDiffView {
+  path: string;
+  change: 'added' | 'removed' | 'changed';
+  hunks?: DiffHunkView[];
+  binary?: boolean;
+}
+
+export interface SkillDetailView {
+  record: SkillRecordView;
+  diff?: SkillFileDiffView[];
+}
+
+export interface SkillFileView {
+  path: string;
+  kind: string;
+  size: number;
+  text?: string;
 }
 
 export interface PathsView {
@@ -203,6 +285,13 @@ export interface SpecView {
   spec: Partial<
     Record<'name' | 'slug' | 'summary' | 'type' | 'target' | 'targetChosenBy' | 'targetReason' | 'profile' | 'language', string>
   > | null;
+  /** Library skills the spec chose (phase 6); the user can untick any at approval. */
+  librarySkills?: {
+    name: string;
+    reason: string;
+    agent?: string;
+    library?: { status: string; hasScripts: boolean; network: boolean; license: string | null; description: string };
+  }[];
 }
 
 /** Improvements (phase 5), as `/api/improve` sends them (docs/api.md). */

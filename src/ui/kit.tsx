@@ -4,6 +4,7 @@ import { ApiError } from './apiError.js';
 import { describeError } from './errors.js';
 import { useApp, type Loaded } from './hooks.js';
 import { IconAlert, IconCheck, IconInfo } from './icons.js';
+import type { UsageWarningView } from './types.js';
 
 /** Shared parts built on bs.css (U5): notices, loading, empty states and the modal confirmation. */
 
@@ -103,6 +104,34 @@ export function Loading() {
         <span />
       </span>
     </div>
+  );
+}
+
+/** The plan-usage warning in an error from a start (`usage.high`), or `undefined` for any other error. */
+export function usageWarningIn(error: unknown): UsageWarningView | undefined {
+  if (!(error instanceof ApiError) || error.code !== 'usage.high') return undefined;
+  const number = (value: unknown) => (typeof value === 'number' ? value : null);
+  return {
+    fiveHour: number(error.params.fiveHour),
+    sevenDay: number(error.params.sevenDay),
+    warnFiveHour: Number(error.params.warnFiveHour),
+    warnWeek: Number(error.params.warnWeek),
+  };
+}
+
+/** High plan usage before a start: the values, and "start anyway" or "not now" (BRIEF-phase-6 §3.6). */
+export function UsageWarningModal({ warning, onStart, onCancel }: { warning: UsageWarningView; onStart(): void; onCancel(): void }) {
+  const { t } = useApp();
+  return (
+    <ConfirmModal
+      title={t.usageWarnTitle}
+      body={t.usageWarnBody(warning.fiveHour, warning.warnFiveHour, warning.sevenDay, warning.warnWeek)}
+      confirmLabel={t.usageWarnStart}
+      cancelLabel={t.usageWarnWait}
+      onConfirm={onStart}
+      onCancel={onCancel}
+      tone="normal"
+    />
   );
 }
 

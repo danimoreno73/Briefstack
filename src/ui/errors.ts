@@ -65,6 +65,47 @@ export function describeError(error: unknown, t: Messages): string {
       return t.errImproveNoRepo;
     case 'improve.wrongState':
       return t.errImproveWrongState;
+    case 'skills.invalidUrl':
+      return t.errSkillUrl(String(error.params.reason));
+    case 'skills.repoNotFound':
+      return t.errSkillRepoNotFound;
+    case 'skills.refNotFound':
+      return t.errSkillRefNotFound;
+    case 'skills.pathNotFound':
+      return t.errSkillPathNotFound;
+    case 'skills.noSkillFile':
+      return t.errSkillNoSkillFile;
+    case 'skills.rateLimited':
+      return t.errSkillRateLimited;
+    case 'skills.network':
+      return t.errSkillNetwork;
+    case 'skills.tooLarge':
+      return t.errSkillTooLarge;
+    case 'skills.forbiddenEntry':
+      return t.errSkillForbidden;
+    case 'skills.integrity':
+      return t.errSkillIntegrity;
+    case 'skills.exists':
+      return t.errSkillExists(error.params.sameSource === true);
+    case 'skills.invalidName':
+      return t.errSkillInvalidName;
+    case 'skills.invalidTag':
+      return t.errSkillInvalidTag;
+    case 'skills.modified':
+      return t.errSkillModified;
+    case 'skills.wrongStatus':
+      return t.errSkillWrongStatus;
+    case 'skills.updatePending':
+      return t.errSkillUpdatePending;
+    case 'skills.notApproved':
+      return t.errSkillNotApproved;
+    case 'usage.high':
+      return t.usageWarnBody(
+        typeof error.params.fiveHour === 'number' ? error.params.fiveHour : null,
+        Number(error.params.warnFiveHour),
+        typeof error.params.sevenDay === 'number' ? error.params.sevenDay : null,
+        Number(error.params.warnWeek),
+      );
     default:
       return t.errGeneric(error.code);
   }
