@@ -706,6 +706,8 @@ export const uiMessages = defineCatalogue({
     skillModelPartial: (count: number) =>
       `The model saw ${count === 1 ? 'one file' : `${count} files`} only in part, or not at all, because of the size limit: read ${count === 1 ? 'it' : 'them'} yourself.`,
     skillFindingsTitle: (count: number) => `Findings (${count})`,
+    skillHeuristicNote:
+      'These findings come from pattern matching, not from running anything: they can miss code that is split across files, built at run time or encoded, and they can flag harmless lines. No findings does not mean safe. Read the code of every script below before approving.',
     skillNoFindings: 'No findings.',
     severity: (severity: string) => ({ high: 'High', medium: 'Medium', low: 'Low', info: 'Info' })[severity] ?? severity,
     findingRule: (rule: string) =>
@@ -1525,6 +1527,8 @@ export const uiMessages = defineCatalogue({
     skillModelPartial: (count: number) =>
       `El modelo vio ${count === 1 ? 'un archivo' : `${count} archivos`} solo en parte, o nada, por el límite de tamaño: ${count === 1 ? 'léelo' : 'léelos'} tú.`,
     skillFindingsTitle: (count: number) => `Hallazgos (${count})`,
+    skillHeuristicNote:
+      'Estos hallazgos salen de buscar patrones, sin ejecutar nada: se les puede escapar código partido entre archivos, construido al ejecutarse o codificado, y pueden marcar líneas inofensivas. Que no haya hallazgos no significa que sea segura. Lee el código de cada script de abajo antes de aprobar.',
     skillNoFindings: 'Ningún hallazgo.',
     severity: (severity: string) => ({ high: 'Alta', medium: 'Media', low: 'Baja', info: 'Info' })[severity] ?? severity,
     findingRule: (rule: string) =>

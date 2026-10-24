@@ -51,6 +51,9 @@ test.describe('adding a skill from the page', () => {
     await expect(page.getByTestId('skill-has-scripts')).toHaveText('No');
     await expect(page.getByTestId('skill-license')).toHaveText('MIT');
     await expect(page.getByTestId('skill-model')).toContainText('Nothing harmful found');
+    // The static review says what it is: patterns, not a proof; the scripts are to be read.
+    await expect(page.getByTestId('skill-heuristic')).toContainText('No findings does not mean safe');
+    await expect(page.getByTestId('skill-heuristic')).toContainText('Read the code of every script');
     await expect(page.getByTestId('skill-scripts-warning')).toHaveCount(0);
 
     // A file shows as plain text.
@@ -146,6 +149,7 @@ test.describe('adding a skill from the page', () => {
     await expect(next).toBeVisible();
     await expect(next.getByTestId('skill-diff').locator('[data-path="guide.md"]')).toHaveAttribute('data-change', 'changed');
     await expect(next.getByTestId('skill-diff').locator('[data-op="+"]')).toContainText('Keep each action short.');
+    await expect(next.getByTestId('skill-next-heuristic')).toContainText('Read the code of every script');
     await next.getByRole('button', { name: 'Approve the new version' }).click();
     await confirmModal(page, 'Approve the new version');
     await expect(page.getByTestId('skill-next')).toHaveCount(0);

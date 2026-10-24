@@ -473,6 +473,9 @@ function SkillPage({ name }: { name: string }) {
                     ))}
                   </ul>
                   <h3 class="t-3">{t.skillFindingsTitle(record.next.findings.length)}</h3>
+                  <Note tone="plain" testId="skill-next-heuristic">
+                    {t.skillHeuristicNote}
+                  </Note>
                   <Findings findings={record.next.findings} testId="skill-next-findings" />
                   <div class="btn-row">
                     <button type="button" class="btn btn-primary" disabled={busy} onClick={() => setConfirm('approveUpdate')}>
@@ -489,6 +492,9 @@ function SkillPage({ name }: { name: string }) {
                 <h2 class="section-title" id="skill-findings">
                   {t.skillFindingsTitle(record.findings.length)}
                 </h2>
+                <Note tone="plain" testId="skill-heuristic">
+                  {t.skillHeuristicNote}
+                </Note>
                 <Findings findings={record.findings} testId="skill-findings-list" />
               </section>
 
