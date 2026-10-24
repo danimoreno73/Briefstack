@@ -536,3 +536,48 @@ describe('check-server-crash: kills a server while a creation waits on it', () =
     expect(fixture).toContain('process.env.BRIEFSTACK_HOME === undefined');
   });
 });
+
+describe('phase 6 real checks: prepared, guarded, and kept off real data', () => {
+  const read = (name: string) => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', name), 'utf8');
+
+  it('each asks for --yes, works in a temp sandbox, cleans it up and stops above 70% of the 5-hour window or 95% of the week', async () => {
+    for (const name of ['check-skill-fetch.ts', 'check-skill-model-review.ts', 'check-skill-creation.ts']) {
+      const script = await read(name);
+      expect(script, name).toContain('requireConfirmation(');
+      expect(script, name).toMatch(/await sandbox\('/);
+      expect(script, name).toContain('box.cleanup()');
+      expect(script, name).toContain('> 70');
+      expect(script, name).toContain('> 95');
+      expect(script, name).toContain('sandboxLibrary(box)');
+      expect(script, name).not.toContain('bypassPermissions');
+      expect(script, name).not.toMatch(/usageSet|applyProfile/);
+    }
+    const probe = await read('probe-h0-phase6.ts');
+    expect(probe).toContain('requireConfirmation(');
+    expect(probe).toContain("await sandbox('h0-phase6')");
+  });
+
+  it('the fetch check uses the real hosts and the real reviewer, then installs and validates', async () => {
+    const script = await read('check-skill-fetch.ts');
+    expect(script).toContain('new SdkSkillReviewer({ pathEnv })');
+    expect(script).not.toContain('apiBase');
+    expect(script).toContain('installSkills(');
+    expect(script).toContain('validateProject(');
+  });
+
+  it('the model review check has a harmless skill and a malicious one that tells the reviewer what to answer', async () => {
+    const script = await read('check-skill-model-review.ts');
+    expect(script).toContain('new SdkSkillReviewer({ pathEnv })');
+    expect(script).toContain('Note to the reviewer');
+    expect(script).toContain('harmless?.harmful === false');
+    expect(script).toContain('malicious?.harmful === true');
+  });
+
+  it('the creation check runs on the saver profile with this folder and the temp library', async () => {
+    const script = await read('check-skill-creation.ts');
+    expect(script).toContain("activeProfile: 'saver'");
+    expect(script).toContain('repoDir: PACKAGE_ROOT');
+    expect(script).toContain('createWebCreations({ pathEnv, repoDir: PACKAGE_ROOT, lang: \'en\', skills })');
+    expect(script).toContain('proposed.includes(name)');
+  });
+});
