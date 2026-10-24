@@ -8,13 +8,13 @@ import { takeIdeaDraft } from './ideaDraft.js';
 import { formatWhen, openCommandLines, withoutLeadingHeading } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { IconCheck, IconFolder, IconQuestion, IconReply, IconSpec, IconTerminal } from './icons.js';
-import { ConfirmModal, ErrorNote, LoadState, Loading, MetaLine, Note } from './kit.js';
+import { ConfirmModal, ErrorNote, LoadState, Loading, MetaLine, Note, UsageWarningModal, usageWarningIn } from './kit.js';
 import { AgentPanel, PENDING_CONTROL_ID, PlanUsage, StepBar, StepCount, stepPosition, usePanelState } from './panel.js';
 import { formatClock, formatDuration, liveFromState, panelEventsFromStream, percent, stepLooks } from './panelData.js';
 import { STEPS, deriveProgress, parseSse, type Progress } from './progress.js';
 import { ReplyBox } from './reply.js';
 import { routeHash } from './route.js';
-import type { CreationState, Pending, ProjectDetail, ProjectListing, SpecView, StreamEvent, UiQuestion } from './types.js';
+import type { CreationState, Pending, ProjectDetail, ProjectListing, SpecView, StreamEvent, UiQuestion, UsageWarningView } from './types.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -39,25 +39,32 @@ function StartPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
   const [atLimit, setAtLimit] = useState(false);
+  const [usageWarning, setUsageWarning] = useState<UsageWarningView | undefined>(undefined);
   useDocumentTitle(t.newTitle);
 
   // Several creations may run at once: the form stays, with a note that plan usage adds up.
   const running = list.data?.creations.filter((creation) => creation.status !== 'finished').length ?? 0;
 
-  const start = async (event: Event) => {
-    event.preventDefault();
+  const begin = async (force: boolean) => {
     setBusy(true);
     setError(undefined);
     setAtLimit(false);
+    setUsageWarning(undefined);
     try {
-      const { id } = await send<{ id: string }>('POST', '/api/creations', { idea });
+      const { id } = await send<{ id: string }>('POST', '/api/creations', { idea, ...(force ? { force: true } : {}) });
       window.location.hash = routeHash({ page: 'new', id });
     } catch (failure) {
-      if (failure instanceof ApiError && failure.code === 'creation.limit') setAtLimit(true);
+      const warning = usageWarningIn(failure);
+      if (warning !== undefined) setUsageWarning(warning);
+      else if (failure instanceof ApiError && failure.code === 'creation.limit') setAtLimit(true);
       else setError(failure);
     } finally {
       setBusy(false);
     }
+  };
+  const start = (event: Event) => {
+    event.preventDefault();
+    void begin(false);
   };
 
   return (
@@ -82,7 +89,10 @@ function StartPage() {
             </a>
           </Note>
         )}
-        <form class="idea-box" onSubmit={(event) => void start(event)}>
+        {usageWarning !== undefined && (
+          <UsageWarningModal warning={usageWarning} onStart={() => void begin(true)} onCancel={() => setUsageWarning(undefined)} />
+        )}
+        <form class="idea-box" onSubmit={start}>
           <label class="label" for="idea">
             {t.ideaLabel}
           </label>
@@ -676,6 +686,8 @@ function SpecApproval({ id, idea, pending, answer }: { id: string; idea: string;
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  /** Library skills the user unticked (BRIEF-phase-6 §3.5). */
+  const [removed, setRemoved] = useState<string[]>([]);
 
   const decide = async (value: unknown) => {
     setBusy(true);
@@ -748,6 +760,42 @@ function SpecApproval({ id, idea, pending, answer }: { id: string; idea: string;
                 </dl>
               </div>
             )}
+            {(view.librarySkills ?? []).length > 0 && (
+              <div class="dec-card" data-testid="spec-library-skills">
+                <h3 class="t-3">{t.specSkillsTitle}</h3>
+                <p class="t-small muted">{t.specSkillsIntro}</p>
+                <ul class="stack-4">
+                  {(view.librarySkills ?? []).map((skill) => (
+                    <li key={skill.name} class="stack-2" data-testid="spec-library-skill" data-name={skill.name}>
+                      <label class="check-line">
+                        <input
+                          type="checkbox"
+                          checked={!removed.includes(skill.name)}
+                          aria-label={t.specSkillKeep(skill.name)}
+                          onChange={(event) =>
+                            setRemoved((list) => (event.currentTarget.checked ? list.filter((name) => name !== skill.name) : [...list, skill.name]))
+                          }
+                        />{' '}
+                        <a class="link mono" href={routeHash({ page: 'skills', name: skill.name })} target="_blank" rel="noopener">
+                          {skill.name}
+                        </a>
+                      </label>
+                      <p class="t-small">{skill.reason}</p>
+                      <MetaLine
+                        parts={[
+                          t.specSkillFor(skill.agent),
+                          skill.library?.license ?? undefined,
+                          skill.library?.hasScripts === true && <span class="chip chip-warn">{t.specSkillScripts}</span>,
+                        ]}
+                      />
+                      {skill.library === undefined || skill.library.status !== 'approved' ? (
+                        <Note tone="danger">{t.specSkillMissing}</Note>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </LoadState>
@@ -762,7 +810,12 @@ function SpecApproval({ id, idea, pending, answer }: { id: string; idea: string;
       <div class="btn-row">
         {!changing ? (
           <>
-            <button type="button" class="btn btn-primary btn-lg" disabled={busy} onClick={() => void decide({ decision: 'approve' })}>
+            <button
+              type="button"
+              class="btn btn-primary btn-lg"
+              disabled={busy}
+              onClick={() => void decide(removed.length === 0 ? { decision: 'approve' } : { decision: 'approve', removeSkills: removed })}
+            >
               {t.approve}
             </button>
             <button type="button" class="btn btn-secondary btn-lg" disabled={busy} onClick={() => setChanging(true)}>

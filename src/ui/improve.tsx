@@ -3,10 +3,11 @@ import { diffRows } from './diffLines.js';
 import { formatWhen } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { IconAlert, IconCheck, IconCross } from './icons.js';
-import { ConfirmModal, ErrorNote, LoadState, Note } from './kit.js';
+import { ApiError } from './api.js';
+import { ConfirmModal, ErrorNote, LoadState, Note, UsageWarningModal, usageWarningIn } from './kit.js';
 import { formatDuration } from './panelData.js';
 import { routeHash } from './route.js';
-import type { DiffHunkView, ImproveOverview, ProposalDetail, ProposalPage, SuggestionView, UsageView } from './types.js';
+import type { DiffHunkView, ImproveOverview, ProposalDetail, ProposalPage, SuggestionView, UsageView, UsageWarningView } from './types.js';
 
 /**
  * Improvements of the creation flow (BRIEF-phase-5 §3.3–§3.5): suggestions,
@@ -76,26 +77,35 @@ export function PrepareForm({ initial, suggestionId, lessons: lessonsDefault = f
   const [lessons, setLessons] = useState(lessonsDefault);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
+  const [usageWarning, setUsageWarning] = useState<UsageWarningView | undefined>(undefined);
   const id = `improve-request-${suggestionId ?? 'new'}`;
-  const submit = async (event: Event) => {
-    event.preventDefault();
+  const begin = async (force: boolean) => {
     setBusy(true);
     setError(undefined);
+    setUsageWarning(undefined);
     try {
       const { proposal } = await send<{ proposal: { id: string } }>('POST', '/api/improve/proposals', {
         request,
         lessons,
         ...(suggestionId === undefined ? {} : { suggestionId }),
+        ...(force ? { force: true } : {}),
       });
       window.location.hash = routeHash({ page: 'improve', id: proposal.id });
     } catch (failure) {
-      setError(failure);
+      const warning = usageWarningIn(failure);
+      if (warning !== undefined) setUsageWarning(warning);
+      else setError(failure);
     } finally {
       setBusy(false);
     }
   };
+  const submit = (event: Event) => {
+    event.preventDefault();
+    void begin(false);
+  };
   return (
-    <form class="stack-4" onSubmit={(event) => void submit(event)} data-testid="prepare-form">
+    <form class="stack-4" onSubmit={submit} data-testid="prepare-form">
+      {usageWarning !== undefined && <UsageWarningModal warning={usageWarning} onStart={() => void begin(true)} onCancel={() => setUsageWarning(undefined)} />}
       <div class="field">
         <label class="label" for={id}>
           {t.improveRequestLabel}
@@ -130,12 +140,42 @@ export function PrepareForm({ initial, suggestionId, lessons: lessonsDefault = f
 }
 
 /** Suggestions, each with a way to ask for it to be prepared. Used on the improvements page, the result screen and the chat. */
-export function SuggestionList({ suggestions }: { suggestions: readonly SuggestionView[] }) {
+export function SuggestionList({ suggestions, onDiscarded }: { suggestions: readonly SuggestionView[]; onDiscarded?: () => void }) {
   const { t } = useApp();
+  const send = useSend();
   const [open, setOpen] = useState<string | undefined>(undefined);
+  const [discarding, setDiscarding] = useState<string | undefined>(undefined);
+  const [gone, setGone] = useState<string[]>([]);
+  const [error, setError] = useState<unknown>(undefined);
+  const discard = async (id: string) => {
+    setDiscarding(undefined);
+    setError(undefined);
+    try {
+      await send('POST', `/api/improve/suggestions/${encodeURIComponent(id)}/discard`);
+    } catch (failure) {
+      // Discarded already (an old chat message, another tab): it is gone either way.
+      if (!(failure instanceof ApiError && failure.code === 'improve.suggestionNotFound')) {
+        setError(failure);
+        return;
+      }
+    }
+    setGone((list) => [...list, id]);
+    onDiscarded?.();
+  };
   return (
     <ul class="suggestion-list" data-testid="suggestions">
-      {suggestions.map((s) => {
+      {error !== undefined && <ErrorNote error={error} />}
+      {discarding !== undefined && (
+        <ConfirmModal
+          title={t.suggestionDiscardTitle}
+          body={t.suggestionDiscardBody}
+          confirmLabel={t.suggestionDiscard}
+          cancelLabel={t.cancel}
+          onConfirm={() => void discard(discarding)}
+          onCancel={() => setDiscarding(undefined)}
+        />
+      )}
+      {suggestions.filter((s) => !gone.includes(s.id)).map((s) => {
         const text = t.suggestionText(s.kind, s.params, s.target);
         return (
           <li key={s.id} class="suggestion" data-testid="suggestion" data-kind={s.kind}>
@@ -154,6 +194,9 @@ export function SuggestionList({ suggestions }: { suggestions: readonly Suggesti
               <div class="btn-row">
                 <button type="button" class="btn btn-secondary btn-sm" onClick={() => setOpen(s.id)}>
                   {t.suggestionPrepare}
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" onClick={() => setDiscarding(s.id)}>
+                  {t.suggestionDiscard}
                 </button>
               </div>
             )}
@@ -270,7 +313,7 @@ function Overview() {
                     <p class="muted">{t.improveNoSuggestions}</p>
                   ) : (
                     <div class="card">
-                      <SuggestionList suggestions={data.suggestions} />
+                      <SuggestionList suggestions={data.suggestions} onDiscarded={loaded.reload} />
                     </div>
                   )}
                 </section>
@@ -673,7 +716,7 @@ export function CreationSuggestions({ creationId }: { creationId: string }) {
         {t.creationSuggestions}
       </h2>
       <p class="t-small muted">{t.suggestionsNothingYet}</p>
-      <SuggestionList suggestions={mine} />
+      <SuggestionList suggestions={mine} onDiscarded={loaded.reload} />
     </section>
   );
 }
