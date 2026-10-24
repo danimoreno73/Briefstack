@@ -98,6 +98,12 @@ const rules = defineCatalogue<RuleMessages>({
     'settings.allow': () =>
       'Must not contain permissions.allow; generated settings hold deny rules only.',
     'settings.missingDenyRule': (p) => `Default deny rule missing: ${p.rule}`,
+    'librarySkill.invalidRecord': () => 'The record of installed library skills cannot be read.',
+    'librarySkill.missing': (p) => `Library skill ${p.name} is recorded as installed but is not there. Run skills install again.`,
+    'librarySkill.modified': (p) =>
+      `Library skill ${p.name} differs from the approved files (${p.path}). Do not edit installed library skills; remove the change.`,
+    'librarySkill.notInstalled': (p) => `The spec chose library skill ${p.name}, but it is not installed. Run skills install.`,
+    'librarySkill.nextSteps': (p) => `NEXT_STEPS.md does not mention ${p.location}, so the user will not know to add skill ${p.name} in the app.`,
   },
   es: {
     'spec.invalidJson': (p) => `La spec no es JSON válido: ${p.detail}`,
@@ -138,6 +144,12 @@ const rules = defineCatalogue<RuleMessages>({
     'settings.allow': () =>
       'No debe contener permissions.allow; los ajustes generados solo llevan reglas deny.',
     'settings.missingDenyRule': (p) => `Falta una regla deny por defecto: ${p.rule}`,
+    'librarySkill.invalidRecord': () => 'No se puede leer el registro de skills de la biblioteca instaladas.',
+    'librarySkill.missing': (p) => `La skill de la biblioteca ${p.name} figura como instalada pero no está. Ejecuta skills install de nuevo.`,
+    'librarySkill.modified': (p) =>
+      `La skill de la biblioteca ${p.name} no coincide con los archivos aprobados (${p.path}). No edites las skills instaladas de la biblioteca; quita el cambio.`,
+    'librarySkill.notInstalled': (p) => `La spec eligió la skill de la biblioteca ${p.name}, pero no está instalada. Ejecuta skills install.`,
+    'librarySkill.nextSteps': (p) => `NEXT_STEPS.md no menciona ${p.location}, así que el usuario no sabrá que debe añadir la skill ${p.name} en la app.`,
   },
 });
 

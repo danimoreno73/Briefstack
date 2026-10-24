@@ -117,6 +117,11 @@ export interface ErrorParams {
   'skills.updatePending': { name: string };
   'skills.noUpdate': { name: string };
   'skills.notApproved': { name: string; status: string };
+  'skills.projectNotFound': { dir: string };
+  'skills.notAProject': { dir: string };
+  'skills.alreadyInstalled': { name: string };
+  'skills.wouldOverwrite': { path: string };
+  'skills.installRecordInvalid': { file: string };
 }
 
 /** Why a skill link is refused. */

@@ -69,6 +69,9 @@ import { stopTrigger, type StopEvents } from './stopTrigger.js';
 import type { FetchOptions } from './skills/github.js';
 import type { SkillModelReviewer } from './skills/modelReview.js';
 import { createWebSkills } from './skills/wiring.js';
+import { installSkills } from './skills/install.js';
+import { SkillService } from './skills/service.js';
+import { skillsMessages } from './i18n/skills.js';
 
 /** Argument parsing only; all real work lives in the library. */
 
@@ -421,6 +424,32 @@ async function runValidate(args: readonly string[], io: CliIO, lang: Lang): Prom
   return result.errors > 0 ? EXIT_ERROR : EXIT_OK;
 }
 
+/** `skills install <project-dir> [--skill <name>] [--json]`: approved library skills into a project. */
+async function runSkills(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = skillsMessages[lang];
+  const [sub, ...rest] = args;
+  if (sub !== 'install') throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  const { positionals, flags, values } = parseArgs(rest, ['--json'], lang, ['--skill'], messages.usage);
+  const [dirArg] = positionals;
+  if (positionals.length !== 1 || dirArg === undefined) throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  const projectDir = argPath(io, lang, dirArg);
+  const paths = await resolvedPaths(io);
+  const result = await installSkills({
+    projectDir,
+    skills: new SkillService({ libraryDir: async () => paths.libraryDir }),
+    only: values.get('--skill'),
+    protectedDirs: protectedDirs(paths.libraryDir, PACKAGE_ROOT, io.pathEnv),
+  });
+  if (flags.has('--json')) {
+    io.out(JSON.stringify({ projectDir: result.projectDir, target: result.target, installed: result.installed, already: result.already }, null, 2));
+    return EXIT_OK;
+  }
+  for (const entry of result.installed) io.out(messages.installed(entry.name, entry.location, entry.commit));
+  for (const name of result.already) io.out(messages.already(name));
+  if (result.installed.length === 0 && result.already.length === 0) io.out(messages.nothing);
+  return EXIT_OK;
+}
+
 async function resolvedPaths(io: CliIO) {
   return resolvePaths(await readConfig(configFilePath(io.pathEnv)), io.pathEnv);
 }
@@ -670,6 +699,8 @@ export async function main(argv: readonly string[], io: CliIO = defaultIO()): Pr
         return await runSpec(rest, io, lang);
       case 'scaffold':
         return await runScaffold(rest, io, lang);
+      case 'skills':
+        return await runSkills(rest, io, lang);
       case 'usage':
         return await runUsage(rest, io, lang);
       case 'validate':

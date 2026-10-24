@@ -77,6 +77,9 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'skills.updatePending': 409,
   'skills.noUpdate': 409,
   'skills.notApproved': 409,
+  'skills.projectNotFound': 404,
+  'skills.alreadyInstalled': 409,
+  'skills.wouldOverwrite': 409,
 };
 
 /** Error body of every `/api` route: `{ code, params, message }`, the message in the server's language. */

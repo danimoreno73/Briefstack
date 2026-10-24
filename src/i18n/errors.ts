@@ -231,6 +231,11 @@ const errors = defineCatalogue<ErrorMessages>({
     'skills.updatePending': (p) => `A new version of skill ${p.name} already waits for approval. Approve or reject it first.`,
     'skills.noUpdate': (p) => `Skill ${p.name} has no new version waiting.`,
     'skills.notApproved': (p) => `Skill ${p.name} is ${p.status}; only approved skills can be installed.`,
+    'skills.projectNotFound': (p) => `There is no project folder ${p.dir}.`,
+    'skills.notAProject': (p) => `${p.dir} was not made by briefstack (it has no .briefstack/spec.json).`,
+    'skills.alreadyInstalled': (p) => `Skill ${p.name} is already installed in this project.`,
+    'skills.wouldOverwrite': (p) => `${p.path} already exists in the project; nothing was overwritten.`,
+    'skills.installRecordInvalid': (p) => `${p.file} cannot be read. Fix or remove it, then install again.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -379,6 +384,11 @@ const errors = defineCatalogue<ErrorMessages>({
     'skills.updatePending': (p) => `Ya hay una versión nueva de la skill ${p.name} esperando aprobación. Apruébala o recházala primero.`,
     'skills.noUpdate': (p) => `La skill ${p.name} no tiene ninguna versión nueva esperando.`,
     'skills.notApproved': (p) => `La skill ${p.name} está en estado ${p.status}; solo se pueden instalar las aprobadas.`,
+    'skills.projectNotFound': (p) => `No existe la carpeta de proyecto ${p.dir}.`,
+    'skills.notAProject': (p) => `${p.dir} no lo creó briefstack (no tiene .briefstack/spec.json).`,
+    'skills.alreadyInstalled': (p) => `La skill ${p.name} ya está instalada en este proyecto.`,
+    'skills.wouldOverwrite': (p) => `${p.path} ya existe en el proyecto; no se sobrescribió nada.`,
+    'skills.installRecordInvalid': (p) => `No se puede leer ${p.file}. Corrígelo o bórralo y vuelve a instalar.`,
   },
 });
 

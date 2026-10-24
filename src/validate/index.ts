@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { lstat, readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { z } from 'zod';
 import { systemPathEnv, type PathEnv } from '../config/paths.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
 import { DENY_RULES } from '../scaffold/secrets.js';
@@ -118,6 +120,8 @@ const errorDetail = (error: unknown): string => (error instanceof Error ? error.
 
 interface SpecCheck {
   target: Target | undefined;
+  /** Names of the library skills the spec chose. */
+  librarySkills?: string[];
   findings: Finding[];
 }
 
@@ -132,7 +136,8 @@ function checkSpec(text: string | undefined): SpecCheck {
     return { target: undefined, findings: [finding('spec.invalidJson', { detail: errorDetail(error) }, { file })] };
   }
   try {
-    return { target: parseSpec(data, file).target, findings: [] };
+    const spec = parseSpec(data, file);
+    return { target: spec.target, librarySkills: spec.librarySkills.map((skill) => skill.name), findings: [] };
   } catch (error) {
     if (!isBriefstackError(error) || error.code !== 'spec.invalid') throw error;
     const issues = (error as BriefstackError<'spec.invalid'>).params.issues;
@@ -217,6 +222,91 @@ function scanText(text: string, file: string, paths: ProjectPaths, pathEnv: Path
   return findings;
 }
 
+const INSTALL_RECORD = '.briefstack/skills.json';
+
+const installedSchema = z.object({
+  v: z.literal(1),
+  skills: z.array(
+    z.object({
+      name: z.string(),
+      location: z.string(),
+      files: z.array(z.object({ path: z.string(), sha256: z.string() })),
+      zipSha256: z.string().optional(),
+    }),
+  ),
+});
+
+const sha256Of = (bytes: Buffer): string => createHash('sha256').update(bytes).digest('hex');
+
+/**
+ * Library skills installed by `skills install` (`.briefstack/skills.json`):
+ * each folder holds exactly the recorded files with the recorded hashes,
+ * each archive has its recorded hash and is named in `NEXT_STEPS.md`, and
+ * every library skill the spec chose is installed. Returns the installed
+ * folders, whose text the other checks leave alone.
+ */
+async function checkLibrarySkills(
+  root: string,
+  tree: Walk,
+  texts: ReadonlyMap<string, string>,
+  chosen: readonly string[],
+): Promise<{ findings: Finding[]; dirs: string[] }> {
+  const findings: Finding[] = [];
+  const recordText = texts.get(INSTALL_RECORD);
+  let entries: z.infer<typeof installedSchema>['skills'] = [];
+  if (recordText !== undefined) {
+    try {
+      const parsed = installedSchema.safeParse(JSON.parse(recordText));
+      if (parsed.success) entries = parsed.data.skills;
+      else findings.push(finding('librarySkill.invalidRecord', {}, { file: INSTALL_RECORD }));
+    } catch {
+      findings.push(finding('librarySkill.invalidRecord', {}, { file: INSTALL_RECORD }));
+    }
+  }
+  const read = async (relative: string): Promise<Buffer | undefined> => {
+    try {
+      return await readFile(path.join(root, ...relative.split('/')));
+    } catch {
+      return undefined;
+    }
+  };
+  const dirs: string[] = [];
+  for (const entry of entries) {
+    const name = entry.name;
+    if (entry.location.endsWith('.zip')) {
+      const bytes = tree.regular.includes(entry.location) ? await read(entry.location) : undefined;
+      if (bytes === undefined) findings.push(finding('librarySkill.missing', { name }, { file: entry.location }));
+      else if (entry.zipSha256 !== undefined && sha256Of(bytes) !== entry.zipSha256) {
+        findings.push(finding('librarySkill.modified', { name, path: entry.location }, { file: entry.location }));
+      }
+      if (!(texts.get('NEXT_STEPS.md') ?? '').includes(entry.location)) {
+        findings.push(finding('librarySkill.nextSteps', { name, location: entry.location }, { file: 'NEXT_STEPS.md' }));
+      }
+      continue;
+    }
+    const dir = entry.location;
+    dirs.push(dir);
+    if (!tree.directories.includes(dir)) {
+      findings.push(finding('librarySkill.missing', { name }, { file: dir }));
+      continue;
+    }
+    const expected = new Map(entry.files.map((file) => [`${dir}/${file.path}`, file.sha256]));
+    for (const file of tree.files.filter((f) => f.startsWith(`${dir}/`))) {
+      const hash = expected.get(file);
+      const bytes = hash === undefined ? undefined : await read(file);
+      if (hash === undefined || bytes === undefined || sha256Of(bytes) !== hash) {
+        findings.push(finding('librarySkill.modified', { name, path: file.slice(dir.length + 1) }, { file }));
+      }
+      expected.delete(file);
+    }
+    for (const missing of expected.keys()) findings.push(finding('librarySkill.modified', { name, path: missing.slice(dir.length + 1) }, { file: missing }));
+  }
+  for (const name of chosen) {
+    if (!entries.some((entry) => entry.name === name)) findings.push(finding('librarySkill.notInstalled', { name }, { file: SPEC_FILE }));
+  }
+  return { findings, dirs };
+}
+
 /** The project's own Claude configuration and briefstack's records: never application code. */
 const PREPARATION_DIRS: readonly string[] = ['.claude/', '.briefstack/'];
 
@@ -273,12 +363,18 @@ export async function validateProject(projectDir: string, options: ValidateOptio
     }
   }
 
+  // Installed library skills: exactly the approved files. Their own text is the
+  // author's; it was reviewed in quarantine, so the checks below skip it.
+  const library = await checkLibrarySkills(root, tree, texts, spec.librarySkills ?? []);
+  findings.push(...library.findings);
+  const inLibrarySkill = (file: string): boolean => library.dirs.some((dir) => file.startsWith(`${dir}/`));
+
   // Agent and skill frontmatter.
   for (const file of tree.regular) {
     const text = texts.get(file);
     if (text === undefined) continue;
     if (AGENT_FILE_RE.test(file)) findings.push(...checkAgentFile(text, file));
-    if (SKILL_FILE_RE.test(file)) findings.push(...checkSkillFile(text, file));
+    if (SKILL_FILE_RE.test(file) && !inLibrarySkill(file)) findings.push(...checkSkillFile(text, file));
   }
   for (const directory of tree.directories) {
     const skillFile = `${directory}/SKILL.md`;
@@ -312,7 +408,9 @@ export async function validateProject(projectDir: string, options: ValidateOptio
   if (localSettings !== undefined && localSettings.trim() !== '') findings.push(...checkLocalSettings(localSettings));
 
   // Secrets, machine paths and links in every text file.
-  for (const [file, text] of texts) findings.push(...scanText(text, file, tree, pathEnv));
+  for (const [file, text] of texts) {
+    if (!inLibrarySkill(file)) findings.push(...scanText(text, file, tree, pathEnv));
+  }
 
   findings.sort(compareFindings);
   const errors = findings.filter((item) => item.severity === 'error').length;

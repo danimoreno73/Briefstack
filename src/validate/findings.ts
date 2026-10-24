@@ -41,6 +41,11 @@ export interface FindingParams {
   'settings.hooks': NoParams;
   'settings.allow': NoParams;
   'settings.missingDenyRule': { rule: string };
+  'librarySkill.invalidRecord': NoParams;
+  'librarySkill.missing': { name: string };
+  'librarySkill.modified': { name: string; path: string };
+  'librarySkill.notInstalled': { name: string };
+  'librarySkill.nextSteps': { name: string; location: string };
 }
 
 export type RuleId = keyof FindingParams;
@@ -73,6 +78,11 @@ export const RULE_SEVERITY: { readonly [R in RuleId]: Severity } = {
   'settings.hooks': 'error',
   'settings.allow': 'error',
   'settings.missingDenyRule': 'warning',
+  'librarySkill.invalidRecord': 'error',
+  'librarySkill.missing': 'error',
+  'librarySkill.modified': 'error',
+  'librarySkill.notInstalled': 'error',
+  'librarySkill.nextSteps': 'error',
 };
 
 export type Finding = {
