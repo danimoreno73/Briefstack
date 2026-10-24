@@ -234,6 +234,8 @@ function parseTree(data: unknown): TreeAnswer {
     if (typeof entry.path !== 'string' || typeof entry.mode !== 'string' || typeof entry.type !== 'string' || typeof entry.sha !== 'string') {
       return fail();
     }
+    // A folder's sha goes into the next request's URL: only a 40-hex object id is taken.
+    if (!SHA_RE.test(entry.sha.toLowerCase())) return fail();
     const parsed: TreeEntry = { path: entry.path, mode: entry.mode, type: entry.type, sha: entry.sha.toLowerCase() };
     if (typeof entry.size === 'number') parsed.size = entry.size;
     tree.push(parsed);

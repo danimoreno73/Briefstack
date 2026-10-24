@@ -128,6 +128,21 @@ describe('fetchSkill', () => {
     expect(server.requests.some((r) => r.startsWith('/raw/'))).toBe(false);
   });
 
+  it('takes only 40-hex object ids from a listing: a folder sha never shapes the next URL', async () => {
+    const { opts, gh: server } = await world();
+    const bent: typeof fetch = async (input, init) => {
+      const response = await fetch(input, init);
+      if (!String(input).includes('/git/trees/')) return response;
+      const data = (await response.json()) as { tree: { type: string; sha: string }[] };
+      data.tree = data.tree.map((entry) => (entry.type === 'tree' ? { ...entry, sha: '../../../commits/main' } : entry));
+      return new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json' } });
+    };
+    const error = await failure(fetchSkill('https://github.com/acme/skills/tree/main/skills/hello', { ...opts, fetch: bent }));
+    expect(error).toMatchObject({ code: 'skills.network', params: { detail: expect.stringContaining('unknown shape') } });
+    // Only the pin and the root listing went out; nothing was asked with the bent sha.
+    expect(server.requests).toHaveLength(2);
+  });
+
   it('refuses a truncated listing', async () => {
     const { opts } = await world({}, { truncate: true });
     const error = await failure(fetchSkill('https://github.com/acme/skills/tree/main/skills/hello', opts));
