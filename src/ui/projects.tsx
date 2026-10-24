@@ -1,8 +1,9 @@
+import { useState } from 'preact/hooks';
 import { CopyButton, Markdown, PathText } from './common.js';
 import { formatWhen, isUnfinished, openCommandLines, withoutLeadingHeading } from './format.js';
-import { useApp, useDocumentTitle, useLoad } from './hooks.js';
+import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { setIdeaDraft } from './ideaDraft.js';
-import { Empty, LoadState, MetaLine, Note } from './kit.js';
+import { ConfirmModal, Empty, ErrorNote, LoadState, MetaLine, Note } from './kit.js';
 import { routeHash } from './route.js';
 import type { ProjectDetail, ProjectListing, SessionSummary } from './types.js';
 
@@ -10,6 +11,7 @@ export function ProjectsView() {
   const { t, lang } = useApp();
   const projects = useLoad<{ projects: ProjectListing[] }>('/api/projects');
   const sessions = useLoad<{ sessions: SessionSummary[] }>('/api/sessions');
+  const [showArchived, setShowArchived] = useState(false);
   useDocumentTitle(t.projectsTitle);
 
   /** Opens New project with this idea in the box (the idea as `/api/sessions` gives it: redacted, maybe cut). */
@@ -33,10 +35,21 @@ export function ProjectsView() {
       </header>
       <div class="page">
         <LoadState loaded={projects}>
-          {({ projects: list }) =>
-            list.length === 0 ? (
+          {({ projects: all }) => {
+            // Archived projects are hidden unless the filter is on (BRIEF-phase-6 §3.6).
+            const anyArchived = all.some((project) => project.status?.archived !== undefined);
+            const list = showArchived ? all : all.filter((project) => project.status?.archived === undefined);
+            const filter = anyArchived && (
+              <label class="check-line">
+                <input type="checkbox" checked={showArchived} data-testid="show-archived" onChange={(event) => setShowArchived(event.currentTarget.checked)} />{' '}
+                {t.showArchived}
+              </label>
+            );
+            return list.length === 0 && !anyArchived ? (
               <Empty title={t.projectsEmpty} action={{ href: routeHash({ page: 'new', id: undefined }), label: t.navNew }} />
             ) : (
+              <div class="stack-2">
+              {filter}
               <div class="table-card">
                 <table class="table" data-testid="projects">
                   <caption class="sr-only">{t.projectsTitle}</caption>
@@ -59,7 +72,10 @@ export function ProjectsView() {
                           <a href={routeHash({ page: 'project', slug: project.slug })}>{project.name}</a>
                         </td>
                         <td class="td-mono">{project.status?.target ?? '—'}</td>
-                        <td>{project.status === undefined ? <span class="chip chip-warn">{t.invalidNote}</span> : <span class="chip">{project.status.status}</span>}</td>
+                        <td>
+                          {project.status === undefined ? <span class="chip chip-warn">{t.invalidNote}</span> : <span class="chip">{project.status.status}</span>}
+                          {project.status?.archived !== undefined && <span class="chip chip-outline">{t.archivedChip}</span>}
+                        </td>
                         <td>{project.status?.profile ?? '—'}</td>
                         <td class="td-mono td-num">{formatWhen(project.created, lang)}</td>
                         <td class="td-mono td-path">{project.status?.path === undefined ? '—' : <PathText value={project.status.path} />}</td>
@@ -68,8 +84,9 @@ export function ProjectsView() {
                   </tbody>
                 </table>
               </div>
-            )
-          }
+              </div>
+            );
+          }}
         </LoadState>
 
         <section class="stack-4" aria-labelledby="unfinished-title">
@@ -120,6 +137,53 @@ export function ProjectsView() {
   );
 }
 
+/** Archive (after a confirmation) or unarchive a project: a line in its note, nothing deleted (BRIEF-phase-6 §3.6). */
+function ArchiveButton({ slug, name, archived, onDone }: { slug: string; name: string; archived: string | undefined; onDone(): void }) {
+  const { t } = useApp();
+  const send = useSend();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(undefined);
+  const set = async (value: boolean) => {
+    setConfirming(false);
+    setBusy(true);
+    setError(undefined);
+    try {
+      await send('PUT', `/api/projects/${encodeURIComponent(slug)}/archived`, { archived: value });
+      onDone();
+    } catch (failure) {
+      setError(failure);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div class="btn-row">
+      {error !== undefined && <ErrorNote error={error} />}
+      <button
+        type="button"
+        class="btn btn-secondary"
+        disabled={busy}
+        data-testid="archive-toggle"
+        onClick={() => (archived === undefined ? setConfirming(true) : void set(false))}
+      >
+        {archived === undefined ? t.archiveProject : t.unarchiveProject}
+      </button>
+      {confirming && (
+        <ConfirmModal
+          title={t.archiveTitle(name)}
+          body={t.archiveBody}
+          confirmLabel={t.archiveProject}
+          cancelLabel={t.cancel}
+          tone="normal"
+          onConfirm={() => void set(true)}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
+    </div>
+  );
+}
+
 export function ProjectView({ slug }: { slug: string }) {
   const { t, lang } = useApp();
   const loaded = useLoad<ProjectDetail>(`/api/projects/${encodeURIComponent(slug)}`);
@@ -150,11 +214,18 @@ export function ProjectView({ slug }: { slug: string }) {
                       {targetChoice?.chosenBy !== undefined && ` · ${t.chosenBy(t.chooser(targetChoice.chosenBy))}`}
                     </span>
                     {project.session !== undefined && <span class="mono-s faint">{project.session}</span>}
+                    {status.archived !== undefined && <span class="chip chip-outline">{t.archivedChip}</span>}
                   </div>
                 )}
               </div>
+              {status !== undefined && <ArchiveButton slug={project.slug} name={project.name} archived={status.archived} onDone={loaded.reload} />}
             </header>
             <div class="page">
+              {status?.archived !== undefined && (
+                <Note tone="plain" testId="project-archived">
+                  {t.projectArchivedNote(formatWhen(status.archived, lang))}
+                </Note>
+              )}
               {status === undefined && (
                 <Note tone="danger" title={t.invalidNote}>
                   {t.invalidIssues(project.issues ?? [])}
