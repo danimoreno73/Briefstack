@@ -16,7 +16,6 @@ import {
   IconImprove,
   IconLibrary,
   IconMenu,
-  IconMoon,
   IconNew,
   IconProjects,
   IconSettings,
@@ -28,7 +27,8 @@ import { ProjectView, ProjectsView } from './projects.js';
 import { parseRoute, routeHash, type Route } from './route.js';
 import { SettingsPage } from './settings.js';
 import { readStoredLang, storeLang } from './storedLang.js';
-import { THEMES, applyTheme, readStoredTheme, type Theme } from './theme.js';
+import { applyTheme, readStoredTheme } from './theme.js';
+import { ThemeSwitch } from './themeSwitch.js';
 import type { SettingsView } from './types.js';
 import { UsageView } from './usage.js';
 
@@ -360,32 +360,6 @@ function Shell({ route, activeCreations, children }: { route: Route; activeCreat
       </main>
       {chatAllowed && chatOpen && <ChatDrawer onClose={closeChat} />}
     </div>
-  );
-}
-
-/** System, light or dark; kept per browser. */
-function ThemeSwitch() {
-  const { t } = useApp();
-  const [theme, setTheme] = useState<Theme>(readStoredTheme);
-  return (
-    <label class="rail-select">
-      <IconMoon />
-      <span class="sr-only">{t.themeLabel}</span>
-      <select
-        value={theme}
-        onChange={(event) => {
-          const next = event.currentTarget.value as Theme;
-          setTheme(next);
-          applyTheme(next, true);
-        }}
-      >
-        {THEMES.map((value) => (
-          <option key={value} value={value}>
-            {t.themeName(value)}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

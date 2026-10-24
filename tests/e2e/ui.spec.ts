@@ -31,8 +31,8 @@ test.describe('start-up', () => {
   test('switches the theme and keeps it after a reload, then follows the system again', async ({ page, app }) => {
     await page.emulateMedia({ colorScheme: 'light' });
     await page.goto(app.url);
-    const theme = page.getByLabel('Theme');
-    await expect(theme).toHaveValue('system');
+    const theme = page.getByRole('button', { name: /^Theme:/ });
+    await expect(theme).toHaveAccessibleName('Theme: System');
     // bs.css changes only through the attribute: under "System" it holds the system's theme, and follows it.
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await page.emulateMedia({ colorScheme: 'dark' });
@@ -40,20 +40,101 @@ test.describe('start-up', () => {
     await page.emulateMedia({ colorScheme: 'light' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
-    await theme.selectOption('dark');
+    await theme.click();
+    await page.getByRole('menuitemradio', { name: 'Dark' }).click();
+    await expect(page.getByRole('menu', { name: 'Theme' })).toBeHidden();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     // The page's ground is painted on <html class="bs">.
     const background = () => page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
     const dark = await background();
     await page.reload();
-    await expect(page.getByLabel('Theme')).toHaveValue('dark');
+    await expect(theme).toHaveAccessibleName('Theme: Dark');
     await expect.poll(background).toBe(dark);
 
-    await page.getByLabel('Theme').selectOption('system');
+    await theme.click();
+    await page.getByRole('menuitemradio', { name: 'System' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await expect.poll(background).not.toBe(dark);
     await page.reload();
-    await expect(page.getByLabel('Theme')).toHaveValue('system');
+    await expect(theme).toHaveAccessibleName('Theme: System');
+  });
+
+  test('the theme menu works with the keyboard and shows where the focus is', async ({ page, app }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.goto(app.url);
+    const theme = page.getByRole('button', { name: /^Theme:/ });
+    const menu = page.getByRole('menu', { name: 'Theme' });
+    const item = (name: string) => page.getByRole('menuitemradio', { name });
+    const outline = (locator: ReturnType<typeof item>) => locator.evaluate((element) => getComputedStyle(element).outlineStyle);
+    await expect(theme).toHaveAttribute('aria-expanded', 'false');
+
+    // The arrows open it on the current choice; Escape closes it with nothing changed.
+    await theme.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(menu).toBeVisible();
+    await expect(theme).toHaveAttribute('aria-expanded', 'true');
+    await expect(item('System')).toBeFocused();
+    await expect(item('System')).toHaveAttribute('aria-checked', 'true');
+    await expect.poll(() => outline(item('System'))).toBe('solid');
+    await page.keyboard.press('ArrowDown');
+    await expect(item('Light')).toBeFocused();
+    await expect(item('System')).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await expect(theme).toBeFocused();
+    await expect.poll(() => outline(theme)).toBe('solid');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+    // Enter opens it; End, Home and wrapping arrows move; Enter chooses and gives the focus back.
+    await page.keyboard.press('Enter');
+    await expect(item('System')).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(item('Dark')).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(item('System')).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(item('Dark')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(menu).toBeHidden();
+    await expect(theme).toBeFocused();
+    await expect(theme).toHaveAccessibleName('Theme: Dark');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+    // Space chooses too.
+    await page.keyboard.press('ArrowUp');
+    await expect(item('Dark')).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press(' ');
+    await expect(theme).toHaveAccessibleName('Theme: Light');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+    // Tab leaves it, and a click elsewhere closes it; neither changes the theme.
+    await page.keyboard.press('ArrowDown');
+    await expect(menu).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(menu).toBeHidden();
+    await theme.click();
+    await expect(menu).toBeVisible();
+    await page.getByRole('heading', { name: 'Projects' }).click();
+    await expect(menu).toBeHidden();
+    await expect(theme).toHaveAccessibleName('Theme: Light');
+  });
+
+  test('on a phone, Escape in the theme menu closes only that menu', async ({ page, app }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(app.url);
+    await page.getByRole('button', { name: 'Menu', exact: true }).click();
+    const theme = page.getByRole('button', { name: /^Theme:/ });
+    await theme.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menu', { name: 'Theme' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu', { name: 'Theme' })).toBeHidden();
+    await expect(theme).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Close the menu' })).toBeVisible();
+    // A second Escape closes the rail, as before.
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Close the menu' })).toBeHidden();
   });
 
   test('an old tab after a restart says to open the new link, with no retry', async ({ page, app }) => {

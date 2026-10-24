@@ -81,6 +81,13 @@ export const IconMoon = () => (
   </Svg>
 );
 
+/** Up and down: a button that opens a list of choices. */
+export const IconSelector = () => (
+  <Svg>
+    <path d="M7 8l3-3 3 3M7 12l3 3 3-3" />
+  </Svg>
+);
+
 export const IconGlobe = () => (
   <Svg>
     <circle cx="10" cy="10" r="7" />

@@ -3273,3 +3273,30 @@ used `style.css`; they move with group 2, next to "Start again".
   names `light-dark()` or CSS nesting, which only the old sheets used.
 - `docs/DESIGN.md` describes the design as it is now; direction A's values
   live in its history and in the U1–U4 entries above.
+
+## U5: the theme switch at the user's review (2026-10-24)
+
+The user approved the screens except the theme switch: a native `<select>`,
+whose list the system draws, did not fit the design.
+
+- **Shape.** The canvas draws the switch as a `btn-secondary btn-sm` with
+  the moon and the current name, a toggle between two themes. The app has
+  three (System, Light, Dark) and the behaviour stays, so the button opens
+  a small menu (`role="menu"`, three `menuitemradio` items) above it, built
+  from bs.css tokens: `--surface` with `--line-card` and `--r-card`, items
+  shaped like `.seg` buttons with the chosen one raised and checked, and an
+  up-down mark on the button. `src/ui/themeSwitch.tsx`, styles in
+  `app.css`.
+- **Keyboard.** Enter, Space or the arrows open it on the current choice;
+  arrows (wrapping), Home and End move; Enter or Space choose and give the
+  focus back to the button; Escape closes it and only it (the phone's rail
+  stays open); Tab or a click elsewhere closes it. The focus moves inside
+  the key handler, not in an effect, so a quick next key acts on the item
+  it means. Focus rings are the design's `:focus-visible`.
+- **Width.** The rail foot's row was two equal columns, which cut "System"
+  at 1280. In `app.css` the language button keeps its own width and the
+  theme button takes the rest.
+- **Tests.** The e2e theme test drives the menu; two new ones cover the
+  keyboard (with the focus ring) and Escape on a phone. Screenshots with
+  `npm run screenshots -- theme.shots.ts` (`screenshots/u5/theme/`,
+  git-ignored).
