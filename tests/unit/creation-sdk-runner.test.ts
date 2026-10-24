@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { CanUseTool, HookCallback, Options, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -585,6 +585,33 @@ describe('SdkRunner', () => {
     expect((await rules()).cancelled).toBe(true);
     await handle.stop();
     await expect(readFile(rulesFile, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('after the spec is approved, the guards let the generator install only its library skills', async () => {
+    const rulesFile = path.join(dir, 'home', 'runs', 'c1', 'guard.json');
+    const handle = start();
+    init();
+    await handle.sessionId;
+    const sessionDir = path.join(sessionsDir, SESSION);
+    await mkdir(sessionDir, { recursive: true });
+    const files = { specFile: path.join(sessionDir, 'spec.json'), summaryFile: path.join(sessionDir, 'summary.md') };
+    // As the server leaves it after the user unticked sync-helper.
+    await writeFile(files.specFile, JSON.stringify({ librarySkills: [{ name: 'tidy-notes', reason: 'x' }] }), 'utf8');
+    await writeFile(files.summaryFile, '# Summary\n', 'utf8');
+    const app = path.join(projectsDir, 'app');
+    await mkdir(path.join(app, '.briefstack'), { recursive: true });
+    await writeFile(path.join(app, '.briefstack', 'spec.json'), JSON.stringify({ librarySkills: [{ name: 'tidy-notes', reason: 'x' }] }), 'utf8');
+    const generator = { agent_id: 'g1', agent_type: 'generator' };
+    const install = (extra: string) => preToolUse('Bash', { command: `npm run --silent briefstack -- skills install "${app.replaceAll('\\', '/')}"${extra}` }, generator);
+    expect(await install('')).toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny' } });
+    expect((JSON.parse(await readFile(rulesFile, 'utf8')) as Record<string, unknown>).librarySkills).toBeUndefined();
+
+    const server = options().mcpServers?.['briefstack-web'] as unknown as { instance: { _registeredTools: Record<string, { handler: (args: unknown, extra: unknown) => Promise<unknown> }> } };
+    await server.instance._registeredTools.approve_spec?.handler(files, {});
+    expect((JSON.parse(await readFile(rulesFile, 'utf8')) as Record<string, unknown>).librarySkills).toEqual(['tidy-notes']);
+    expect(await install('')).toMatchObject({ hookSpecificOutput: { permissionDecision: 'allow' } });
+    expect(await install(' --skill sync-helper')).toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny' } });
+    await handle.stop();
   });
 
   it('fails clearly when Claude Code is missing or the skill is not listed', async () => {

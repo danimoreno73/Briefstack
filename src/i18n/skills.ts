@@ -7,6 +7,7 @@ export const skillsMessages = defineCatalogue({
     installed: (name: string, location: string, commit: string) => `Installed ${name} in ${location} (commit ${commit.slice(0, 7)}).`,
     already: (name: string) => `${name} was already installed.`,
     nothing: 'No library skills to install.',
+    addedReason: (date: string) => `Added by the user to this existing project from the chat on ${date}.`,
     nextStepsTitle: 'Next steps',
     nextStepsHeading: 'Skills',
     nextStepsIntro:
@@ -19,6 +20,7 @@ export const skillsMessages = defineCatalogue({
     installed: (name: string, location: string, commit: string) => `Instalada ${name} en ${location} (commit ${commit.slice(0, 7)}).`,
     already: (name: string) => `${name} ya estaba instalada.`,
     nothing: 'No hay skills de la biblioteca que instalar.',
+    addedReason: (date: string) => `La añadió el usuario a este proyecto existente desde el chat el ${date}.`,
     nextStepsTitle: 'Próximos pasos',
     nextStepsHeading: 'Skills',
     nextStepsIntro:

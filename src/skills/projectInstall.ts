@@ -3,7 +3,7 @@ import { BriefstackError } from '../errors.js';
 import { addNote } from '../library/notes.js';
 import { listProjects } from '../library/projects.js';
 import { protectedDirs } from '../scaffold/outputDir.js';
-import { installSkills, readInstalled, type InstalledSkill } from './install.js';
+import { checkProjectDir, chooseInSpec, installSkills, readInstalled, type InstalledSkill } from './install.js';
 import type { SkillService } from './service.js';
 
 /**
@@ -47,12 +47,18 @@ export async function addSkillToProject(options: {
   skill: string;
 }): Promise<{ project: ProjectTarget; installed: InstalledSkill; note: string }> {
   const project = await projectTarget(options.libraryDir, options.slug);
-  const result = await installSkills({
-    projectDir: project.dir,
-    skills: options.skills,
-    only: options.skill,
-    protectedDirs: protectedDirs(options.libraryDir, options.repoDir, options.pathEnv),
-  });
+  const forbidden = protectedDirs(options.libraryDir, options.repoDir, options.pathEnv);
+  const dir = await checkProjectDir(project.dir, forbidden);
+  if (await isInstalled(dir, options.skill)) throw new BriefstackError('skills.alreadyInstalled', { name: options.skill });
+  // The user chose it on the card: it joins the project's spec, so the install (and the validator) accept it.
+  const restoreSpec = await chooseInSpec(dir, options.skill);
+  let result;
+  try {
+    result = await installSkills({ projectDir: dir, skills: options.skills, only: options.skill, protectedDirs: forbidden });
+  } catch (error) {
+    await restoreSpec();
+    throw error;
+  }
   const installed = result.installed[0];
   if (installed === undefined) throw new BriefstackError('skills.alreadyInstalled', { name: options.skill });
   const where = installed.path === '' ? installed.repo : `${installed.repo} ${installed.path}`;

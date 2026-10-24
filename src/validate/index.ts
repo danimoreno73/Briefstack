@@ -304,6 +304,10 @@ async function checkLibrarySkills(
   for (const name of chosen) {
     if (!entries.some((entry) => entry.name === name)) findings.push(finding('librarySkill.notInstalled', { name }, { file: SPEC_FILE }));
   }
+  // Only what the approved spec chose may be installed (an unticked skill must not come back).
+  for (const entry of entries) {
+    if (!chosen.includes(entry.name)) findings.push(finding('librarySkill.notChosen', { name: entry.name }, { file: INSTALL_RECORD }));
+  }
   return { findings, dirs };
 }
 

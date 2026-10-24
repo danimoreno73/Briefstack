@@ -24,6 +24,8 @@ import { buildZip } from './zip.js';
 export const INSTALL_RECORD = '.briefstack/skills.json';
 const SPEC_FILE = '.briefstack/spec.json';
 const NEXT_STEPS = 'NEXT_STEPS.md';
+/** The byte order mark some editors put at the start of a text file. */
+const BOM = String.fromCharCode(0xfeff);
 
 const installedFileSchema = z.object({
   path: z.string(),
@@ -137,9 +139,34 @@ export function nextStepsWithSkill(text: string, line: string, lang: 'en' | 'es'
   return `${lines.join('\n')}\n`;
 }
 
-export async function installSkills(options: InstallOptions): Promise<InstallResult> {
-  const now = options.now ?? (() => new Date());
-  const root = path.resolve(options.projectDir);
+/**
+ * Adds a library skill to an existing project's spec, by the user's own
+ * choice (the chat's confirmed card), so `skills install --skill` may
+ * install it. Returns how to put the spec back if the install then fails.
+ */
+export async function chooseInSpec(projectDir: string, name: string, now: Date = new Date()): Promise<() => Promise<void>> {
+  const file = path.join(path.resolve(projectDir), ...SPEC_FILE.split('/'));
+  if (!(await exists(file))) throw new BriefstackError('skills.notAProject', { dir: path.resolve(projectDir) });
+  const spec = await readSpec(file);
+  const before = await readFile(file, 'utf8');
+  const restore = async () => {
+    await writeFile(file, before, 'utf8');
+  };
+  if (spec.librarySkills.some((skill) => skill.name === name)) return async () => undefined;
+  const data = JSON.parse(before.startsWith(BOM) ? before.slice(1) : before) as Record<string, unknown>;
+  const list = Array.isArray(data.librarySkills) ? (data.librarySkills as unknown[]) : [];
+  const lang = spec.language.toLowerCase().startsWith('es') ? 'es' : 'en';
+  list.push({ name, reason: skillsMessages[lang].addedReason(now.toISOString().slice(0, 10)) });
+  data.librarySkills = list;
+  const temp = `${file}.${process.pid}.tmp`;
+  await writeFile(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  await rename(temp, file);
+  return restore;
+}
+
+/** The project folder exists and overlaps none of `protectedDirs`; returns it resolved. */
+export async function checkProjectDir(projectDir: string, protectedDirs: readonly ProtectedDir[] | undefined): Promise<string> {
+  const root = path.resolve(projectDir);
   let info;
   try {
     info = await stat(root);
@@ -147,12 +174,18 @@ export async function installSkills(options: InstallOptions): Promise<InstallRes
     info = undefined;
   }
   if (info === undefined || !info.isDirectory()) throw new BriefstackError('skills.projectNotFound', { dir: root });
-  if (options.protectedDirs !== undefined) {
-    const report = await inspectOutputDir(root, options.protectedDirs);
+  if (protectedDirs !== undefined) {
+    const report = await inspectOutputDir(root, protectedDirs);
     if (report.status === 'forbidden' && report.overlaps !== undefined) {
       throw new BriefstackError('scaffold.forbiddenOutput', { outDir: root, root: report.overlaps.root, rootPath: report.overlaps.path });
     }
   }
+  return root;
+}
+
+export async function installSkills(options: InstallOptions): Promise<InstallResult> {
+  const now = options.now ?? (() => new Date());
+  const root = await checkProjectDir(options.projectDir, options.protectedDirs);
   const specPath = path.join(root, ...SPEC_FILE.split('/'));
   if (!(await exists(specPath))) throw new BriefstackError('skills.notAProject', { dir: root });
   const spec = await readSpec(specPath);
@@ -166,7 +199,10 @@ export async function installSkills(options: InstallOptions): Promise<InstallRes
     if (spec.skills.some((skill) => skill.name.toLowerCase() === options.only?.toLowerCase())) {
       throw new BriefstackError('skills.wouldOverwrite', { path: `.claude/skills/${options.only}` });
     }
-    wanted = [{ name: options.only }];
+    // Only a skill the approved spec chose: one the user unticked never comes back this way.
+    const chosen = spec.librarySkills.find((skill) => skill.name === options.only);
+    if (chosen === undefined) throw new BriefstackError('skills.notInSpec', { name: options.only });
+    wanted = [{ name: chosen.name, agent: chosen.agent }];
   } else {
     wanted = [];
     for (const skill of spec.librarySkills) {

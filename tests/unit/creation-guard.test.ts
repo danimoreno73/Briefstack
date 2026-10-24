@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, symlink } from 'node:fs/promises';
+import { mkdir, readdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -117,6 +117,7 @@ describe('evaluateToolUse', () => {
   let outside: string;
   let granted: string[];
   let cancelled: boolean;
+  let approvedSkills: string[] | undefined;
   let ctx: GuardContext;
 
   const input = (tool: string, toolInput: unknown, who: Partial<GuardInput> = {}): GuardInput => ({
@@ -141,12 +142,14 @@ describe('evaluateToolUse', () => {
     await mkdir(outside, { recursive: true });
     granted = [];
     cancelled = false;
+    approvedSkills = undefined;
     ctx = {
       isOwnSession: (id) => id === SESSION,
       sessionDir: (id) => path.join(sessionsDir, id),
       projectsDir,
       grantedDirs: () => granted,
       cancelled: () => cancelled,
+      approvedLibrarySkills: () => approvedSkills,
     };
   });
   afterEach(() => cleanup());
@@ -288,6 +291,9 @@ describe('evaluateToolUse', () => {
 
     it('lets only the generator run skills install, and only into an allowed folder', async () => {
       const inside = slashes(path.join(projectsDir, 'app'));
+      approvedSkills = ['tidy-notes'];
+      await mkdir(path.join(projectsDir, 'app', '.briefstack'), { recursive: true });
+      await writeFile(path.join(projectsDir, 'app', '.briefstack', 'spec.json'), JSON.stringify({ librarySkills: [{ name: 'tidy-notes', reason: 'x' }] }), 'utf8');
       expect(await shell(`${CLI} skills install "${inside}"`, generator)).toBe('allow');
       expect(await shell(`${CLI} skills install "${inside}" --skill tidy-notes --json`, generator)).toBe('allow');
       expect(await shell(`${CLI} skills install --skill tidy-notes "${inside}"`, generator)).toBe('allow');
@@ -300,6 +306,31 @@ describe('evaluateToolUse', () => {
       expect(await shell(`${CLI} skills install "${inside}"`, { agent_id: 'a9', agent_type: 'architect' })).toBe('deny');
       expect(await shell(`${CLI} skills list`, generator)).toBe('deny');
       expect(await shell(`${CLI} skills install "${inside}"; calc`, generator)).toBe('deny');
+    });
+
+    it('lets the generator install only the library skills of the spec the user approved', async () => {
+      const app = path.join(projectsDir, 'app');
+      const inside = slashes(app);
+      const specFile = path.join(app, '.briefstack', 'spec.json');
+      await mkdir(path.dirname(specFile), { recursive: true });
+      await writeFile(specFile, JSON.stringify({ librarySkills: [{ name: 'tidy-notes', reason: 'x' }] }), 'utf8');
+      const reason = async (command: string) => {
+        const verdict = await evaluateToolUse(ctx, input('Bash', { command }, generator));
+        return verdict.verdict === 'deny' ? verdict.reason : verdict.verdict;
+      };
+      // Before any approval, nothing.
+      expect(await reason(`${CLI} skills install "${inside}"`)).toContain('No spec has been approved');
+      // The user approved tidy-notes and unticked sync-helper.
+      approvedSkills = ['tidy-notes'];
+      expect(await reason(`${CLI} skills install "${inside}"`)).toBe('allow');
+      expect(await reason(`${CLI} skills install "${inside}" --skill tidy-notes`)).toBe('allow');
+      expect(await reason(`${CLI} skills install "${inside}" --skill sync-helper`)).toContain('did not approve library skill sync-helper');
+      expect(await reason(`${CLI} skills install "${inside}" --skill=sync-helper`)).toContain('did not approve library skill sync-helper');
+      // A spec in the project that names the unticked skill again is refused too.
+      await writeFile(specFile, JSON.stringify({ librarySkills: [{ name: 'tidy-notes', reason: 'x' }, { name: 'sync-helper', reason: 'y' }] }), 'utf8');
+      expect(await reason(`${CLI} skills install "${inside}"`)).toContain('names library skill sync-helper');
+      await writeFile(specFile, '{', 'utf8');
+      expect(await reason(`${CLI} skills install "${inside}"`)).toContain('no readable .briefstack/spec.json');
     });
 
     it('gives the other agents no shell at all', async () => {

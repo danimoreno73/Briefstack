@@ -45,6 +45,7 @@ export interface FindingParams {
   'librarySkill.missing': { name: string };
   'librarySkill.modified': { name: string; path: string };
   'librarySkill.notInstalled': { name: string };
+  'librarySkill.notChosen': { name: string };
   'librarySkill.nextSteps': { name: string; location: string };
 }
 
@@ -82,6 +83,7 @@ export const RULE_SEVERITY: { readonly [R in RuleId]: Severity } = {
   'librarySkill.missing': 'error',
   'librarySkill.modified': 'error',
   'librarySkill.notInstalled': 'error',
+  'librarySkill.notChosen': 'error',
   'librarySkill.nextSteps': 'error',
 };
 

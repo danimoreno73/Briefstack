@@ -11,6 +11,7 @@ import { FakeSkillReviewer } from '../../src/skills/modelReview.js';
 import { readInstalled } from '../../src/skills/install.js';
 import { SkillService } from '../../src/skills/service.js';
 import { parseSpec } from '../../src/spec/index.js';
+import { validateProject } from '../../src/validate/index.js';
 import { chatWorld, type ChatWorld } from '../chatWorld.js';
 import { baseProfiles, specInput, useHermeticGit } from '../helpers.js';
 import { HARMLESS } from '../skillFixtures.js';
@@ -116,6 +117,10 @@ describe('skill tools of the chat', { timeout: 60_000 }, () => {
     const done = await proposal.perform();
     expect(done.data).toMatchObject({ installed: true, location: '.claude/skills/tidy-notes' });
     expect((await readInstalled(projectDir)).map((s) => s.name)).toEqual(['tidy-notes']);
+    // The user's choice joins the project's spec, so the validator accepts the installed skill.
+    const spec = JSON.parse(await readFile(path.join(projectDir, '.briefstack', 'spec.json'), 'utf8')) as { librarySkills: { name: string }[] };
+    expect(spec.librarySkills.map((s) => s.name)).toEqual(['tidy-notes']);
+    expect((await validateProject(projectDir)).findings.filter((f) => f.rule.startsWith('librarySkill.'))).toEqual([]);
     const note = await readFile(path.join(world.libraryDir, 'projects', 'notes.md'), 'utf8');
     expect(note).toMatch(/Library skill `tidy-notes` added in `\.claude\/skills\/tidy-notes`, from acme\/skills skills\/tidy at commit `[0-9a-f]{7}`/);
     expect(await refusal(propose('add_skill_to_project', { skill: 'tidy-notes', project: 'notes' }))).toContain('already in project');

@@ -45,6 +45,8 @@ const rulesSchema = z
     /** Folders the user granted to this session. */
     granted: z.array(absolute),
     cancelled: z.boolean(),
+    /** The library skills of the spec the user approved last; absent before an approval. */
+    librarySkills: z.array(z.string()).optional(),
     /** Once known: a hook input from any other session is denied. */
     sessionId: z.string().optional(),
   })
@@ -122,6 +124,7 @@ export async function decideToolUse(stdin: string, rulesFile: string): Promise<C
       projectsDir: rules.projectsDir,
       grantedDirs: () => rules.granted,
       cancelled: () => rules.cancelled,
+      approvedLibrarySkills: () => rules.librarySkills,
       pathEnv: systemPathEnv(),
     };
     const verdict = await evaluateToolUse(ctx, {

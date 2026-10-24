@@ -120,6 +120,7 @@ export interface ErrorParams {
   'skills.projectNotFound': { dir: string };
   'skills.notAProject': { dir: string };
   'skills.alreadyInstalled': { name: string };
+  'skills.notInSpec': { name: string };
   'skills.wouldOverwrite': { path: string };
   'skills.installRecordInvalid': { file: string };
   'usage.high': { fiveHour: number | null; sevenDay: number | null; warnFiveHour: number; warnWeek: number };

@@ -18,7 +18,7 @@ import type { Lang } from '../i18n/index.js';
 import { protectedDirs } from '../scaffold/outputDir.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { findClaudeExecutable } from './claudeBinary.js';
-import { FLOW_BUILTIN_TOOLS, callerOf, guardHook, insideAny, parseBriefstackCommand, type GuardContext } from './guard.js';
+import { FLOW_BUILTIN_TOOLS, callerOf, guardHook, insideAny, parseBriefstackCommand, specLibrarySkillNames, type GuardContext } from './guard.js';
 import { folderClaimHook } from './folderClaims.js';
 import { killProcessTree, spawnTracked, type TrackedSpawn } from './processTree.js';
 import { processStartTime, removeRun, runDirOf, runsDirOf, writeRunRecord, type RunRecord, type StartTimeReader } from './runFiles.js';
@@ -286,6 +286,8 @@ export class SdkRunner implements CreationRunner {
 class SdkRun {
   private claimed: string | undefined;
   private readonly granted: string[] = [];
+  /** The library skills of the spec the user approved last; `undefined` before an approval. */
+  private approvedLibrarySkills: string[] | undefined;
   private cancelled = false;
   private stopped = false;
   private afterResult = false;
@@ -385,6 +387,7 @@ class SdkRun {
         projectsDir,
         grantedDirs: () => this.granted,
         cancelled: () => this.cancelled,
+        approvedLibrarySkills: () => this.approvedLibrarySkills,
         pathEnv: this.deps.pathEnv,
       };
       const recordAgent: HookCallback = async (hook) => {
@@ -414,7 +417,13 @@ class SdkRun {
       const webTools = createWebToolsServer({
         // Waiting for the user on the spec or a folder counts as a request too.
         io: {
-          approveSpec: (request) => this.whileAsking(() => this.io.approveSpec(request)),
+          approveSpec: async (request) => {
+            const decision = await this.whileAsking(() => this.io.approveSpec(request));
+            // The guard lets the generator install only the library skills of the spec as approved (unticked ones are gone from it).
+            this.approvedLibrarySkills = decision.decision === 'approve' ? ((await specLibrarySkillNames(request.specFile)) ?? []) : undefined;
+            this.writeRules();
+            return decision;
+          },
           grantDirectory: (request) => this.whileAsking(() => this.io.grantDirectory(request)),
           claimFolder: (dir) => this.io.claimFolder(dir),
         },
@@ -519,6 +528,7 @@ class SdkRun {
         sessionsDir: this.options.sessionsDir,
         granted: [...this.granted],
         cancelled: this.cancelled,
+        ...(this.approvedLibrarySkills === undefined ? {} : { librarySkills: [...this.approvedLibrarySkills] }),
         ...(this.claimed === undefined ? {} : { sessionId: this.claimed }),
       });
     } catch (error) {

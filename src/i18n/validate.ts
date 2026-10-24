@@ -103,6 +103,7 @@ const rules = defineCatalogue<RuleMessages>({
     'librarySkill.modified': (p) =>
       `Library skill ${p.name} differs from the approved files (${p.path}). Do not edit installed library skills; remove the change.`,
     'librarySkill.notInstalled': (p) => `The spec chose library skill ${p.name}, but it is not installed. Run skills install.`,
+    'librarySkill.notChosen': (p) => `Library skill ${p.name} is installed, but the spec's librarySkills does not choose it. Remove it: only skills the user approved in the spec may be installed.`,
     'librarySkill.nextSteps': (p) => `NEXT_STEPS.md does not mention ${p.location}, so the user will not know to add skill ${p.name} in the app.`,
   },
   es: {
@@ -149,6 +150,7 @@ const rules = defineCatalogue<RuleMessages>({
     'librarySkill.modified': (p) =>
       `La skill de la biblioteca ${p.name} no coincide con los archivos aprobados (${p.path}). No edites las skills instaladas de la biblioteca; quita el cambio.`,
     'librarySkill.notInstalled': (p) => `La spec eligió la skill de la biblioteca ${p.name}, pero no está instalada. Ejecuta skills install.`,
+    'librarySkill.notChosen': (p) => `La skill de la biblioteca ${p.name} está instalada, pero librarySkills de la spec no la elige. Quítala: solo se pueden instalar las skills que el usuario aprobó en la spec.`,
     'librarySkill.nextSteps': (p) => `NEXT_STEPS.md no menciona ${p.location}, así que el usuario no sabrá que debe añadir la skill ${p.name} en la app.`,
   },
 });

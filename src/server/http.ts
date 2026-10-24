@@ -79,6 +79,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'skills.notApproved': 409,
   'skills.projectNotFound': 404,
   'skills.alreadyInstalled': 409,
+  'skills.notInSpec': 409,
   'skills.wouldOverwrite': 409,
   'usage.high': 409,
 };

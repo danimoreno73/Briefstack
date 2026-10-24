@@ -8,7 +8,7 @@ import { initLibrary } from '../../src/library/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { scaffold } from '../../src/scaffold/index.js';
 import { FakeSkillReviewer } from '../../src/skills/modelReview.js';
-import { INSTALL_RECORD, installSkills, nextStepsWithSkill, readInstalled } from '../../src/skills/install.js';
+import { INSTALL_RECORD, chooseInSpec, installSkills, nextStepsWithSkill, readInstalled } from '../../src/skills/install.js';
 import { SkillService } from '../../src/skills/service.js';
 import { readZip } from '../../src/skills/zip.js';
 import { parseSpec, type SpecInput } from '../../src/spec/index.js';
@@ -130,16 +130,32 @@ describe('skills install', { timeout: 60_000 }, () => {
     expect(await readFile(path.join(a, 'skills', 'tidy-notes.zip'))).toEqual(await readFile(path.join(b, 'skills', 'tidy-notes.zip')));
   });
 
-  it('adds one skill to an existing project with --skill, and never twice', async () => {
+  it('--skill installs only a skill the spec chose; adding one to an existing project puts it in the spec first, and never twice', async () => {
     const project = await make('existing', {});
+    expect((await failure(installSkills({ projectDir: project, skills: service, only: 'tidy-notes' }))).code).toBe('skills.notInSpec');
+    await expect(stat(path.join(project, '.claude', 'skills', 'tidy-notes'))).rejects.toThrow();
+    await chooseInSpec(project, 'tidy-notes', new Date('2026-10-24T10:00:00Z'));
+    const spec = JSON.parse(await readFile(path.join(project, '.briefstack', 'spec.json'), 'utf8')) as SpecInput;
+    expect(spec.librarySkills).toEqual([{ name: 'tidy-notes', reason: 'Added by the user to this existing project from the chat on 2026-10-24.' }]);
     const result = await installSkills({ projectDir: project, skills: service, only: 'tidy-notes' });
     expect(result.installed[0]?.agent).toBeUndefined();
     expect((await failure(installSkills({ projectDir: project, skills: service, only: 'tidy-notes' }))).code).toBe('skills.alreadyInstalled');
     expect((await validateProject(project)).findings).toEqual([]);
   });
 
+  it('the validator refuses an installed library skill the spec does not choose', async () => {
+    const project = await make('unticked', { librarySkills: [{ name: 'tidy-notes', reason: 'x' }] });
+    await installSkills({ projectDir: project, skills: service });
+    // As if the generator installed a skill the user unticked: the spec as approved does not have it.
+    const file = path.join(project, '.briefstack', 'spec.json');
+    const data = JSON.parse(await readFile(file, 'utf8')) as SpecInput;
+    await writeFile(file, JSON.stringify({ ...data, librarySkills: [] }, null, 2), 'utf8');
+    const findings = (await validateProject(project)).findings;
+    expect(findings.map((f) => [f.rule, f.severity, f.params])).toEqual([['librarySkill.notChosen', 'error', { name: 'tidy-notes' }]]);
+  });
+
   it('refuses unapproved skills, existing folders, non-projects and protected folders', async () => {
-    const project = await make('refusals', {});
+    const project = await make('refusals', { librarySkills: [{ name: 'tidy-notes', reason: 'x' }, { name: 'sync-helper', reason: 'y' }] });
     expect((await failure(installSkills({ projectDir: project, skills: service, only: 'sync-helper' }))).code).toBe('skills.notApproved');
     await mkdir(path.join(project, '.claude', 'skills', 'tidy-notes'), { recursive: true });
     expect((await failure(installSkills({ projectDir: project, skills: service, only: 'tidy-notes' }))).params).toEqual({ path: '.claude/skills/tidy-notes' });
@@ -160,7 +176,7 @@ describe('skills install', { timeout: 60_000 }, () => {
   });
 
   it.runIf(process.platform !== 'win32')('never writes through a symlinked .claude/skills that leads out of the project', async () => {
-    const project = await make('linked', {});
+    const project = await make('linked', { librarySkills: [{ name: 'tidy-notes', reason: 'x' }] });
     const outside = path.join(dir, 'outside');
     await mkdir(outside);
     await symlink(outside, path.join(project, '.claude', 'skills'));
@@ -170,7 +186,7 @@ describe('skills install', { timeout: 60_000 }, () => {
 
   it.runIf(process.platform !== 'win32')('keeps the executable bit of scripts', async () => {
     await service.approve('sync-helper');
-    const project = await make('exec', {});
+    const project = await make('exec', { librarySkills: [{ name: 'sync-helper', reason: 'x' }] });
     await installSkills({ projectDir: project, skills: service, only: 'sync-helper' });
     const mode = (await stat(path.join(project, '.claude', 'skills', 'sync-helper', 'scripts', 'sync.sh'))).mode;
     expect(mode & 0o111).not.toBe(0);
@@ -190,7 +206,7 @@ describe('skills install', { timeout: 60_000 }, () => {
     expect(await main(['skills', 'install', project], io)).toBe(0);
     expect(out.join('\n')).toContain('Installed tidy-notes in .claude/skills/tidy-notes');
     expect(await main(['skills', 'install', project, '--skill', 'sync-helper'], io)).toBe(1);
-    expect(err.join('\n')).toContain('only approved skills can be installed');
+    expect(err.join('\n')).toContain("is not among the library skills of this project's approved spec");
     expect(await main(['skills', 'list'], io)).toBe(2);
 
     // spec check refuses a library skill that is not approved now.

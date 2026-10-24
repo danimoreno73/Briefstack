@@ -1,4 +1,5 @@
 import type { HookCallback } from '@anthropic-ai/claude-agent-sdk';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { isFullyAbsolute, isPathInside, systemPathEnv, type PathEnv } from '../config/paths.js';
 import { realpathNearest } from '../scaffold/outputDir.js';
@@ -177,6 +178,12 @@ export interface GuardContext {
   grantedDirs(): readonly string[];
   /** Whether the user cancelled. Read on every call. */
   cancelled(): boolean;
+  /**
+   * The library skills of the spec the user approved last (after any they
+   * unticked); `undefined` before an approval. Read on every call. Without
+   * it, no library skill may be installed.
+   */
+  approvedLibrarySkills?(): readonly string[] | undefined;
   pathEnv?: PathEnv;
 }
 
@@ -267,6 +274,49 @@ export function grantHint(caller: Caller): string {
 
 const redact = (value: string): string => redactSecretLines(value).slice(0, 500);
 
+/** The names in a spec file's `librarySkills`; `undefined` when the file cannot be read as JSON. */
+export async function specLibrarySkillNames(file: string): Promise<string[] | undefined> {
+  try {
+    const text = await readFile(file, 'utf8');
+    const data = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text) as { librarySkills?: unknown };
+    const list = Array.isArray(data.librarySkills) ? (data.librarySkills as unknown[]) : [];
+    return list.map((item) => (typeof item === 'object' && item !== null ? String((item as { name?: unknown }).name) : String(item)));
+  } catch {
+    return undefined;
+  }
+}
+
+/** The names after `--skill` (or in `--skill=<name>`). */
+function skillOptions(words: readonly string[]): string[] {
+  const out: string[] = [];
+  words.forEach((word, index) => {
+    if (word === '--skill') out.push(words[index + 1] ?? '');
+    else if (word.startsWith('--skill=')) out.push(word.slice('--skill='.length));
+  });
+  return out;
+}
+
+/**
+ * Why `skills install <dir> …` may not run, or `undefined`: every skill it
+ * would install (the one `--skill` names, or the project spec's
+ * `librarySkills`) must be one the user approved in this creation's spec.
+ */
+async function libraryInstallRefusal(dir: string, words: readonly string[], approved: readonly string[] | undefined): Promise<string | undefined> {
+  if (approved === undefined) return 'No spec has been approved in this creation yet, so no library skill may be installed.';
+  const unapproved = (names: readonly string[]) => names.filter((name) => !approved.includes(name));
+  const named = unapproved(skillOptions(words));
+  if (named.length > 0) {
+    return `The user did not approve library skill ${named.join(', ')} for this project. Install only the spec's library skills: \`skills install "<project-dir>"\` without --skill.`;
+  }
+  const chosen = await specLibrarySkillNames(path.join(dir, '.briefstack', 'spec.json'));
+  if (chosen === undefined) return 'The project has no readable .briefstack/spec.json: scaffold it from the approved spec first.';
+  const extra = unapproved(chosen);
+  if (extra.length > 0) {
+    return `The project's spec names library skill ${extra.join(', ')}, which the user did not approve (or unticked). Its spec must be the approved one: remove them from .briefstack/spec.json.`;
+  }
+  return undefined;
+}
+
 /** Decides one tool call. Pure apart from reading symlinks on the disk. */
 export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Promise<GuardVerdict> {
   if (!ctx.isOwnSession(input.session_id)) return { verdict: 'pass' };
@@ -325,6 +375,10 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
         if (!(await insideAny(target, roots(), pathEnv))) {
           return deny(`That folder is outside the projects folder and the folders the user granted for this creation.${grantHint(caller)}`, summary);
         }
+      }
+      if (sub[0] === 'skills' && target !== undefined) {
+        const refusal = await libraryInstallRefusal(target, words, ctx.approvedLibrarySkills?.());
+        if (refusal !== undefined) return deny(refusal, summary);
       }
     }
     return { verdict: 'allow', reason: 'a briefstack CLI command this caller needs' };
