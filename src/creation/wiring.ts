@@ -2,7 +2,7 @@ import { maxActiveCreationsOf, permissionPolicyOf, type PathEnv } from '../confi
 import type { Lang } from '../i18n/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import { loadUsageContext, resolveActiveProfile } from '../usage/index.js';
-import { CreationManager } from './manager.js';
+import { CreationManager, type SkillCatalogue } from './manager.js';
 import { planUsageReader } from './planUsage.js';
 import { SdkRunner } from './sdkRunner.js';
 import type { CreationRunner, RunnerProfile } from './types.js';
@@ -14,6 +14,8 @@ export interface WebCreationOptions {
   lang?: Lang | undefined;
   /** The real runner by default; tests pass the fake one. */
   runner?: CreationRunner | undefined;
+  /** The skill library, for the spec approval screen. */
+  skills?: SkillCatalogue | undefined;
 }
 
 /** The session model and effort of the active usage profile, read when a creation starts. */
@@ -53,6 +55,7 @@ export async function createWebCreations(options: WebCreationOptions): Promise<C
     policy: async () => permissionPolicyOf((await read()).config),
     maxActive: async () => maxActiveCreationsOf((await read()).config),
     profile: () => activeRunnerProfile(pathEnv),
+    ...(options.skills === undefined ? {} : { skills: options.skills }),
     // Only with the real runner: the fake one has no plan to read.
     ...(options.runner === undefined ? { planUsage: planUsageReader({ pathEnv, repoDir }) } : {}),
   });

@@ -192,6 +192,15 @@ describe('skills install', { timeout: 60_000 }, () => {
     expect(await main(['skills', 'install', project, '--skill', 'sync-helper'], io)).toBe(1);
     expect(err.join('\n')).toContain('only approved skills can be installed');
     expect(await main(['skills', 'list'], io)).toBe(2);
+
+    // spec check refuses a library skill that is not approved now.
+    const specFile = path.join(dir, 'spec.json');
+    await writeFile(specFile, JSON.stringify(specInput({ librarySkills: [{ name: 'tidy-notes', reason: 'x' }, { name: 'sync-helper', reason: 'y' }] })), 'utf8');
+    err.length = 0;
+    expect(await main(['spec', 'check', specFile], io)).toBe(1);
+    expect(err.join('\n')).toContain('librarySkills.1.name: is not an approved skill of the library');
+    await writeFile(specFile, JSON.stringify(specInput({ librarySkills: [{ name: 'tidy-notes', reason: 'x' }] })), 'utf8');
+    expect(await main(['spec', 'check', specFile], io)).toBe(0);
   });
 });
 

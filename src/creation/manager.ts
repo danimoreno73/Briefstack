@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
+import { SLUG_RE } from '../spec/schema.js';
 import { DEFAULT_MAX_ACTIVE_CREATIONS } from '../config/limits.js';
 import { isPathInside, systemPathEnv } from '../config/paths.js';
 import { BriefstackError } from '../errors.js';
@@ -60,10 +61,26 @@ const SPEC_FIELDS = ['name', 'slug', 'summary', 'type', 'target', 'targetChosenB
 export type SpecFields = Partial<Record<(typeof SPEC_FIELDS)[number], string>>;
 const MAX_SPEC_FILE_BYTES = 256 * 1024;
 
+/** A library skill the spec chose, as the approval screen shows it (BRIEF-phase-6 §3.5). */
+export interface SpecLibrarySkill {
+  name: string;
+  reason: string;
+  agent?: string;
+  /** What the library says of it; absent when the library has no such skill. */
+  library?: { status: string; hasScripts: boolean; network: boolean; license: string | null; description: string };
+}
+
 export interface SpecView {
   /** `null` when the summary file is missing or not in the session folder. */
   summary: string | null;
   spec: SpecFields | null;
+  /** The library skills the spec chose; empty when none. */
+  librarySkills: SpecLibrarySkill[];
+}
+
+/** What the creation manager reads of the skill library. */
+export interface SkillCatalogue {
+  list(): Promise<{ name: string; status: string; hasScripts: boolean; network: boolean; license: string | null; description: string }[]>;
 }
 
 export type CreationStatus = 'running' | 'waiting' | 'finished';
@@ -202,6 +219,8 @@ export interface CreationManagerOptions {
   planUsage?: () => Promise<{ fiveHour: number | null; sevenDay: number | null } | undefined>;
   /** Default 5 minutes. */
   usageEveryMs?: number;
+  /** The skill library, for the approval screen's list of library skills. */
+  skills?: SkillCatalogue;
   /**
    * How long `shutdown()` waits for the runners to stop and the streams to
    * close. After it, what is left is marked interrupted and its stream closed
@@ -264,7 +283,8 @@ const answerSchemas = {
   question: questionAnswerSchema,
   permission: z.enum(['allow', 'deny']),
   spec: z.discriminatedUnion('decision', [
-    z.object({ decision: z.literal('approve') }),
+    // `removeSkills`: library skills the user unticked; the server drops them from spec.json.
+    z.object({ decision: z.literal('approve'), removeSkills: z.array(z.string().regex(SLUG_RE).max(64)).max(50).optional() }),
     z.object({ decision: z.literal('change'), text: z.string().trim().min(1) }),
     z.object({ decision: z.literal('cancel') }),
   ]),
@@ -445,6 +465,7 @@ export class CreationManager {
     const summary = await read(request.summaryFile);
     const specText = await read(request.specFile);
     let spec: SpecFields | null = null;
+    const librarySkills: SpecLibrarySkill[] = [];
     if (specText !== undefined) {
       try {
         const parsed = JSON.parse(specText) as Record<string, unknown>;
@@ -453,11 +474,64 @@ export class CreationManager {
           const value = parsed[key];
           if (typeof value === 'string') spec[key] = redactSecretLines(value);
         }
+        librarySkills.push(...(await this.specLibrarySkills(parsed.librarySkills)));
       } catch {
         spec = null;
       }
     }
-    return { summary: summary === undefined ? null : redactSecretLines(summary), spec };
+    return { summary: summary === undefined ? null : redactSecretLines(summary), spec, librarySkills };
+  }
+
+  /** The spec's library skills with what the library says of each. */
+  private async specLibrarySkills(raw: unknown): Promise<SpecLibrarySkill[]> {
+    if (!Array.isArray(raw)) return [];
+    const known = await (this.options.skills?.list() ?? Promise.resolve([])).catch(() => []);
+    const out: SpecLibrarySkill[] = [];
+    for (const item of raw.slice(0, 50) as unknown[]) {
+      if (typeof item !== 'object' || item === null) continue;
+      const { name, reason, agent } = item as Record<string, unknown>;
+      if (typeof name !== 'string' || !SLUG_RE.test(name)) continue;
+      const entry: SpecLibrarySkill = { name, reason: typeof reason === 'string' ? redactSecretLines(reason).slice(0, 1000) : '' };
+      if (typeof agent === 'string' && SLUG_RE.test(agent)) entry.agent = agent;
+      const found = known.find((skill) => skill.name === name);
+      if (found !== undefined) {
+        entry.library = { status: found.status, hasScripts: found.hasScripts, network: found.network, license: found.license, description: found.description };
+      }
+      out.push(entry);
+    }
+    return out;
+  }
+
+  /**
+   * The approval with the library skills the user unticked taken out of the
+   * spec the flow showed (inside the session folder). What the flow is told:
+   * approve, and which skills went. If the file cannot be changed, the flow
+   * is asked to remove them itself instead.
+   */
+  private async approveWithout(c: Creation, names: readonly string[]): Promise<unknown> {
+    const asChange = { decision: 'change', text: `Remove these library skills from the spec, then ask for approval again: ${names.join(', ')}.` };
+    const request = c.lastSpec;
+    const session = c.state.sessionId;
+    if (request === undefined || session === undefined) return asChange;
+    const pathEnv = systemPathEnv();
+    if (!isPathInside(request.specFile, pathEnv.pathApi.join(this.options.sessionsDir, session), pathEnv)) return asChange;
+    try {
+      const data = JSON.parse(await readFile(request.specFile, 'utf8')) as Record<string, unknown>;
+      const list = Array.isArray(data.librarySkills) ? (data.librarySkills as unknown[]) : [];
+      const isRemoved = (item: unknown) => typeof item === 'object' && item !== null && names.includes(String((item as { name?: unknown }).name));
+      const removed = list.filter(isRemoved).map((item) => String((item as { name: unknown }).name));
+      data.librarySkills = list.filter((item) => !isRemoved(item));
+      const temp = `${request.specFile}.${process.pid}.tmp`;
+      await writeFile(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+      await rename(temp, request.specFile);
+      return {
+        decision: 'approve',
+        removedLibrarySkills: removed,
+        note: 'The user approved the spec without these library skills. spec.json was updated already; do not add them back.',
+      };
+    } catch {
+      return asChange;
+    }
   }
 
   list(): CreationState[] {
@@ -500,6 +574,13 @@ export class CreationManager {
     }
     if (head.pending.kind === 'permission' && parsed.data === 'deny') {
       this.recordDenial(c, 'user', head.pending.payload.toolName, head.pending.payload.agentType);
+    }
+    if (head.pending.kind === 'spec') {
+      const decision = parsed.data as { decision: string; removeSkills?: string[] };
+      // The flow gets the spec as approved: unticked library skills are taken out first.
+      if (decision.decision === 'approve') {
+        result = decision.removeSkills !== undefined && decision.removeSkills.length > 0 ? this.approveWithout(c, decision.removeSkills) : { decision: 'approve' };
+      }
     }
     this.settle(c, result, parsed.data);
     return this.snapshot(c);

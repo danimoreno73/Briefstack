@@ -261,6 +261,14 @@ async function runSpec(args: readonly string[], io: CliIO, lang: Lang): Promise<
   getPreset(profiles, spec.profile);
   const template = spec.template ?? spec.type;
   await loadTemplate(template, spec.target, templateRoots(paths.libraryDir));
+  // Library skills must be approved now: an unknown or unapproved one is an issue like any other.
+  if (spec.librarySkills.length > 0) {
+    const approved = new Set((await new SkillService({ libraryDir: async () => paths.libraryDir }).approvedIndex().catch(() => [])).map((s) => s.name));
+    const issues = spec.librarySkills.flatMap((skill, index) =>
+      approved.has(skill.name) ? [] : [{ path: `librarySkills.${index}.name`, rule: 'librarySkill' as const, message: skill.name }],
+    );
+    if (issues.length > 0) throw new BriefstackError('spec.invalid', { file: specPath, issues });
+  }
   io.out(messages.valid(spec.name, spec.slug, template, spec.target, spec.profile));
   return EXIT_OK;
 }
@@ -591,15 +599,16 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     if (entry.action === 'live') io.err(messages.sweptLive(entry.pid ?? 0));
     if (entry.closedSession !== undefined) io.err(messages.sweptClosed(entry.closedSession));
   }
+  const skills = createWebSkills({ pathEnv: io.pathEnv, reviewer: io.skillReviewer, fetch: io.skillFetch });
   const creations = await createWebCreations({
     pathEnv: io.pathEnv,
     repoDir: io.repoDir,
     lang,
     runner: io.creationRunner,
+    skills,
   });
   let chat: ChatManager | undefined;
   let improvements: ImprovementManager | undefined;
-  const skills = createWebSkills({ pathEnv: io.pathEnv, reviewer: io.skillReviewer, fetch: io.skillFetch });
   let server;
   try {
     chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements });

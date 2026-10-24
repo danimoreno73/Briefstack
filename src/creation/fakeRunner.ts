@@ -17,6 +17,12 @@ import {
   type HookEvent,
 } from '../events/index.js';
 import { addNote } from '../library/notes.js';
+import { PACKAGE_ROOT } from '../packageRoot.js';
+import { scaffold } from '../scaffold/index.js';
+import { installSkills } from '../skills/install.js';
+import { SkillService } from '../skills/service.js';
+import { readSpec } from '../spec/index.js';
+import { baseProfilesFile, loadUsageProfiles } from '../usage/profiles.js';
 import { claimRefusedMessage } from './folderClaims.js';
 import type { CreationRunner, RunnerHandle, RunnerOutcome, RunnerStartOptions } from './types.js';
 
@@ -55,6 +61,10 @@ import type { CreationRunner, RunnerHandle, RunnerOutcome, RunnerStartOptions } 
  *   runner's hook would, and the flow goes on at `onRefused` (or the next line).
  * - `{"do":"library","section":"projects","name":"garden","text":"…"}`: the
  *   learn step's `library add` (needs the `libraryDir` option).
+ * - `{"do":"generate","dir":"garden"}`: what the generator does through the
+ *   CLI: `scaffold` of the session's `spec.json` into `projectsDir/dir`
+ *   (base templates, no git), then `skills install` when the spec has
+ *   library skills (needs the `projectsDir` and `libraryDir` options).
  * - `{"do":"turnEnd","message":"Which name do you want?"}`: the main session ends
  *   its turn with that text and nothing asked; the run waits for the user's
  *   free-text reply (`sendMessage`), keeps it in `received` (an option), and goes on.
@@ -134,6 +144,7 @@ const stepSchema = z.discriminatedUnion('do', [
   z.object({ do: z.literal('claim'), dir: z.string().min(1), onRefused: label.optional() }),
   z.object({ do: z.literal('turnEnd'), message: z.string() }),
   z.object({ do: z.literal('library'), section: z.string().min(1), name: z.string().min(1).optional(), text: z.string().min(1) }),
+  z.object({ do: z.literal('generate'), dir: z.string().min(1) }),
   z.object({ do: z.literal('label'), name: label }),
   z.object({ do: z.literal('goto'), label }),
   z.object({ do: z.literal('wait'), ms: z.number().int().min(0) }),
@@ -395,6 +406,21 @@ export class FakeRunner implements CreationRunner {
             const libraryDir = this.options.libraryDir;
             if (libraryDir === undefined) throw new Error('recording: a library step needs the libraryDir option');
             await addNote({ libraryDir, section: step.section, ...(step.name === undefined ? {} : { name: step.name }), text: step.text, session });
+            break;
+          }
+          case 'generate': {
+            // What the generator does through the CLI: scaffold the approved spec, then install its library skills.
+            const { projectsDir, libraryDir } = this.options;
+            if (projectsDir === undefined || libraryDir === undefined) throw new Error('recording: a generate step needs the projectsDir and libraryDir options');
+            const spec = await readSpec(path.join(sessionDir, 'spec.json'));
+            const outDir = path.resolve(projectsDir, step.dir);
+            await scaffold(spec, outDir, {
+              protectedDirs: [],
+              templateRoots: [path.join(PACKAGE_ROOT, 'library', 'templates')],
+              profiles: await loadUsageProfiles({ baseFile: baseProfilesFile() }),
+              gitInit: false,
+            });
+            if (spec.librarySkills.length > 0) await installSkills({ projectDir: outDir, skills: new SkillService({ libraryDir: async () => libraryDir }) });
             break;
           }
           case 'label':
