@@ -20,6 +20,8 @@ export function SettingsPage() {
   const [language, setLanguage] = useState('');
   const [policy, setPolicy] = useState<'ask' | 'unattended'>('ask');
   const [maxActive, setMaxActive] = useState('');
+  const [warnFiveHour, setWarnFiveHour] = useState('');
+  const [warnWeek, setWarnWeek] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
   const [saved, setSaved] = useState(false);
@@ -32,6 +34,8 @@ export function SettingsPage() {
     setLanguage(settings.configLang ?? '');
     setPolicy(settings.permissionPolicy);
     setMaxActive(String(settings.maxActiveCreations));
+    setWarnFiveHour(String(settings.usageWarning.fiveHour));
+    setWarnWeek(String(settings.usageWarning.week));
   }, [settings]);
 
   // Before saving, say whether the folder exists: a missing one is created by the save.
@@ -61,6 +65,8 @@ export function SettingsPage() {
     if (language !== (settings.configLang ?? '')) body.lang = language === '' ? null : language;
     if (policy !== settings.permissionPolicy) body.permissionPolicy = policy;
     if (maxActive.trim() !== String(settings.maxActiveCreations)) body.maxActiveCreations = Number(maxActive.trim());
+    if (warnFiveHour.trim() !== String(settings.usageWarning.fiveHour)) body.usageWarnFiveHour = Number(warnFiveHour.trim());
+    if (warnWeek.trim() !== String(settings.usageWarning.week)) body.usageWarnWeek = Number(warnWeek.trim());
     if (Object.keys(body).length === 0) return;
     setBusy(true);
     setError(undefined);
@@ -203,6 +209,51 @@ export function SettingsPage() {
                     {t.maxActiveNote}
                   </Note>
                 )}
+              </section>
+
+              <section class="card card-roomy" aria-labelledby="usage-warn-title">
+                <h2 class="t-2" id="usage-warn-title">
+                  {t.settingsUsageWarnTitle}
+                </h2>
+                <div class="limit-row">
+                  <div class="field">
+                    <label class="label" for="warn-five-hour">
+                      {t.settingsWarnFiveHour}
+                    </label>
+                    <input
+                      id="warn-five-hour"
+                      class="input input-mono limit-input"
+                      type="number"
+                      min={1}
+                      max={100}
+                      step={1}
+                      inputMode="numeric"
+                      value={warnFiveHour}
+                      aria-describedby="usage-warn-hint"
+                      onInput={(event) => setWarnFiveHour(event.currentTarget.value)}
+                    />
+                  </div>
+                  <div class="field">
+                    <label class="label" for="warn-week">
+                      {t.settingsWarnWeek}
+                    </label>
+                    <input
+                      id="warn-week"
+                      class="input input-mono limit-input"
+                      type="number"
+                      min={1}
+                      max={100}
+                      step={1}
+                      inputMode="numeric"
+                      value={warnWeek}
+                      aria-describedby="usage-warn-hint"
+                      onInput={(event) => setWarnWeek(event.currentTarget.value)}
+                    />
+                  </div>
+                </div>
+                <p class="help" id="usage-warn-hint">
+                  {t.settingsUsageWarnHelp}
+                </p>
               </section>
 
               <div class="btn-row">
