@@ -18,9 +18,18 @@ export const CHAT_READ_TOOLS = [
   'list_suggestions',
   'list_proposals',
   'show_proposal',
+  'list_skills',
 ] as const;
 
-export const CHAT_ACTION_TOOLS = ['start_creation', 'cancel_creation', 'propose_note_change', 'set_usage_profile', 'prepare_improvement'] as const;
+export const CHAT_ACTION_TOOLS = [
+  'start_creation',
+  'cancel_creation',
+  'propose_note_change',
+  'set_usage_profile',
+  'prepare_improvement',
+  'add_skill',
+  'add_skill_to_project',
+] as const;
 
 export type ChatToolName = (typeof CHAT_READ_TOOLS)[number] | (typeof CHAT_ACTION_TOOLS)[number];
 

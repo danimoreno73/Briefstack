@@ -611,7 +611,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   let improvements: ImprovementManager | undefined;
   let server;
   try {
-    chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements });
+    chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements, skills });
     improvements = await createWebImprovements({
       pathEnv: io.pathEnv,
       repoDir: io.repoDir,

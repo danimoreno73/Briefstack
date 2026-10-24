@@ -5,7 +5,7 @@
 
 /** Where an answer's data came from, so the user can open it. */
 export interface ChatSource {
-  kind: 'project' | 'note' | 'session' | 'creation' | 'usage' | 'settings' | 'proposal' | 'suggestion';
+  kind: 'project' | 'note' | 'session' | 'creation' | 'usage' | 'settings' | 'proposal' | 'suggestion' | 'skill';
   /** A project slug, a note path (`projects/garden.md`), a session or creation id. */
   ref: string;
   label?: string;
@@ -41,7 +41,11 @@ export type ConfirmationCard =
     }
   | { kind: 'usageProfile'; from: string; to: string; toLabel: { en: string; es: string } }
   /** An improvement session (phase 5): it uses plan; approving happens later, on the proposal page. */
-  | { kind: 'prepareImprovement'; request: string; sessions: string[]; lessons: boolean; suggestionId?: string; model: string; effort?: string };
+  | { kind: 'prepareImprovement'; request: string; sessions: string[]; lessons: boolean; suggestionId?: string; model: string; effort?: string }
+  /** Fetch a third-party skill into quarantine (phase 6); approving happens on its Skills page. */
+  | { kind: 'addSkill'; url: string; repo: string; folder: string; ref: string; tags: string[] }
+  /** Install an approved library skill into an existing project (phase 6). */
+  | { kind: 'addSkillToProject'; skill: string; project: string; target: string; location: string; hasScripts: boolean; network: boolean; license: string | null };
 
 /** `stale`: confirmed, but what the card showed no longer held (the note changed), so nothing was done. */
 export type ConfirmationState = 'pending' | 'confirmed' | 'declined' | 'failed' | 'expired' | 'stale';
