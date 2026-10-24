@@ -34,6 +34,8 @@ export interface Suggestion {
   params: { count?: number; outcome?: string; steps?: string[]; tools?: string[]; lines?: string[] };
   /** Set once an improvement was prepared from it. */
   proposalId?: string;
+  /** Set when the user discarded it (BRIEF-phase-6 §3.6): it is never shown again. */
+  dismissedAt?: string;
 }
 
 /** The sentence a suggestion stands for, in English: what the chat and the evidence get. The page translates it itself. */
@@ -134,6 +136,11 @@ export class SuggestionStore {
 
   markUsed(id: string, proposalId: string): Promise<void> {
     return this.update((list) => list.map((s) => (s.id === id ? { ...s, proposalId } : s)));
+  }
+
+  /** Keeps the suggestion with `dismissedAt`, so it is known and never listed again. */
+  dismiss(id: string, at: Date = new Date()): Promise<void> {
+    return this.update((list) => list.map((s) => (s.id === id && s.dismissedAt === undefined ? { ...s, dismissedAt: at.toISOString() } : s)));
   }
 }
 

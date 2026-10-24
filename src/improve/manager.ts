@@ -149,9 +149,17 @@ export class ImprovementManager {
     return viewOf(await this.find(id));
   }
 
-  /** Suggestions after creations, newest first. */
+  /** Suggestions after creations, newest first; discarded ones never come back. */
   async suggestions(): Promise<Suggestion[]> {
-    return (await this.options.suggestions?.list()) ?? [];
+    return ((await this.options.suggestions?.list()) ?? []).filter((s) => s.dismissedAt === undefined);
+  }
+
+  /** Discards a suggestion (BRIEF-phase-6 §3.6). */
+  async discardSuggestion(id: string): Promise<void> {
+    const store = this.options.suggestions;
+    const found = await store?.get(id);
+    if (store === undefined || found === undefined || found.dismissedAt !== undefined) throw new BriefstackError('improve.suggestionNotFound', { id });
+    await store.dismiss(id);
   }
 
   /** What blocks applying now (running creations), for the page. */
@@ -192,7 +200,8 @@ export class ImprovementManager {
       };
       await createWorktree(repoDir, worktreeDir, record.branch, baseCommit);
       const locations = await this.options.locations();
-      const found = choice.suggestionId === undefined ? undefined : await this.options.suggestions?.get(choice.suggestionId);
+      const stored = choice.suggestionId === undefined ? undefined : await this.options.suggestions?.get(choice.suggestionId);
+      const found = stored?.dismissedAt === undefined ? stored : undefined;
       if (choice.suggestionId !== undefined && found === undefined) {
         await removeWorktree(repoDir, worktreeDir, record.branch).catch(() => undefined);
         throw new BriefstackError('improve.suggestionNotFound', { id: choice.suggestionId });
