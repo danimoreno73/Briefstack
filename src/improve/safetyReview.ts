@@ -104,6 +104,8 @@ export function buildSafetyOptions(params: {
   env: Record<string, string | undefined>;
   abortController: AbortController;
   spawn: NonNullable<Options['spawnClaudeCodeProcess']>;
+  /** The safety review's own by default; the skill review passes its own. */
+  systemPrompt?: string;
 }): Options {
   return {
     cwd: params.cwd,
@@ -119,7 +121,7 @@ export function buildSafetyOptions(params: {
     mcpServers: {},
     allowedTools: [],
     canUseTool: async () => ({ behavior: 'deny', message: 'A safety review has no tools.' }),
-    systemPrompt: SAFETY_SYSTEM_PROMPT,
+    systemPrompt: params.systemPrompt ?? SAFETY_SYSTEM_PROMPT,
     maxTurns: 1,
     persistSession: false,
     abortController: params.abortController,
@@ -127,45 +129,56 @@ export function buildSafetyOptions(params: {
   };
 }
 
+/**
+ * One tool-free review session (Haiku, no tools, no settings) with the
+ * user's own Claude Code and login, in an empty temp folder: the reply's
+ * text, or `undefined` without one. The safety notice and the skill review
+ * both use it.
+ */
+export async function runToolFreeReview(deps: SdkSafetyReviewerDeps, systemPrompt: string, prompt: string): Promise<string | undefined> {
+  const { pathEnv } = deps;
+  const executable = (deps.findExecutable ?? (() => findClaudeExecutable({ env: pathEnv.env, platform: process.platform, homedir: pathEnv.homedir })))();
+  if (executable === undefined) throw new Error('Claude Code was not found.');
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'briefstack-safety-'));
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), deps.timeoutMs ?? TIMEOUT_MS);
+  const tracked = (deps.tracked ?? (() => spawnTracked((pid) => killProcessTree(pid))))();
+  let q: Query | undefined;
+  try {
+    const { env } = cleanEnvironment(pathEnv.env, resolveHome(pathEnv));
+    filterKnownSdkWarnings();
+    q = (deps.query ?? (sdkQuery as QueryFn))({
+      prompt,
+      options: buildSafetyOptions({ cwd, executable, env, abortController: abort, spawn: (options) => tracked.spawn(options), systemPrompt }),
+    });
+    for await (const message of q) {
+      if (message.type === 'system' && message.subtype === 'init' && (message.tools ?? []).length > 0) {
+        throw new Error(`The review was offered tools: ${(message.tools ?? []).join(', ')}`);
+      }
+      if (message.type === 'result') {
+        return 'result' in message && typeof message.result === 'string' ? message.result : undefined;
+      }
+    }
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+    try {
+      q?.close();
+    } catch {
+      // Already closed.
+    }
+    await tracked.killTree().catch(() => undefined);
+    await rm(cwd, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => undefined);
+  }
+}
+
 /** The real reviewer: one Agent SDK session with the user's own Claude Code and login, in an empty temp folder. */
 export class SdkSafetyReviewer implements SafetyReviewer {
   constructor(private readonly deps: SdkSafetyReviewerDeps) {}
 
   async review(diff: string): Promise<SafetyAnswer | undefined> {
-    const { pathEnv } = this.deps;
-    const executable = (this.deps.findExecutable ?? (() => findClaudeExecutable({ env: pathEnv.env, platform: process.platform, homedir: pathEnv.homedir })))();
-    if (executable === undefined) throw new Error('Claude Code was not found.');
-    const cwd = await mkdtemp(path.join(os.tmpdir(), 'briefstack-safety-'));
-    const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), this.deps.timeoutMs ?? TIMEOUT_MS);
-    const tracked = (this.deps.tracked ?? (() => spawnTracked((pid) => killProcessTree(pid))))();
-    let q: Query | undefined;
-    try {
-      const { env } = cleanEnvironment(pathEnv.env, resolveHome(pathEnv));
-      filterKnownSdkWarnings();
-      q = (this.deps.query ?? (sdkQuery as QueryFn))({
-        prompt: safetyPrompt(diff),
-        options: buildSafetyOptions({ cwd, executable, env, abortController: abort, spawn: (options) => tracked.spawn(options) }),
-      });
-      for await (const message of q) {
-        if (message.type === 'system' && message.subtype === 'init' && (message.tools ?? []).length > 0) {
-          throw new Error(`The safety review was offered tools: ${(message.tools ?? []).join(', ')}`);
-        }
-        if (message.type === 'result') {
-          return 'result' in message && typeof message.result === 'string' ? parseSafetyAnswer(message.result) : undefined;
-        }
-      }
-      return undefined;
-    } finally {
-      clearTimeout(timer);
-      try {
-        q?.close();
-      } catch {
-        // Already closed.
-      }
-      await tracked.killTree().catch(() => undefined);
-      await rm(cwd, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => undefined);
-    }
+    const text = await runToolFreeReview(this.deps, SAFETY_SYSTEM_PROMPT, safetyPrompt(diff));
+    return text === undefined ? undefined : parseSafetyAnswer(text);
   }
 }
 
