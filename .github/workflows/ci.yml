@@ -25,3 +25,13 @@ jobs:
       - run: npm run build
       - run: npm run lint
       - run: npm test
+      # End-to-end tests (Playwright, Chromium) over the fake runners and a local fake GitHub: no network, no login.
+      - name: Install Chromium for Playwright
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium for Playwright
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - run: npm run test:e2e
+        env:
+          CI: 'true'
