@@ -3300,3 +3300,121 @@ whose list the system draws, did not fit the design.
   keyboard (with the focus ring) and Escape on a phone. Screenshots with
   `npm run screenshots -- theme.shots.ts` (`screenshots/u5/theme/`,
   git-ignored).
+
+# Phase 6
+
+## H0 (2026-10-24, SDK 0.3.286, Claude Code 2.1.310, Windows 11)
+
+Run by Claude with the user's go-ahead (BRIEF-phase-6 §6). The GitHub checks
+were plain `curl` requests to public endpoints, without a token, from a
+scratch folder outside the repo; nothing was saved in the repo. The Claude
+Code check is `scripts/real/probe-h0-phase6.ts --yes` (haiku, `effort: low`,
+`maxTurns` 6, a temp `BRIEFSTACK_HOME` and project folder under
+`BRIEFSTACK_REAL_WORKDIR`, the same environment cleaning as a creation).
+Plan usage before and after it: 20% / 34% (5-hour / 7-day).
+
+### 1. Fetching one folder of a public GitHub repo at a commit, without a token
+
+Sources: GitHub REST docs "Rate limits for the REST API"
+(`docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api`)
+and "Git trees" (`docs.github.com/en/rest/git/trees`), read 2026-10-24;
+real requests against `anthropics/skills` the same day.
+
+- **Pin the ref:** `GET api.github.com/repos/<o>/<r>/commits/<ref>` with
+  `Accept: application/vnd.github.sha` answers the 40-hex commit SHA as plain
+  text. It takes a branch, a tag, a full or short SHA and `HEAD` (the default
+  branch). An unknown ref answers 422, a missing or private repo 404. With the
+  default JSON media type the answer also carries the commit's whole file
+  diff, so the SHA media type is used.
+- **List the folder:** `GET .../git/trees/<sha>` (documented: "The SHA1 value
+  or ref (branch or tag) name of the tree"; a commit SHA gives its root tree,
+  checked). One non-recursive call per folder level walks down to the skill
+  folder, then one `?recursive=1` call lists everything under it. Each entry
+  has `path`, `mode` (`100644` file, `100755` executable, `040000` folder,
+  `160000` submodule, `120000` symlink), `type`, `size` and the git blob
+  `sha`. `truncated` is set past 100,000 entries or 7 MB. The form
+  `<sha>:<path>` also works but is not documented, so it is not used.
+- **Download the files:** `GET raw.githubusercontent.com/<o>/<r>/<sha>/<path>`
+  answers the bytes as `text/plain` with `nosniff` and a sandbox CSP; it does
+  not count against the REST limit (no `X-RateLimit` headers). Checked: the
+  file's git blob hash (`git hash-object`) equals the tree entry's `sha`, so
+  every downloaded file can be verified against the pinned tree. A missing
+  file answers 404.
+- **Not used:** `codeload.github.com/.../tar.gz/<sha>` streams the whole
+  repository with no length, and would need a tar reader; `git clone` would
+  need git on the network path and a checkout.
+- **Rate limits:** 60 REST requests per hour per IP without a token
+  (`x-ratelimit-remaining`, `x-ratelimit-reset` in epoch seconds); past it,
+  403 or 429 with `x-ratelimit-remaining: 0`. Secondary limits answer 403 or
+  429 with `retry-after`. Adding a skill costs 1 (pin) + 1 per folder level +
+  1 (recursive list) requests: 4 for `skills/brand-guidelines`, so about a
+  dozen additions per hour.
+- **Sizes seen:** `anthropics/skills` `docx` has 61 files, 1.1 MB in all, the
+  largest 242 KB; `skill-creator` 18 files, 225 KB; `pdf` 12 files, 59 KB.
+  All three have `100755` scripts.
+- **Conclusion:** the REST trees API plus `raw.githubusercontent.com`, both
+  without a token, is reliable and verifiable. Point 1 has a solution; phase 6
+  goes on. Only these two hosts are contacted.
+
+### 2. Giving a subagent specific skills. PASS
+
+Source: "Create custom subagents" (`code.claude.com/docs/en/sub-agents`),
+read 2026-10-24: the agent frontmatter field `skills` lists skills "to
+preload into the subagent's context at startup. The full skill content is
+injected, not only the description"; up to 32 names; a missing or disabled
+skill is skipped with a debug-log warning; skills with
+`disable-model-invocation: true` cannot be preloaded. Without the field the
+subagent can still invoke project skills through the Skill tool.
+
+Probe: an agent with `skills: [probe-skill]`, `tools: Read` and
+`disallowedTools: Skill`, whose own text did not hold the code word, answered
+it (`ZEPHYR5187`). Conclusion: a generated agent file names the library
+skills meant for it in `skills:`.
+
+### 3. Adding a skill to the Claude app. Docs only
+
+Sources: help center "Using skills in Claude"
+(`support.claude.com/en/articles/12512180`) and "How to create custom
+Skills" (`support.claude.com/en/articles/12512198`), and the platform's
+"Agent Skills" overview (`platform.claude.com/docs/en/agents-and-tools/agent-skills/overview`),
+read 2026-10-24.
+
+- Customize > Skills, "+", "Create skill", "Upload a skill", choose a ZIP.
+  The skill then appears in the list with an on/off switch. Code execution
+  must be on (Settings > Capabilities, "Code execution and file creation").
+  Skills are per user, not shared unless shared.
+- ZIP layout: the skill folder at the root of the ZIP (`my-skill.zip` →
+  `my-skill/SKILL.md`, …), not loose files. The folder name must match the
+  skill's name. Upload fails with a missing `SKILL.md`, invalid characters in
+  the name or description, or a ZIP over the (unstated) size limit.
+- Name: at most 64 characters, lowercase letters, digits and hyphens, no
+  "anthropic" or "claude". Description: the help center says at most 200
+  characters for an upload, the platform docs 1,024.
+- Conclusion: `skills install` writes `skills/<name>.zip` holding
+  `<name>/…` for `claude-app` projects, and a name or description the app
+  would refuse is a review finding (warning), not a block.
+
+### 4. How Claude Code discovers project skills. PASS
+
+Source: "Skills" (`code.claude.com/docs/en/skills`), read 2026-10-24.
+
+- `.claude/skills/<skill-name>/SKILL.md` in the start folder and every parent
+  up to the repo root; nested `.claude/skills/` load when a file in that
+  folder is first read. Changes to `SKILL.md` are picked up live; a
+  top-level skills folder created mid-session needs `/reload-skills`.
+- All frontmatter fields are optional; unknown ones are ignored; YAML that
+  does not parse still loads the skill with no fields.
+- What a skill can make Claude Code run, for the review rules: `!`cmd`` at a
+  line start or after whitespace and ```` ```! ```` blocks run shell commands
+  when the skill renders, without a prompt (permission rules still apply);
+  `allowed-tools` pre-approves tools and is applied even in a folder never
+  trusted; `hooks` register for the rest of the session once the skill is
+  invoked; `shell: powershell`; and a `.claude-plugin/plugin.json` in the
+  skill folder loads it as a plugin with its own agents, hooks and MCP
+  servers (after workspace trust).
+
+Probe: the init message listed `probe-skill`, `no-name-skill` (no `name`
+field) and `folder-name`, whose frontmatter says `other-name`: the init list
+names a project skill by its folder. Conclusion: an installed library skill
+lives in `.claude/skills/<name>/` with `<name>` the library name, and agent
+files reference that folder name.
