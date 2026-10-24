@@ -3418,3 +3418,112 @@ field) and `folder-name`, whose frontmatter says `other-name`: the init list
 names a project skill by its folder. Conclusion: an installed library skill
 lives in `.claude/skills/<name>/` with `<name>` the library name, and agent
 files reference that folder name.
+
+## Decisiones sin Dani (fase 6)
+
+Taken while the user was away (2026-10-24), each the most conservative
+reading of BRIEF-phase-6 where it was ambiguous. All can be changed.
+
+1. **Where a skill lives.** `skills/<name>/<name>.md` (the metadata note, an
+   Obsidian folder note), `skills/<name>/files/` (the files exactly as
+   fetched) and, while a new version waits, `skills/<name>/next/`. Third-party
+   skills are **not** listed in `INDEX.md`: the interviewer and the architect
+   read the index, and only approved skills may reach the architect (they do,
+   through a section of `library context`). The existing flat
+   `skills/<name>.md` notes are untouched. The fetch is kept in memory (at
+   most 5 MB) and staged inside the library under the lock, then renamed into
+   place: no scratch folder under the home.
+2. **How a skill is fetched.** The REST trees API and
+   `raw.githubusercontent.com`, walking one folder level per request
+   (documented), not the undocumented `<sha>:<path>` form, a tarball or a
+   `git clone`. Limits: 200 files, 1 MB per file, 5 MB in all, 30 s per
+   request, 120 s per fetch; redirects are never followed. A ref with
+   slashes is found by trying at most five splits, shortest first.
+3. **What is refused outright** (not a finding): symlinks, submodules, Git
+   LFS pointers, a truncated listing, names that are not portable or differ
+   only in case, and `.gitattributes` or `.gitmodules` anywhere in the skill,
+   because they would change how the library's own git stores or checks out
+   files. A skill's `.gitignore` is kept and committed with `git add -f`;
+   skill commits use `core.autocrlf=false`, so the bytes in the library are
+   the bytes fetched.
+4. **License.** A license file in the skill folder, then a `license:` field
+   that is an SPDX id, then an SPDX header, then the repo root's license file
+   (one more raw download, no API call). None is a medium finding, an
+   unrecognised one a low finding.
+5. **Name.** The frontmatter `name` as a slug, else the folder, else the
+   repo. Reserved: `synced`, `anthropic-skills…` (Claude Code skips them) and
+   `files`, `next`. A second skill with a taken name is refused; the error
+   says whether it is the same source (then: "Check for a new version").
+6. **Review rules.** Severities: text aimed at the agent (ignore your
+   rules, bypass permissions, do not tell the user…), credentials, render-time
+   commands (`!`cmd``, ```` ```! ````), hooks, settings, a plugin manifest,
+   obfuscation and executable binaries are high; scripts, network calls,
+   shell execution, deletion and writes outside are medium; a link in prose
+   is low; findings about the Claude app's name and description limits are
+   low or info. At most 200 findings. "Network: yes" means a network call or
+   an address in a script, not a link in a README. "Scripts: yes" also counts
+   executable binaries.
+7. **Model review.** It runs during the add, before anything is written, with
+   the same tool-free Haiku session as phase 5 (the session code is now shared,
+   `runToolFreeReview`). No answer is "unavailable" and never blocks.
+8. **Statuses.** Approve from quarantine or rejected (only while the files
+   still match their hashes); reject from quarantine or approved; delete from
+   any status (one commit, so git can bring it back). "Check for a new
+   version" only for approved skills; approving the new version replaces the
+   approved one, and projects that already have the skill keep their copy.
+9. **Install.** `briefstack skills install <project-dir> [--skill <name>]`.
+   Without `--skill` it installs the spec's `librarySkills`, so the generator
+   only names the folder. "Records the source and commit next to them" is
+   read as `.briefstack/skills.json` in the project, so the skill folder holds
+   exactly the approved files and the hash check covers all of it. Never over
+   an existing file; never through a link that leaves the project. For
+   `claude-app` the archive is `skills/<name>.zip`, and `NEXT_STEPS.md` gets a
+   "Skills" section with the steps and one line per archive; the steps name
+   the app's menus in English in both languages (we cannot know the app's own
+   translation).
+10. **Validator.** Installed library skills are checked by hash
+    (`librarySkill.missing`, `.modified`, `.notInstalled`, `.nextSteps`,
+    `.invalidRecord`, all errors) and their own text is not scanned for
+    secrets, paths, links or frontmatter: it is the author's, it was reviewed
+    in quarantine, and a generator "fixing" it would break the hashes.
+11. **Spec.** `librarySkills: [{ name, reason, agent? }]`, for both targets
+    (`agent` must be a spec agent, so it only exists for `claude-code`); a name
+    may not repeat a generated skill's. `spec check` refuses one that is not
+    approved now. `scaffold` adds a `skills:` list to the agent files that get
+    one.
+12. **Unticking at the approval.** The server removes the unticked skills from
+    the `spec.json` the flow showed (inside the session folder) and the flow
+    gets `approve` with `removedLibrarySkills`; if the file cannot be changed,
+    it gets a `change` asking it to remove them.
+13. **Guard.** One new entry: the generator may run `skills install`, with the
+    same folder check as `scaffold` (inside the projects folder or a granted
+    one, never a `.git` folder) and a denial when no folder is named.
+14. **Chat.** A read tool `list_skills` was added (not named in the brief) so
+    the chat can tell which skills exist before `add_skill_to_project`.
+    `add_skill_to_project` calls the same install function the CLI
+    subcommand calls (it does not spawn the CLI), and adds one dated line to
+    the project note. The installed files are not committed in the project's
+    own repo; the user commits them. Adding a skill to an existing project is
+    only in the chat, as the brief says; there is no page button.
+15. **Plan-usage warning.** At or above a threshold (`>=`). One reading is
+    reused for a minute; without a reading (no login, a failure) there is no
+    warning. It covers starting a creation and preparing an improvement, from
+    the pages (`usage.high`, then "Start anyway") and from the chat (the card
+    shows the values; confirming is "start anyway").
+16. **Archive.** `archived: <date>` in the project's status block; unarchiving
+    removes the line. `GET /api/projects` and the chat keep listing archived
+    projects (with the date); only the Projects page hides them by default.
+17. **Discard.** A discarded suggestion keeps `dismissedAt`, so it is known
+    and never listed or prepared again. A chat message that showed it before
+    still shows it; discarding it there just hides it.
+18. **Tests.** A local fake GitHub serves the fetch tests and the e2e suite (no
+    network). The e2e suite now runs in CI (Linux, Chromium). Its first run
+    failed because the e2e sandbox moves the home and Playwright looked for
+    its browser there; the fixture now keeps `PLAYWRIGHT_BROWSERS_PATH`.
+    Vitest's default timeout went from 5 s to 30 s: with phase 6's git-heavy
+    tests, two older git tests passed 5 s in a full parallel run on Windows.
+    One commit (`2557045`, the real scripts) was made in the same command as a
+    full test run that had those two timeouts; the next two commits fixed the
+    timeout, and every later commit and push had a green run.
+19. **CLAUDE.md** now names phase 6 (its brief and plan), as earlier phases
+    did.

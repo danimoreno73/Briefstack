@@ -13,13 +13,30 @@ push and CI after each milestone.
 
 ## 0. Status
 
-Updated 2026-10-24. H0 done; M1 next.
+Updated 2026-10-24. M1–M11 done; the real checks and the real run
+(section 3) are the user's, not run yet. A new session reads `CLAUDE.md`,
+`docs/BRIEF-phase-6.md`, this file and `docs/decisions.md` from "# Phase 6"
+onwards before continuing.
 
 ### Done
 
 | # | What exists now |
 |---|---|
 | H0 | All four points answered (decisions.md, "# Phase 6", "H0"): REST trees API + `raw.githubusercontent.com` without a token, blob hashes verified; subagent `skills:` preloads (probe PASS); app ZIP layout; discovery by folder name (probe PASS). Probe `scripts/real/probe-h0-phase6.ts` |
+| M1 | `src/skills/url.ts` (link forms, ref splits), `github.ts` (`fetchSkill`: pin, tree walk, limits, refusals, blob hashes, rate limit, no redirects, timeouts); `tests/skillsWorld.ts` (fake GitHub); tests `skills-url`, `skills-fetch`; `skills.*` error codes in English and Spanish |
+| M2 | `src/skills/review.ts` (inventory, frontmatter, line and file rules, license), `modelReview.ts` (`SdkSkillReviewer`, fake; `runToolFreeReview` shared with the phase 5 safety notice); `tests/skillFixtures.ts` (harmless, exfiltrator, injector, secret); tests `skills-review`, `skills-model-review` |
+| M3 | `src/skills/record.ts` (metadata note), `service.ts` (`SkillService`: add, approve, reject, delete, tags, check update into `next/` with a diff, approve or reject it, approved index, approved files with hashes); `gitCommit` takes `git add` options; test `skills-library` |
+| M4 | Routes `src/server/skills.ts`, `briefstack web` serves them (`src/skills/wiring.ts`); HTTP statuses; test `server-skills` |
+| M5 | `src/skills/zip.ts`, `install.ts` (`skills install`, `.briefstack/skills.json`, NEXT_STEPS section), CLI subcommand, validator `librarySkill.*`, guard entry for the generator; spec field `librarySkills` and agent `skills:` lists; tests `skills-install`, `spec`, `creation-guard` |
+| M6 | `library context` lists approved skills as data; `spec check` refuses unapproved ones; approval screen data and unticking (`CreationManager.readSpec`, `removeSkills`); `FakeRunner` `generate` step; architect, generator and skill instructions; test `creation-library-skills` |
+| M7 | Chat tools `list_skills`, `add_skill`, `add_skill_to_project` (`src/skills/projectInstall.ts`), cards, source kind `skill`; test `chat-skills-tools` |
+| M8 | Plan-usage warning (`src/usage/warning.ts`, config thresholds, `usage.high`, `force`, chat cards), archive (`src/library/archive.ts`, route), discard (`dismissedAt`, route); test `small-additions` |
+| M9 | UI: Skills page (`src/ui/skills.tsx`), spec approval list, usage-warning dialog, archive button and filter, discard button, Settings thresholds, chat cards; English and Spanish strings |
+| M10 | `tests/e2e/skills.spec.ts` (12 tests: add from the page and the chat, review page, malicious and injected skills, rate limit, new version with diff, architect proposes two and one is unticked, install into a new and an existing project, usage warning on the page and the card, archive, discard); the e2e suite runs in CI |
+| M11 | `scripts/real/check-skill-fetch.ts`, `check-skill-model-review.ts`, `check-skill-creation.ts` with static tests (not run); `docs/api.md` (skill routes, `skills install`, archive, discard, `usage.high`, chat tools, `generate` recording line); decisions "Decisiones sin Dani (fase 6)" |
+
+Gates at the end: build, lint, 963 unit tests (2 more on Linux only) and 89
+e2e tests pass locally on Windows; CI (Linux, unit and e2e) green.
 
 ## 1. Approach
 
@@ -37,8 +54,9 @@ Updated 2026-10-24. H0 done; M1 next.
     update waits for approval (its metadata under `next:` in the note).
   Third-party skills are not listed in `INDEX.md` (the interviewer and the
   architect read it); the existing `skills/<name>.md` notes are untouched.
-- **Fetch scratch:** `<home>/skills-fetch/<random>/`, removed after each
-  fetch; nothing is written to the library before the whole fetch passed.
+- **Fetch:** kept in memory (at most 5 MB), staged in the library under the
+  lock and renamed into place; nothing is written before the whole fetch and
+  its review passed.
 
 ### Fetch (`src/skills/github.ts`)
 
@@ -179,4 +197,41 @@ suite added to CI (Linux, Chromium).
 
 ## 3. Real runs (prepared, run by the user)
 
-Filled in at M11.
+Each script asks for `--yes`, works in a temp `BRIEFSTACK_HOME` and folder
+under `BRIEFSTACK_REAL_WORKDIR` (set it to a scratch folder outside the
+repo, the library and the projects folder), never touches the real library
+or projects, never rewrites the agent files, prints the plan usage before
+and after, and does not start above 70% of the 5-hour window or 95% of the
+week. Run them from PowerShell in the repo, in this order:
+
+1. `npx tsx scripts/real/check-skill-model-review.ts --yes`: two very short
+   Haiku reviews. Expected: the harmless skill is not flagged; the malicious
+   one is flagged, with reasons, although its SKILL.md tells the reviewer to
+   answer otherwise.
+2. `npx tsx scripts/real/check-skill-fetch.ts --yes` (optionally
+   `--url <github link>`): fetches `anthropics/skills` `skills/brand-guidelines`
+   without a token (about four GitHub requests), one Haiku review, approve,
+   install into a temp project. Expected: pinned to a commit, SKILL.md and
+   hashes, a model answer, one library commit, installed, the validator finds
+   it intact, the temp library clean.
+3. `npx tsx scripts/real/check-skill-creation.ts --yes`: fetches the same
+   skill (fake review), approves it, then one creation on the saver profile
+   with an idea that needs it (about the cost of `check-improvement-flow`).
+   Expected: the spec lists the skill, the creation completes, the project
+   has it installed, the validator finds no errors, no turn waits for a text
+   answer.
+
+Then the real run (BRIEF-phase-6 §5), on the real library:
+
+4. `npm run build`, `npm run briefstack -- web`, open the printed link.
+5. Skills page: add two real skills from GitHub links (for example two
+   folders of `anthropics/skills`), read each review and approve both.
+6. New project: an idea that needs one of them. At the spec approval the
+   skill is listed with its reason (untick nothing, or untick one to see it
+   left out). Finish the creation; check `.claude/skills/<name>/` and
+   `.briefstack/skills.json` in the project, then open the project with
+   `claude` and check the skill is listed and works.
+7. Chat: "add <the other skill> to <an existing project>", confirm the card;
+   check the files and the line in the project note.
+8. Accept the result. Tag `phase-6-done` (the user, or the next session
+   when asked).

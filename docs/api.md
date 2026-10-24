@@ -160,8 +160,9 @@ will be created.
 
 ### `GET /api/settings`
 
-`{ "projectsDir", "lang", "configLang": "en" | "es" | null, "permissionPolicy": "ask" | "unattended", "maxActiveCreations": 2 }`.
-`lang` is the language in use; `configLang` the one saved in the config.
+`{ "projectsDir", "lang", "configLang": "en" | "es" | null, "permissionPolicy": "ask" | "unattended", "maxActiveCreations": 2, "usageWarning": { "fiveHour": 80, "week": 85 } }`.
+`lang` is the language in use; `configLang` the one saved in the config;
+`usageWarning` the plan-usage percentages from which a start shows a warning.
 
 ## Write routes
 
@@ -205,8 +206,20 @@ Body with at least one of:
 - `permissionPolicy`: `"ask"` or `"unattended"`.
 - `maxActiveCreations`: a whole number from 1 up (default 2): how many
   creations may be active at once.
+- `usageWarnFiveHour`, `usageWarnWeek`: whole numbers from 1 to 100
+  (defaults 80 and 85): the plan-usage warning thresholds.
 
 Answers the same as `GET /api/settings`.
+
+### `PUT /api/projects/:slug/archived`
+
+Body `{ "archived": true | false }`. Archives (`archived: <date>` in the
+note's status block) or unarchives (the line removed) a project; nothing
+else changes and nothing is deleted. One commit.
+`{ "archived": "<date>" | null, "committed", "warnings" }`; unchanged when
+it already was. `404 library.noteNotFound`. `GET /api/projects` keeps
+listing archived projects (`status.archived`); the page hides them unless
+asked.
 
 ## Creation routes
 
@@ -214,10 +227,16 @@ Answers the same as `GET /api/settings`.
 
 Starts a creation session, which runs the `/new-project` flow.
 
-- Body: `{ "idea": "<free text, 1–20000 chars>" }`
+- Body: `{ "idea": "<free text, 1–20000 chars>", "force"?: true }`
 - `201 { "id": "<creation id>" }`
 - `409 creation.limit` when as many creations as config `maxActiveCreations`
   (default 2) are active.
+- `409 usage.high` with `params { fiveHour, sevenDay, warnFiveHour, warnWeek }`
+  when the plan usage is at or above a threshold (Settings) and `force` is
+  not set: nothing started. The page shows the values and sends the same
+  body with `"force": true` for "Start anyway". The reading is the
+  `/usage` one (a session that sends no message); one younger than a
+  minute is reused; without a reading there is no warning.
 
 ### `GET /api/creations`
 
@@ -280,7 +299,9 @@ Starts a creation session, which runs the `/new-project` flow.
 ### `GET /api/creations/:id/spec`
 
 The spec the flow last asked the user to approve, for the approval screen:
-`{ "summary": "<markdown or null>", "spec": { "name"?, "slug"?, "summary"?, "type"?, "target"?, "targetChosenBy"?, "targetReason"?, "profile"?, "language"? } | null }`.
+`{ "summary": "<markdown or null>", "spec": { "name"?, "slug"?, "summary"?, "type"?, "target"?, "targetChosenBy"?, "targetReason"?, "profile"?, "language"? } | null, "librarySkills": [{ "name", "reason", "agent"?, "library"?: { "status", "hasScripts", "network", "license", "description" } }] }`.
+`librarySkills` are the approved library skills the spec chose (phase 6),
+with what the library says of each (absent when it has no such skill).
 Both files must be inside the creation's session folder, and lines that look
 like a secret come back as `[redacted]`. `404 creation.noSpec` before the
 flow has shown a spec.
@@ -294,7 +315,7 @@ pending kind:
 |---|---|
 | `question` | `{ "<question text>": "<option label, labels joined by \", \", or free text>" }` with every question of the batch and no other key |
 | `permission` | `"allow"` or `"deny"` |
-| `spec` | `{ "decision": "approve" }`, `{ "decision": "change", "text": "…" }` or `{ "decision": "cancel" }` |
+| `spec` | `{ "decision": "approve", "removeSkills"?: ["<library skill>", …] }`, `{ "decision": "change", "text": "…" }` or `{ "decision": "cancel" }`. With `removeSkills` the server first takes those library skills out of the `spec.json` the flow showed (in the session folder) and tells the flow `{ "decision": "approve", "removedLibrarySkills": […], "note" }`; if the file cannot be changed the flow gets a `change` asking it to remove them |
 | `grant` | `true` (create it if missing and allow writes there, this session only) or `false` |
 
 - `200 CreationState` (after the answer).
@@ -449,13 +470,21 @@ string redacted.
 | `list_proposals` | read | — | improvement proposals (summaries) and the one being prepared now |
 | `show_proposal` | read | `proposalId` | status, request, diff hunks and rationale per file, validator problems, safety notice, check results, rounds, what blocks applying |
 | `prepare_improvement` | action | `request`, `sessions`? (up to 5), `lessons`?, `suggestionId`? | card, then starts an improvement session (one at a time; a request with a secret is refused). Approving, asking for changes, discarding and reverting are not chat tools: they happen on the proposal page |
+| `list_skills` | read | `status`? | the library's third-party skills: name, the author's description (data), status, tags, source, scripts, network, license, high findings, model review, whether a new version waits |
+| `add_skill` | action | `url`, `tags`? | card with the link, repo, folder and ref (an invalid link is refused before any card), then fetches the skill into quarantine with its review. Approving, rejecting and deleting are not chat tools: they happen on the skill's page |
+| `add_skill_to_project` | action | `skill`, `project` (slug) | only an approved skill, only a project with a library note, not twice; card with where it goes, its license and a scripts note, then the same install as `skills install --skill` and one dated line in the project note |
+
+`start_creation` and `prepare_improvement` cards carry `usage`
+(`{ fiveHour, sevenDay, warnFiveHour, warnWeek }`) when the plan usage is
+at or above a threshold: confirming the card is "start anyway".
 
 An action is refused without a card when another card waits, after 10 cards
 in 10 minutes, when the text holds a secret, when nothing would change, or
 when the limit of creations is reached. Not available from the chat:
 reverting library commits, the projects folder, the permission policy,
 answering a creation's questions or approving its spec, approving,
-discarding or reverting an improvement.
+discarding or reverting an improvement, approving, rejecting or deleting a
+skill.
 ## Improvement routes
 
 Self-improvement of the creation flow (BRIEF-phase-5). Without an
@@ -519,7 +548,16 @@ or "in the expected effect".
 Body `{ "request": "<1–10000>", "sessions"?: [id, …] (at most 5), "lessons"?: boolean, "suggestionId"? }`.
 Starts an improvement session (one at a time): `202 { proposal }`;
 `409 improve.busy` while one runs, `409 improve.noRepo` when the repo is not
-on a branch or the home is inside it, `404 improve.suggestionNotFound`.
+on a branch or the home is inside it, `404 improve.suggestionNotFound` (also
+for a discarded suggestion). `"force": true` in the body skips the
+plan-usage warning (`409 usage.high`, as for `POST /api/creations`).
+
+### `POST /api/improve/suggestions/:id/discard`
+
+Discards a suggestion for good (`dismissedAt` in
+`<home>/improve/suggestions.json`): it is no longer listed here, in the chat
+or on a result screen, and cannot be prepared. `200 { suggestions }`;
+`404 improve.suggestionNotFound` (unknown or already discarded).
 
 ### `POST /api/improve/proposals/:id/changes`
 
@@ -556,6 +594,92 @@ From `ready`, when the proposal offers a real check: starts it (`202`); the
 result is added to the proposal as `realCheck`. `409 improve.noCheck`,
 `409 improve.checkBusy`.
 
+## Skill routes
+
+Third-party skills of the library (BRIEF-phase-6). Without a skill service
+every route answers `503 skills.unavailable`. Reads need the token; writes
+the token and the same-origin check. Each change is one library commit of
+`skills/<name>/` (the metadata note `skills/<name>/<name>.md`, the files
+under `files/`, a new version under `next/`). Approving, rejecting and
+deleting exist only here, for the Skills page.
+
+A detail is `{ "record": SkillRecord, "diff"?: [FileDiff] }`. `SkillRecord`
+is the metadata note's frontmatter: `name`, `description`, `status`
+(`quarantine` | `approved` | `rejected`), `tags`, `statusChanged`,
+`source { url, repo, path, ref, commit, link }`, `fetched`,
+`license { spdx, source, file? }`, `hasScripts`, `network`,
+`allowedTools?`, `files [{ path, size, kind, sha256, executable }]`,
+`findings [{ rule, severity, file, line?, excerpt? }]`,
+`model { state: flagged | clear | unavailable, reason, model, at }`, and
+`next?` (the same version fields for a new version in quarantine).
+`FileDiff` is `{ path, change: added | removed | changed, hunks?, binary? }`
+of `next` against the current files. A change answers
+`{ "detail"?, "committed", "warnings" }`.
+
+### `GET /api/skills`
+
+`200 { skills: [{ name, description, status, tags, repo, path, commit, link, hasScripts, network, license, high, model, update, statusChanged }] }`,
+by name. Notes that do not read back are left out.
+
+### `GET /api/skills/:name` and `GET /api/skills/:name/file?path=<p>&version=current|next`
+
+The detail; one file of a version as `{ path, kind, size, text? }` (no
+`text` for a binary or a file over 512 KB). `404 skills.notFound`,
+`404 skills.fileNotFound` (only recorded paths are served),
+`409 skills.unreadable`.
+
+### `POST /api/skills`
+
+Body `{ "url": "<github link>", "tags"?: [...] }`. Fetches the folder from
+the two GitHub hosts at the commit the ref points to (limits: 200 files,
+1 MB each, 5 MB in all; no symlinks, submodules, LFS pointers,
+`.gitattributes` or `.gitmodules`; portable names; every blob hash
+checked), reviews it (static rules, license, the model review) and stores it
+in quarantine. `201 { detail, committed, warnings }`. `400 skills.invalidUrl` (`params.reason`:
+`notHttps`, `notGithub`, `shape`, `notSkillFile`), `404 skills.repoNotFound`,
+`skills.refNotFound`, `skills.pathNotFound`, `400 skills.noSkillFile`,
+`skills.tooLarge`, `skills.forbiddenEntry`, `skills.integrity`,
+`skills.invalidName`, `skills.invalidTag`, `409 skills.exists`
+(`params.sameSource`), `429 skills.rateLimited` (`params.reset`),
+`502 skills.network`.
+
+### `POST /api/skills/:name/approve`, `/reject`, `/delete`
+
+Approve (from quarantine or rejected; only while the files on disk still
+match the recorded hashes, else `409 skills.modified`), reject (from
+quarantine or approved), delete (any status). `409 skills.wrongStatus`.
+
+### `PUT /api/skills/:name/tags`
+
+Body `{ "tags": [...] }`: lower-case letters, digits and hyphens, at most
+30 characters each and 10 in all (`400 skills.invalidTag`).
+
+### `POST /api/skills/:name/check-update`
+
+Only for an approved skill: fetches the latest commit of the ref it was
+added from into `next/`, reviewed like a new skill.
+`{ ..., "outcome": "updated" | "upToDate" | "pinned" }` (`pinned`: added at
+a commit). `409 skills.updatePending` while one waits. Never automatic.
+
+### `POST /api/skills/:name/update/approve` and `/update/reject`
+
+The new version replaces the approved one (checked against its hashes), or
+is dropped. `409 skills.noUpdate` when none waits.
+
+## CLI: `skills install`
+
+`briefstack skills install <project-dir> [--skill <name>] [--json]`. Without
+`--skill`, the library skills of the project's `.briefstack/spec.json`
+(`librarySkills`) not installed yet; with it, one more. Only approved
+skills whose library files match their hashes; never over an existing
+file; never through a link that leads out of the project. `claude-code`:
+`.claude/skills/<name>/` byte for byte; `claude-app`: `skills/<name>.zip`
+(the skill folder at the archive's root) and a line under "Skills" in
+`NEXT_STEPS.md`. Each install is recorded in `.briefstack/skills.json`
+(source, commit, agent, file hashes, the archive's hash). The validator
+checks those hashes (`librarySkill.*`) and leaves the skills' own text
+alone. The creation guard lets the generator run it, into an allowed folder.
+
 ## Appendix: fake runner recordings
 
 `FakeRunner` (`src/creation/fakeRunner.ts`) replays a recorded creation for
@@ -580,6 +704,7 @@ ignored. Examples are in `tests/fixtures/recordings/`: `full` (a whole creation)
 | `{"do":"claim","dir":"garden","onRefused":"<label>"}` | claims the output folder (relative to the `projectsDir` option); when another creation holds it, reports a denial and jumps to `onRefused` |
 | `{"do":"library","section":"lessons","text":"…"}` | `library add` into the `libraryDir` option, through the library queue |
 | `{"do":"turnEnd","message":"…"}` | ends a turn with that text and nothing asked, then waits for the free-text reply |
+| `{"do":"generate","dir":"meeting-notes"}` | what the generator does through the CLI: `scaffold` of the session's `spec.json` into the `projectsDir` option (base templates, no git), then `skills install` when the spec has library skills (needs the `libraryDir` option) |
 
 Without an `on…` label, a denied permission or a refused grant just
 continues, and a cancelled question or spec closes the session as the skill
