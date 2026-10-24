@@ -11,11 +11,12 @@ before each step; the work stops if the 7-day window is over 85% or the
 
 ## 0. Status
 
-Updated 2026-10-23. U0 to U5 are done: every screen uses the design the
-user brought (`docs/diseno/`), and direction A is gone. **Waiting for the
-user's approval of the final screenshots (`screenshots/u5/`) and one use of
-the app** (a creation and the chat); the tag `ui-done` comes after that,
-not before. Controls the design shows without a function in the app are in
+Updated 2026-10-24. **The UI pass is done (tag `ui-done`).** U0 to U5 are
+done: every screen uses the design the user brought (`docs/diseno/`), and
+direction A is gone. The user approved the UI except the theme switch,
+which was redone in the design's style (a menu button instead of a native
+select; `docs/decisions.md`, "U5: the theme switch at the user's review").
+Controls the design shows without a function in the app are in
 `docs/IDEAS.md` §3.
 
 | Step | State | What exists |
@@ -26,7 +27,7 @@ not before. Controls the design shows without a function in the app are in
 | U2 | done | Direction A with Bricolage Grotesque + JetBrains Mono is the only style; flags, the other direction and fonts removed. Tokens in `src/ui/static/tokens.css` (`light-dark()`), base and components in `style.css`; theme switch (`src/ui/theme.ts`); `tests/unit/contrast.test.ts`; components page and shots in `tests/screenshots/components.*` (output `screenshots/u2/`, git-ignored); 13 findings closed, 3 partial (`docs/design/audit.md`, "Status after U2") |
 | U3 | done | Every screen in six groups plus the shell, one commit each: creation; chat; improvements; projects and creations; library; usage, settings and the restart message; page titles and the skip link. All high findings and every medium but M8 (partial, API proposal) closed; `docs/design/audit.md` "Status after U3". Minimum browsers in the README and `docs/decisions.md`. Screenshots per group in `screenshots/u3/` (git-ignored); `SHOTS_VIEWS` limits the views |
 | U4 | done | M8 with a read-only, redacted `idea` in `GET /api/sessions` (user-approved exception, `docs/api.md`, `docs/decisions.md`); L3, L6, L10 closed; the flaky "both library commits" test and three other one-shot readings wait for conditions (10 full e2e runs in a row green); the note editor's load race fixed; final audit on every screen with 5 new findings closed, none high or medium left (`docs/design/audit.md`, "Status after U4"); `docs/design/before-after.md` with 6 pairs in `docs/design/before-after/`; final screenshots in `screenshots/u4/final/` (git-ignored) |
-| U5 | done | The design from the canvas in `docs/diseno/` on every screen. `bs.css` copied (one phone rule removed at the user's review), `app.css`, `fonts.css` with Inter, Roboto Slab (Apache 2.0, user-approved exception) and IBM Plex Mono. The shell and the creation screen first (with the user's review applied), then six groups, one commit each: usage and settings; projects, detail, creations and new project ("Start again with this idea"); library; improvements; chat page, drawer and cards (focus trap); the clean-up (direction A's sheet, tokens, fonts, `.legacy` and the old screenshot tools removed). Controls without a function left off and in `docs/IDEAS.md` §3. Contrast test over bs.css; screenshots `npm run screenshots -- screens.shots.ts` and `panel.shots.ts` (`screenshots/u5/`, git-ignored) |
+| U5 | done | The design from the canvas in `docs/diseno/` on every screen. `bs.css` copied (one phone rule removed at the user's review), `app.css`, `fonts.css` with Inter, Roboto Slab (Apache 2.0, user-approved exception) and IBM Plex Mono. The shell and the creation screen first (with the user's review applied), then six groups, one commit each: usage and settings; projects, detail, creations and new project ("Start again with this idea"); library; improvements; chat page, drawer and cards (focus trap); the clean-up (direction A's sheet, tokens, fonts, `.legacy` and the old screenshot tools removed). Controls without a function left off and in `docs/IDEAS.md` §3. Contrast test over bs.css; screenshots `npm run screenshots -- screens.shots.ts` and `panel.shots.ts` (`screenshots/u5/`, git-ignored). At the user's review, the theme switch became a menu button in the design's style with keyboard support (`src/ui/themeSwitch.tsx`, e2e tests, `theme.shots.ts`); UI approved, tag `ui-done` |
 
 ## 1. Steps
 
@@ -72,7 +73,10 @@ not before. Controls the design shows without a function in the app are in
   of its states, the result with a project and three suggestions, and a
   finished session's panel, in the same four views (output
   `screenshots/u5/`, git-ignored).
-- Both show this machine's temp paths, so their pictures are not committed.
+- `npm run screenshots -- theme.shots.ts` takes the theme menu, closed and
+  open from the keyboard, in the same four views, plus a close-up of the
+  rail's foot (output `screenshots/u5/theme/`, git-ignored).
+- They show this machine's temp paths, so their pictures are not committed.
   The U0 and U2 tools (`audit.shots.ts`, the components page) were removed
   with direction A; their pictures stay in `docs/design/shots/` and
   `docs/design/before-after/`.
