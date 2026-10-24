@@ -44,7 +44,8 @@ describe('skill names', () => {
   });
 });
 
-describe('SkillService', () => {
+// Each change is a git commit: under a full test run these take seconds.
+describe('SkillService', { timeout: 60_000 }, () => {
   let dir: string;
   let cleanup: () => Promise<void>;
   let libraryDir: string;

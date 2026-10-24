@@ -16,7 +16,7 @@ interface Reply {
   json: Record<string, unknown>;
 }
 
-describe('skill routes', () => {
+describe('skill routes', { timeout: 60_000 }, () => {
   let dir: string;
   let cleanup: () => Promise<void>;
   let server: WebServer;
