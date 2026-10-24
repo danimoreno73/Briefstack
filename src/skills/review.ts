@@ -33,6 +33,7 @@ export const FINDING_RULES = [
   'appName',
   'appDescription',
   'truncated',
+  'encoding',
 ] as const;
 export type FindingRule = (typeof FINDING_RULES)[number];
 
@@ -104,6 +105,10 @@ const SCRIPT_EXT = new Set([
 /** Binaries that run as code; any other binary (an image, a font) is only noted. */
 const EXECUTABLE_BINARY_EXT = new Set(['exe', 'dll', 'so', 'dylib', 'bin', 'com', 'msi', 'jar', 'class', 'wasm', 'pyc', 'pyo', 'node', 'elf', 'app', 'apk', 'deb', 'rpm', 'dmg', 'pkg']);
 const ARCHIVE_EXT = new Set(['zip', 'tar', 'gz', 'tgz', 'bz2', 'xz', '7z', 'rar']);
+/** Pages and images that may carry JavaScript. */
+const PAGE_EXT = new Set(['html', 'htm', 'xhtml', 'svg']);
+const EMBEDDED_SCRIPT = /<script\b|\son[a-z]+\s*=|javascript:/i;
+const MAKEFILE_NAME = /^(?:gnu)?makefile$|\.mk$/i;
 
 const extensionOf = (path: string): string => {
   const name = path.slice(path.lastIndexOf('/') + 1);
@@ -127,10 +132,73 @@ function isBinary(bytes: Buffer): boolean {
   }
 }
 
+export type TextEncoding = 'utf-8' | 'utf-16le' | 'utf-16be' | 'latin1';
+
+/**
+ * The text of a file however it is encoded: UTF-8, UTF-16 (with a byte
+ * order mark, or without one when most bytes on one side are zero), and
+ * latin-1 for anything else, which never fails. A script that is not UTF-8
+ * still runs (PowerShell reads UTF-16, Python honours a coding line), so the
+ * review reads it this way instead of calling it binary.
+ */
+export function decodeText(bytes: Buffer): { text: string; encoding: TextEncoding } {
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return { text: bytes.subarray(2).toString('utf16le'), encoding: 'utf-16le' };
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return { text: swapBytes(bytes.subarray(2)).toString('utf16le'), encoding: 'utf-16be' };
+  const sample = bytes.subarray(0, 8000);
+  let evenZeros = 0;
+  let oddZeros = 0;
+  for (let i = 0; i < sample.length; i += 1) {
+    if (sample[i] !== 0) continue;
+    if (i % 2 === 0) evenZeros += 1;
+    else oddZeros += 1;
+  }
+  const half = sample.length / 2;
+  if (half >= 1 && oddZeros >= half * 0.4 && evenZeros <= oddZeros / 8) return { text: bytes.toString('utf16le'), encoding: 'utf-16le' };
+  if (half >= 1 && evenZeros >= half * 0.4 && oddZeros <= evenZeros / 8) return { text: swapBytes(bytes).toString('utf16le'), encoding: 'utf-16be' };
+  try {
+    return { text: new TextDecoder('utf-8', { fatal: true }).decode(bytes), encoding: 'utf-8' };
+  } catch {
+    return { text: bytes.toString('latin1'), encoding: 'latin1' };
+  }
+}
+
+function swapBytes(bytes: Buffer): Buffer {
+  const out = Buffer.alloc(bytes.length - (bytes.length % 2));
+  for (let i = 0; i + 1 < bytes.length; i += 2) {
+    out[i] = bytes[i + 1] as number;
+    out[i + 1] = bytes[i] as number;
+  }
+  return out;
+}
+
+/** A `package.json` with at least one entry under `scripts` (npm runs them on install or on request). */
+function hasPackageScripts(bytes: Buffer): boolean {
+  const source = bytes.toString('utf8');
+  try {
+    const data = JSON.parse(source) as { scripts?: unknown };
+    if (typeof data.scripts === 'object' && data.scripts !== null && Object.keys(data.scripts).length > 0) return true;
+  } catch {
+    // Not JSON npm can read; look at the text below.
+  }
+  return /"scripts"\s*:\s*\{\s*"/.test(source);
+}
+
+/**
+ * What a file is. The name decides first: a known script extension, a
+ * shebang or a Makefile is a script even when its bytes do not look like
+ * UTF-8 text. Then package.json with scripts and pages or SVG images with
+ * JavaScript count as scripts too.
+ */
 export function fileKind(path: string, bytes: Buffer, executable: boolean): FileKind {
   const ext = extensionOf(path);
-  if (EXECUTABLE_BINARY_EXT.has(ext) || isBinary(bytes)) return 'binary';
-  if (SCRIPT_EXT.has(ext) || bytes.subarray(0, 2).toString('latin1') === '#!' || executable) return 'script';
+  const name = baseName(path);
+  if (EXECUTABLE_BINARY_EXT.has(ext)) return 'binary';
+  if (SCRIPT_EXT.has(ext) || MAKEFILE_NAME.test(name) || bytes.subarray(0, 2).toString('latin1') === '#!') return 'script';
+  const binary = isBinary(bytes);
+  if (executable) return binary ? 'binary' : 'script';
+  if (binary) return 'binary';
+  if (name.toLowerCase() === 'package.json' && hasPackageScripts(bytes)) return 'script';
+  if (PAGE_EXT.has(ext) && EMBEDDED_SCRIPT.test(bytes.toString('utf8'))) return 'script';
   if (MARKDOWN_EXT.has(ext)) return 'markdown';
   return 'other';
 }
@@ -401,7 +469,11 @@ export function reviewSkill(input: ReviewInput): StaticReview {
     findings.push(...fileFindings(item));
     const file = byPath.get(item.path);
     if (file === undefined || item.kind === 'binary') continue;
-    findings.push(...lineFindings(item.path, file.bytes.toString('utf8'), item.kind));
+    const decoded = decodeText(file.bytes);
+    if (item.kind === 'script' && decoded.encoding !== 'utf-8') {
+      findings.push({ rule: 'encoding', severity: 'high', file: item.path, excerpt: `not UTF-8 text; read as ${decoded.encoding}` });
+    }
+    findings.push(...lineFindings(item.path, decoded.text, item.kind));
   }
   if (license.source === 'none') findings.push({ rule: 'license', severity: 'medium', file: '', excerpt: 'no license found' });
   else if (license.spdx === null) findings.push({ rule: 'license', severity: 'low', file: license.file ?? '', excerpt: 'license not recognised' });

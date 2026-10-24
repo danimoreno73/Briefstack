@@ -25,7 +25,7 @@ import {
   type SkillStatus,
   type SkillVersion,
 } from './record.js';
-import { reviewSkill, sha256 } from './review.js';
+import { decodeText, reviewSkill, sha256 } from './review.js';
 import { parseSkillUrl, treeUrl } from './url.js';
 
 /**
@@ -298,7 +298,7 @@ export class SkillService {
     if (entry.kind === 'binary' || entry.size > MAX_VIEW_BYTES) return { path: entry.path, kind: entry.kind, size: entry.size };
     const dir = version === 'next' ? NEXT_DIR : FILES_DIR;
     const bytes = await readFile(native(libraryDir, `${SKILLS_DIR}/${name}/${dir}/${entry.path}`));
-    return { path: entry.path, kind: entry.kind, size: entry.size, text: bytes.toString('utf8') };
+    return { path: entry.path, kind: entry.kind, size: entry.size, text: decodeText(bytes).text };
   }
 
   /** Fetches, reviews and stores a version; the network and the model run outside the library lock. */
