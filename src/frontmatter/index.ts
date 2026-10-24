@@ -80,6 +80,29 @@ export function buildFrontmatter(fields: Readonly<Record<string, string>>, body:
 }
 
 /**
+ * Removes a top-level scalar field, touching only its own line. A missing
+ * field leaves the text as it is; a block value is refused, as in
+ * `setFrontmatterFields`.
+ */
+export function removeFrontmatterField(text: string, key: string, file: string): string {
+  const block = splitBlock(text, file);
+  if (block === undefined) return text;
+  const lines: string[] = [...(block.yaml.match(/[^\n]*\n|[^\n]+$/g) ?? [])];
+  const keyRe = new RegExp(`^${escapeRegExp(key)}[ \\t]*:(.*?)(\\r?\\n)?$`);
+  const index = lines.findIndex((line) => keyRe.test(line));
+  if (index === -1) return text;
+  const inline = (keyRe.exec(lines[index] ?? '')?.[1] ?? '').trim();
+  const next = lines[index + 1];
+  if (inline === '' || inline.startsWith('|') || inline.startsWith('>') || (next !== undefined && /^([ \t]|- |-$)/.test(next))) {
+    throw new BriefstackError('frontmatter.blockValue', { file, field: key });
+  }
+  lines.splice(index, 1);
+  const yaml = lines.join('');
+  parseYaml(yaml, file);
+  return block.head + yaml + block.tail;
+}
+
+/**
  * Sets top-level string fields, touching only their own lines. A field that
  * already has the requested value is left byte-for-byte as it was; a missing
  * field is appended at the end of the frontmatter. Everything else in the

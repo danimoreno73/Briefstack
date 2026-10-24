@@ -50,6 +50,8 @@ export const projectStatusSchema = z.object({
   created: z.string().regex(ISO_DATE_RE).optional(),
   session: z.string().refine(isSessionId, 'session id').optional(),
   summary: oneLine,
+  /** UTC date the user archived the project (BRIEF-phase-6 §3.6); absent when it is not archived. */
+  archived: z.string().regex(ISO_DATE_RE).optional(),
 });
 
 export type ProjectStatus = z.infer<typeof projectStatusSchema>;
@@ -69,6 +71,7 @@ const FIELD_ORDER: readonly (keyof ProjectStatus)[] = [
   'created',
   'session',
   'summary',
+  'archived',
 ];
 
 /** Issues as `field: message`, for coded errors. */
@@ -109,7 +112,7 @@ export function readProjectStatus(text: string, file: string): ReadStatusResult 
   const { data } = parseFrontmatter(text, file);
   const normalised: Record<string, unknown> = { ...data };
   // YAML may read a bare date as a Date and a slug made of digits as a number.
-  for (const key of ['updated', 'created', 'session', 'slug', 'profile', 'path', 'summary'] as const) {
+  for (const key of ['updated', 'created', 'session', 'slug', 'profile', 'path', 'summary', 'archived'] as const) {
     const value = normalised[key];
     if (value instanceof Date) normalised[key] = value.toISOString().slice(0, 10);
     else if (typeof value === 'number') normalised[key] = String(value);

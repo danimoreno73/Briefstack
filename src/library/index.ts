@@ -1,3 +1,4 @@
+export * from './archive.js';
 export * from './context.js';
 export {
   FALLBACK_IDENTITY,
