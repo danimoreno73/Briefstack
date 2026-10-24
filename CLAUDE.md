@@ -1,15 +1,16 @@
 # briefstack
 
 Local tool that turns an idea into a ready-to-use Claude project and learns from
-each one. Scope and requirements: @docs/BRIEF-phase-4.md — read it before planning.
+each one. Scope and requirements: @docs/BRIEF-phase-6.md — read it before planning.
 
 ## Current phase
 
-Phase 4: global chat and several creations at the same time. Anything listed
-in BRIEF section 9 is out of scope; do not start it. The plan and its Status
-are in `docs/PLAN-phase-4.md`. Phases 1–3 are done (tags `phase-1-done`,
-`phase-2-done`, `phase-3-done`); their briefs and plans are in `docs/`, open
-them only when needed.
+Phase 6: a library of third-party skills, plus a plan-usage warning,
+archived projects and discarded suggestions. Anything listed in BRIEF
+section 7 is out of scope; do not start it. The plan and its Status are in
+`docs/PLAN-phase-6.md`. Phases 1–5 and the UI pass are done (tags
+`phase-1-done` … `phase-5-done`, `ui-done`); their briefs and plans are in
+`docs/`, open them only when needed.
 
 ## Commands
 
