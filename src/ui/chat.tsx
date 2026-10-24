@@ -149,6 +149,11 @@ function Card({ confirmation, answer }: { confirmation: Confirmation; answer?: (
             {card.idea}
           </p>
           <p class="t-small muted">{t.cardStartNote(card.profile, card.active, card.limit)}</p>
+          {card.usage !== undefined && (
+            <Note tone="warn" testId="card-usage-warning">
+              {t.cardUsageWarn(card.usage.fiveHour, card.usage.sevenDay)}
+            </Note>
+          )}
         </>
       )}
       {card.kind === 'cancelCreation' && (
@@ -173,6 +178,32 @@ function Card({ confirmation, answer }: { confirmation: Confirmation; answer?: (
             {card.request}
           </p>
           <p class="t-small muted">{t.cardEvidence(card.sessions.length, card.lessons, card.suggestionId !== undefined)}</p>
+          {card.usage !== undefined && (
+            <Note tone="warn" testId="card-usage-warning">
+              {t.cardUsageWarn(card.usage.fiveHour, card.usage.sevenDay)}
+            </Note>
+          )}
+        </>
+      )}
+      {card.kind === 'addSkill' && (
+        <>
+          <p>{t.cardAddSkill}</p>
+          <p class="quote mono" data-testid="card-skill-url">
+            {card.url}
+          </p>
+          <p class="t-small muted">
+            {t.cardAddSkillSource(card.repo, card.folder)}
+            {card.tags.length > 0 && ` · ${card.tags.join(', ')}`}
+          </p>
+        </>
+      )}
+      {card.kind === 'addSkillToProject' && (
+        <>
+          <p>{t.cardAddSkillToProject(card.skill, card.project, card.location)}</p>
+          <p class="t-small muted">
+            {card.license ?? t.skillLicenseNone}
+            {card.hasScripts && ` · ${t.cardSkillScripts}`}
+          </p>
         </>
       )}
       <p class={stateTone} data-testid="card-state">
