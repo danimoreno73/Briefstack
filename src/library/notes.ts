@@ -479,6 +479,29 @@ function rewriteChange(
 }
 
 /**
+ * Refuses a new text of a project note whose `path` differs from the one
+ * the note holds (BRIEF-phase-6 review): the path is where briefstack made
+ * the project, and installs go there, so neither the web app nor the chat
+ * may point it elsewhere. A note without a path yet is not checked.
+ */
+export function assertProjectPathKept(section: string, existing: string | undefined, text: string, relative: string): void {
+  if (section !== 'projects' || existing === undefined) return;
+  const pathOf = (source: string): string | undefined => {
+    try {
+      const value = stringField(parseFrontmatter(source, relative).data, 'path');
+      return value?.trim();
+    } catch {
+      return undefined;
+    }
+  };
+  const before = pathOf(existing);
+  if (before === undefined) return;
+  const after = pathOf(text);
+  // No path in the new text keeps the old one (the status block is merged).
+  if (after !== undefined && after !== before) throw new BriefstackError('library.pathProtected', { file: relative });
+}
+
+/**
  * Saves a whole note, as edited in the web app (doubt 4). When the new text
  * only adds lines at the end, the addition goes through the same dated
  * append as `library add`; any other edit is a full rewrite. Both check for
@@ -509,6 +532,7 @@ async function saveNoteLocked(options: SaveNoteOptions, ref: NoteRef): Promise<S
   }
   const leaked = secretLines(text);
   if (leaked.length > 0) throw new BriefstackError('library.secretContent', { file: relative, lines: leaked });
+  assertProjectPathKept(ref.section, existing, text, relative);
 
   const added = existing === undefined ? undefined : addedAtEnd(existing, text);
   let change: NoteChange;

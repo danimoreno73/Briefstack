@@ -50,6 +50,7 @@ export interface ErrorParams {
   'library.secretContent': { file: string; lines: number[] };
   'library.noteNotFound': { section: string; name: string };
   'library.invalidProjectStatus': { file: string; issues: string[] };
+  'library.pathProtected': { file: string };
   'library.commitNotFound': { sha: string };
   'library.dirtyTree': { dir: string };
   'library.revertConflict': { sha: string; files: string[] };
@@ -121,6 +122,7 @@ export interface ErrorParams {
   'skills.notAProject': { dir: string };
   'skills.alreadyInstalled': { name: string };
   'skills.notInSpec': { name: string };
+  'skills.outsideProjects': { dir: string };
   'skills.wouldOverwrite': { path: string };
   'skills.installRecordInvalid': { file: string };
   'usage.high': { fiveHour: number | null; sevenDay: number | null; warnFiveHour: number; warnWeek: number };

@@ -262,6 +262,10 @@ test.describe('adding an approved skill to an existing project from the chat', (
     const card = page.getByTestId('chat-card').last();
     await expect(card).toHaveAttribute('data-kind', 'addSkillToProject');
     await expect(card).toContainText('Install skill tidy-notes into project notes, in .claude/skills/tidy-notes.');
+    // The card shows the folder the files go to; it is inside the projects folder, so no grant is asked.
+    await expect(card.getByTestId('card-skill-folder')).toContainText('Project folder:');
+    await expect(card.getByTestId('card-skill-folder')).toContainText(path.basename(dir));
+    await expect(card.getByTestId('card-skill-outside')).toHaveCount(0);
     expect(await readInstalled(dir)).toEqual([]);
     await card.getByRole('button', { name: 'Confirm' }).click();
     await expect(card).toHaveAttribute('data-state', 'confirmed');

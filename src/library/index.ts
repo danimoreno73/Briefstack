@@ -15,6 +15,7 @@ export * from './init.js';
 export * from './layout.js';
 export {
   addNote,
+  assertProjectPathKept,
   appendDated,
   appendText,
   datedEntries,

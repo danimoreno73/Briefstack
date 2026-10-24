@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { z } from 'zod';
 import { configFilePath, maxActiveCreationsOf, permissionPolicyOf, readConfig, resolvePaths, type PathEnv } from '../config/index.js';
 import type { CreationManager, CreationState } from '../creation/manager.js';
@@ -10,6 +11,7 @@ import { formatError } from '../i18n/errors.js';
 import type { Lang } from '../i18n/index.js';
 import {
   INDEX_FILE,
+  assertProjectPathKept,
   listNotes,
   listProjects,
   noteRef,
@@ -26,7 +28,7 @@ import { hideAbsolutePaths, projectEvent } from '../panel/project.js';
 import { buildPanelState, type PanelLive, type PanelTarget, type PendingKind } from '../panel/state.js';
 import { getPreset, loadUsageContext, resolveActiveProfile, usageSet, usageShow } from '../usage/index.js';
 import { redactSecretLines } from '../validate/secrets.js';
-import { addSkillToProject, installLocation, isInstalled, projectTarget } from '../skills/projectInstall.js';
+import { addSkillToProject, checkInstallFolder, installLocation, isInstalled, projectTarget } from '../skills/projectInstall.js';
 import { normaliseTags, type SkillService } from '../skills/service.js';
 import type { UsageCheck } from '../usage/warning.js';
 import { MAX_URL_LENGTH, parseSkillUrl, refCandidates } from '../skills/url.js';
@@ -581,6 +583,8 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
         );
       }
       const text = restored.text;
+      // A project's path is where installs go: the chat never changes it (saveNote refuses it too).
+      assertProjectPathKept(ref.section, existing, text, file);
       if (secretLines(text).length > 0) {
         throw new ChatToolError('The note has a line that looks like a secret, so it cannot be changed from the chat. The user can edit it in the Library page. Nothing was proposed.');
       }
@@ -734,7 +738,9 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
       const { record } = await skills.get(args.skill);
       if (record.status !== 'approved') throw new ChatToolError(`Skill ${record.name} is ${record.status}; only approved skills can be added to a project. ${SKILL_PAGE_ONLY}`);
       const project = await projectTarget(paths.libraryDir, args.project);
-      if (await isInstalled(project.dir, record.name)) throw new ChatToolError(`Skill ${record.name} is already in project ${project.slug}.`);
+      // Before any card: never a protected or .git folder; outside the projects folder only if the card grants it.
+      const folder = await checkInstallFolder({ dir: project.dir, libraryDir: paths.libraryDir, repoDir: ctx.repoDir, projectsDir: paths.projectsDir, pathEnv: ctx.pathEnv, granted: project.dir });
+      if (await isInstalled(folder.dir, record.name)) throw new ChatToolError(`Skill ${record.name} is already in project ${project.slug}.`);
       return {
         card: {
           kind: 'addSkillToProject',
@@ -742,12 +748,28 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
           project: project.slug,
           target: project.target,
           location: installLocation(project.target, record.name),
+          folder: folder.dir,
+          outsideProjects: folder.outsideProjects,
           hasScripts: record.hasScripts,
           network: record.network,
           license: record.license.spdx,
         },
         perform: async () => {
-          const done = await addSkillToProject({ skills, libraryDir: paths.libraryDir, repoDir: ctx.repoDir, pathEnv: ctx.pathEnv, slug: project.slug, skill: record.name });
+          // The folder the card showed is the only one this confirmation grants.
+          const now = await projectTarget(paths.libraryDir, project.slug);
+          if (path.resolve(now.dir) !== folder.dir) {
+            throw new StaleProposalError(`Project ${project.slug} now points to another folder than the card showed, so nothing was installed. Propose it again if the user still wants it.`);
+          }
+          const done = await addSkillToProject({
+            skills,
+            libraryDir: paths.libraryDir,
+            repoDir: ctx.repoDir,
+            projectsDir: paths.projectsDir,
+            pathEnv: ctx.pathEnv,
+            slug: project.slug,
+            skill: record.name,
+            granted: folder.outsideProjects ? folder.dir : undefined,
+          });
           return {
             data: {
               installed: true,

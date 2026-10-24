@@ -53,7 +53,20 @@ export type ConfirmationCard =
   /** Fetch a third-party skill into quarantine (phase 6); approving happens on its Skills page. */
   | { kind: 'addSkill'; url: string; repo: string; folder: string; ref: string; tags: string[] }
   /** Install an approved library skill into an existing project (phase 6). */
-  | { kind: 'addSkillToProject'; skill: string; project: string; target: string; location: string; hasScripts: boolean; network: boolean; license: string | null };
+  | {
+      kind: 'addSkillToProject';
+      skill: string;
+      project: string;
+      target: string;
+      location: string;
+      /** The project folder the files go to. */
+      folder: string;
+      /** It is outside the projects folder: confirming grants it for this install only. */
+      outsideProjects: boolean;
+      hasScripts: boolean;
+      network: boolean;
+      license: string | null;
+    };
 
 /** `stale`: confirmed, but what the card showed no longer held (the note changed), so nothing was done. */
 export type ConfirmationState = 'pending' | 'confirmed' | 'declined' | 'failed' | 'expired' | 'stale';

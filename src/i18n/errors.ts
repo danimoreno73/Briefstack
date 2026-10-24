@@ -146,6 +146,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'library.noteNotFound': (p) => `No note "${p.name}" in ${p.section}.`,
     'library.invalidProjectStatus': (p) =>
       `The project status in ${p.file} is not valid:${bullets(p.issues)}`,
+    'library.pathProtected': (p) =>
+      `The path in ${p.file} is where briefstack made the project, and it cannot be changed here. Nothing was written. If the folder moved, edit the note in a text editor.`,
     'library.commitNotFound': (p) => `No change "${p.sha}" in the library history.`,
     'library.dirtyTree': (p) =>
       `The library in ${p.dir} has uncommitted changes. Commit or discard them before undoing a change.`,
@@ -236,6 +238,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'skills.projectNotFound': (p) => `There is no project folder ${p.dir}.`,
     'skills.notAProject': (p) => `${p.dir} was not made by briefstack (it has no .briefstack/spec.json).`,
     'skills.alreadyInstalled': (p) => `Skill ${p.name} is already installed in this project.`,
+    'skills.outsideProjects': (p) =>
+      `${p.dir} is outside the projects folder and was not granted for this install, or it is inside a .git folder, so nothing was installed.`,
     'skills.notInSpec': (p) => `Skill ${p.name} is not among the library skills of this project's approved spec, so it was not installed.`,
     'skills.wouldOverwrite': (p) => `${p.path} already exists in the project; nothing was overwritten.`,
     'skills.installRecordInvalid': (p) => `${p.file} cannot be read. Fix or remove it, then install again.`,
@@ -302,6 +306,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'library.noteNotFound': (p) => `No hay ninguna nota "${p.name}" en ${p.section}.`,
     'library.invalidProjectStatus': (p) =>
       `El estado del proyecto en ${p.file} no es válido:${bullets(p.issues)}`,
+    'library.pathProtected': (p) =>
+      `El path de ${p.file} es donde briefstack creó el proyecto y no se puede cambiar aquí. No se ha escrito nada. Si la carpeta se movió, edita la nota con un editor de texto.`,
     'library.commitNotFound': (p) => `No hay ningún cambio "${p.sha}" en el historial de la biblioteca.`,
     'library.dirtyTree': (p) =>
       `La biblioteca en ${p.dir} tiene cambios sin confirmar. Confírmalos o descártalos antes de deshacer un cambio.`,
@@ -392,6 +398,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'skills.projectNotFound': (p) => `No existe la carpeta de proyecto ${p.dir}.`,
     'skills.notAProject': (p) => `${p.dir} no lo creó briefstack (no tiene .briefstack/spec.json).`,
     'skills.alreadyInstalled': (p) => `La skill ${p.name} ya está instalada en este proyecto.`,
+    'skills.outsideProjects': (p) =>
+      `${p.dir} está fuera de la carpeta de proyectos y no se concedió para esta instalación, o está dentro de una carpeta .git, así que no se instaló nada.`,
     'skills.notInSpec': (p) => `La skill ${p.name} no está entre las skills de la biblioteca de la spec aprobada de este proyecto, así que no se instaló.`,
     'skills.wouldOverwrite': (p) => `${p.path} ya existe en el proyecto; no se sobrescribió nada.`,
     'skills.installRecordInvalid': (p) => `No se puede leer ${p.file}. Corrígelo o bórralo y vuelve a instalar.`,

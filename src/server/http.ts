@@ -36,6 +36,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'library.revertConflict': 409,
   'library.busy': 409,
   'library.noteChanged': 409,
+  'library.pathProtected': 409,
   'events.sessionNotFound': 404,
   'creation.unavailable': 503,
   'creation.limit': 409,
@@ -80,6 +81,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'skills.projectNotFound': 404,
   'skills.alreadyInstalled': 409,
   'skills.notInSpec': 409,
+  'skills.outsideProjects': 403,
   'skills.wouldOverwrite': 409,
   'usage.high': 409,
 };

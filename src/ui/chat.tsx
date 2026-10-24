@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preac
 import type { ChatMessage, ChatSource, ChatStreamEvent, ChatThreadInfo, ChatView, Confirmation } from '../chat/types.js';
 import { ApiError, TOKEN_HEADER } from './api.js';
 import { applyChatEvent, sourceHref, type ChatPageState } from './chatData.js';
-import { Markdown } from './common.js';
+import { Markdown, PathText } from './common.js';
 import { formatWhen } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { IconCheck, IconClose } from './icons.js';
@@ -200,6 +200,14 @@ function Card({ confirmation, answer }: { confirmation: Confirmation; answer?: (
       {card.kind === 'addSkillToProject' && (
         <>
           <p>{t.cardAddSkillToProject(card.skill, card.project, card.location)}</p>
+          <p class="t-small" data-testid="card-skill-folder">
+            {t.cardSkillFolder} <PathText value={card.folder} />
+          </p>
+          {card.outsideProjects && (
+            <p class="t-small" data-testid="card-skill-outside">
+              {t.cardSkillOutside}
+            </p>
+          )}
           <p class="t-small muted">
             {card.license ?? t.skillLicenseNone}
             {card.hasScripts && ` · ${t.cardSkillScripts}`}

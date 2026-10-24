@@ -1,10 +1,11 @@
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CHAT_ACTION_TOOLS, CHAT_READ_TOOLS } from '../../src/chat/toolNames.js';
 import { ChatToolError, findChatTool, parseArgs, resultText, type ActionTool, type ReadTool, type ToolOutcome } from '../../src/chat/tools.js';
 import { isBriefstackError } from '../../src/errors.js';
-import { addNote } from '../../src/library/index.js';
+import { addNote, saveNote } from '../../src/library/index.js';
+import { addSkillToProject } from '../../src/skills/projectInstall.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { scaffold } from '../../src/scaffold/index.js';
 import { FakeSkillReviewer } from '../../src/skills/modelReview.js';
@@ -111,7 +112,18 @@ describe('skill tools of the chat', { timeout: 60_000 }, () => {
     expect(await refusal(propose('add_skill_to_project', { skill: 'nope', project: 'notes' }))).toBe('skills.notFound');
 
     const proposal = await propose('add_skill_to_project', { skill: 'tidy-notes', project: 'notes' });
-    expect(proposal.card).toEqual({ kind: 'addSkillToProject', skill: 'tidy-notes', project: 'notes', target: 'claude-code', location: '.claude/skills/tidy-notes', hasScripts: false, network: false, license: 'MIT' });
+    expect(proposal.card).toEqual({
+      kind: 'addSkillToProject',
+      skill: 'tidy-notes',
+      project: 'notes',
+      target: 'claude-code',
+      location: '.claude/skills/tidy-notes',
+      folder: path.resolve(projectDir),
+      outsideProjects: false,
+      hasScripts: false,
+      network: false,
+      license: 'MIT',
+    });
     // Proposing is not doing.
     expect(await readInstalled(projectDir)).toEqual([]);
     const done = await proposal.perform();
@@ -124,6 +136,67 @@ describe('skill tools of the chat', { timeout: 60_000 }, () => {
     const note = await readFile(path.join(world.libraryDir, 'projects', 'notes.md'), 'utf8');
     expect(note).toMatch(/Library skill `tidy-notes` added in `\.claude\/skills\/tidy-notes`, from acme\/skills skills\/tidy at commit `[0-9a-f]{7}`/);
     expect(await refusal(propose('add_skill_to_project', { skill: 'tidy-notes', project: 'notes' }))).toContain('already in project');
+  });
+
+  it('add_skill_to_project checks the folder as the creation guard does, and the card shows it', async () => {
+    await skills.add('https://github.com/acme/skills/tree/main/skills/tidy');
+    await skills.approve('tidy-notes');
+    const note = async (name: string, dir: string) =>
+      addNote({
+        libraryDir: world.libraryDir,
+        section: 'projects',
+        name,
+        text: `---\ntarget: claude-code\npath: ${dir.replaceAll('\\', '/')}\nstatus: created\nprofile: balanced\nsummary: x.\n---\n# x\n`,
+      });
+    // A protected folder (here the library) or a .git folder: refused before any card.
+    await note('lib', world.libraryDir);
+    expect(await refusal(propose('add_skill_to_project', { skill: 'tidy-notes', project: 'lib' }))).toBe('scaffold.forbiddenOutput');
+    const inGit = path.join(world.projectsDir, '.git', 'evil');
+    await mkdir(inGit, { recursive: true });
+    await note('in-git', inGit);
+    expect(await refusal(propose('add_skill_to_project', { skill: 'tidy-notes', project: 'in-git' }))).toBe('skills.outsideProjects');
+
+    // Outside the projects folder: the card says so, and confirming it grants that folder for this install only.
+    const far = path.join(path.dirname(world.projectsDir), 'elsewhere', 'far');
+    await scaffold(parseSpec(specInput({ slug: 'far' }), 'spec.json'), far, {
+      protectedDirs: [],
+      templateRoots: [path.join(PACKAGE_ROOT, 'library', 'templates')],
+      profiles: await baseProfiles(),
+      gitInit: false,
+    });
+    await note('far', far);
+    const proposal = await propose('add_skill_to_project', { skill: 'tidy-notes', project: 'far' });
+    expect(proposal.card).toMatchObject({ folder: path.resolve(far), outsideProjects: true });
+    await proposal.perform();
+    expect((await readInstalled(far)).map((s) => s.name)).toEqual(['tidy-notes']);
+    // Without that grant, the install itself refuses it.
+    await expect(
+      addSkillToProject({ skills, libraryDir: world.libraryDir, repoDir: world.tools.repoDir, projectsDir: world.projectsDir, pathEnv: world.tools.pathEnv, slug: 'far', skill: 'tidy-notes' }),
+    ).rejects.toMatchObject({ code: 'skills.outsideProjects' });
+  });
+
+  it('add_skill_to_project installs nothing when the project points elsewhere than the card showed', async () => {
+    await skills.add('https://github.com/acme/skills/tree/main/skills/tidy');
+    await skills.approve('tidy-notes');
+    const proposal = await propose('add_skill_to_project', { skill: 'tidy-notes', project: 'notes' });
+    const file = path.join(world.libraryDir, 'projects', 'notes.md');
+    const other = path.join(world.projectsDir, 'other');
+    await writeFile(file, (await readFile(file, 'utf8')).replace(/^path: .*$/m, `path: ${other.replaceAll('\\', '/')}`), 'utf8');
+    expect(await refusal(proposal.perform())).toContain('now points to another folder');
+    expect(await readInstalled(projectDir)).toEqual([]);
+  });
+
+  it('the chat cannot change the path of a project note, and saveNote refuses it too', async () => {
+    const file = path.join(world.libraryDir, 'projects', 'notes.md');
+    const text = await readFile(file, 'utf8');
+    const moved = text.replace(/^path: .*$/m, `path: ${path.join(world.projectsDir, 'other').replaceAll('\\', '/')}`);
+    expect(await refusal(propose('propose_note_change', { section: 'projects', name: 'notes', text: moved }))).toBe('library.pathProtected');
+    await expect(saveNote({ libraryDir: world.libraryDir, section: 'projects', name: 'notes', text: moved })).rejects.toMatchObject({ code: 'library.pathProtected' });
+    expect(await readFile(file, 'utf8')).toBe(text);
+    // Other edits of the note still work, and keep the path.
+    const edited = await propose('propose_note_change', { section: 'projects', name: 'notes', text: text.replace('# Notes', '# Notes\n\nA line.') });
+    await edited.perform();
+    expect(await readFile(file, 'utf8')).toContain(`path: ${projectDir.replaceAll('\\', '/')}`);
   });
 
   it('says so when the server has no skill library', async () => {
