@@ -48,6 +48,8 @@ describe('routes', () => {
     { page: 'settings' },
     { page: 'improve', id: undefined },
     { page: 'improve', id: 'imp-abcdef-1234' },
+    { page: 'skills', name: undefined },
+    { page: 'skills', name: 'tidy-notes' },
   ];
   it('round-trip through the hash', () => {
     for (const route of routes) expect(parseRoute(routeHash(route))).toEqual(route);

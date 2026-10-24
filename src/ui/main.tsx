@@ -19,8 +19,10 @@ import {
   IconNew,
   IconProjects,
   IconSettings,
+  IconSkills,
   IconUsage,
 } from './icons.js';
+import { SkillsPage } from './skills.js';
 import { LibraryView } from './library.js';
 import { SessionPanelPage } from './panel.js';
 import { ProjectView, ProjectsView } from './projects.js';
@@ -34,7 +36,7 @@ import { UsageView } from './usage.js';
 
 type Gate = 'connecting' | 'ready' | 'noToken' | 'rejected' | 'unreachable' | 'restarted';
 
-type NavLabel = 'navProjects' | 'navNew' | 'navCreations' | 'navChat' | 'navImprove' | 'navLibrary' | 'navUsage' | 'navSettings';
+type NavLabel = 'navProjects' | 'navNew' | 'navCreations' | 'navChat' | 'navImprove' | 'navLibrary' | 'navSkills' | 'navUsage' | 'navSettings';
 
 // The order of the design's rail (docs/diseno).
 const NAV: { page: Route['page']; route: Route; label: NavLabel; icon: FunctionComponent }[] = [
@@ -42,6 +44,7 @@ const NAV: { page: Route['page']; route: Route; label: NavLabel; icon: FunctionC
   { page: 'new', route: { page: 'new', id: undefined }, label: 'navNew', icon: IconNew },
   { page: 'creations', route: { page: 'creations' }, label: 'navCreations', icon: IconCreations },
   { page: 'library', route: { page: 'library', section: undefined, name: undefined }, label: 'navLibrary', icon: IconLibrary },
+  { page: 'skills', route: { page: 'skills', name: undefined }, label: 'navSkills', icon: IconSkills },
   { page: 'improve', route: { page: 'improve', id: undefined }, label: 'navImprove', icon: IconImprove },
   { page: 'chat', route: { page: 'chat', thread: undefined }, label: 'navChat', icon: IconChat },
   { page: 'usage', route: { page: 'usage' }, label: 'navUsage', icon: IconUsage },
@@ -88,6 +91,8 @@ function Page({ route }: { route: Route }) {
       return <SettingsPage />;
     case 'improve':
       return <ImprovePage id={route.id} />;
+    case 'skills':
+      return <SkillsPage name={route.name} />;
   }
 }
 

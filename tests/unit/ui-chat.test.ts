@@ -22,6 +22,7 @@ describe('chat page data', () => {
     expect(sourceHref({ kind: 'usage', ref: 'balanced' })).toBe('#/usage');
     expect(sourceHref({ kind: 'settings', ref: 'settings' })).toBe('#/settings');
     expect(sourceHref({ kind: 'proposal', ref: 'imp-abcdef-1234' })).toBe('#/improve/imp-abcdef-1234');
+    expect(sourceHref({ kind: 'skill', ref: 'tidy-notes' })).toBe('#/skills/tidy-notes');
     expect(sourceHref({ kind: 'suggestion', ref: 'sug-1' })).toBe('#/improve');
   });
 

@@ -32,6 +32,8 @@ export function sourceHref(source: ChatSource): string | undefined {
       return routeHash({ page: 'improve', id: source.ref });
     case 'suggestion':
       return routeHash({ page: 'improve', id: undefined });
+    case 'skill':
+      return routeHash({ page: 'skills', name: source.ref });
   }
 }
 

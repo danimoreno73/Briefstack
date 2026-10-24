@@ -49,6 +49,12 @@ export const IconLibrary = () => (
   </Svg>
 );
 
+export const IconSkills = () => (
+  <Svg>
+    <path d="M10 2.8l6.2 3.6v7.2L10 17.2l-6.2-3.6V6.4zM3.8 6.4L10 10l6.2-3.6M10 10v7.2" />
+  </Svg>
+);
+
 export const IconImprove = () => (
   <Svg>
     <path d="M8 3l1.2 3.3L12.5 7.5 9.2 8.7 8 12 6.8 8.7 3.5 7.5l3.3-1.2zM14.5 11l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" />

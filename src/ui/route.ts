@@ -14,7 +14,9 @@ export type Route =
   | { page: 'usage' }
   | { page: 'settings' }
   /** Improvements of the creation flow; with `id`, one proposal. */
-  | { page: 'improve'; id: string | undefined };
+  | { page: 'improve'; id: string | undefined }
+  /** Third-party skills of the library; with `name`, one skill. */
+  | { page: 'skills'; name: string | undefined };
 
 export const DEFAULT_ROUTE: Route = { page: 'projects' };
 
@@ -51,6 +53,8 @@ export function parseRoute(hash: string): Route {
       return { page: 'settings' };
     case 'improve':
       return { page: 'improve', id: first };
+    case 'skills':
+      return { page: 'skills', name: first };
     default:
       return DEFAULT_ROUTE;
   }
@@ -83,5 +87,7 @@ export function routeHash(route: Route): string {
       return '#/settings';
     case 'improve':
       return route.id === undefined ? '#/improve' : `#/improve/${enc(route.id)}`;
+    case 'skills':
+      return route.name === undefined ? '#/skills' : `#/skills/${enc(route.name)}`;
   }
 }

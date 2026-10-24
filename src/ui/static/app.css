@@ -844,6 +844,19 @@ dialog.dec-dialog {
   accent-color: var(--accent-fill);
 }
 
+/* A file of a third-party skill, as plain text (never rendered). */
+.code-view {
+  max-height: 480px;
+  overflow: auto;
+  padding: var(--s-3) var(--s-4);
+  border: var(--bw) solid var(--line);
+  border-radius: var(--r-card);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
 .quote {
   padding-left: var(--s-4);
   border-left: var(--bw-strong) solid var(--line-card);
