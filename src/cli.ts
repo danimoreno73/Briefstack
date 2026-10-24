@@ -66,6 +66,9 @@ import type { Verifier } from './improve/verify.js';
 import { killProcessTree } from './creation/processTree.js';
 import { runsDirOf, sweepRuns } from './creation/runFiles.js';
 import { stopTrigger, type StopEvents } from './stopTrigger.js';
+import type { FetchOptions } from './skills/github.js';
+import type { SkillModelReviewer } from './skills/modelReview.js';
+import { createWebSkills } from './skills/wiring.js';
 
 /** Argument parsing only; all real work lives in the library. */
 
@@ -102,6 +105,9 @@ export interface CliIO {
   improveRunner?: ImprovementRunner;
   improveVerifier?: Verifier;
   safetyReviewer?: SafetyReviewer;
+  /** The model review of skills and the GitHub hosts: the real ones unless a test passes its own. */
+  skillReviewer?: SkillModelReviewer;
+  skillFetch?: FetchOptions;
 }
 
 const defaultIO = (): CliIO => ({
@@ -564,6 +570,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   });
   let chat: ChatManager | undefined;
   let improvements: ImprovementManager | undefined;
+  const skills = createWebSkills({ pathEnv: io.pathEnv, reviewer: io.skillReviewer, fetch: io.skillFetch });
   let server;
   try {
     chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements });
@@ -584,6 +591,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       creations,
       chat,
       improvements,
+      skills,
       ...(io.repoDir === undefined ? {} : { repoDir: io.repoDir }),
       ...(io.uiDir === undefined ? {} : { uiDir: io.uiDir }),
     });

@@ -62,6 +62,21 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'improve.suggestionNotFound': 404,
   'creation.wrongPending': 409,
   'creation.noSpec': 404,
+  'skills.unavailable': 503,
+  'skills.repoNotFound': 404,
+  'skills.refNotFound': 404,
+  'skills.pathNotFound': 404,
+  'skills.rateLimited': 429,
+  'skills.network': 502,
+  'skills.notFound': 404,
+  'skills.fileNotFound': 404,
+  'skills.unreadable': 409,
+  'skills.exists': 409,
+  'skills.wrongStatus': 409,
+  'skills.modified': 409,
+  'skills.updatePending': 409,
+  'skills.noUpdate': 409,
+  'skills.notApproved': 409,
 };
 
 /** Error body of every `/api` route: `{ code, params, message }`, the message in the server's language. */

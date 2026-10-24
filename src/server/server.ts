@@ -10,6 +10,8 @@ import { VERSION } from '../version.js';
 import { chatRoutes } from './chat.js';
 import { creationRoutes } from './creations.js';
 import { improveRoutes } from './improve.js';
+import { skillRoutes } from './skills.js';
+import type { SkillService } from '../skills/service.js';
 import { BASE_HEADERS, header, sendError, sendJson } from './http.js';
 import { readRoutes } from './read.js';
 import { writeRoutes } from './write.js';
@@ -41,6 +43,8 @@ export interface WebServerOptions {
   chat?: ChatManager;
   /** Improvements (phase 5). Without one, the improvement routes answer 503 `improve.unavailable`. The caller owns it. */
   improvements?: ImprovementManager;
+  /** Third-party skills (phase 6). Without one, the skill routes answer 503 `skills.unavailable`. */
+  skills?: SkillService;
   /** Where the user's files live; the real machine by default. Tests pass a temp home. */
   pathEnv?: PathEnv;
   /** The briefstack repo the usage and paths routes report on; the package by default. */
@@ -70,6 +74,7 @@ function apiRoutes(options: WebServerOptions): RouteTable {
     ...creationRoutes(options.creations, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
     ...chatRoutes(options.chat, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
     ...improveRoutes(options.improvements),
+    ...skillRoutes(options.skills),
   ];
 }
 
