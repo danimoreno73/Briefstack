@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { BriefstackError, type FieldExpectation } from '../errors.js';
 import { isLang, type Lang } from '../i18n/index.js';
-import { DEFAULT_MAX_ACTIVE_CREATIONS } from './limits.js';
+import { DEFAULT_MAX_ACTIVE_CREATIONS, DEFAULT_USAGE_WARN_FIVE_HOUR, DEFAULT_USAGE_WARN_WEEK } from './limits.js';
 import { toAbsolute, type PathEnv } from './paths.js';
 
 /**
@@ -17,7 +17,7 @@ export function isPermissionPolicy(value: unknown): value is PermissionPolicy {
   return typeof value === 'string' && (PERMISSION_POLICIES as readonly string[]).includes(value);
 }
 
-export { DEFAULT_MAX_ACTIVE_CREATIONS, MANY_CREATIONS_NOTE_ABOVE } from './limits.js';
+export { DEFAULT_MAX_ACTIVE_CREATIONS, DEFAULT_USAGE_WARN_FIVE_HOUR, DEFAULT_USAGE_WARN_WEEK, MANY_CREATIONS_NOTE_ABOVE } from './limits.js';
 
 
 /** Contents of `<briefstack home>/config.json`. Every field is optional. */
@@ -30,6 +30,19 @@ export interface BriefstackConfig {
   permissionPolicy?: PermissionPolicy;
   /** A whole number from 1 up; absent means `DEFAULT_MAX_ACTIVE_CREATIONS`. */
   maxActiveCreations?: number;
+  /** Percent of the 5-hour window above which a start shows a warning; absent means the default. */
+  usageWarnFiveHour?: number;
+  /** Percent of the week above which a start shows a warning; absent means the default. */
+  usageWarnWeek?: number;
+}
+
+/** The thresholds of the plan-usage warning. */
+export function usageWarningOf(config: BriefstackConfig): { fiveHour: number; week: number } {
+  return { fiveHour: config.usageWarnFiveHour ?? DEFAULT_USAGE_WARN_FIVE_HOUR, week: config.usageWarnWeek ?? DEFAULT_USAGE_WARN_WEEK };
+}
+
+export function isPercent(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 && value <= 100;
 }
 
 /** The config's permission policy, `ask` when it sets none. */
@@ -157,6 +170,11 @@ export function parseConfig(text: string, file: string): BriefstackConfig {
   if (raw.maxActiveCreations !== undefined) {
     if (!isPositiveInteger(raw.maxActiveCreations)) invalid('maxActiveCreations', 'positiveInteger');
     config.maxActiveCreations = raw.maxActiveCreations as number;
+  }
+  for (const field of ['usageWarnFiveHour', 'usageWarnWeek'] as const) {
+    if (raw[field] === undefined) continue;
+    if (!isPercent(raw[field])) invalid(field, 'percent');
+    config[field] = raw[field] as number;
   }
   return config;
 }

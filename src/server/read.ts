@@ -1,6 +1,6 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { configFilePath, maxActiveCreationsOf, permissionPolicyOf, readConfig, resolvePaths, toAbsolute, type PathEnv } from '../config/index.js';
+import { configFilePath, maxActiveCreationsOf, permissionPolicyOf, readConfig, resolvePaths, toAbsolute, usageWarningOf, type PathEnv } from '../config/index.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
 import { readEvents, sessionEventsFile } from '../events/index.js';
 import { listSessions, sessionIdea, sessionTimeline, type SessionTimeline } from '../events/sessions.js';
@@ -292,6 +292,7 @@ export function readRoutes(context: ReadContext): RouteTable {
           configLang: config.lang ?? null,
           permissionPolicy: permissionPolicyOf(config),
           maxActiveCreations: maxActiveCreationsOf(config),
+          usageWarning: usageWarningOf(config),
         });
       },
     ],

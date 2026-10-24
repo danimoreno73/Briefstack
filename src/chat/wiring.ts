@@ -5,6 +5,7 @@ import type { ImprovementManager } from '../improve/manager.js';
 import { planUsageReader } from '../creation/planUsage.js';
 import type { Lang } from '../i18n/index.js';
 import type { SkillService } from '../skills/service.js';
+import type { UsageCheck } from '../usage/warning.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import { loadUsageContext, resolveActiveProfile } from '../usage/index.js';
 import { ChatManager } from './manager.js';
@@ -26,6 +27,8 @@ export interface WebChatOptions {
   improvements?: (() => ImprovementManager | undefined) | undefined;
   /** The skill library (phase 6). */
   skills?: SkillService | undefined;
+  /** The plan-usage warning on start and improvement cards (phase 6). */
+  usageCheck?: UsageCheck | undefined;
 }
 
 /** The chat's model and effort from the active usage profile (BRIEF-phase-4 §8.3). */
@@ -43,7 +46,16 @@ export async function createWebChat(options: WebChatOptions): Promise<ChatManage
   return ChatManager.open({
     store: new ChatStore(path.join(resolveHome(pathEnv), 'chat')),
     runner,
-    tools: { pathEnv, repoDir, lang: options.lang, creations: options.creations, planUsage, improvements: options.improvements, skills: options.skills },
+    tools: {
+      pathEnv,
+      repoDir,
+      lang: options.lang,
+      creations: options.creations,
+      planUsage,
+      improvements: options.improvements,
+      skills: options.skills,
+      usageCheck: options.usageCheck,
+    },
     profile: () => activeChatProfile(pathEnv),
     ...(options.idleMs === undefined ? {} : { idleMs: options.idleMs }),
   });

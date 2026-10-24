@@ -16,12 +16,14 @@ const expectationEn: Record<FieldExpectation, string> = {
   lang: 'one of: en, es',
   permissionPolicy: 'one of: ask, unattended',
   positiveInteger: 'a whole number from 1 up',
+  percent: 'a whole number from 1 to 100',
 };
 const expectationEs: Record<FieldExpectation, string> = {
   text: 'un texto no vacío',
   lang: 'uno de: en, es',
   permissionPolicy: 'uno de: ask, unattended',
   positiveInteger: 'un número entero desde 1',
+  percent: 'un número entero de 1 a 100',
 };
 
 const rootEn: Record<ProtectedRoot, string> = {
@@ -236,6 +238,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'skills.alreadyInstalled': (p) => `Skill ${p.name} is already installed in this project.`,
     'skills.wouldOverwrite': (p) => `${p.path} already exists in the project; nothing was overwritten.`,
     'skills.installRecordInvalid': (p) => `${p.file} cannot be read. Fix or remove it, then install again.`,
+    'usage.high': (p) =>
+      `Plan usage is high: 5-hour window ${p.fiveHour ?? '?'}% (warning from ${p.warnFiveHour}%), week ${p.sevenDay ?? '?'}% (warning from ${p.warnWeek}%). Start anyway to go on.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -389,6 +393,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'skills.alreadyInstalled': (p) => `La skill ${p.name} ya está instalada en este proyecto.`,
     'skills.wouldOverwrite': (p) => `${p.path} ya existe en el proyecto; no se sobrescribió nada.`,
     'skills.installRecordInvalid': (p) => `No se puede leer ${p.file}. Corrígelo o bórralo y vuelve a instalar.`,
+    'usage.high': (p) =>
+      `El uso del plan está alto: ventana de 5 horas ${p.fiveHour ?? '?'} % (aviso desde ${p.warnFiveHour} %), semana ${p.sevenDay ?? '?'} % (aviso desde ${p.warnWeek} %). Empieza de todos modos para seguir.`,
   },
 });
 

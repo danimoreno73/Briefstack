@@ -28,6 +28,7 @@ import { getPreset, loadUsageContext, resolveActiveProfile, usageSet, usageShow 
 import { redactSecretLines } from '../validate/secrets.js';
 import { addSkillToProject, installLocation, isInstalled, projectTarget } from '../skills/projectInstall.js';
 import { normaliseTags, type SkillService } from '../skills/service.js';
+import type { UsageCheck } from '../usage/warning.js';
 import { MAX_URL_LENGTH, parseSkillUrl, refCandidates } from '../skills/url.js';
 import { diffHunks, diffLines } from './diff.js';
 import { restoreRedactedLines } from './restore.js';
@@ -60,6 +61,8 @@ export interface ChatToolContext {
   improvements?: (() => ImprovementManager | undefined) | undefined;
   /** The skill library (phase 6); without it, the skill tools say so. */
   skills?: SkillService | undefined;
+  /** The plan-usage warning (phase 6) for the start and improvement cards. */
+  usageCheck?: UsageCheck | undefined;
 }
 
 /** What a tool found or did, with where it came from. */
@@ -187,7 +190,13 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
           name: project.name,
           ...(project.status === undefined
             ? { issues: project.issues ?? [] }
-            : { target: project.status.target, status: project.status.status, summary: project.status.summary, profile: project.status.profile }),
+            : {
+                target: project.status.target,
+                status: project.status.status,
+                summary: project.status.summary,
+                profile: project.status.profile,
+                ...(project.status.archived === undefined ? {} : { archived: project.status.archived }),
+              }),
           ...(project.created === undefined ? {} : { created: project.created }),
           ...(project.session === undefined ? {} : { sessionId: project.session }),
         })),
@@ -506,8 +515,10 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
       }
       const { config, profiles } = await loadUsageContext(ctx.pathEnv);
       const profile = resolveActiveProfile(config, profiles).name;
+      // High plan usage goes on the card; confirming it is "start anyway" (BRIEF-phase-6 §3.6).
+      const usage = await ctx.usageCheck?.check();
       return {
-        card: { kind: 'startCreation', idea: args.idea, profile, active, limit },
+        card: { kind: 'startCreation', idea: args.idea, profile, active, limit, ...(usage === undefined ? {} : { usage }) },
         perform: async () => {
           const state = await creations.create(args.idea);
           return { data: { started: true, creationId: state.id }, sources: [{ kind: 'creation', ref: state.id, label: short(args.idea, 60) }] };
@@ -652,6 +663,7 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
       const profile = await improvements.sessionProfile();
       const sessions = args.sessions ?? [];
       const lessons = args.lessons ?? false;
+      const usage = await ctx.usageCheck?.check();
       return {
         card: {
           kind: 'prepareImprovement',
@@ -661,6 +673,7 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
           ...(args.suggestionId === undefined ? {} : { suggestionId: args.suggestionId }),
           model: profile.model,
           ...(profile.effort === undefined ? {} : { effort: profile.effort }),
+          ...(usage === undefined ? {} : { usage }),
         },
         perform: async () => {
           const view = await improvements.prepare(args.request, { sessions, lessons, ...(args.suggestionId === undefined ? {} : { suggestionId: args.suggestionId }) });

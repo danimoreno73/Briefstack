@@ -137,6 +137,7 @@ describe('error catalogue', () => {
     'skills.alreadyInstalled': { name: 'hello' },
     'skills.wouldOverwrite': { path: '.claude/skills/hello' },
     'skills.installRecordInvalid': { file: '.briefstack/skills.json' },
+    'usage.high': { fiveHour: 82, sevenDay: 40, warnFiveHour: 80, warnWeek: 85 },
     'creation.noSpec': { id: 'c1' },
     'creation.claudeNotFound': {},
     'creation.slashCommandMissing': { command: 'new-project' },

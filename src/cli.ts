@@ -72,6 +72,8 @@ import { createWebSkills } from './skills/wiring.js';
 import { installSkills } from './skills/install.js';
 import { SkillService } from './skills/service.js';
 import { skillsMessages } from './i18n/skills.js';
+import { planUsageReader } from './creation/planUsage.js';
+import { UsageCheck, configThresholds, type PlanReading } from './usage/warning.js';
 
 /** Argument parsing only; all real work lives in the library. */
 
@@ -111,6 +113,8 @@ export interface CliIO {
   /** The model review of skills and the GitHub hosts: the real ones unless a test passes its own. */
   skillReviewer?: SkillModelReviewer;
   skillFetch?: FetchOptions;
+  /** The plan reading behind the usage warning: the real one with the real runner unless a test passes its own. */
+  planUsage?: () => Promise<PlanReading | undefined>;
 }
 
 const defaultIO = (): CliIO => ({
@@ -600,6 +604,9 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     if (entry.closedSession !== undefined) io.err(messages.sweptClosed(entry.closedSession));
   }
   const skills = createWebSkills({ pathEnv: io.pathEnv, reviewer: io.skillReviewer, fetch: io.skillFetch });
+  // The real plan reading only with the real runner; tests pass their own or none.
+  const planReading = io.planUsage ?? (io.creationRunner === undefined ? planUsageReader({ pathEnv: io.pathEnv, repoDir: io.repoDir ?? PACKAGE_ROOT }) : undefined);
+  const usageCheck = planReading === undefined ? undefined : new UsageCheck({ read: planReading, thresholds: configThresholds(io.pathEnv) });
   const creations = await createWebCreations({
     pathEnv: io.pathEnv,
     repoDir: io.repoDir,
@@ -611,7 +618,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   let improvements: ImprovementManager | undefined;
   let server;
   try {
-    chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements, skills });
+    chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements, skills, usageCheck });
     improvements = await createWebImprovements({
       pathEnv: io.pathEnv,
       repoDir: io.repoDir,
@@ -630,6 +637,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       chat,
       improvements,
       skills,
+      ...(usageCheck === undefined ? {} : { usageCheck }),
       ...(io.repoDir === undefined ? {} : { repoDir: io.repoDir }),
       ...(io.uiDir === undefined ? {} : { uiDir: io.uiDir }),
     });

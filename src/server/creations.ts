@@ -2,13 +2,15 @@ import type { ServerResponse } from 'node:http';
 import { z } from 'zod';
 import type { CreationManager, StreamEvent } from '../creation/manager.js';
 import { BriefstackError } from '../errors.js';
+import type { UsageCheck } from '../usage/warning.js';
 import { BASE_HEADERS, header, readJsonBody, sendJson } from './http.js';
 import type { RouteTable } from './router.js';
 
 /** Default time between SSE heartbeat comments. */
 export const HEARTBEAT_MS = 15_000;
 
-const createBody = z.strictObject({ idea: z.string().trim().min(1).max(20_000) });
+/** `force`: the user chose "start anyway" after the plan-usage warning. */
+const createBody = z.strictObject({ idea: z.string().trim().min(1).max(20_000), force: z.boolean().optional() });
 const answerBody = z.strictObject({ pendingId: z.string().min(1), answer: z.unknown() });
 /** The same limit as a chat message. */
 export const MAX_REPLY_CHARS = 10_000;
@@ -30,7 +32,7 @@ function fromSeq(url: URL, lastEventId: string | undefined): number {
  * Creation routes (docs/api.md). Without a manager (no runner available)
  * every one answers 503 `creation.unavailable`.
  */
-export function creationRoutes(manager: CreationManager | undefined, options: { heartbeatMs?: number } = {}): RouteTable {
+export function creationRoutes(manager: CreationManager | undefined, options: { heartbeatMs?: number; usage?: UsageCheck | undefined } = {}): RouteTable {
   const heartbeatMs = options.heartbeatMs ?? HEARTBEAT_MS;
   const need = (): CreationManager => {
     if (manager === undefined) throw new BriefstackError('creation.unavailable', {});
@@ -74,7 +76,12 @@ export function creationRoutes(manager: CreationManager | undefined, options: { 
       'POST /api/creations',
       async (req, res) => {
         const m = need();
-        const { idea } = await readJsonBody(req, createBody);
+        const { idea, force } = await readJsonBody(req, createBody);
+        // Before anything starts: high plan usage asks the page to confirm (BRIEF-phase-6 §3.6).
+        if (force !== true) {
+          const warning = await options.usage?.check();
+          if (warning !== undefined) throw new BriefstackError('usage.high', warning);
+        }
         const state = await m.create(idea);
         sendJson(res, 201, { id: state.id });
       },

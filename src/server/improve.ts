@@ -3,6 +3,7 @@ import { BriefstackError } from '../errors.js';
 import type { ImprovementManager } from '../improve/manager.js';
 import { REAL_CHECKS } from '../improve/realCheck.js';
 import { MAX_EVIDENCE_SESSIONS } from '../improve/evidence.js';
+import type { UsageCheck } from '../usage/warning.js';
 import { readJsonBody, sendJson } from './http.js';
 import type { RouteParams, RouteTable } from './router.js';
 
@@ -20,12 +21,14 @@ const prepareBody = z.strictObject({
   sessions: z.array(z.string().min(1).max(100)).max(MAX_EVIDENCE_SESSIONS).optional(),
   lessons: z.boolean().optional(),
   suggestionId: z.string().min(1).max(100).optional(),
+  /** The user chose "start anyway" after the plan-usage warning. */
+  force: z.boolean().optional(),
 });
 const changesBody = z.strictObject({ text: z.string().trim().min(1).max(MAX_IMPROVE_REQUEST_CHARS) });
 /** The commit of the round the page showed (`proposal.head`). */
 const approveBody = z.strictObject({ head: z.string().regex(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/) });
 
-export function improveRoutes(improve: ImprovementManager | undefined): RouteTable {
+export function improveRoutes(improve: ImprovementManager | undefined, options: { usage?: UsageCheck | undefined } = {}): RouteTable {
   const need = (): ImprovementManager => {
     if (improve === undefined) throw new BriefstackError('improve.unavailable', {});
     return improve;
@@ -63,6 +66,10 @@ export function improveRoutes(improve: ImprovementManager | undefined): RouteTab
       async (req, res) => {
         const m = need();
         const body = await readJsonBody(req, prepareBody);
+        if (body.force !== true) {
+          const warning = await options.usage?.check();
+          if (warning !== undefined) throw new BriefstackError('usage.high', warning);
+        }
         const view = await m.prepare(body.request, {
           ...(body.sessions === undefined ? {} : { sessions: body.sessions }),
           ...(body.lessons === undefined ? {} : { lessons: body.lessons }),
@@ -85,6 +92,14 @@ export function improveRoutes(improve: ImprovementManager | undefined): RouteTab
         const m = need();
         const { head } = await readJsonBody(req, approveBody);
         sendJson(res, 200, { proposal: await m.approve(id(params), head) });
+      },
+    ],
+    [
+      'POST /api/improve/suggestions/:id/discard',
+      async (_req, res, params) => {
+        const m = need();
+        await m.discardSuggestion(id(params));
+        sendJson(res, 200, { suggestions: await m.suggestions() });
       },
     ],
     ['POST /api/improve/proposals/:id/discard', async (_req, res, params) => sendJson(res, 200, { proposal: await need().discard(id(params)) })],

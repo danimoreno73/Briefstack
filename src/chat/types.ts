@@ -23,9 +23,17 @@ export interface DiffHunk {
   lines: DiffLine[];
 }
 
+/** Plan usage above a threshold when the card was made (phase 6): confirming the card is "start anyway". */
+export interface UsageWarning {
+  fiveHour: number | null;
+  sevenDay: number | null;
+  warnFiveHour: number;
+  warnWeek: number;
+}
+
 /** Exactly what an action will do, shown to the user before it happens. */
 export type ConfirmationCard =
-  | { kind: 'startCreation'; idea: string; profile: string; active: number; limit: number }
+  | { kind: 'startCreation'; idea: string; profile: string; active: number; limit: number; usage?: UsageWarning }
   | { kind: 'cancelCreation'; creationId: string; idea: string; step?: string }
   | {
       kind: 'noteChange';
@@ -41,7 +49,7 @@ export type ConfirmationCard =
     }
   | { kind: 'usageProfile'; from: string; to: string; toLabel: { en: string; es: string } }
   /** An improvement session (phase 5): it uses plan; approving happens later, on the proposal page. */
-  | { kind: 'prepareImprovement'; request: string; sessions: string[]; lessons: boolean; suggestionId?: string; model: string; effort?: string }
+  | { kind: 'prepareImprovement'; request: string; sessions: string[]; lessons: boolean; suggestionId?: string; model: string; effort?: string; usage?: UsageWarning }
   /** Fetch a third-party skill into quarantine (phase 6); approving happens on its Skills page. */
   | { kind: 'addSkill'; url: string; repo: string; folder: string; ref: string; tags: string[] }
   /** Install an approved library skill into an existing project (phase 6). */

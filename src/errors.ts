@@ -1,7 +1,7 @@
 import type { SpecIssue } from './spec/index.js';
 
 /** What a config field should have been; rendered by the i18n catalogue. */
-export type FieldExpectation = 'text' | 'lang' | 'permissionPolicy' | 'positiveInteger';
+export type FieldExpectation = 'text' | 'lang' | 'permissionPolicy' | 'positiveInteger' | 'percent';
 
 /** Folders an output directory must stay out of. */
 export type ProtectedRoot = 'repo' | 'library' | 'home' | 'claudeConfig' | 'appData' | 'localAppData';
@@ -122,6 +122,7 @@ export interface ErrorParams {
   'skills.alreadyInstalled': { name: string };
   'skills.wouldOverwrite': { path: string };
   'skills.installRecordInvalid': { file: string };
+  'usage.high': { fiveHour: number | null; sevenDay: number | null; warnFiveHour: number; warnWeek: number };
 }
 
 /** Why a skill link is refused. */

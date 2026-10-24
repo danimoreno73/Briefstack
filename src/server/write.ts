@@ -8,10 +8,11 @@ import {
   readConfig,
   resolvePaths,
   updateConfig,
+  usageWarningOf,
   type PathEnv,
 } from '../config/index.js';
 import { LANGS, resolveLang, systemLocale, type Lang } from '../i18n/index.js';
-import { revertLibraryCommit, saveNote, setProjectsDir } from '../library/index.js';
+import { revertLibraryCommit, saveNote, setProjectArchived, setProjectsDir } from '../library/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import { usageSet } from '../usage/index.js';
 import { readJsonBody, sendJson } from './http.js';
@@ -32,6 +33,7 @@ const noteBody = z.strictObject({
   text: z.string().max(MAX_NOTE_BYTES),
 });
 const revertBody = z.strictObject({ sha: z.string().regex(/^[0-9a-fA-F]{4,64}$/) });
+const archiveBody = z.strictObject({ archived: z.boolean() });
 const usageBody = z.strictObject({ profile: z.string().min(1).max(80) });
 const settingsBody = z
   .strictObject({
@@ -40,6 +42,8 @@ const settingsBody = z
     lang: z.enum(LANGS).nullable().optional(),
     permissionPolicy: z.enum(PERMISSION_POLICIES).optional(),
     maxActiveCreations: z.int().min(1).optional(),
+    usageWarnFiveHour: z.int().min(1).max(100).optional(),
+    usageWarnWeek: z.int().min(1).max(100).optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'at least one setting' });
 
@@ -67,6 +71,7 @@ export function writeRoutes(context: WriteContext): RouteTable {
       configLang: config.lang ?? null,
       permissionPolicy: permissionPolicyOf(config),
       maxActiveCreations: maxActiveCreationsOf(config),
+      usageWarning: usageWarningOf(config),
     };
   };
 
@@ -83,6 +88,14 @@ export function writeRoutes(context: WriteContext): RouteTable {
           text: body.text,
         });
         sendJson(res, 200, saved);
+      },
+    ],
+    [
+      'PUT /api/projects/:slug/archived',
+      async (req, res, params) => {
+        const { archived } = await readJsonBody(req, archiveBody);
+        const { paths } = await load();
+        sendJson(res, 200, await setProjectArchived({ libraryDir: paths.libraryDir, slug: params.slug ?? '', archived }));
       },
     ],
     [
@@ -105,10 +118,12 @@ export function writeRoutes(context: WriteContext): RouteTable {
       'PUT /api/settings',
       async (req, res) => {
         const body = await readJsonBody(req, settingsBody);
-        const patch: { lang?: Lang | undefined; permissionPolicy?: PermissionPolicy; maxActiveCreations?: number } = {};
+        const patch: { lang?: Lang | undefined; permissionPolicy?: PermissionPolicy; maxActiveCreations?: number; usageWarnFiveHour?: number; usageWarnWeek?: number } = {};
         if (body.lang !== undefined) patch.lang = body.lang ?? undefined;
         if (body.permissionPolicy !== undefined) patch.permissionPolicy = body.permissionPolicy;
         if (body.maxActiveCreations !== undefined) patch.maxActiveCreations = body.maxActiveCreations;
+        if (body.usageWarnFiveHour !== undefined) patch.usageWarnFiveHour = body.usageWarnFiveHour;
+        if (body.usageWarnWeek !== undefined) patch.usageWarnWeek = body.usageWarnWeek;
         // The projects folder goes first: it validates the path before anything is written.
         if (body.projectsDir !== undefined) await setProjectsDir({ pathEnv, repoDir, dir: body.projectsDir });
         if (Object.keys(patch).length > 0) await updateConfig(configFilePath(pathEnv), patch);
