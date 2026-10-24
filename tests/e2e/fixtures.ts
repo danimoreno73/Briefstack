@@ -22,6 +22,11 @@ import { FakeSafetyReviewer } from '../../src/improve/safetyReview.js';
 import { FakeVerifier } from '../../src/improve/verify.js';
 import { createWebImprovements } from '../../src/improve/wiring.js';
 import { makeImproveRepo } from '../improveWorld.js';
+import { FakeSkillReviewer } from '../../src/skills/modelReview.js';
+import { SkillService } from '../../src/skills/service.js';
+import { UsageCheck } from '../../src/usage/warning.js';
+import { EXFILTRATOR, HARMLESS, INJECTOR } from '../skillFixtures.js';
+import { sampleRepo, startFakeGitHub, type FakeGitHub } from '../skillsWorld.js';
 import { isolateEnvironment } from '../sandboxEnv.js';
 
 // The server gets explicit paths, but anything read from the environment must not reach real data either.
@@ -60,6 +65,11 @@ export interface App {
   repoDir: string;
   /** Where the seeded `claude-app` project lives (the name has a space on purpose). */
   gardenDir: string;
+  /** A local stand-in for GitHub with `acme/skills` (phase 6). */
+  gh: FakeGitHub;
+  /** The skill library over it, with a fake model review that flags skills with scripts. */
+  skills: SkillService;
+  usageCheck?: UsageCheck;
 }
 
 export interface AppOptions {
@@ -77,6 +87,8 @@ export interface AppOptions {
   chatScript?: ChatScript;
   /** The fake improvement runner's rounds; none by default. */
   improveScript?: FakeImproveScript;
+  /** The plan reading behind the start warning (phase 6); none (no warning) by default. */
+  usageReading?: { fiveHour: number | null; sevenDay: number | null };
 }
 
 async function emptyGitConfig(dir: string): Promise<void> {
@@ -152,7 +164,23 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   // The cancelled one has the idea the flow writes first; the interrupted one stopped before it.
   await writeFile(path.join(sessionsDir, SESSION_CANCELLED, 'idea.md'), `A reading log for my book club.\napi key ${FAKE_KEY}\n`, 'utf8');
 
+  // Phase 6: a fake GitHub with three skills, the skill library and the plan-usage warning.
+  const prefixed = (prefix: string, files: Record<string, unknown>) => Object.fromEntries(Object.entries(files).map(([p, v]) => [`${prefix}/${p}`, v as string]));
+  const gh = await startFakeGitHub({
+    'acme/skills': sampleRepo({ ...prefixed('skills/tidy', HARMLESS), ...prefixed('skills/sync', EXFILTRATOR), ...prefixed('skills/odd', INJECTOR) }).repo,
+  });
+  const skills = new SkillService({
+    libraryDir: async () => libraryDir,
+    fetch: { apiBase: gh.apiBase, rawBase: gh.rawBase },
+    reviewer: new FakeSkillReviewer((input) =>
+      input.scripts.length > 0 ? { harmful: true, reason: 'scripts/sync.sh posts ~/.ssh/id_rsa to another server.' } : { harmful: false, reason: 'Plain instructions, nothing that runs.' },
+    ),
+  });
+  const usageReading = options.usageReading;
+  const usageCheck = usageReading === undefined ? undefined : new UsageCheck({ read: async () => usageReading, thresholds: async () => ({ fiveHour: 80, week: 85 }), ttlMs: 0 });
+
   const manager = new CreationManager({
+    skills,
     runner:
       options.recordingText === undefined
         ? await FakeRunner.fromFile(path.join(RECORDINGS, options.recording ?? 'full.jsonl'), { libraryDir, projectsDir })
@@ -177,7 +205,7 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   });
   const chatRunner = new FakeChatRunner(options.chatScript ?? { turns: [] });
   const holder: { app?: App } = {};
-  const chat = await openChat(pathEnv, repoDir, manager, chatRunner, () => holder.app?.improvements);
+  const chat = await openChat(pathEnv, repoDir, manager, chatRunner, () => holder.app?.improvements, skills, usageCheck);
   const improveRunner = new FakeImprovementRunner(options.improveScript ?? { rounds: [] });
   // Flags a change that lets an agent ask in plain text, like the real review should.
   const safetyReviewer = new FakeSafetyReviewer((diff) =>
@@ -196,15 +224,36 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     announce: (suggestions) => holder.app?.chat.announceSuggestions(suggestions),
     gatePollMs: 100,
   });
-  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat, improvements });
+  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat, improvements, skills, ...(usageCheck === undefined ? {} : { usageCheck }) });
 
-  const app: App = { url: server.url, server, manager, chat, chatRunner, improvements, improveRunner, realChecks, pathEnv, dir, home, libraryDir, projectsDir, sessionsDir, repoDir, gardenDir };
+  const app: App = {
+    url: server.url,
+    server,
+    manager,
+    chat,
+    chatRunner,
+    improvements,
+    improveRunner,
+    realChecks,
+    pathEnv,
+    dir,
+    home,
+    libraryDir,
+    projectsDir,
+    sessionsDir,
+    repoDir,
+    gardenDir,
+    gh,
+    skills,
+    ...(usageCheck === undefined ? {} : { usageCheck }),
+  };
   holder.app = app;
   const stop = async () => {
     await app.improvements.shutdown();
     await app.chat.shutdown();
     await manager.shutdown();
     await app.server.close();
+    await gh.close();
     await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   };
   return { app, stop };
@@ -216,11 +265,13 @@ async function openChat(
   creations: CreationManager,
   runner: FakeChatRunner,
   improvements: () => ImprovementManager | undefined,
+  skills?: SkillService,
+  usageCheck?: UsageCheck,
 ): Promise<ChatManager> {
   return ChatManager.open({
     store: new ChatStore(path.join(pathEnv.env.BRIEFSTACK_HOME ?? '', 'chat')),
     runner,
-    tools: { pathEnv, repoDir, lang: 'en', creations, planUsage: async () => ({ fiveHour: 21, sevenDay: 34 }), improvements },
+    tools: { pathEnv, repoDir, lang: 'en', creations, planUsage: async () => ({ fiveHour: 21, sevenDay: 34 }), improvements, skills, usageCheck },
     profile: () => activeChatProfile(pathEnv),
   });
 }
@@ -233,8 +284,8 @@ export async function restartChatServer(app: App, script: ChatScript): Promise<v
   await app.chat.shutdown();
   await app.server.close();
   app.chatRunner = new FakeChatRunner(script);
-  app.chat = await openChat(app.pathEnv, app.repoDir, app.manager, app.chatRunner, () => app.improvements);
-  app.server = await startWebServer({ port: 0, pathEnv: app.pathEnv, repoDir: app.repoDir, creations: app.manager, chat: app.chat, improvements: app.improvements });
+  app.chat = await openChat(app.pathEnv, app.repoDir, app.manager, app.chatRunner, () => app.improvements, app.skills, app.usageCheck);
+  app.server = await startWebServer({ port: 0, pathEnv: app.pathEnv, repoDir: app.repoDir, creations: app.manager, chat: app.chat, improvements: app.improvements, skills: app.skills });
   app.url = app.server.url;
 }
 
