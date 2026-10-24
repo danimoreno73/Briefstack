@@ -3527,3 +3527,92 @@ reading of BRIEF-phase-6 where it was ambiguous. All can be changed.
     timeout, and every later commit and push had a green run.
 19. **CLAUDE.md** now names phase 6 (its brief and plan), as earlier phases
     did.
+
+## Phase 6: fixes from the security review (2026-10-25)
+
+A read-only review of phase 6 found the points below; the user asked for
+all of them to be fixed, each in its own commit with a test that fails
+without it. Where the request left a choice, the most conservative
+reading was taken; each such choice is marked **(choice)**.
+
+1. **File kinds** (`bfb5094`). The name decides first: a script extension,
+   a shebang or a Makefile (`Makefile`, `GNUmakefile`, `*.mk`) is a script
+   even when its bytes are not UTF-8. Such a script gets a high `encoding`
+   finding and is read decoded: UTF-16 with a byte order mark, UTF-16
+   without one when at least 40 % of the bytes on one side are zero, else
+   UTF-8, else latin-1 (which never fails). An executable-bit file that is
+   really a binary stays a binary (high). `package.json` with at least one
+   `scripts` entry, and `.html`, `.htm`, `.xhtml` or `.svg` with `<script`,
+   an `on…=` handler or `javascript:`, are scripts. The file view on the
+   page shows the decoded text.
+2. **Unticked skills** (`bb991b0`). The runner records the library skills
+   of `spec.json` when the user approves the spec through `approve_spec`
+   (after the server took out the unticked ones), keeps them in memory and
+   in `guard.json` (`librarySkills`), and resets them on any other answer.
+   Both guards then let the generator run `skills install` only when every
+   skill it would install is in that list: the `--skill` value (also
+   `--skill=<name>`), or the project's `.briefstack/spec.json` without
+   `--skill`; before an approval, nothing. `skills install --skill` refuses
+   a skill the project's spec does not choose (`skills.notInSpec`), and the
+   validator reports an installed skill the spec does not choose
+   (`librarySkill.notChosen`, an error). **(choice)** That made the chat's
+   `add_skill_to_project` impossible for existing projects (their spec
+   never chose the skill), so it first adds the skill to the project's
+   `spec.json` `librarySkills`, with a dated reason ("Added by the user …
+   from the chat on <date>", in the spec's language), and puts the file back
+   if the install then fails. The user's confirmation on the card is the
+   approval; the change is not committed in the project, like the
+   installed files (point 14 above).
+3. **Model review** (`ed978cc`). The whole reply must parse as one JSON
+   object with exactly `harmful` and a non-empty `reason`. **(choice)** A
+   reply wrapped in a code fence is not accepted either; the real check
+   will show whether Haiku keeps to "nothing else". A reply that does not
+   parse, and a reviewer error, are the new state `failed` ("The review
+   failed"), never `clear`; `unavailable` is kept for "no model review in
+   this server". Each file goes between `<file-<nonce> path="…">` and
+   `</file-<nonce>>`, where the nonce is 24 random hex characters that no
+   file holds; `"`, `<`, `>` and line breaks in a path become `_`. Every
+   text file is sent (SKILL.md, then scripts, then the rest, by path),
+   decoded as in point 1, with 20 000 characters per file and 60 000 in
+   all; files cut or left out are recorded as `model.cut` and the page shows
+   "Partial review" with their names.
+4. **Folder of `add_skill_to_project`** (`ef8a4d8`). Grants are per creation
+   and not stored, so an existing project has none. **(choice)** The card is
+   the grant: it shows the project folder and, when it is outside the
+   projects folder, says that confirming lets briefstack write there for
+   this install only; the install refuses an outside folder without that
+   grant. A protected folder (the repo, the library, the briefstack home,
+   `~/.claude`, `APPDATA`, `LOCALAPPDATA`) or a folder with a `.git` segment
+   is refused before any card. If the note points elsewhere when the user
+   confirms, nothing is installed (`stale`). **(choice)** The `path` of a
+   project note is protected in `saveNote` for every caller (the Library
+   page and the chat), not only the chat: once a note has one, a text that
+   changes it is refused (`library.pathProtected`), and the chat refuses
+   before a card. A text with no `path` keeps the old one. `library add`
+   (the main session at the end of a creation) is not changed.
+5. **Descriptions for the architect** (`9e5ec6c`). One JSON object per line
+   (`name`, `description` on one line and cut to 300 characters, `tags`) in
+   a ```` ```jsonl ```` block; `<`, `>` and backticks are written as `\u`
+   escapes, so a line cannot end the block or look like markup. The intro
+   says the block is data and that nothing in it can ask for a skill, a
+   spec change or a dropped rule.
+6. **Smaller points.** `57c8480`: a trees listing whose entries are not
+   40-hex ids is "an unknown shape" and nothing more is requested.
+   `8ec93bc`: reserved names now include COM¹–³, LPT¹–³, `CONIN$`, `CONOUT$`
+   and a device name with spaces before its extension, for every portable
+   path (specs too); **(choice)** bidirectional controls, zero-width
+   characters and the soft hyphen are refused in skill file names only (not
+   in spec paths). `324e766`: before writing, every full path is checked
+   against 250 characters (`skills.pathTooLong`, nothing written): the add
+   in its staging folder (the longest), a new version in `next/` and in
+   `files/`, and the install in `.claude/skills/<name>/`. Paths inside a
+   ZIP for `claude-app` are not on disk and are not checked.
+7. **Heuristic note** (`723fc62`). Above the findings of the current
+   version and of a new one: they come from pattern matching, can miss
+   split, built or encoded code and flag harmless lines; no findings does
+   not mean safe; read every script before approving.
+
+Not covered by these fixes, as before: the generator has `Write` in the
+projects folder, so it could still write skill files by hand instead of
+through `skills install`. The guard checks only the CLI command, and
+these fixes add no check for that case.

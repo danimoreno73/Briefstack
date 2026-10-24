@@ -13,8 +13,9 @@ push and CI after each milestone.
 
 ## 0. Status
 
-Updated 2026-10-24. M1–M11 done; the real checks and the real run
-(section 3) are the user's, not run yet. A new session reads `CLAUDE.md`,
+Updated 2026-10-25. M1–M11 done, and the fixes from the security review
+(decisions.md, "Phase 6: fixes from the security review"); the real checks
+and the real run (section 3) are the user's, not run yet. A new session reads `CLAUDE.md`,
 `docs/BRIEF-phase-6.md`, this file and `docs/decisions.md` from "# Phase 6"
 onwards before continuing.
 
@@ -35,8 +36,11 @@ onwards before continuing.
 | M10 | `tests/e2e/skills.spec.ts` (12 tests: add from the page and the chat, review page, malicious and injected skills, rate limit, new version with diff, architect proposes two and one is unticked, install into a new and an existing project, usage warning on the page and the card, archive, discard); the e2e suite runs in CI |
 | M11 | `scripts/real/check-skill-fetch.ts`, `check-skill-model-review.ts`, `check-skill-creation.ts` with static tests (not run); `docs/api.md` (skill routes, `skills install`, archive, discard, `usage.high`, chat tools, `generate` recording line); decisions "Decisiones sin Dani (fase 6)" |
 
-Gates at the end: build, lint, 963 unit tests (2 more on Linux only) and 89
-e2e tests pass locally on Windows; CI (Linux, unit and e2e) green.
+| Review fixes | File kinds by name first and decoded text (`encoding` finding); only the approved spec's library skills are installed (guard list, `skills.notInSpec`, `librarySkill.notChosen`); strict model answer, nonce tags, every text file, `failed` state, partial review; `add_skill_to_project` folder checks and a protected project `path`; architect descriptions as JSON lines cut to 300; 40-hex listing ids, more reserved and invisible names, `skills.pathTooLong`; the heuristic note on the skill page |
+
+Gates at the end: build, lint, 981 unit tests (2 more on Linux only) and the
+e2e tests pass locally on Windows; CI (Linux, unit and e2e) is checked after
+the push.
 
 ## 1. Approach
 
@@ -207,7 +211,9 @@ week. Run them from PowerShell in the repo, in this order:
 1. `npx tsx scripts/real/check-skill-model-review.ts --yes`: two very short
    Haiku reviews. Expected: the harmless skill is not flagged; the malicious
    one is flagged, with reasons, although its SKILL.md tells the reviewer to
-   answer otherwise.
+   answer otherwise, tries to close its file tag and writes its own verdict.
+   Each reply must be the JSON alone: "no answer" means Haiku added text or
+   a code fence, which the server now records as a failed review.
 2. `npx tsx scripts/real/check-skill-fetch.ts --yes` (optionally
    `--url <github link>`): fetches `anthropics/skills` `skills/brand-guidelines`
    without a token (about four GitHub requests), one Haiku review, approve,
@@ -231,7 +237,10 @@ Then the real run (BRIEF-phase-6 §5), on the real library:
    left out). Finish the creation; check `.claude/skills/<name>/` and
    `.briefstack/skills.json` in the project, then open the project with
    `claude` and check the skill is listed and works.
-7. Chat: "add <the other skill> to <an existing project>", confirm the card;
-   check the files and the line in the project note.
+7. Chat: "add <the other skill> to <an existing project>"; the card shows
+   the project folder; confirm it. Check the files, the skill added to the
+   project's `.briefstack/spec.json` `librarySkills`, that
+   `npm run briefstack -- validate <project>` finds no errors, and the line
+   in the project note.
 8. Accept the result. Tag `phase-6-done` (the user, or the next session
    when asked).

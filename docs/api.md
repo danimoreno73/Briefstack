@@ -179,7 +179,9 @@ edit is a full rewrite. Notes in `projects/` keep a validated status block.
 One commit and an `INDEX.md` update. Answers
 `{ section, name?, file, mode: "append" | "rewrite" | "create" | "unchanged", indexUpdated, committed, status?, warnings }`.
 Text with a secret is a 400 `library.secretContent` (`params.lines` are line
-numbers) and nothing is written.
+numbers) and nothing is written. A text that changes the `path` of a
+project note that has one is a 409 `library.pathProtected`: it is where
+briefstack made the project, and installs go there.
 
 ### `POST /api/library/revert`
 
@@ -464,7 +466,7 @@ string redacted.
 | `show_settings` | read | — | language, permission policy, limit of creations, resolved folders |
 | `start_creation` | action | `idea` | card, then starts a creation as the New project page does; an idea with something that looks like a secret is refused, so the card always shows the idea exactly as it will start |
 | `cancel_creation` | action | `creationId` | card, then cancels through the flow |
-| `propose_note_change` | action | `section`, `name`?, `text` (the whole note) | lines kept from the redacted view get the note's own text back, and a placeholder (`[redacted]`, `[outside allowed folders]`, `~/…`) in a new or changed line is refused; card with the diff, then `saveNote` (secret check, dates, INDEX, one commit) only if the note still holds the text the diff was made from; otherwise nothing is saved and the card becomes `stale` |
+| `propose_note_change` | action | `section`, `name`?, `text` (the whole note) | lines kept from the redacted view get the note's own text back, and a placeholder (`[redacted]`, `[outside allowed folders]`, `~/…`) in a new or changed line is refused; a text that changes a project note's `path` is refused (`library.pathProtected`); card with the diff, then `saveNote` (secret check, dates, INDEX, one commit) only if the note still holds the text the diff was made from; otherwise nothing is saved and the card becomes `stale` |
 | `set_usage_profile` | action | `profile` | card, then `usage set` |
 | `list_suggestions` | read | — | suggestions after creations: id, an English sentence, target asset, idea, creation and session, the proposal prepared from it |
 | `list_proposals` | read | — | improvement proposals (summaries) and the one being prepared now |
@@ -472,7 +474,7 @@ string redacted.
 | `prepare_improvement` | action | `request`, `sessions`? (up to 5), `lessons`?, `suggestionId`? | card, then starts an improvement session (one at a time; a request with a secret is refused). Approving, asking for changes, discarding and reverting are not chat tools: they happen on the proposal page |
 | `list_skills` | read | `status`? | the library's third-party skills: name, the author's description (data), status, tags, source, scripts, network, license, high findings, model review, whether a new version waits |
 | `add_skill` | action | `url`, `tags`? | card with the link, repo, folder and ref (an invalid link is refused before any card), then fetches the skill into quarantine with its review. Approving, rejecting and deleting are not chat tools: they happen on the skill's page |
-| `add_skill_to_project` | action | `skill`, `project` (slug) | only an approved skill, only a project with a library note, not twice; card with where it goes, its license and a scripts note, then the same install as `skills install --skill` and one dated line in the project note |
+| `add_skill_to_project` | action | `skill`, `project` (slug) | only an approved skill, only a project with a library note, not twice; never a protected folder or one inside `.git` (refused before any card). Card with where it goes (`location`), the project `folder`, `outsideProjects` (outside the projects folder: confirming grants that folder for this install only), its license and a scripts note; then the skill joins the project's `spec.json` `librarySkills` (the user's choice), the same install as `skills install --skill`, and one dated line in the project note. If the note points to another folder by then, nothing is installed (`stale`) |
 
 `start_creation` and `prepare_improvement` cards carry `usage`
 (`{ fiveHour, sevenDay, warnFiveHour, warnWeek }`) when the plan usage is
@@ -610,7 +612,10 @@ is the metadata note's frontmatter: `name`, `description`, `status`
 `license { spdx, source, file? }`, `hasScripts`, `network`,
 `allowedTools?`, `files [{ path, size, kind, sha256, executable }]`,
 `findings [{ rule, severity, file, line?, excerpt? }]`,
-`model { state: flagged | clear | unavailable, reason, model, at }`, and
+`model { state: flagged | clear | failed | unavailable, reason, model, at, cut? }`
+(`failed`: the review ran but its reply was not exactly the answer's JSON,
+or it broke; `unavailable`: no model review in this server; `cut`: files
+the model saw only in part or not at all, shown as "Partial review"), and
 `next?` (the same version fields for a new version in quarantine).
 `FileDiff` is `{ path, change: added | removed | changed, hunks?, binary? }`
 of `next` against the current files. A change answers
@@ -633,12 +638,15 @@ The detail; one file of a version as `{ path, kind, size, text? }` (no
 Body `{ "url": "<github link>", "tags"?: [...] }`. Fetches the folder from
 the two GitHub hosts at the commit the ref points to (limits: 200 files,
 1 MB each, 5 MB in all; no symlinks, submodules, LFS pointers,
-`.gitattributes` or `.gitmodules`; portable names; every blob hash
-checked), reviews it (static rules, license, the model review) and stores it
-in quarantine. `201 { detail, committed, warnings }`. `400 skills.invalidUrl` (`params.reason`:
+`.gitattributes` or `.gitmodules`; portable names, without bidirectional or
+zero-width characters; only 40-hex object ids in a listing; every blob hash
+checked), reviews it (static rules, license, the model review on every text
+file) and stores it in quarantine. `201 { detail, committed, warnings }`. `400 skills.invalidUrl` (`params.reason`:
 `notHttps`, `notGithub`, `shape`, `notSkillFile`), `404 skills.repoNotFound`,
 `skills.refNotFound`, `skills.pathNotFound`, `400 skills.noSkillFile`,
 `skills.tooLarge`, `skills.forbiddenEntry`, `skills.integrity`,
+`422 skills.pathTooLong` (a file would land on a path over 250 characters
+in the library; nothing is written),
 `skills.invalidName`, `skills.invalidTag`, `409 skills.exists`
 (`params.sameSource`), `429 skills.rateLimited` (`params.reset`),
 `502 skills.network`.
@@ -670,15 +678,22 @@ is dropped. `409 skills.noUpdate` when none waits.
 
 `briefstack skills install <project-dir> [--skill <name>] [--json]`. Without
 `--skill`, the library skills of the project's `.briefstack/spec.json`
-(`librarySkills`) not installed yet; with it, one more. Only approved
+(`librarySkills`) not installed yet; with it, one of them only
+(`skills.notInSpec` for a skill the spec does not choose). Only approved
 skills whose library files match their hashes; never over an existing
-file; never through a link that leads out of the project. `claude-code`:
+file; never through a link that leads out of the project; never a path
+over 250 characters (`skills.pathTooLong`, checked before copying). `claude-code`:
 `.claude/skills/<name>/` byte for byte; `claude-app`: `skills/<name>.zip`
 (the skill folder at the archive's root) and a line under "Skills" in
 `NEXT_STEPS.md`. Each install is recorded in `.briefstack/skills.json`
 (source, commit, agent, file hashes, the archive's hash). The validator
-checks those hashes (`librarySkill.*`) and leaves the skills' own text
-alone. The creation guard lets the generator run it, into an allowed folder.
+checks those hashes (`librarySkill.*`), reports an installed skill the
+spec does not choose (`librarySkill.notChosen`), and leaves the skills' own
+text alone. The creation guard lets the generator run it, into an allowed
+folder, and only for the library skills of the spec as the user approved it
+(the runner records them at the approval): a `--skill` outside that list,
+or a project `spec.json` that names another, is denied, and so is any
+install before an approval.
 
 ## Appendix: fake runner recordings
 
