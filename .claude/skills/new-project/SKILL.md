@@ -201,7 +201,9 @@ Step `spec`.
      `summaryFile`, both absolute paths in the session folder, in the same
      turn. That call is how the user sees the spec and answers. Its answer is
      the user's choice: `approve`, `change` with the text of the change, or
-     `cancel`. Never ask in plain text and never end the turn instead.
+     `cancel`. An `approve` may list `removedLibrarySkills`: the user
+     unticked them and `WORK/spec.json` no longer has them; go on with it
+     as it is. Never ask in plain text and never end the turn instead.
    <!-- /briefstack:locked spec-web -->
    - **Terminal** (`MODE` terminal): show it to the user in plain text. Ask
      them to approve, change something or cancel.
@@ -220,8 +222,9 @@ Nothing is created before the user approves.
 
 Step `generate`. Launch `generator` with: `WORK/spec.json`, the output
 folder, whether to pass `--allow-non-empty`, the spec language, and the path
-`WORK/research.md` if research ran. It runs `scaffold`, fills the files and
-runs `validate`. If it reports something it
+`WORK/research.md` if research ran. It runs `scaffold`, `skills install` when
+the spec has library skills, fills the files and runs `validate`. If it
+reports something it
 could not build, tell the user and decide with them whether to continue. If
 it reports that a write was denied, ask the user to run `/add-dir <dir>` (in
 the web app, call `grant_directory` with `dir`) and launch it again.
