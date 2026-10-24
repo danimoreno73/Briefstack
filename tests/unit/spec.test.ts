@@ -146,6 +146,46 @@ describe('parseSpec', () => {
   });
 });
 
+describe('librarySkills', () => {
+  it('defaults to none and takes a name, a reason and an optional agent, for both targets', () => {
+    expect(parseSpec(specInput(), 'spec.json').librarySkills).toEqual([]);
+    const spec = parseSpec(
+      specInput({
+        agents: [{ name: 'notetaker', description: 'a', tools: ['Read'], tier: 'light' }],
+        librarySkills: [
+          { name: 'tidy-notes', reason: 'Notes need tidying.', agent: 'notetaker' },
+          { name: 'pdf-tools', reason: 'PDFs come in.' },
+        ],
+      }),
+      'spec.json',
+    );
+    expect(spec.librarySkills).toHaveLength(2);
+    expect(issuesOf(specInput({ target: 'claude-app', librarySkills: [{ name: 'tidy-notes', reason: 'x' }] }))).toEqual([]);
+  });
+
+  it('refuses an unknown agent, a name a generated skill has, duplicates and missing reasons', () => {
+    const issues = issuesOf(
+      specInput({
+        skills: [{ name: 'tidy-notes', description: 'Generated.' }],
+        librarySkills: [
+          { name: 'Tidy-Notes', reason: 'x' },
+          { name: 'pdf-tools', reason: 'x', agent: 'nobody' },
+          { name: 'pdf-tools', reason: 'x' },
+          { name: 'other', reason: '' },
+        ],
+      }),
+    );
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: 'librarySkills.0.name' }),
+        expect.objectContaining({ path: 'librarySkills.1.agent', rule: 'unknownAgent' }),
+        expect.objectContaining({ path: 'librarySkills.2.name', rule: 'duplicate' }),
+        expect.objectContaining({ path: 'librarySkills.3.reason' }),
+      ]),
+    );
+  });
+});
+
 describe('path rules', () => {
   it('accepts portable relative paths only', () => {
     for (const ok of ['a', 'docs/notes.md', '.github/workflows/ci.yml', 'a b/c-d_e.txt']) {

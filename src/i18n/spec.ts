@@ -14,6 +14,8 @@ const rules = defineCatalogue<Record<SpecRule, string>>({
     claudeCodeOnly: 'only allowed when target is claude-code',
     documentOnly:
       'briefstack writes documents only (.md, .txt, .csv); application code, tests and build files are written later, in the project',
+    unknownAgent: 'names no agent of this spec (leave it out for the whole project)',
+    librarySkill: 'is not an approved skill of the library',
   },
   es: {
     slug: 'usa minúsculas, dígitos y guiones simples (p. ej. mi-proyecto)',
@@ -27,6 +29,8 @@ const rules = defineCatalogue<Record<SpecRule, string>>({
     claudeCodeOnly: 'solo se permite cuando target es claude-code',
     documentOnly:
       'briefstack solo escribe documentos (.md, .txt, .csv); el código de la aplicación, los tests y los archivos de build se escriben después, en el proyecto',
+    unknownAgent: 'no nombra ningún agente de esta spec (quítalo para todo el proyecto)',
+    librarySkill: 'no es una skill aprobada de la biblioteca',
   },
 });
 

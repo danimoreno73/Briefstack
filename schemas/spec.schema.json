@@ -151,6 +151,35 @@
         "additionalProperties": false
       }
     },
+    "librarySkills": {
+      "default": [],
+      "description": "Approved skills from the user's library that the project really needs, each with the reason and, optionally, the agent it is for. Installed by briefstack as they are; most projects need none.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "agent": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          }
+        },
+        "required": [
+          "name",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
     "agents": {
       "default": [],
       "type": "array",

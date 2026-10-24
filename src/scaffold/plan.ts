@@ -72,6 +72,19 @@ function placeholderFile(path: string, purpose: string): string {
   return `# ${base}\n\n${purpose}\n`;
 }
 
+/**
+ * Adds a `skills:` list to an agent file's frontmatter: Claude Code
+ * preloads those skills into the agent (docs/decisions.md, phase 6 H0
+ * point 2). The names are slugs, so they need no quoting.
+ */
+export function withSkillList(agentFile: string, names: readonly string[]): string {
+  if (names.length === 0) return agentFile;
+  const close = agentFile.indexOf('\n---\n');
+  if (!agentFile.startsWith('---\n') || close === -1) return agentFile;
+  const list = `skills:\n${names.map((name) => `  - ${name}`).join('\n')}`;
+  return `${agentFile.slice(0, close)}\n${list}${agentFile.slice(close)}`;
+}
+
 function checkTemplateFile(template: Template, file: TemplateFile): void {
   const allowed = isSafeRelativePath(file.path) && (file.path === '.gitignore' || !isReservedPath(file.path));
   if (!allowed) {
@@ -109,9 +122,10 @@ export function buildPlan(spec: Spec, template: Template): ScaffoldPlan {
     files.set('.claude/settings.json', json({ permissions: { deny: DENY_RULES } }));
     for (const agent of spec.agents) {
       const fields = { name: agent.name, description: agent.description, tools: agent.tools.join(', ') };
+      const preload = spec.librarySkills.filter((skill) => skill.agent === agent.name).map((skill) => skill.name);
       files.set(
         `.claude/agents/${agent.name}.md`,
-        buildFrontmatter(fields, `\n${agent.purpose ?? agent.description}\n`),
+        withSkillList(buildFrontmatter(fields, `\n${agent.purpose ?? agent.description}\n`), preload),
       );
     }
     for (const skill of spec.skills) {

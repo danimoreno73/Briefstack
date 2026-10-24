@@ -26,6 +26,8 @@ export const SPEC_RULES = [
   'duplicate',
   'claudeCodeOnly',
   'documentOnly',
+  'unknownAgent',
+  'librarySkill',
 ] as const;
 export type SpecRule = (typeof SPEC_RULES)[number];
 
@@ -101,6 +103,19 @@ export const AgentSpecSchema = z.strictObject({
   purpose: text.optional(),
 });
 
+/**
+ * An approved third-party skill from the user's library (BRIEF-phase-6
+ * §3.5). `briefstack skills install` copies it into the project; nothing in
+ * it is written by the generator.
+ */
+export const LibrarySkillSpecSchema = z.strictObject({
+  name: slug,
+  /** Why the project needs it, in the spec's language. */
+  reason: text,
+  /** The spec agent it is for; absent for the whole project. */
+  agent: slug.optional(),
+});
+
 export const ScheduledTaskSpecSchema = z.strictObject({
   name: text,
   /** Human wording, e.g. "every Monday at 09:00"; the user sets it up by hand. */
@@ -174,6 +189,12 @@ export const SpecSchema = z
         'Documents briefstack writes to prepare the project (.md, .txt, .csv): context, notes, at most a first task plan. Never application code, tests or build files.',
       ),
     skills: z.array(SkillSpecSchema).default([]),
+    librarySkills: z
+      .array(LibrarySkillSpecSchema)
+      .default([])
+      .describe(
+        "Approved skills from the user's library that the project really needs, each with the reason and, optionally, the agent it is for. Installed by briefstack as they are; most projects need none.",
+      ),
     agents: z.array(AgentSpecSchema).default([]),
     scheduledTasks: z.array(ScheduledTaskSpecSchema).default([]),
   })
@@ -194,6 +215,19 @@ export const SpecSchema = z
       spec.agents.map((agent) => agent.name),
       ['agents'],
     );
+    // A library skill shares the `.claude/skills/` namespace with the generated ones.
+    const generated = new Set(spec.skills.map((skill) => skill.name.toLowerCase()));
+    const library = new Set<string>();
+    spec.librarySkills.forEach((skill, index) => {
+      const key = skill.name.toLowerCase();
+      if (generated.has(key) || library.has(key)) {
+        ctx.addIssue({ code: 'custom', path: ['librarySkills', index, 'name'], params: { rule: 'duplicate' } });
+      }
+      library.add(key);
+      if (skill.agent !== undefined && !spec.agents.some((agent) => agent.name === skill.agent)) {
+        ctx.addIssue({ code: 'custom', path: ['librarySkills', index, 'agent'], params: { rule: 'unknownAgent' } });
+      }
+    });
     if (spec.target !== 'claude-code') {
       for (const field of ['skills', 'agents'] as const) {
         if (spec[field].length > 0) {
@@ -209,6 +243,7 @@ export type Spec = z.output<typeof SpecSchema>;
 export type SpecInput = z.input<typeof SpecSchema>;
 export type AgentSpec = z.output<typeof AgentSpecSchema>;
 export type SkillSpec = z.output<typeof SkillSpecSchema>;
+export type LibrarySkillSpec = z.output<typeof LibrarySkillSpecSchema>;
 export type Tier = (typeof TIERS)[number];
 export type Target = (typeof TARGETS)[number];
 export type TargetChooser = (typeof TARGET_CHOOSERS)[number];
