@@ -778,6 +778,7 @@ export const uiMessages = defineCatalogue({
     errSkillRateLimited: 'GitHub’s limit for requests without a token was reached. Try again in a while.',
     errSkillNetwork: 'GitHub could not be reached, or answered something unexpected. Try again.',
     errSkillTooLarge: 'The skill is larger than briefstack takes (200 files, 1 MB per file, 5 MB in all).',
+    errSkillPathTooLong: (limit: number) => `A file of the skill would get a path longer than ${limit} characters in your library folder, so nothing was written. Move the library to a shorter path.`,
     errSkillForbidden: 'The skill holds something briefstack refuses (a link, a submodule, an LFS file, a git settings file or a name that is not safe).',
     errSkillIntegrity: 'A file did not match the commit, so nothing was kept. Try again.',
     errSkillExists: (sameSource: boolean) =>
@@ -1596,6 +1597,7 @@ export const uiMessages = defineCatalogue({
     errSkillRateLimited: 'Se alcanzó el límite de GitHub para peticiones sin token. Inténtalo dentro de un rato.',
     errSkillNetwork: 'No se pudo llegar a GitHub, o respondió algo inesperado. Inténtalo de nuevo.',
     errSkillTooLarge: 'La skill es más grande de lo que admite briefstack (200 archivos, 1 MB por archivo, 5 MB en total).',
+    errSkillPathTooLong: (limit: number) => `Un archivo de la skill tendría una ruta de más de ${limit} caracteres en tu carpeta de biblioteca, así que no se ha escrito nada. Mueve la biblioteca a una ruta más corta.`,
     errSkillForbidden: 'La skill contiene algo que briefstack rechaza (un enlace, un submódulo, un archivo LFS, un archivo de ajustes de git o un nombre no seguro).',
     errSkillIntegrity: 'Un archivo no coincidía con el commit, así que no se guardó nada. Inténtalo de nuevo.',
     errSkillExists: (sameSource: boolean) =>

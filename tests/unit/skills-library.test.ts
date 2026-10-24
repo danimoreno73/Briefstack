@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BriefstackError, isBriefstackError } from '../../src/errors.js';
 import { initLibrary } from '../../src/library/index.js';
 import { FakeSkillReviewer, hasScript } from '../../src/skills/modelReview.js';
+import { MAX_TARGET_PATH } from '../../src/skills/pathLength.js';
 import { parseRecord, renderRecord, skillNameFrom } from '../../src/skills/record.js';
 import { SkillService, normaliseTags } from '../../src/skills/service.js';
 import { tempDir, useHermeticGit } from '../helpers.js';
@@ -97,6 +98,21 @@ describe('SkillService', { timeout: 60_000 }, () => {
     // Not listed in INDEX.md: the interviewer and the architect read it.
     expect(await readFile(path.join(libraryDir, 'INDEX.md'), 'utf8')).not.toContain('tidy-notes');
     expect(git(libraryDir, ['status', '--porcelain']).trim()).toBe('');
+  });
+
+  it('refuses, before writing anything, a file that would get too long a path in the library', async () => {
+    const deep = `${'a'.repeat(60)}/${'b'.repeat(60)}/${'c'.repeat(60)}.md`;
+    const long = await startFakeGitHub({ 'acme/deep': sampleRepo({ 'skills/deep/SKILL.md': '---\nname: deep-notes\ndescription: x\n---\n', [`skills/deep/${deep}`]: 'x\n' }).repo });
+    try {
+      const deepService = new SkillService({ libraryDir: async () => libraryDir, fetch: { apiBase: long.apiBase, rawBase: long.rawBase }, reviewer });
+      const error = await failure(deepService.add('https://github.com/acme/deep/tree/main/skills/deep'));
+      expect(error).toMatchObject({ code: 'skills.pathTooLong', params: { path: deep, limit: MAX_TARGET_PATH } });
+      expect((error.params as { length: number }).length).toBeGreaterThan(MAX_TARGET_PATH);
+      // No skill folder and no staging folder left behind.
+      expect(await readdir(path.join(libraryDir, 'skills'))).not.toContainEqual(expect.stringMatching(/deep-notes/));
+    } finally {
+      await long.close();
+    }
   });
 
   it('records scripts, network, findings and the model flag of a malicious skill', async () => {

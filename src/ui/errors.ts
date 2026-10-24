@@ -81,6 +81,8 @@ export function describeError(error: unknown, t: Messages): string {
       return t.errSkillNetwork;
     case 'skills.tooLarge':
       return t.errSkillTooLarge;
+    case 'skills.pathTooLong':
+      return t.errSkillPathTooLong(Number(error.params.limit));
     case 'skills.forbiddenEntry':
       return t.errSkillForbidden;
     case 'skills.integrity':

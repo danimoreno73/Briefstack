@@ -218,6 +218,8 @@ const errors = defineCatalogue<ErrorMessages>({
         : p.what === 'file'
           ? `${p.path ?? 'A file'} has ${p.actual} bytes; the limit per file is ${p.limit}.`
           : `The skill has ${p.actual} bytes in all; the limit is ${p.limit}.`,
+    'skills.pathTooLong': (p) =>
+      `${p.path} would be written at a path of ${p.length} characters; the limit is ${p.limit}. Nothing was written. Use a folder with a shorter path.`,
     'skills.forbiddenEntry': (p) => `The skill was refused: ${skillEntryEn[p.kind]}${p.path === '' ? '' : ` (${p.path})`}.`,
     'skills.integrity': (p) => `${p.path} did not match the commit's content, so nothing was kept. Try again.`,
     'skills.unavailable': () => 'Skills are not available in this server.',
@@ -378,6 +380,8 @@ const errors = defineCatalogue<ErrorMessages>({
         : p.what === 'file'
           ? `${p.path ?? 'Un archivo'} tiene ${p.actual} bytes; el límite por archivo es ${p.limit}.`
           : `La skill tiene ${p.actual} bytes en total; el límite es ${p.limit}.`,
+    'skills.pathTooLong': (p) =>
+      `${p.path} se escribiría en una ruta de ${p.length} caracteres; el límite es ${p.limit}. No se ha escrito nada. Usa una carpeta con una ruta más corta.`,
     'skills.forbiddenEntry': (p) => `Se rechazó la skill: ${skillEntryEs[p.kind]}${p.path === '' ? '' : ` (${p.path})`}.`,
     'skills.integrity': (p) => `${p.path} no coincidía con el contenido del commit, así que no se guardó nada. Inténtalo de nuevo.`,
     'skills.unavailable': () => 'Las skills no están disponibles en este servidor.',

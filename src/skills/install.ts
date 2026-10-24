@@ -8,6 +8,7 @@ import { inspectOutputDir, realpathNearest, type ProtectedDir } from '../scaffol
 import { readSpec, type Target } from '../spec/index.js';
 import { skillsMessages } from '../i18n/skills.js';
 import type { SkillRecord } from './record.js';
+import { assertPathsFit } from './pathLength.js';
 import { filesMatch } from './service.js';
 import { buildZip } from './zip.js';
 
@@ -233,6 +234,7 @@ export async function installSkills(options: InstallOptions): Promise<InstallRes
       const target = path.join(root, ...location.split('/'));
       if (await exists(target)) throw new BriefstackError('skills.wouldOverwrite', { path: location });
       if (!(await staysInside(target, root))) throw new BriefstackError('skills.wouldOverwrite', { path: location });
+      assertPathsFit(target, record.files);
       try {
         for (const file of record.files) {
           const to = path.join(target, ...file.path.split('/'));

@@ -104,6 +104,7 @@ export interface ErrorParams {
   'skills.rateLimited': { reset: string | null };
   'skills.network': { detail: string };
   'skills.tooLarge': { what: 'file' | 'files' | 'total'; limit: number; actual: number; path?: string };
+  'skills.pathTooLong': { path: string; length: number; limit: number };
   'skills.forbiddenEntry': { path: string; kind: SkillEntryProblem };
   'skills.integrity': { path: string };
   'skills.unavailable': Record<string, never>;

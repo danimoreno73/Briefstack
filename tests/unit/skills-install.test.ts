@@ -9,6 +9,7 @@ import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { scaffold } from '../../src/scaffold/index.js';
 import { FakeSkillReviewer } from '../../src/skills/modelReview.js';
 import { INSTALL_RECORD, chooseInSpec, installSkills, nextStepsWithSkill, readInstalled } from '../../src/skills/install.js';
+import { MAX_TARGET_PATH } from '../../src/skills/pathLength.js';
 import { SkillService } from '../../src/skills/service.js';
 import { readZip } from '../../src/skills/zip.js';
 import { parseSpec, type SpecInput } from '../../src/spec/index.js';
@@ -166,6 +167,18 @@ describe('skills install', { timeout: 60_000 }, () => {
     expect((await failure(installSkills({ projectDir: plain, skills: service }))).code).toBe('skills.notAProject');
     expect((await failure(installSkills({ projectDir: path.join(dir, 'nope'), skills: service }))).code).toBe('skills.projectNotFound');
     expect((await failure(installSkills({ projectDir: project, skills: service, protectedDirs: [{ root: 'library', path: path.join(dir, 'projects') }] }))).code).toBe('scaffold.forbiddenOutput');
+  });
+
+  it('refuses, before copying anything, a project where a file would get too long a path', async () => {
+    // A project folder whose own files still fit, but whose installed skill would not.
+    const base = path.join(dir, 'projects');
+    const project = path.join(base, 'p'.repeat(Math.max(1, 225 - base.length)));
+    await mkdir(path.join(project, '.briefstack'), { recursive: true });
+    await writeFile(path.join(project, '.briefstack', 'spec.json'), JSON.stringify(specInput({ librarySkills: [{ name: 'tidy-notes', reason: 'x' }] })), 'utf8');
+    const error = await failure(installSkills({ projectDir: project, skills: service }));
+    expect(error).toMatchObject({ code: 'skills.pathTooLong', params: { limit: MAX_TARGET_PATH } });
+    expect(await readdir(project)).toEqual(['.briefstack']);
+    expect(await readdir(path.join(project, '.briefstack'))).toEqual(['spec.json']);
   });
 
   it('refuses library files that changed after approval, and leaves nothing behind', async () => {

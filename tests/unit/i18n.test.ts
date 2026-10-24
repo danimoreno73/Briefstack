@@ -119,6 +119,7 @@ describe('error catalogue', () => {
     'skills.rateLimited': { reset: null },
     'skills.network': { detail: 'a request timed out' },
     'skills.tooLarge': { what: 'file', limit: 10, actual: 20, path: 'a.md' },
+    'skills.pathTooLong': { path: 'a.md', length: 300, limit: 250 },
     'skills.forbiddenEntry': { path: 'link', kind: 'symlink' },
     'skills.integrity': { path: 'a.md' },
     'skills.unavailable': {},

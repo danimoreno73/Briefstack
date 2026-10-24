@@ -25,6 +25,7 @@ import {
   type SkillStatus,
   type SkillVersion,
 } from './record.js';
+import { assertPathsFit } from './pathLength.js';
 import { decodeText, reviewSkill, sha256 } from './review.js';
 import { parseSkillUrl, treeUrl } from './url.js';
 
@@ -343,6 +344,8 @@ export class SkillService {
       const record: SkillRecord = { skillFormat: SKILL_FORMAT, name, status: 'quarantine', tags: wanted, statusChanged: this.now().toISOString(), ...version };
       // Built in a folder of its own and moved into place, so a failure leaves no half-written skill.
       const staging = native(libraryDir, `${SKILLS_DIR}/.${name}.${randomBytes(4).toString('hex')}.tmp`);
+      // The staging folder is the longest place a file goes; checked before anything is written.
+      assertPathsFit(path.join(staging, FILES_DIR), fetched.files);
       try {
         await writeFiles(path.join(staging, FILES_DIR), fetched.files);
         const text = renderRecord(record);
@@ -423,6 +426,9 @@ export class SkillService {
       const current = await this.load(libraryDir, name);
       if (current.next !== undefined) throw new BriefstackError('skills.updatePending', { name });
       const nextDir = native(libraryDir, `${SKILLS_DIR}/${name}/${NEXT_DIR}`);
+      // In next/ now, in files/ once approved.
+      assertPathsFit(nextDir, fetched.files);
+      assertPathsFit(native(libraryDir, `${SKILLS_DIR}/${name}/${FILES_DIR}`), fetched.files);
       await rm(nextDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
       await writeFiles(nextDir, fetched.files);
       return this.save(libraryDir, { ...current, next: version }, `library: new version of skill ${name} (quarantine)`);
