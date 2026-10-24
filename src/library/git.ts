@@ -104,18 +104,21 @@ export async function gitHasChanges(
 /**
  * Commits exactly `files` (relative to `dir`, with `/`). Without a configured
  * identity it passes the fallback with `-c` for this command only.
- * `configArgs` are more `-c` options for every git call it makes.
+ * `configArgs` are more `-c` options for every git call it makes; `addArgs`
+ * go to `git add` (`-f` for a third-party skill, whose own `.gitignore` must
+ * not hide its files).
  */
 export async function gitCommit(
   dir: string,
   files: readonly string[],
   message: string,
   configArgs: readonly string[] = [],
+  addArgs: readonly string[] = [],
 ): Promise<{ committed: boolean; warning?: GitWarning }> {
   if (files.length === 0) return { committed: false };
   if (!(await isGitRepo(dir))) return { committed: false, warning: { code: 'notAGitRepo', dir } };
   try {
-    await git(dir, [...configArgs, 'add', '--', ...files]);
+    await git(dir, [...configArgs, 'add', ...addArgs, '--', ...files]);
     await git(dir, [...configArgs, ...(await identityArgs(dir, configArgs)), 'commit', '--quiet', '-m', message, '--', ...files]);
     return { committed: true };
   } catch (error) {
