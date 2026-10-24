@@ -83,6 +83,10 @@ describe('matchSubcommand', () => {
     }
     expect(matchSubcommand('generator', ['scaffold'])).toEqual(['scaffold']);
     expect(matchSubcommand('generator', ['validate'])).toEqual(['validate']);
+    expect(matchSubcommand('generator', ['skills', 'install', 'x'])).toEqual(['skills', 'install']);
+    expect(matchSubcommand('generator', ['skills', 'list'])).toBeUndefined();
+    expect(matchSubcommand('main', ['skills', 'install'])).toBeUndefined();
+    expect(matchSubcommand('reviewer', ['skills', 'install'])).toBeUndefined();
     expect(matchSubcommand('generator', ['commit'])).toBeUndefined();
     expect(matchSubcommand('generator', ['event'])).toBeUndefined();
     expect(matchSubcommand('reviewer', ['validate'])).toEqual(['validate']);
@@ -280,6 +284,22 @@ describe('evaluateToolUse', () => {
       expect(await shell(`${CLI} validate "${out}" --json`, reviewer)).toBe('allow');
       expect(await shell(`${CLI} scaffold "a" "${out}"`, reviewer)).toBe('deny');
       expect(await shell('find . -type d', reviewer)).toBe('deny');
+    });
+
+    it('lets only the generator run skills install, and only into an allowed folder', async () => {
+      const inside = slashes(path.join(projectsDir, 'app'));
+      expect(await shell(`${CLI} skills install "${inside}"`, generator)).toBe('allow');
+      expect(await shell(`${CLI} skills install "${inside}" --skill tidy-notes --json`, generator)).toBe('allow');
+      expect(await shell(`${CLI} skills install --skill tidy-notes "${inside}"`, generator)).toBe('allow');
+      expect(await shell(`${CLI} skills install "${slashes(outside)}"`, generator)).toBe('deny');
+      expect(await shell(`${CLI} skills install --skill "${inside}"`, generator)).toBe('deny');
+      expect(await shell(`${CLI} skills install "relative/app"`, generator)).toBe('deny');
+      expect(await shell(`${CLI} skills install "${inside}/.git"`, generator)).toBe('deny');
+      expect(await shell(`${CLI} skills install "${inside}"`)).toBe('deny');
+      expect(await shell(`${CLI} skills install "${inside}"`, reviewer)).toBe('deny');
+      expect(await shell(`${CLI} skills install "${inside}"`, { agent_id: 'a9', agent_type: 'architect' })).toBe('deny');
+      expect(await shell(`${CLI} skills list`, generator)).toBe('deny');
+      expect(await shell(`${CLI} skills install "${inside}"; calc`, generator)).toBe('deny');
     });
 
     it('gives the other agents no shell at all', async () => {

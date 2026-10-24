@@ -78,7 +78,8 @@ export type Caller = 'main' | 'generator' | 'reviewer' | 'other';
 /** The subcommands of `briefstack` each caller may run (the table in PLAN-phase-2 "Pending for H6"). */
 export const ALLOWED_SUBCOMMANDS: Readonly<Record<Exclude<Caller, 'other'>, readonly (readonly string[])[]>> = {
   main: [['event'], ['paths'], ['usage', 'show'], ['library', 'context'], ['library', 'add'], ['spec', 'check'], ['validate'], ['commit']],
-  generator: [['scaffold'], ['validate']],
+  // `skills install` copies approved library skills into the project (BRIEF-phase-6 §4): the generator only.
+  generator: [['scaffold'], ['skills', 'install'], ['validate']],
   reviewer: [['validate']],
 };
 
@@ -308,9 +309,13 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
       );
     }
     // Commands that write on their own must point inside the folders a creation may write to.
-    if (sub[0] === 'scaffold' || sub[0] === 'commit') {
-      const positionals = parsed.argv.slice(sub.length).filter((word) => !word.startsWith('-'));
+    if (sub[0] === 'scaffold' || sub[0] === 'commit' || sub[0] === 'skills') {
+      const words = parsed.argv.slice(sub.length);
+      // `--skill <name>` takes a value: it is not the folder.
+      const positionals = words.filter((word, index) => !word.startsWith('-') && words[index - 1] !== '--skill');
       const target = sub[0] === 'scaffold' ? positionals[1] : positionals[0];
+      // `skills install` with no folder is refused by the CLI; the guard asks for one first.
+      if (target === undefined && sub[0] === 'skills') return deny('Name the project folder: `skills install "<project-dir>"`.', summary);
       if (target !== undefined) {
         const kind = classifyPath(target, pathEnv);
         if (kind !== 'ok') {
