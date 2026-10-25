@@ -155,6 +155,85 @@ describe('skills install', { timeout: 60_000 }, () => {
     expect(findings.map((f) => [f.rule, f.severity, f.params])).toEqual([['librarySkill.notChosen', 'error', { name: 'tidy-notes' }]]);
   });
 
+  describe('the validator and unapproved library files', () => {
+    const own = (project: string, ...parts: string[]) => path.join(project, '.claude', 'skills', 'own-sync', ...parts);
+    const ownSkill = async (project: string) => {
+      await mkdir(own(project, 'scripts'), { recursive: true });
+      await writeFile(own(project, 'SKILL.md'), '---\nname: own-sync\ndescription: Syncs files. Use when asked to sync.\n---\n\nSync.\n', 'utf8');
+    };
+    const unapprovedOf = async (project: string) =>
+      (await validateProject(project, { libraryHashes: await service.contentHashes() })).findings.filter((f) => f.rule === 'librarySkill.unapproved');
+
+    it('refuses a file in .claude/skills identical to a file of a skill in quarantine, wherever it is', async () => {
+      const project = await make('smuggled', { librarySkills: [{ name: 'tidy-notes', reason: 'x' }] });
+      await installSkills({ projectDir: project, skills: service });
+      await ownSkill(project);
+      // The approved, installed skill and a project skill of its own are fine.
+      expect(await unapprovedOf(project)).toEqual([]);
+
+      const script = EXFILTRATOR['scripts/sync.sh'] as { content: string };
+      await writeFile(own(project, 'scripts', 'run.sh'), script.content, 'utf8');
+      await mkdir(path.join(project, 'docs', '.claude', 'skills', 'x'), { recursive: true });
+      await writeFile(path.join(project, 'docs', '.claude', 'skills', 'x', 'steal.py'), EXFILTRATOR['scripts/steal.py'] as string, 'utf8');
+      // Outside .claude/skills the rule does not look.
+      await writeFile(path.join(project, 'docs', 'sync.sh.txt'), script.content, 'utf8');
+      const findings = await unapprovedOf(project);
+      expect(findings.map((f) => [f.file, f.severity, f.params])).toEqual([
+        ['.claude/skills/own-sync/scripts/run.sh', 'error', { name: 'sync-helper', path: 'scripts/sync.sh' }],
+        ['docs/.claude/skills/x/steal.py', 'error', { name: 'sync-helper', path: 'scripts/steal.py' }],
+      ]);
+      // Without the library's hashes the rule does not run.
+      expect((await validateProject(project)).findings.filter((f) => f.rule === 'librarySkill.unapproved')).toEqual([]);
+    });
+
+    it('counts rejected skills and a new version still waiting, but not content an approved skill holds too, nor empty files', async () => {
+      const project = await make('versions', {});
+      await ownSkill(project);
+      await service.reject('sync-helper');
+      await writeFile(own(project, 'steal.py'), EXFILTRATOR['scripts/steal.py'] as string, 'utf8');
+      expect((await unapprovedOf(project)).map((f) => f.file)).toEqual(['.claude/skills/own-sync/steal.py']);
+
+      // A new version of the approved skill waits for approval: its new file is not approved, its unchanged ones are.
+      const repo = gh.repos.get('acme/skills');
+      if (repo === undefined) throw new Error('no repo');
+      const next = '9'.repeat(40);
+      repo.commits[next] = { files: { ...(repo.commits[repo.refs.main ?? '']?.files ?? {}), 'skills/tidy/extra.md': '# Extra\n\nNot approved yet.\n' } };
+      repo.refs.main = next;
+      expect((await service.checkUpdate('tidy-notes')).outcome).toBe('updated');
+      await writeFile(own(project, 'extra.md'), '# Extra\n\nNot approved yet.\n', 'utf8');
+      await writeFile(own(project, 'guide.md'), HARMLESS['guide.md'] as string, 'utf8');
+      await writeFile(own(project, 'empty.txt'), '', 'utf8');
+      expect((await unapprovedOf(project)).map((f) => [f.file, f.params])).toEqual([
+        ['.claude/skills/own-sync/extra.md', { name: 'tidy-notes', path: 'extra.md' }],
+        ['.claude/skills/own-sync/steal.py', { name: 'sync-helper', path: 'scripts/steal.py' }],
+      ]);
+    });
+
+    it('treats a skill folder whose note does not read back as unapproved', async () => {
+      const project = await make('broken-note', {});
+      await ownSkill(project);
+      await mkdir(path.join(libraryDir, 'skills', 'odd', 'files'), { recursive: true });
+      await writeFile(path.join(libraryDir, 'skills', 'odd', 'files', 'tool.sh'), '#!/bin/sh\necho odd\n', 'utf8');
+      await writeFile(own(project, 'tool.sh'), '#!/bin/sh\necho odd\n', 'utf8');
+      expect((await unapprovedOf(project)).map((f) => [f.file, f.params])).toEqual([['.claude/skills/own-sync/tool.sh', { name: 'odd', path: 'files/tool.sh' }]]);
+    });
+
+    it('runs in the validate command against the library of the config', async () => {
+      const project = await make('cli-validate', {});
+      await ownSkill(project);
+      await writeFile(own(project, 'steal.py'), EXFILTRATOR['scripts/steal.py'] as string, 'utf8');
+      const out: string[] = [];
+      const io: CliIO = {
+        out: (line) => out.push(line),
+        err: (line) => out.push(line),
+        cwd: dir,
+        pathEnv: { env: { BRIEFSTACK_HOME: home, BRIEFSTACK_LANG: 'en' }, homedir: path.join(dir, 'user'), pathApi: path, caseInsensitive: process.platform !== 'linux' },
+      };
+      expect(await main(['validate', project], io)).toBe(1);
+      expect(out.join('\n')).toContain('library skill sync-helper, which the user has not approved');
+    });
+  });
+
   it('refuses unapproved skills, existing folders, non-projects and protected folders', async () => {
     const project = await make('refusals', { librarySkills: [{ name: 'tidy-notes', reason: 'x' }, { name: 'sync-helper', reason: 'y' }] });
     expect((await failure(installSkills({ projectDir: project, skills: service, only: 'sync-helper' }))).code).toBe('skills.notApproved');

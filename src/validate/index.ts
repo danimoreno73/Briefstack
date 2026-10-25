@@ -56,9 +56,19 @@ const COMMON_REQUIRED: readonly string[] = REQUIRED_FILES['claude-code'].filter(
   REQUIRED_FILES['claude-app'].includes(file),
 );
 
+/** The SHA-256 of the library's skill files, split by whether the user approved them. */
+export interface LibraryHashes {
+  /** Files of the current version of approved skills. */
+  approved: ReadonlySet<string>;
+  /** Files of skills in quarantine or rejected, and of any new version still waiting for approval. */
+  unapproved: ReadonlyMap<string, { name: string; path: string }>;
+}
+
 export interface ValidateOptions {
   /** Home directory and path style for absolute-path detection. */
   pathEnv?: PathEnv;
+  /** With it, no file in the project's `.claude/skills/` may be one of the library's unapproved files. */
+  libraryHashes?: LibraryHashes;
 }
 
 export interface ValidationResult {
@@ -311,6 +321,32 @@ async function checkLibrarySkills(
   return { findings, dirs };
 }
 
+/** A file inside a `.claude/skills/` folder, at the root of the project or deeper. */
+const IN_SKILLS_DIR_RE = /(?:^|\/)\.claude\/skills\//i;
+
+/**
+ * Files in the project's `.claude/skills/` whose bytes are those of a
+ * library skill file the user has not approved. Content that is also in an
+ * approved skill is approved, and an empty file carries nothing, so neither
+ * counts. Symlinks are read through.
+ */
+async function checkUnapprovedLibraryFiles(root: string, tree: Walk, hashes: LibraryHashes): Promise<Finding[]> {
+  const findings: Finding[] = [];
+  for (const file of tree.files.filter((f) => IN_SKILLS_DIR_RE.test(f))) {
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(path.join(root, ...file.split('/')));
+    } catch {
+      continue; // A folder symlink, or gone: nothing to hash.
+    }
+    if (bytes.length === 0) continue;
+    const hash = sha256Of(bytes);
+    const source = hashes.unapproved.get(hash);
+    if (source !== undefined && !hashes.approved.has(hash)) findings.push(finding('librarySkill.unapproved', source, { file }));
+  }
+  return findings;
+}
+
 /** The project's own Claude configuration and briefstack's records: never application code. */
 const PREPARATION_DIRS: readonly string[] = ['.claude/', '.briefstack/'];
 
@@ -372,6 +408,7 @@ export async function validateProject(projectDir: string, options: ValidateOptio
   const library = await checkLibrarySkills(root, tree, texts, spec.librarySkills ?? []);
   findings.push(...library.findings);
   const inLibrarySkill = (file: string): boolean => library.dirs.some((dir) => file.startsWith(`${dir}/`));
+  if (options.libraryHashes !== undefined) findings.push(...(await checkUnapprovedLibraryFiles(root, tree, options.libraryHashes)));
 
   // Agent and skill frontmatter.
   for (const file of tree.regular) {

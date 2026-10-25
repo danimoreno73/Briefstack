@@ -423,7 +423,11 @@ async function runValidate(args: readonly string[], io: CliIO, lang: Lang): Prom
     throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   }
 
-  const result = await validateProject(argPath(io, lang, dirArg), { pathEnv: io.pathEnv });
+  const projectDir = argPath(io, lang, dirArg);
+  // Files of library skills the user has not approved must not be in the project's skills.
+  const { libraryDir } = await resolvedPaths(io);
+  const libraryHashes = (await libraryExists(libraryDir)) ? await new SkillService({ libraryDir: async () => libraryDir }).contentHashes() : undefined;
+  const result = await validateProject(projectDir, { pathEnv: io.pathEnv, ...(libraryHashes === undefined ? {} : { libraryHashes }) });
   if (flags.has('--json')) {
     const { projectDir, target, errors, warnings, findings } = result;
     io.out(JSON.stringify({ projectDir, target: target ?? null, errors, warnings, findings }, null, 2));

@@ -105,6 +105,8 @@ const rules = defineCatalogue<RuleMessages>({
     'librarySkill.notInstalled': (p) => `The spec chose library skill ${p.name}, but it is not installed. Run skills install.`,
     'librarySkill.notChosen': (p) => `Library skill ${p.name} is installed, but the spec's librarySkills does not choose it. Remove it: only skills the user approved in the spec may be installed.`,
     'librarySkill.nextSteps': (p) => `NEXT_STEPS.md does not mention ${p.location}, so the user will not know to add skill ${p.name} in the app.`,
+    'librarySkill.unapproved': (p) =>
+      `This file is identical to ${p.path} of library skill ${p.name}, which the user has not approved. Remove it: only approved library skills may reach a project, and only through skills install.`,
   },
   es: {
     'spec.invalidJson': (p) => `La spec no es JSON válido: ${p.detail}`,
@@ -152,6 +154,8 @@ const rules = defineCatalogue<RuleMessages>({
     'librarySkill.notInstalled': (p) => `La spec eligió la skill de la biblioteca ${p.name}, pero no está instalada. Ejecuta skills install.`,
     'librarySkill.notChosen': (p) => `La skill de la biblioteca ${p.name} está instalada, pero librarySkills de la spec no la elige. Quítala: solo se pueden instalar las skills que el usuario aprobó en la spec.`,
     'librarySkill.nextSteps': (p) => `NEXT_STEPS.md no menciona ${p.location}, así que el usuario no sabrá que debe añadir la skill ${p.name} en la app.`,
+    'librarySkill.unapproved': (p) =>
+      `Este archivo es idéntico a ${p.path} de la skill de la biblioteca ${p.name}, que el usuario no ha aprobado. Quítalo: solo las skills aprobadas de la biblioteca pueden llegar a un proyecto, y solo con skills install.`,
   },
 });
 

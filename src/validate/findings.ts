@@ -47,6 +47,7 @@ export interface FindingParams {
   'librarySkill.notInstalled': { name: string };
   'librarySkill.notChosen': { name: string };
   'librarySkill.nextSteps': { name: string; location: string };
+  'librarySkill.unapproved': { name: string; path: string };
 }
 
 export type RuleId = keyof FindingParams;
@@ -85,6 +86,7 @@ export const RULE_SEVERITY: { readonly [R in RuleId]: Severity } = {
   'librarySkill.notInstalled': 'error',
   'librarySkill.notChosen': 'error',
   'librarySkill.nextSteps': 'error',
+  'librarySkill.unapproved': 'error',
 };
 
 export type Finding = {

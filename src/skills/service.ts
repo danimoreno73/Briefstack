@@ -25,6 +25,7 @@ import {
   type SkillStatus,
   type SkillVersion,
 } from './record.js';
+import type { LibraryHashes } from '../validate/index.js';
 import { assertPathsFit } from './pathLength.js';
 import { decodeText, reviewSkill, sha256 } from './review.js';
 import { parseSkillUrl, treeUrl } from './url.js';
@@ -151,6 +152,21 @@ async function writeFiles(dir: string, files: FetchedSkill['files']): Promise<vo
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, file.bytes, { flag: 'wx' });
   }
+}
+
+/** Every regular file under `dir`, with `/` paths, and its SHA-256. */
+async function hashesOnDisk(dir: string): Promise<{ path: string; sha256: string }[]> {
+  const out: { path: string; sha256: string }[] = [];
+  const walk = async (relative: string): Promise<void> => {
+    const entries = await readdir(relative === '' ? dir : path.join(dir, ...relative.split('/')), { withFileTypes: true });
+    for (const entry of entries) {
+      const child = relative === '' ? entry.name : `${relative}/${entry.name}`;
+      if (entry.isDirectory()) await walk(child);
+      else if (entry.isFile()) out.push({ path: child, sha256: sha256(await readFile(path.join(dir, ...child.split('/')))) });
+    }
+  };
+  await walk('');
+  return out;
 }
 
 /** Whether the files on disk under `dir` are exactly the recorded ones (no more, no fewer, same bytes). */
@@ -287,6 +303,42 @@ export class SkillService {
     return (await this.list())
       .filter((skill) => skill.status === 'approved')
       .map((skill) => ({ name: skill.name, description: skill.description, tags: skill.tags }));
+  }
+
+  /**
+   * The hashes of every library skill file, for the validator: the current
+   * files of approved skills are approved; the files of skills in quarantine
+   * or rejected, and of any new version waiting for approval, are not. A
+   * skill folder whose note does not read back counts as unapproved, with
+   * the hashes of the files on disk.
+   */
+  async contentHashes(): Promise<LibraryHashes> {
+    const libraryDir = await this.library();
+    const approved = new Set<string>();
+    const unapproved = new Map<string, { name: string; path: string }>();
+    let entries;
+    try {
+      entries = await readdir(native(libraryDir, SKILLS_DIR), { withFileTypes: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { approved, unapproved };
+      throw error;
+    }
+    const addUnapproved = (name: string, files: readonly { path: string; sha256: string }[]) => {
+      for (const file of files) if (!unapproved.has(file.sha256)) unapproved.set(file.sha256, { name, path: file.path });
+    };
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const text = isSkillName(entry.name) ? await readTextIfExists(native(libraryDir, noteFile(entry.name))) : undefined;
+      const record = text === undefined ? undefined : parseRecord(text, noteFile(entry.name));
+      if (record === undefined || record.name !== entry.name) {
+        addUnapproved(entry.name, await hashesOnDisk(native(libraryDir, `${SKILLS_DIR}/${entry.name}`)));
+        continue;
+      }
+      if (record.status === 'approved') for (const file of record.files) approved.add(file.sha256);
+      else addUnapproved(record.name, record.files);
+      if (record.next !== undefined) addUnapproved(record.name, record.next.files);
+    }
+    return { approved, unapproved };
   }
 
   /** One file of a version, for the page; text only up to a size, binaries are not sent. */
