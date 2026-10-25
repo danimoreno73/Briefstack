@@ -3938,3 +3938,20 @@ when Claude Code itself sends `notifications/cancelled` for an in-process
 server's call (its own tool timeout, an interrupted turn). If it never
 does, a card still expires after 59 minutes, before the 1-hour tool
 timeout, as above.
+
+## Backlog 1: the library lock on writes longer than 2 minutes (2026-10-25)
+
+A7 of [PLAN-backlog-1.md](PLAN-backlog-1.md). The lock judged a lock stale
+by its age alone: older than `staleMs` (2 minutes) was taken over even when
+its owner was alive and still writing, so a library write longer than that
+in one process could run at the same time as another process's.
+Reproduced in `library-lock.test.ts`: a second process
+(`tests/fixtures/hold-library-lock.ts`) holds the lock for 1.5 s with
+`staleMs` 300 ms, and the test process took it over after about 300 ms.
+
+Fix: while it holds the lock, the holder sets the lock folder's time to now
+every quarter of `staleMs` (only while `owner.json` still has its token),
+and stops before it releases. A live holder's lock never grows old; the
+age rule still frees a lock whose holder stopped, including a pid that was
+reused. **(choice)** The age rule is kept rather than trusting a live pid
+alone, because a pid can be reused by an unrelated process after a crash.

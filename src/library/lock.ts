@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { BriefstackError } from '../errors.js';
@@ -15,7 +15,8 @@ import { BriefstackError } from '../errors.js';
  * folder in the OS temp folder, named after the library path, created with
  * `mkdir` (atomic on every platform). Nothing is written in the library
  * itself. A lock left by a process that died is taken over once its owner is
- * gone or it is older than `staleMs`.
+ * gone or it is older than `staleMs`. The holder sets the lock's time to now
+ * while it holds it, so a long write is never judged old.
  *
  * Each lock names its owner (`owner.json`: pid and a token of its own). A
  * stale lock is first renamed to a name only the taker uses, which only one
@@ -172,6 +173,28 @@ async function release(dir: string, token: string, remove: (dir: string) => Prom
   }
 }
 
+/**
+ * While the lock is held, sets its folder's time to now every quarter of
+ * `staleMs`, so a write that takes longer than `staleMs` keeps a fresh lock
+ * and no other process takes it over. Only a lock whose holder stopped (a
+ * process that died, or a reused pid) grows old. Returns the stop function.
+ */
+function keepFresh(dir: string, token: string, staleMs: number): () => void {
+  const timer = setInterval(
+    () => {
+      void (async () => {
+        // Never freshen a lock that is no longer this holder's.
+        if ((await readOwner(dir))?.token !== token) return;
+        const now = new Date();
+        await utimes(dir, now, now);
+      })().catch(() => undefined);
+    },
+    Math.max(10, Math.floor(staleMs / 4)),
+  );
+  timer.unref();
+  return () => clearInterval(timer);
+}
+
 /** Runs `work` while holding the library's lock, after every change queued before it. */
 export async function withLibraryLock<T>(libraryDir: string, work: () => Promise<T>, options: LibraryLockOptions = {}): Promise<T> {
   const dir = libraryLockDir(libraryDir, options.lockRoot);
@@ -185,9 +208,11 @@ export async function withLibraryLock<T>(libraryDir: string, work: () => Promise
   const previous = chains.get(dir) ?? Promise.resolve();
   const run = previous.catch(() => undefined).then(async () => {
     const token = await acquire(dir, settings);
+    const stopFreshening = keepFresh(dir, token, settings.staleMs);
     try {
       return await work();
     } finally {
+      stopFreshening();
       await release(dir, token, settings.removeLock ?? removeDir);
     }
   });
