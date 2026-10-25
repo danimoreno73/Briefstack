@@ -3854,3 +3854,14 @@ retried test is reported as flaky. Failed tests upload their traces as an
 artifact for a week. A real race found on the way (a slowed
 `/api/settings` answer continuing after its route was removed) was fixed
 in the test, not covered by the retry.
+
+## Backlog 1: choices made without the user (2026-10-25)
+
+The user asked for [PLAN-backlog-1.md](PLAN-backlog-1.md) to run unattended:
+no questions, the most conservative option where a decision is needed,
+recorded here.
+
+- **(choice)** Tag `backlog-1-start` is on `9dc9e78`, the last commit
+  before the plan, so the tag marks the state before any change.
+- **(choice)** Part C: the user's text for the "Codex" section came with
+  the request; it goes in as given, as section 5 of IDEAS.md.
