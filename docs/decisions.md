@@ -3904,3 +3904,37 @@ recorded here.
   Suggestions are still computed when a creation finishes, in the same
   server, so they already had the count; what a restart lost was the
   evidence.
+
+## Backlog 1: the SDK passes the abort signal to the chat's tools (2026-10-25)
+
+A6 of [PLAN-backlog-1.md](PLAN-backlog-1.md), the open question of the
+"chat tool-call timeout" note above ("If the SDK passes the call's abort
+signal…").
+
+Read in the installed SDK, `@anthropic-ai/claude-agent-sdk` 0.3.286
+(`sdk.mjs`, the bundled MCP server code; `sdk.d.ts` types the handler's
+second argument only as `extra: unknown`):
+
+- For each request the server makes an `AbortController` and passes
+  `{ signal, sessionId, _meta, sendNotification, sendRequest, … }` as
+  `extra`; `tools/call` hands that `extra` to the tool's handler.
+- A `notifications/cancelled` with the request's id aborts that
+  controller, with the notification's `reason`.
+- Closing the connection aborts every controller still open, and the
+  query's cleanup closes the transport of each in-process server.
+- Notifications that Claude Code sends to an in-process server
+  (`mcp_message` control requests that are not requests) are forwarded to
+  the server's transport, so a cancellation from Claude Code reaches it.
+
+So the chain is intact on briefstack's side: `signalOf(extra)` finds the
+signal, and the chat manager already expires a card when it aborts.
+Nothing to fix. A test now pins it with the real SDK server the runner
+builds, over a stand-in transport (no session, no Claude Code): a
+cancellation aborts only its call's signal, with the reason, and closing
+the connection aborts the rest (`chat-sdk-runner.test.ts`).
+
+Not verified, because it needs a real session (out of this pass's rules):
+when Claude Code itself sends `notifications/cancelled` for an in-process
+server's call (its own tool timeout, an interrupted turn). If it never
+does, a card still expires after 59 minutes, before the 1-hour tool
+timeout, as above.

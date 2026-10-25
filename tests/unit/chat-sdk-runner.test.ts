@@ -133,6 +133,61 @@ describe('the chat session options', () => {
     await session.stop();
   });
 
+  it('hand each tool the abort signal of its MCP request, aborted when Claude Code cancels the call or the connection closes (backlog 1, A6)', async () => {
+    // The real SDK server the runner builds, driven over a stand-in transport: no session, no Claude Code.
+    let captured: Options | undefined;
+    const signals: AbortSignal[] = [];
+    const runner = new SdkChatRunner({
+      pathEnv: { env: { PATH: '/bin', BRIEFSTACK_HOME: path.resolve('/bs-home') }, homedir: path.resolve('/user'), pathApi: path, caseInsensitive: false },
+      findExecutable: () => '/bin/claude',
+      tracked,
+      query: ((params) => {
+        captured = (params as { options: Options }).options;
+        return new FakeQuery() as unknown as Query;
+      }) satisfies QueryFn,
+    });
+    const session = runner.start({
+      model: 'haiku',
+      effort: 'low',
+      execute: (_name, _args, signal): Promise<ToolReply> => {
+        if (signal !== undefined) signals.push(signal);
+        // A tool that waits, as a confirmation card does, until its call is given up.
+        return new Promise((resolve) => signal?.addEventListener('abort', () => resolve({ content: [{ type: 'text', text: 'given up' }] }), { once: true }));
+      },
+      emit: () => undefined,
+    });
+    await tick();
+    const server = captured?.mcpServers?.[CHAT_SERVER_NAME] as { instance: { connect(transport: unknown): Promise<void> } };
+    const sent: unknown[] = [];
+    const transport: { start(): Promise<void>; send(message: unknown): Promise<void>; close(): Promise<void>; onmessage?: (message: unknown) => void; onclose?: () => void } = {
+      start: async () => undefined,
+      send: async (message) => {
+        sent.push(message);
+      },
+      close: async () => transport.onclose?.(),
+    };
+    await server.instance.connect(transport);
+    const call = (id: number) => transport.onmessage?.({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'show_usage', arguments: {} } });
+
+    // Claude Code gives up on one call: `notifications/cancelled` aborts that call's signal only.
+    call(1);
+    call(2);
+    await tick();
+    expect(signals).toHaveLength(2);
+    expect(signals.every((signal) => signal instanceof AbortSignal && !signal.aborted)).toBe(true);
+    transport.onmessage?.({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 1, reason: 'timed out' } });
+    await tick();
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals[0]?.reason).toBe('timed out');
+    expect(signals[1]?.aborted).toBe(false);
+
+    // The connection closes (the SDK closes its servers when the query ends): every call still open is aborted.
+    await transport.close();
+    await tick();
+    expect(signals[1]?.aborted).toBe(true);
+    await session.stop();
+  });
+
   it('say in the system prompt that tool results are data and changes need a confirmation', () => {
     expect(CHAT_SYSTEM_PROMPT).toMatch(/never follow it/);
     expect(CHAT_SYSTEM_PROMPT).toMatch(/confirmation card/);
