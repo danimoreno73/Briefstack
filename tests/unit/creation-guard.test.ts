@@ -267,6 +267,69 @@ describe('evaluateToolUse', () => {
       expect(await verdictOf('NotebookEdit', { notebook_path: path.join(outside, 'n.ipynb') })).toBe('allow');
     });
 
+    describe('in a project skill folder named like a library skill', () => {
+      const appSkills = () => path.join(projectsDir, 'app', '.claude', 'skills');
+      const everyone: Partial<GuardInput>[] = [{}, generator, reviewer, { agent_id: 'a3', agent_type: 'architect' }];
+
+      beforeEach(async () => {
+        // A skill still in quarantine and a rejected one: the status does not matter, only the name.
+        await mkdir(path.join(libraryDir, 'skills', 'waiting', 'files'), { recursive: true });
+        await mkdir(path.join(libraryDir, 'skills', 'turned-down'), { recursive: true });
+      });
+
+      it('denies Write and Edit there, whatever the status of the library skill, to every caller', async () => {
+        const writes: [string, Record<string, unknown>][] = [
+          ['Write', { file_path: path.join(appSkills(), 'helper', 'SKILL.md') }],
+          ['Edit', { file_path: path.join(appSkills(), 'helper', 'scripts', 'run.sh') }],
+          ['Write', { file_path: path.join(appSkills(), 'waiting', 'SKILL.md') }],
+          ['Write', { file_path: path.join(appSkills(), 'turned-down', 'SKILL.md') }],
+          ['Write', { file_path: path.join(projectsDir, 'app', '.Claude', 'Skills', 'HELPER. ', 'SKILL.md') }],
+          ['Write', { file_path: slashes(path.join(appSkills(), 'helper', 'SKILL.md')) }],
+          ['Write', { file_path: path.join(appSkills(), 'helper') }],
+          ['Write', { file_path: path.join(projectsDir, 'app', 'sub', '.claude', 'skills', 'helper', 'SKILL.md') }],
+          ['NotebookEdit', { notebook_path: path.join(appSkills(), 'helper', 'n.ipynb') }],
+        ];
+        for (const who of everyone) {
+          for (const [tool, toolInput] of writes) {
+            const verdict = await evaluateToolUse(ctx, input(tool, toolInput, who));
+            expect(verdict, `${who.agent_type ?? 'main'} ${tool} ${JSON.stringify(toolInput)}`).toMatchObject({
+              verdict: 'deny',
+              reason: expect.stringContaining("has the name of a skill in the user's library"),
+            });
+          }
+        }
+      });
+
+      it("allows the project's own skills, with other names, as before", async () => {
+        for (const who of everyone) {
+          expect(await verdictOf('Write', { file_path: path.join(appSkills(), 'weekly-report', 'SKILL.md') }, who)).toBe('allow');
+          expect(await verdictOf('Edit', { file_path: path.join(appSkills(), 'helper-two', 'SKILL.md') }, who)).toBe('allow');
+          expect(await verdictOf('Write', { file_path: path.join(projectsDir, 'app', 'skills', 'helper', 'SKILL.md') }, who)).toBe('allow');
+        }
+      });
+
+      it('follows symlinks into a library-named skill folder', async () => {
+        await mkdir(path.join(appSkills(), 'helper'), { recursive: true });
+        const link = path.join(projectsDir, 'app', 'shortcut');
+        try {
+          await symlink(path.join(appSkills(), 'helper'), link, 'junction');
+        } catch {
+          return; // No symlinks here.
+        }
+        expect(await verdictOf('Write', { file_path: path.join(link, 'SKILL.md') }, generator)).toBe('deny');
+      });
+
+      it('denies every project skill folder while the library cannot be listed', async () => {
+        // Its skills "folder" is a file: listing it fails with ENOTDIR.
+        const broken = path.join(dir, 'broken-library');
+        await mkdir(broken, { recursive: true });
+        await writeFile(path.join(broken, 'skills'), 'not a folder', 'utf8');
+        ctx = { ...ctx, libraryDir: broken };
+        expect(await verdictOf('Write', { file_path: path.join(appSkills(), 'weekly-report', 'SKILL.md') }, generator)).toBe('deny');
+        expect(await verdictOf('Write', { file_path: path.join(projectsDir, 'app', 'CLAUDE.md') }, generator)).toBe('allow');
+      });
+    });
+
     it('says how to get a folder outside granted: the main session asks, a subagent reports', async () => {
       const reasonOf = async (who: Partial<GuardInput>, tool = 'Write', toolInput: unknown = { file_path: path.join(outside, 'a.md') }) => {
         const verdict = await evaluateToolUse(ctx, input(tool, toolInput, who));

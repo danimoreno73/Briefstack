@@ -112,6 +112,7 @@ describe('the command-hook guard', () => {
   });
 
   it('denies exactly what the callback guard denies', async () => {
+    await mkdir(path.join(rules.libraryDir, 'skills', 'helper', 'files'), { recursive: true });
     const ctx = {
       isOwnSession: () => true,
       sessionDir: (id: string) => path.join(rules.sessionsDir, id),
@@ -135,6 +136,8 @@ describe('the command-hook guard', () => {
       ['Read', { file_path: path.join(dir, 'outside', 'a.txt') }, {}],
       ['Read', { file_path: path.join(rules.libraryDir, 'skills', 'x', 'files', 'SKILL.md') }, { agent_id: 'g', agent_type: 'generator' }],
       ['Grep', { pattern: 'x', path: rules.libraryDir }, {}],
+      ['Write', { file_path: path.join(rules.projectsDir, 'app', '.claude', 'skills', 'helper', 'SKILL.md') }, { agent_id: 'g', agent_type: 'generator' }],
+      ['Write', { file_path: path.join(rules.projectsDir, 'app', '.claude', 'skills', 'own', 'SKILL.md') }, { agent_id: 'g', agent_type: 'generator' }],
       ['CronCreate', {}, {}],
     ];
     for (const [tool, toolInput, who] of calls) {
@@ -142,6 +145,10 @@ describe('the command-hook guard', () => {
       const command = await decide(input(tool, toolInput, who));
       expect(command.code === 2, `${tool} ${JSON.stringify(toolInput)}`).toBe(callback.verdict === 'deny');
     }
+    const generatorWrite = (name: string) =>
+      input('Write', { file_path: path.join(rules.projectsDir, 'app', '.claude', 'skills', name, 'SKILL.md') }, { agent_id: 'g', agent_type: 'generator' });
+    expect(await decide(generatorWrite('helper'))).toMatchObject({ code: 2, message: expect.stringContaining("user's library") });
+    expect(await decide(generatorWrite('own'))).toEqual({ code: 0 });
   });
 
   it('is registered as a command hook on every tool that blocks the call when it fails', () => {

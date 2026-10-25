@@ -1,5 +1,5 @@
 import type { HookCallback } from '@anthropic-ai/claude-agent-sdk';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { expandHome, isFullyAbsolute, isPathInside, systemPathEnv, type PathEnv } from '../config/paths.js';
 import { realpathNearest } from '../scaffold/outputDir.js';
@@ -27,6 +27,9 @@ import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './toolNames.js';
  * - no caller reads the personal library's `skills/` folder (Read in it,
  *   Glob or Grep in it or above it); library skills reach a project only
  *   through `skills install`;
+ * - no write or edit in a `.claude/skills/<name>/` whose name is that of
+ *   any library skill (approved or not); other project skills are written
+ *   as before;
  * - web access is allowed for the researcher and denied to everyone else;
  * - `SubagentHandback` is left to the permission mode for subagents, also
  *   after a cancel, and denied to the main session;
@@ -325,6 +328,58 @@ export async function readsLibrarySkills(tool: string, input: Record<string, unk
   }
 }
 
+/**
+ * The skill folder names a path writes into: the segment after each
+ * `.claude/skills/`, lower case, without the trailing dots and spaces
+ * Windows drops.
+ */
+export function projectSkillNames(value: string): string[] {
+  const segments = value.split(/[\\/]+/).map((segment) => segment.toLowerCase().replace(/[. ]+$/, ''));
+  const out: string[] = [];
+  segments.forEach((segment, index) => {
+    const name = segments[index + 2];
+    if (segment === '.claude' && segments[index + 1] === 'skills' && name !== undefined && name !== '') out.push(name);
+  });
+  return out;
+}
+
+/**
+ * The names of every skill in the library, whatever its status, lower case;
+ * `undefined` when its skills folder exists but cannot be listed.
+ */
+async function librarySkillFolders(libraryDir: string, pathEnv: PathEnv): Promise<Set<string> | undefined> {
+  try {
+    const entries = await readdir(pathEnv.pathApi.join(libraryDir, LIBRARY_SKILLS_DIR));
+    return new Set(entries.map((name) => name.toLowerCase()));
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? new Set() : undefined;
+  }
+}
+
+/**
+ * The library skill a write would land in, as written or after symlinks;
+ * `undefined` when none. When the library cannot be listed, any write into
+ * a project's `.claude/skills/` counts.
+ */
+async function libraryNamedSkillWrite(target: string, libraryDir: string, pathEnv: PathEnv): Promise<string | undefined> {
+  const written = projectSkillNames(pathEnv.pathApi.resolve(target));
+  let real: string[] = [];
+  try {
+    real = projectSkillNames(await realpathNearest(pathEnv.pathApi.resolve(target)));
+  } catch {
+    // The written form is still checked.
+  }
+  const names = [...written, ...real];
+  if (names.length === 0) return undefined;
+  const library = await librarySkillFolders(libraryDir, pathEnv);
+  return library === undefined ? names[0] : names.find((name) => library.has(name));
+}
+
+const libraryNamedSkillMessage = (name: string): string =>
+  `.claude/skills/${name} has the name of a skill in the user's library. A library skill reaches a project only through ` +
+  '`skills install`, exactly as the user approved it; do not write or edit its files. A skill of the project\'s own needs ' +
+  'another name.';
+
 const LIBRARY_SKILLS_MESSAGE =
   "The personal library's skills folder is not readable in a creation. What you may know about library skills is in the " +
   'library context (approved ones only: name, description, tags); the generator installs them with `skills install`, ' +
@@ -478,6 +533,8 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
     if (kind === 'relative') return deny('Use an absolute path.', target);
     if (kind === 'not-fully-absolute') return deny('Use a full path with a drive letter, not a /c/... form.', target);
     if (await touchesGitDir(target, pathEnv)) return deny(GIT_MESSAGE, target);
+    const librarySkill = await libraryNamedSkillWrite(target, ctx.libraryDir, pathEnv);
+    if (librarySkill !== undefined) return deny(libraryNamedSkillMessage(librarySkill), target);
     if (await insideAny(target, roots(), pathEnv)) return { verdict: 'allow', reason: 'inside an allowed folder' };
     return deny(
       `Writes are only allowed inside the projects folder, this creation's session folder and folders the user granted for it.${grantHint(caller)}`,
