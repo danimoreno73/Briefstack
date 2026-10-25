@@ -36,3 +36,12 @@ jobs:
       - run: npm run test:e2e
         env:
           CI: 'true'
+      # The traces of failed end-to-end tests (fake data only), to see where the time went.
+      - name: Keep the traces of failed end-to-end tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-traces-${{ matrix.os }}
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
