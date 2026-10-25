@@ -12,6 +12,12 @@ const SKILL = '.claude/skills/new-project/SKILL.md';
 const lastCommit = (app: App) => testGit(app.repoDir, ['log', '-1', '--format=%s']).then((out) => out.trim());
 const researcher = (app: App) => readFile(path.join(app.repoDir, ...RESEARCHER.split('/')), 'utf8');
 const status = (page: Page) => page.getByTestId('proposal-status');
+/**
+ * Checking a round runs a dozen git commands. On Windows, with every worker
+ * doing the same, that alone can pass the default 5 s, so the states that
+ * follow the checks get more time.
+ */
+const CHECKED = { timeout: 20_000 };
 
 async function say(page: Page, text: string): Promise<void> {
   const box = page.getByTestId('chat-panel').getByLabel('Your message');
@@ -69,7 +75,7 @@ test.describe('prepared from the chat, approved and reverted on the page', () =>
     await page.getByTestId('chat-card').last().getByRole('link').click();
     await expect(page).toHaveURL(/#\/improve\/imp-/);
 
-    await expect(status(page)).toHaveAttribute('data-status', 'ready');
+    await expect(status(page)).toHaveAttribute('data-status', 'ready', CHECKED);
     await expect(page.getByRole('heading', { name: 'Shorter research reports', level: 1 })).toBeVisible();
     await expect(page.getByTestId('proposal-request')).toHaveText('Make research reports shorter.');
     await expect(page.getByTestId('proposal-expected')).toHaveText('Research reports half as long.');
@@ -94,7 +100,7 @@ test.describe('prepared from the chat, approved and reverted on the page', () =>
     const before = await testGit(app.repoDir, ['rev-parse', 'HEAD']);
     await page.getByTestId('approve').click();
     await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
-    await expect(status(page)).toHaveAttribute('data-status', 'ready');
+    await expect(status(page)).toHaveAttribute('data-status', 'ready', CHECKED);
     await page.getByTestId('approve').click();
     await confirmDialog(page, 'Approve and apply');
     await expect(status(page)).toHaveAttribute('data-status', 'applied');
@@ -138,7 +144,7 @@ test.describe('a change that weakens a rule outside a locked block', () => {
     await page.goto(app.url);
     await page.getByRole('link', { name: 'Improvements' }).first().click();
     await page.getByTestId('proposals').getByRole('link', { name: 'Open' }).click();
-    await expect(status(page)).toHaveAttribute('data-status', 'ready');
+    await expect(status(page)).toHaveAttribute('data-status', 'ready', CHECKED);
     const warning = page.getByTestId('safety-warning');
     await expect(warning).toBeVisible();
     await expect(warning).toContainText('Safety notice');
@@ -165,12 +171,12 @@ test.describe('discard and ask for changes', () => {
 
   test('a new round on the same branch, then a discard removes the branch', async ({ page, app }) => {
     await prepareFromPage(page, app);
-    await expect(status(page)).toHaveAttribute('data-status', 'ready');
+    await expect(status(page)).toHaveAttribute('data-status', 'ready', CHECKED);
     await page.getByTestId('ask-changes').click();
     await page.getByTestId('changes-form').getByLabel('What should be different?').fill('Even shorter, please.');
     await page.getByTestId('changes-form').getByRole('button', { name: 'Start a new round' }).click();
     await expect(page.getByRole('heading', { name: 'Even shorter reports', level: 1 })).toBeVisible();
-    await expect(status(page)).toHaveAttribute('data-status', 'ready');
+    await expect(status(page)).toHaveAttribute('data-status', 'ready', CHECKED);
     await expect(page.getByTestId('rounds').locator('li')).toHaveCount(2);
     await expect(page.getByTestId('rounds')).toContainText('You asked: Even shorter, please.');
     await expect(page.getByTestId('proposal-diff').locator('[data-op="+"]')).toContainText('under half a page');
@@ -213,7 +219,7 @@ test.describe('a proposal that touches a locked block or a forbidden path', () =
 
   test('is rejected, never tested and cannot be approved', async ({ page, app }) => {
     await prepareFromPage(page, app, 'Loosen the web mode.');
-    await expect(status(page)).toHaveAttribute('data-status', 'rejected');
+    await expect(status(page)).toHaveAttribute('data-status', 'rejected', CHECKED);
     const validation = page.getByTestId('validation');
     await expect(validation).toHaveAttribute('data-ok', 'false');
     await expect(validation.locator('[data-kind="locked"]')).toContainText('Locked block touched');
@@ -239,7 +245,7 @@ test.describe('an approval while a creation runs', () => {
 
   test('waits, says why, and applies as soon as the creation finishes', async ({ page, app }) => {
     await prepareFromPage(page, app);
-    await expect(status(page)).toHaveAttribute('data-status', 'ready');
+    await expect(status(page)).toHaveAttribute('data-status', 'ready', CHECKED);
     const creation = await app.manager.create('A packing list');
     await expect.poll(() => app.manager.get(creation.id).pending?.kind).toBe('question');
 
@@ -300,7 +306,7 @@ test.describe('suggestions after a creation', () => {
     await suggestion.getByRole('button', { name: 'Prepare an improvement' }).click();
     await expect(suggestion.getByLabel('What should change?')).toHaveValue(/Improve the creation flow for this case/);
     await suggestion.getByRole('button', { name: 'Prepare' }).click();
-    await expect(status(page)).toHaveAttribute('data-status', 'ready');
+    await expect(status(page)).toHaveAttribute('data-status', 'ready', CHECKED);
     await expect(page.getByTestId('evidence')).toContainText('suggestions/');
     expect(app.improveRunner.started).toHaveLength(1);
     await page.getByRole('link', { name: 'Improvements' }).first().click();
@@ -313,7 +319,7 @@ test.describe('the improvements page at phone width', () => {
 
   test('has no horizontal scroll on the proposal page', async ({ page, app }) => {
     await prepareFromPage(page, app);
-    await expect(status(page)).toHaveAttribute('data-status', 'ready');
+    await expect(status(page)).toHaveAttribute('data-status', 'ready', CHECKED);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
   });
