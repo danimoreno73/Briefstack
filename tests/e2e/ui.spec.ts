@@ -471,7 +471,8 @@ test.describe('settings, starting in Spanish', () => {
     await expect(page.getByRole('status').first()).toHaveText('Connecting…');
     await expect(page.getByRole('link', { name: 'Projects' })).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await page.unroute('**/api/settings');
+    // A slowed answer may still be waiting: let it finish before the route goes, or it continues a closed route.
+    await page.unrouteAll({ behavior: 'wait' });
     await page.getByRole('link', { name: 'Settings' }).click();
     await expect(page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
   });
