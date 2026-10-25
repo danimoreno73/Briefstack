@@ -65,7 +65,7 @@
               <h2 class="t-2" style="font-size: 22px">Abrirlo en Claude Code</h2>
               <p class="sub">Pega estos dos comandos en tu terminal.</p>
               <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start">
-                <pre class="request">cd "~/briefstack/photo-exif-renamer"
+                <pre class="request">cd "~/briefstack/album-tidy"
 claude</pre>
                 <button class="btn btn-primary" type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="10" height="10" rx="1.5"/><path d="M4 13V5a1 1 0 0 1 1-1h8"/></svg>Copiar</button>
               </div>
@@ -127,8 +127,8 @@ class Component extends DCLogic {
   renderVals() {
     const destino = this.props.destino ?? 'claude-code';
     const code = {
-      name: 'photo-exif-renamer', id: 'bs-2026-1042', destino: 'claude-code', elegido: 'el arquitecto', elegidoCap: 'el arquitecto',
-      perfil: 'equilibrado', fecha: '22 oct 2026', ruta: '~/briefstack/photo-exif-renamer',
+      name: 'album-tidy', id: 'bs-2026-1042', destino: 'claude-code', elegido: 'el arquitecto', elegidoCap: 'el arquitecto',
+      perfil: 'equilibrado', fecha: '22 oct 2026', ruta: '~/briefstack/album-tidy',
       resumen: 'CLI que renombra fotos por fecha EXIF con dry-run por defecto, mueve duplicados a _duplicados/ y deja un CSV de registro. Destino claude-code porque se ejecuta y se prueba en tu terminal.',
       historial: [
         { paso: 'análisis', inicio: '14:18', fin: '14:23', res: 'hecho' },
@@ -142,8 +142,8 @@ class Component extends DCLogic {
       ]
     };
     const app = {
-      name: 'meal-planner', id: 'bs-2026-1027', destino: 'claude-app', elegido: 'ti', elegidoCap: 'tú',
-      perfil: 'ahorro', fecha: '18 oct 2026', ruta: '~/briefstack/meal-planner',
+      name: 'recipe-box', id: 'bs-2026-1027', destino: 'claude-app', elegido: 'ti', elegidoCap: 'tú',
+      perfil: 'ahorro', fecha: '18 oct 2026', ruta: '~/briefstack/recipe-box',
       resumen: 'Planificador semanal con lista de la compra y sobras. Destino claude-app porque lo usarás desde el móvil.',
       historial: [
         { paso: 'análisis', inicio: '09:00', fin: '09:02', res: 'hecho' },
