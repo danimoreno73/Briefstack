@@ -103,7 +103,8 @@ describe('SdkSafetyReviewer', () => {
     expect(options.permissionMode).toBe('default');
     expect(options.maxTurns).toBe(1);
     expect(options.env?.ANTHROPIC_MODEL).toBeUndefined();
-    expect(options.env?.ANTHROPIC_API_KEY).toBeUndefined();
+    // API key mode: the user's own key reaches their Claude Code.
+    expect(options.env?.ANTHROPIC_API_KEY).toBe('x');
     expect(await options.canUseTool?.('Read', {}, { signal: new AbortController().signal, toolUseID: 't' } as never)).toMatchObject({ behavior: 'deny' });
     expect(String(seen.prompt)).toContain('<diff>\n+You may ask in plain text.\n</diff>');
     await expect(stat(options.cwd as string)).rejects.toThrow();

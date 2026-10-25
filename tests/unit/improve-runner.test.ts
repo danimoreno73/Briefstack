@@ -142,7 +142,8 @@ describe('SdkImprovementRunner', () => {
     const outcome = await runner.start(startOptions(events)).done;
     expect(outcome).toEqual({ kind: 'ended' });
     expect(seen.options?.env?.ANTHROPIC_MODEL).toBeUndefined();
-    expect(seen.options?.env?.ANTHROPIC_API_KEY).toBeUndefined();
+    // API key mode: the user's own key reaches their Claude Code.
+    expect(seen.options?.env?.ANTHROPIC_API_KEY).toBe('x');
     expect(seen.options?.env?.CLAUDE_CODE_ENTRYPOINT).toBeUndefined();
     expect(seen.options?.model).toBe('haiku');
     expect(events).toContainEqual({ kind: 'text', text: 'Nothing to change.' });

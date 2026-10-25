@@ -108,7 +108,8 @@ describe('the chat session options', () => {
     });
     expect(Object.keys(o.mcpServers ?? {})).toEqual([CHAT_SERVER_NAME]);
     expect(o).not.toHaveProperty('resume');
-    expect(o.env).not.toHaveProperty('ANTHROPIC_API_KEY');
+    // The user's own key reaches their Claude Code (API key mode); the model comes only from the option.
+    expect(o.env?.ANTHROPIC_API_KEY).toBe(FAKE_KEY);
     expect(o.env).not.toHaveProperty('ANTHROPIC_MODEL');
     // Auto memory loads whatever `settingSources` says: only the environment turns it off.
     expect(o.env?.CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBe('1');

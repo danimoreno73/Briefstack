@@ -44,12 +44,26 @@ import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL, WEB_SERVER_NAME, createWebTool
 export const SKILL_COMMAND = 'new-project';
 
 /**
- * Environment variables that would make Claude Code bill an API key or change
- * how it runs. `ANTHROPIC_MODEL` too: the model is always passed as an option,
- * and the variable is not left to compete with it. `ALLOWED_DIRS_ENV` too: only
- * a creation sets it, to its own folders.
+ * Environment variables that would change how Claude Code runs a session.
+ * `ANTHROPIC_MODEL`: the model is always passed as an option, and the
+ * variable is not left to compete with it. `CLAUDECODE`: set when the server
+ * itself runs inside Claude Code. `ALLOWED_DIRS_ENV`: only a creation sets
+ * it, to its own folders.
  */
-const REMOVED_ENV = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_MODEL', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDECODE', ALLOWED_DIRS_ENV];
+const REMOVED_ENV = ['ANTHROPIC_MODEL', 'CLAUDECODE', ALLOWED_DIRS_ENV];
+
+/**
+ * The `CLAUDE_CODE_*` variables that pass: how the user authenticates their
+ * own Claude Code (a cloud provider, a long-lived sign-in token) and how it
+ * reaches the network (client certificates, certificate store). Every other
+ * `CLAUDE_CODE_*` is Claude Code's own behaviour and is taken out. The
+ * `ANTHROPIC_*` credentials (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`,
+ * provider keys) pass as they are. briefstack never reads their values,
+ * never logs, shows or writes them (docs/decisions.md, "Release").
+ * Source: code.claude.com/docs/en/authentication and /env-vars.
+ */
+const PASSED_CLAUDE_CODE_ENV =
+  /^CLAUDE_CODE_(?:USE_(?:BEDROCK|VERTEX|FOUNDRY|ANTHROPIC_AWS|MANTLE)|SKIP_(?:BEDROCK|VERTEX|FOUNDRY|ANTHROPIC_AWS|MANTLE)_AUTH|SKIP_AWS_CRED_CACHE|AWS_CHAIN_RESOLVE_TIMEOUT_MS|DISABLE_AUTH_REFRESH_LOCK|OAUTH_(?:TOKEN|REFRESH_TOKEN|SCOPES)|CLIENT_(?:CERT|KEY|KEY_PASSPHRASE)|CERT_STORE)$/;
 
 export interface CleanEnvironment {
   env: Record<string, string | undefined>;
@@ -58,8 +72,9 @@ export interface CleanEnvironment {
 }
 
 /**
- * The session's environment: the server's, without credentials or Claude
- * Code's own `CLAUDE_CODE_*`, with background tasks and auto memory turned off.
+ * The session's environment: the server's, with the user's own way of
+ * signing in to Claude Code left as it is, without Claude Code's other
+ * `CLAUDE_CODE_*`, and with background tasks and auto memory turned off.
  */
 export function cleanEnvironment(
   source: Readonly<Record<string, string | undefined>>,
@@ -69,7 +84,7 @@ export function cleanEnvironment(
   const removed: string[] = [];
   for (const [name, value] of Object.entries(source)) {
     if (value === undefined) continue;
-    if (REMOVED_ENV.includes(name) || name.startsWith('CLAUDE_CODE_')) {
+    if (REMOVED_ENV.includes(name) || (name.startsWith('CLAUDE_CODE_') && !PASSED_CLAUDE_CODE_ENV.test(name))) {
       removed.push(name);
       continue;
     }

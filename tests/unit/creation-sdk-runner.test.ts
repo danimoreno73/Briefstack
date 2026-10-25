@@ -139,7 +139,7 @@ describe('cleanEnvironment', () => {
     expect(removed).toEqual(['CLAUDE_CODE_DISABLE_BACKGROUND_TASKS']);
   });
 
-  it('drops credentials and Claude Code variables, reports only names, and fixes the home', () => {
+  it("passes the user's own credentials as they are, drops Claude Code's other variables, reports only names, and fixes the home", () => {
     const { env, removed } = cleanEnvironment(
       {
         ANTHROPIC_API_KEY: FAKE_KEY,
@@ -153,21 +153,55 @@ describe('cleanEnvironment', () => {
       },
       '/new-home',
     );
-    expect(removed.sort()).toEqual([
-      'ANTHROPIC_API_KEY',
-      'ANTHROPIC_AUTH_TOKEN',
-      'ANTHROPIC_MODEL',
-      'CLAUDECODE',
-      'CLAUDE_CODE_ENTRYPOINT',
-      'CLAUDE_CODE_OAUTH_TOKEN',
-    ]);
+    expect(removed.sort()).toEqual(['ANTHROPIC_MODEL', 'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT']);
     expect(JSON.stringify(removed)).not.toContain(FAKE_KEY);
     expect(env).toEqual({
+      ANTHROPIC_API_KEY: FAKE_KEY,
+      ANTHROPIC_AUTH_TOKEN: 'token-value',
+      CLAUDE_CODE_OAUTH_TOKEN: 'oauth-value',
       PATH: '/bin',
       BRIEFSTACK_HOME: '/new-home',
       CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1',
       CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1',
     });
+  });
+
+  it('passes a cloud provider configuration and network settings, and nothing else of Claude Code', () => {
+    const provider = {
+      CLAUDE_CODE_USE_BEDROCK: '1',
+      CLAUDE_CODE_USE_VERTEX: '1',
+      CLAUDE_CODE_USE_FOUNDRY: '1',
+      CLAUDE_CODE_USE_ANTHROPIC_AWS: '1',
+      CLAUDE_CODE_USE_MANTLE: '1',
+      CLAUDE_CODE_SKIP_BEDROCK_AUTH: '1',
+      CLAUDE_CODE_SKIP_VERTEX_AUTH: '1',
+      CLAUDE_CODE_SKIP_FOUNDRY_AUTH: '1',
+      CLAUDE_CODE_SKIP_ANTHROPIC_AWS_AUTH: '1',
+      CLAUDE_CODE_SKIP_MANTLE_AUTH: '1',
+      CLAUDE_CODE_SKIP_AWS_CRED_CACHE: '1',
+      CLAUDE_CODE_AWS_CHAIN_RESOLVE_TIMEOUT_MS: '30000',
+      CLAUDE_CODE_DISABLE_AUTH_REFRESH_LOCK: '1',
+      CLAUDE_CODE_OAUTH_REFRESH_TOKEN: 'refresh',
+      CLAUDE_CODE_OAUTH_SCOPES: 'user:inference',
+      CLAUDE_CODE_CLIENT_CERT: '/certs/c.pem',
+      CLAUDE_CODE_CLIENT_KEY: '/certs/k.pem',
+      CLAUDE_CODE_CLIENT_KEY_PASSPHRASE: 'pass',
+      CLAUDE_CODE_CERT_STORE: 'system',
+      AWS_REGION: 'us-east-1',
+      AWS_PROFILE: 'work',
+      ANTHROPIC_VERTEX_PROJECT_ID: 'p',
+      CLOUD_ML_REGION: 'global',
+      ANTHROPIC_FOUNDRY_API_KEY: 'foundry-key',
+      ANTHROPIC_BASE_URL: 'https://gateway.example.com',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'some-opus-id',
+      HTTPS_PROXY: 'http://proxy.example.com:8080',
+    };
+    const { env, removed } = cleanEnvironment(
+      { ...provider, CLAUDE_CODE_USE_POWERSHELL_TOOL: '1', CLAUDE_CODE_SIMPLE: '1', CLAUDE_CODE_SKIP_PROMPT_HISTORY: '1' },
+      '/home',
+    );
+    expect(env).toMatchObject(provider);
+    expect(removed.sort()).toEqual(['CLAUDE_CODE_SIMPLE', 'CLAUDE_CODE_SKIP_PROMPT_HISTORY', 'CLAUDE_CODE_USE_POWERSHELL_TOOL']);
   });
 });
 
@@ -313,7 +347,7 @@ describe('SdkRunner', () => {
     new SdkRunner({
       repoDir: PACKAGE_ROOT,
       pathEnv: {
-        env: { PATH: '/bin', BRIEFSTACK_HOME: path.join(dir, 'home'), ANTHROPIC_API_KEY: FAKE_KEY },
+        env: { PATH: '/bin', BRIEFSTACK_HOME: path.join(dir, 'home'), ANTHROPIC_API_KEY: FAKE_KEY, ANTHROPIC_MODEL: 'opus' },
         homedir: path.join(dir, 'user'),
         pathApi: path,
         caseInsensitive: process.platform !== 'linux',
@@ -389,8 +423,9 @@ describe('SdkRunner', () => {
     expect(await handle.sessionId).toBe(SESSION);
     expect(firstPrompt).toMatchObject({ type: 'user', message: { role: 'user', content: '/new-project A garden planner' }, parent_tool_use_id: null });
     expect(options().env?.BRIEFSTACK_HOME).toBe(path.join(dir, 'home'));
-    expect(options().env).not.toHaveProperty('ANTHROPIC_API_KEY');
-    expect(events[0]).toMatchObject({ kind: 'status', status: 'starting', message: 'Not passed to Claude Code: ANTHROPIC_API_KEY' });
+    // The user's own key reaches their Claude Code; it is never in what the runner reports.
+    expect(options().env?.ANTHROPIC_API_KEY).toBe(FAKE_KEY);
+    expect(events[0]).toMatchObject({ kind: 'status', status: 'starting', message: 'Not passed to Claude Code: ANTHROPIC_MODEL' });
     expect(JSON.stringify(events)).not.toContain(FAKE_KEY);
     expect(options().additionalDirectories).toEqual([projectsDir, sessionsDir]);
     // `briefstack paths` inside the session reports the same two folders, not the repo's settings file.
