@@ -162,8 +162,12 @@ The session's lines for the agent panel (phase 3):
 
 What `briefstack usage show --json` prints (`profile`, `label`, `fromConfig`,
 `sessionModel`, `chat: { model, effort }`, `agents`, `tiers`, `research`, `reviewRounds`, `available`,
-`drift`, `envWarnings`) plus `presets`: `[{ name, source: "base" | "user", label: { en, es }, sessionModel, effort, chat, tiers, research, reviewRounds }, …]`.
-No token or cost figures.
+`drift`, `envWarnings`) plus `presets`: `[{ name, source: "base" | "user", label: { en, es }, sessionModel, effort, chat, tiers, research, reviewRounds }, …]`
+and `lastPlanUsage`: `{ fiveHour, sevenDay, at }` (percent or `null`, and
+the ISO time of the reading) or `null`. It is the last plan usage the server
+read (for a creation's panel, before a start, or for the chat's
+`show_usage`), saved in `<home>/plan-usage.json`; the route never reads the
+usage itself. No token or cost figures.
 
 ### `GET /api/paths`
 

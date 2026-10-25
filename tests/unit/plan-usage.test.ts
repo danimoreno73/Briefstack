@@ -1,8 +1,9 @@
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeRunner, parseRecording } from '../../src/creation/fakeRunner.js';
 import { CreationManager } from '../../src/creation/manager.js';
-import { readPlanUsage } from '../../src/creation/planUsage.js';
+import { lastPlanUsageFile, readLastPlanUsage, readPlanUsage, savingReader, type PlanUsage } from '../../src/creation/planUsage.js';
 import { readEvents, sessionEventsFile } from '../../src/events/index.js';
 import { tempDir } from '../helpers.js';
 
@@ -47,6 +48,46 @@ describe('readPlanUsage', () => {
     });
     expect(await readPlanUsage({ ...base, query: failing.query })).toMatch(/could not read the usage: boom/);
     expect(failing.closed()).toBe(1);
+  });
+});
+
+describe('the last known plan usage', () => {
+  let home: string;
+  let cleanup: () => Promise<void>;
+  beforeEach(async () => {
+    const temp = await tempDir('last-plan-usage');
+    home = path.join(temp.dir, 'home');
+    cleanup = temp.cleanup;
+  });
+  afterEach(async () => cleanup());
+
+  it('saves each reading a reader got, with its time, and hands it on', async () => {
+    const readings: (PlanUsage | undefined)[] = [{ fiveHour: 12, sevenDay: 40 }, undefined, { fiveHour: 15, sevenDay: null }];
+    let clock = Date.parse('2026-10-25T10:00:00Z');
+    const read = savingReader(async () => readings.shift(), home, () => new Date((clock += 60_000)));
+    expect(await readLastPlanUsage(home)).toBeUndefined();
+    expect(await read()).toEqual({ fiveHour: 12, sevenDay: 40 });
+    expect(await readLastPlanUsage(home)).toEqual({ fiveHour: 12, sevenDay: 40, at: '2026-10-25T10:01:00.000Z' });
+    // Nothing read: the last known values stay.
+    expect(await read()).toBeUndefined();
+    expect(await readLastPlanUsage(home)).toEqual({ fiveHour: 12, sevenDay: 40, at: '2026-10-25T10:01:00.000Z' });
+    expect(await read()).toEqual({ fiveHour: 15, sevenDay: null });
+    expect(await readLastPlanUsage(home)).toEqual({ fiveHour: 15, sevenDay: null, at: '2026-10-25T10:02:00.000Z' });
+    // The file holds the figures and the time, and no temporary file is left.
+    expect(JSON.parse(await readFile(lastPlanUsageFile(home), 'utf8'))).toEqual({ v: 1, fiveHour: 15, sevenDay: null, at: '2026-10-25T10:02:00.000Z' });
+    expect(await readdir(home)).toEqual(['plan-usage.json']);
+  });
+
+  it('ignores a file that does not read back, and a save that fails costs only the figures', async () => {
+    await mkdir(home, { recursive: true });
+    for (const text of ['not json', '{"fiveHour":12,"sevenDay":40}', '{"fiveHour":-1,"sevenDay":4,"at":"2026-10-25T10:00:00Z"}', '{"fiveHour":1,"sevenDay":4,"at":"yesterday"}']) {
+      await writeFile(lastPlanUsageFile(home), text, 'utf8');
+      expect(await readLastPlanUsage(home), text).toBeUndefined();
+    }
+    // The home is a file: nothing can be saved, and the reading still comes through.
+    const blocked = path.join(home, 'blocked');
+    await writeFile(blocked, 'x', 'utf8');
+    expect(await savingReader(async () => ({ fiveHour: 1, sevenDay: 2 }), blocked)()).toEqual({ fiveHour: 1, sevenDay: 2 });
   });
 });
 

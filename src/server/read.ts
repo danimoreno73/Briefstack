@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { configFilePath, maxActiveCreationsOf, permissionPolicyOf, readConfig, resolvePaths, toAbsolute, usageWarningOf, type PathEnv } from '../config/index.js';
+import { readLastPlanUsage } from '../creation/planUsage.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
 import { readEvents, sessionEventsFile } from '../events/index.js';
 import { listSessions, sessionIdea, sessionTimeline, type SessionTimeline } from '../events/sessions.js';
@@ -232,7 +233,7 @@ export function readRoutes(context: ReadContext): RouteTable {
     [
       'GET /api/usage',
       async (_req, res) => {
-        const { lang } = await load();
+        const { lang, paths } = await load();
         const shown = await usageShow({ pathEnv, repoDir, lang });
         const { profiles } = await loadUsageContext(pathEnv);
         const presets = Object.entries(profiles.presets).map(([name, preset]) => ({
@@ -246,7 +247,9 @@ export function readRoutes(context: ReadContext): RouteTable {
           research: preset.research,
           reviewRounds: preset.reviewRounds,
         }));
-        sendJson(res, 200, { ...shown, presets });
+        // The last reading saved in the home; opening the page never reads the usage again.
+        const lastPlanUsage = (await readLastPlanUsage(paths.home)) ?? null;
+        sendJson(res, 200, { ...shown, presets, lastPlanUsage });
       },
     ],
     [

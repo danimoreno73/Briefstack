@@ -101,6 +101,8 @@ export interface UsageView {
   drift: { file: string; field: string; committed: string | null; current: string | null }[];
   envWarnings: { field: string; variable: string; value: string }[];
   presets: UsagePreset[];
+  /** The last plan usage the server read (percent, `null` when unknown), with when; `null` before the first reading. */
+  lastPlanUsage: { fiveHour: number | null; sevenDay: number | null; at: string } | null;
 }
 
 export interface SettingsView {

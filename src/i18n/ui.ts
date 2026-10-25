@@ -242,6 +242,9 @@ export const uiMessages = defineCatalogue({
     warnDrift: (file: string, field: string) => `${file}: the ${field} differs from the committed agent file.`,
     warnEnv: (variable: string) => `The environment variable ${variable} overrides the profile.`,
     openUsageHint: 'To see your real consumption, type /usage in Claude Code.',
+    usagePlanTitle: 'Plan usage',
+    usagePlanLast: (when: string) => `Last known values, read ${when}.`,
+    usagePlanNone: 'Not read yet. briefstack reads it while a creation runs, before one starts, and when the chat shows the usage.',
 
     settingsTitle: 'Settings',
     projectsDirLabel: 'Projects folder',
@@ -1088,6 +1091,9 @@ export const uiMessages = defineCatalogue({
     warnDrift: (file: string, field: string) => `${file}: ${field} difiere del archivo de agente guardado en git.`,
     warnEnv: (variable: string) => `La variable de entorno ${variable} anula el perfil.`,
     openUsageHint: 'Para ver tu consumo real, escribe /usage en Claude Code.',
+    usagePlanTitle: 'Uso del plan',
+    usagePlanLast: (when: string) => `Últimos valores conocidos, leídos el ${when}.`,
+    usagePlanNone: 'Aún no se ha leído. briefstack lo lee mientras corre una creación, antes de empezar una y cuando el chat muestra el uso.',
 
     settingsTitle: 'Ajustes',
     projectsDirLabel: 'Carpeta de proyectos',

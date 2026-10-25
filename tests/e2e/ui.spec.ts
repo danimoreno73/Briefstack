@@ -1,6 +1,7 @@
 import { mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
+import { saveLastPlanUsage } from '../../src/creation/planUsage.js';
 import { FAKE_KEY, clickNav, expect, test } from './fixtures.js';
 
 const readClipboard = (page: Page) => page.evaluate(() => navigator.clipboard.readText());
@@ -424,6 +425,21 @@ test.describe('usage', () => {
     await expect(page.getByRole('status')).toContainText('Profile set to deep-dive.');
     await expect(page.getByTestId('active-profile')).toContainText('Deep dive: my own preset');
     await expect(page.getByTestId('active-profile')).toContainText('A custom preset is active.');
+  });
+
+  test('shows the last known plan usage with when it was read, and says so before any reading', async ({ page, app }) => {
+    await page.goto(app.url);
+    await page.getByRole('link', { name: 'Usage' }).click();
+    const card = page.getByTestId('last-plan-usage');
+    await expect(card.getByRole('heading', { name: 'Plan usage' })).toBeVisible();
+    await expect(card).toContainText('Not read yet.');
+    await saveLastPlanUsage(app.home, { fiveHour: 42, sevenDay: 63 }, new Date('2026-10-25T09:30:00Z'));
+    await page.reload();
+    await expect(card).toContainText('5-hour window');
+    await expect(card).toContainText('42%');
+    await expect(card).toContainText('63%');
+    await expect(page.getByTestId('last-plan-usage-when')).toContainText('Last known values, read');
+    await expect(page.getByTestId('last-plan-usage-when')).toContainText('2026');
   });
 
   test('shows qualitative text and no token or cost figures', async ({ page, app }) => {

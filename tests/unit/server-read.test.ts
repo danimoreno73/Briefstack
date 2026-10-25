@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { saveLastPlanUsage } from '../../src/creation/planUsage.js';
 import { appendEvent, flowEvent, sessionLifecycleEvent } from '../../src/events/index.js';
 import { addNote, initLibrary, saveNote } from '../../src/library/index.js';
 import { startWebServer, TOKEN_HEADER, type WebServer } from '../../src/server/index.js';
@@ -282,6 +283,16 @@ describe('read API', () => {
     expect(usage.presets[0]?.label.es).toBeTruthy();
     expect(Array.isArray(usage.drift)).toBe(true);
     expect(Array.isArray(usage.envWarnings)).toBe(true);
+  });
+
+  it('adds the last plan usage saved in the home, or null before the first reading', async () => {
+    type Last = { lastPlanUsage: { fiveHour: number | null; sevenDay: number | null; at: string } | null };
+    expect((await json<Last>('/api/usage')).lastPlanUsage).toBeNull();
+    await saveLastPlanUsage(home, { fiveHour: 42, sevenDay: null }, new Date('2026-10-25T09:30:00Z'));
+    expect((await json<Last>('/api/usage')).lastPlanUsage).toEqual({ fiveHour: 42, sevenDay: null, at: '2026-10-25T09:30:00.000Z' });
+    // A file that does not read back is no figure at all.
+    await writeTree(home, { 'plan-usage.json': '{"fiveHour":"lots"}' });
+    expect((await json<Last>('/api/usage')).lastPlanUsage).toBeNull();
   });
 
   it('reports paths and settings from the config', async () => {

@@ -1,11 +1,44 @@
 import { useState } from 'preact/hooks';
-import { USAGE_LEVELS, levelIndex } from './format.js';
-import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
+import { usageHiddenReason } from './claude.js';
+import { USAGE_LEVELS, formatWhen, levelIndex } from './format.js';
+import { useApp, useClaudeStatus, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { ErrorNote, LoadState, Note } from './kit.js';
+import { percent } from './panelData.js';
 import type { UsagePreset, UsageView as UsageData } from './types.js';
 
 /** The models a preset uses, from its tiers, in the order they first appear. */
 const modelsOf = (preset: UsagePreset | undefined): string => (preset?.tiers === undefined ? (preset?.sessionModel ?? '') : [...new Set(Object.values(preset.tiers))].join(' · '));
+
+/** The last plan usage the server read, with when; the page never reads it itself. Hidden with an API key or a cloud provider. */
+function LastPlanUsage({ last }: { last: UsageData['lastPlanUsage'] }) {
+  const { t, lang } = useApp();
+  const { status } = useClaudeStatus();
+  const hidden = usageHiddenReason(t, status);
+  return (
+    <section class="card" aria-labelledby="plan-usage-title" data-testid="last-plan-usage">
+      <h2 class="t-2" id="plan-usage-title">
+        {t.usagePlanTitle}
+      </h2>
+      {hidden !== undefined ? (
+        <p class="t-small muted">{hidden}</p>
+      ) : last === null ? (
+        <p class="t-small muted">{t.usagePlanNone}</p>
+      ) : (
+        <>
+          <dl class="kv">
+            <dt>{t.usageFiveHour}</dt>
+            <dd class="mono">{percent(last.fiveHour)}</dd>
+            <dt>{t.usageSevenDay}</dt>
+            <dd class="mono">{percent(last.sevenDay)}</dd>
+          </dl>
+          <p class="t-small muted" data-testid="last-plan-usage-when">
+            {t.usagePlanLast(formatWhen(last.at, lang))}
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
 
 export function UsageView() {
   const { t, lang } = useApp();
@@ -135,6 +168,8 @@ export function UsageView() {
                     </p>
                   </section>
                 )}
+
+                <LastPlanUsage last={usage.lastPlanUsage} />
 
                 <section class="stack-2" aria-labelledby="warnings-title">
                   <h2 class="section-title" id="warnings-title">

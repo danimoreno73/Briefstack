@@ -3882,3 +3882,13 @@ recorded here.
   severity. Each rule now keeps the highest severity of its patterns on a
   line (it used to keep the first match). The skill's network flag counts
   only `medium` and `high` network findings, so `info` does not set it.
+- **(choice)** A4: the last reading is saved by the reader the web server
+  already uses (`planUsageReader`), so every reading it makes counts: a
+  creation's panel, the check before a start and the chat's `show_usage`.
+  One file, `<home>/plan-usage.json`, with the two percentages and the
+  time; written aside and renamed; a failed save is ignored (it costs only
+  the figures). The Usage page shows it in its own card, hidden with an API
+  key or a cloud provider like the panel's meters, and says "not read yet"
+  before the first reading. `GET /api/usage` only reads the file. Readings
+  made by `briefstack` CLI commands outside the server are not saved: none
+  reads the plan usage today.
