@@ -51,14 +51,16 @@ blocker (a gate tick), then checks `HEAD`. Test only; no change in
 
 - A URL in a license file (`LICENSE`, `COPYING`, …) is `info`.
 - A `localhost`, `127.0.0.1` or `[::1]` URL is `info` in any file.
-- `subprocess` (and the other process calls of the `shell` rule) stays
-  `medium` in a script when the line also has `shell=True`, a shell
-  (`sh -c`, `bash -c`, `cmd /c`, `powershell -Command`), or a network or
-  download word; a plain `import subprocess` or a call with a fixed
-  argument list is `low`.
-- `socket` is `medium` when the line connects or binds
-  (`socket.connect`, `create_connection`, `bind`, a host and port), `low`
-  for an import or a mention.
+- A call through a shell (`shell=True`, `os.system`, `os.popen`,
+  `execSync`, `sh -c`, `cmd /c`, `powershell -Command`, …) stays `medium`.
+- Starting a process without a shell (`subprocess`, `Popen`,
+  `child_process`, `spawnSync`, `execFile`) and a raw socket
+  (`socket.`, `net.connect`, …) are weighed by the rest of the file:
+  `medium` when the file has another `medium` or `high` finding (an
+  outside address, a credential read, a deletion, a shell call, a script
+  that is not UTF-8, …), `low` otherwise. The line alone is not enough: the
+  malicious fixture's `import os, shutil, subprocess, requests` is a plain
+  import in a file that steals a token.
 - A test fixes the severity of every finding of the malicious fixtures
   (`EXFILTRATOR`, `INJECTOR`, the non-UTF-8 scripts) as it was before the
   change, and checks that none goes down.

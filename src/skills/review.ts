@@ -312,15 +312,42 @@ export function detectLicense(files: ReviewInput['files'], frontmatter: SkillFro
 
 // --- Static rules --------------------------------------------------------
 
+interface LineContext {
+  kind: FileKind;
+  path: string;
+  line: string;
+}
+
 interface LineRule {
   rule: FindingRule;
-  severity: Severity | ((kind: FileKind) => Severity);
+  /**
+   * `weighed`: decided by the rest of the file once it is read, `medium`
+   * when the file shows another sign of risk, `low` otherwise.
+   */
+  severity: Severity | 'weighed' | ((context: LineContext) => Severity);
   pattern: RegExp;
   /** Which file kinds it applies to; all text kinds by default. */
   kinds?: readonly FileKind[];
 }
 
-const inScript = (high: Severity, other: Severity) => (kind: FileKind) => (kind === 'script' ? high : other);
+const inScript = (high: Severity, other: Severity) => (context: LineContext) => (context.kind === 'script' ? high : other);
+
+const URL_PATTERN = /\b(?:https?|ftp|wss?):\/\/[^\s)>"'`]+/gi;
+/** The host of a URL, lower case, with the brackets of an IPv6 address. */
+const urlHost = (url: string): string => /^[a-z]+:\/\/(?:[^@/\s]*@)?(\[[^\]]*\]|[^:/\s?#]*)/i.exec(url)?.[1]?.toLowerCase() ?? '';
+const isLocalHost = (host: string): boolean =>
+  host === 'localhost' || host.endsWith('.localhost') || /^127(?:\.\d{1,3}){3}$/.test(host) || host === '0.0.0.0' || host === '[::1]' || host === '[::]';
+
+/**
+ * A URL is `info` in a license file, or when every URL on the line points
+ * to this machine; otherwise `medium` in a script and `low` elsewhere.
+ */
+function urlSeverity(context: LineContext): Severity {
+  if (LICENSE_FILE.test(baseName(context.path))) return 'info';
+  const hosts = (context.line.match(URL_PATTERN) ?? []).map(urlHost);
+  if (hosts.length > 0 && hosts.every(isLocalHost)) return 'info';
+  return context.kind === 'script' ? 'medium' : 'low';
+}
 
 /** Line rules, in the order findings are listed for a line. One finding per rule per line. */
 const LINE_RULES: readonly LineRule[] = [
@@ -337,15 +364,19 @@ const LINE_RULES: readonly LineRule[] = [
     rule: 'network',
     severity: inScript('medium', 'medium'),
     pattern:
-      /\b(?:curl|wget|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|nc|ncat|netcat|telnet|ssh|scp|rsync|ftp)\b\s|\bfetch\s*\(|\brequests\.(?:get|post|put|delete|patch|head|request|Session)\b|\burllib\b|\bhttp\.client\b|\bhttpx\b|\baiohttp\b|\bsocket\.|\bnet\.(?:connect|createConnection|Socket)\b|\bhttps?\.(?:get|request)\s*\(|\baxios\b|XMLHttpRequest|WebSocket\b|\bNew-Object\s+Net\.WebClient|\bDownloadString\b|\bDownloadFile\b/i,
+      /\b(?:curl|wget|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|nc|ncat|netcat|telnet|ssh|scp|rsync|ftp)\b\s|\bfetch\s*\(|\brequests\.(?:get|post|put|delete|patch|head|request|Session)\b|\burllib\b|\bhttp\.client\b|\bhttpx\b|\baiohttp\b|\bhttps?\.(?:get|request)\s*\(|\baxios\b|XMLHttpRequest|WebSocket\b|\bNew-Object\s+Net\.WebClient|\bDownloadString\b|\bDownloadFile\b/i,
   },
-  { rule: 'network', severity: inScript('medium', 'low'), pattern: /\b(?:https?|ftp|wss?):\/\/[^\s)>"'`]+/i },
+  { rule: 'network', severity: urlSeverity, pattern: /\b(?:https?|ftp|wss?):\/\/[^\s)>"'`]+/i },
+  // A raw socket: often a check of a local port, so it counts as network use only with another sign of risk in the file.
+  { rule: 'network', severity: 'weighed', pattern: /\bsocket\.|\bnet\.(?:connect|createConnection|Socket)\b/i },
   {
     rule: 'shell',
-    severity: inScript('medium', 'medium'),
+    severity: 'medium',
     pattern:
-      /\bsubprocess\b|\bos\.system\b|\bos\.popen\b|\bPopen\b|\bchild_process\b|\bexecSync\b|\bspawnSync\b|\bexecFile\b|\bshell\s*=\s*True\b|\b(?:sh|bash|zsh|cmd|powershell|pwsh)(?:\.exe)?\s+(?:-c|\/c|-Command|-EncodedCommand|-enc)\b|\bInvoke-Expression\b|\biex\b|\bStart-Process\b|\bRuntime\.getRuntime\(\)\.exec\b/i,
+      /\bos\.system\b|\bos\.popen\b|\bexecSync\b|\bshell\s*=\s*True\b|\b(?:sh|bash|zsh|cmd|powershell|pwsh)(?:\.exe)?\s+(?:-c|\/c|-Command|-EncodedCommand|-enc)\b|\bInvoke-Expression\b|\biex\b|\bStart-Process\b|\bRuntime\.getRuntime\(\)\.exec\b/i,
   },
+  // Starting a process without a shell (a fixed argument list) is common in helpers; weighed by the rest of the file.
+  { rule: 'shell', severity: 'weighed', pattern: /\bsubprocess\b|\bPopen\b|\bchild_process\b|\bspawnSync\b|\bexecFile\b/i },
   {
     rule: 'deletion',
     severity: 'medium',
@@ -389,26 +420,39 @@ function excerptOf(line: string): string {
   return clean.length > MAX_EXCERPT ? `${clean.slice(0, MAX_EXCERPT)}…` : clean;
 }
 
-function lineFindings(path: string, content: string, kind: FileKind): ReviewFinding[] {
-  const findings: ReviewFinding[] = [];
+const moreSevere = (a: Severity | undefined, b: Severity | undefined): Severity | undefined =>
+  a === undefined ? b : b === undefined ? a : SEVERITY_ORDER[a] <= SEVERITY_ORDER[b] ? a : b;
+
+/**
+ * One finding per rule per line, with the highest severity of the patterns
+ * that matched. Weighed patterns are decided last, from the rest of the file:
+ * `medium` when any other finding of the file (or `risky`, a sign found
+ * outside the lines) is `medium` or `high`, `low` otherwise.
+ */
+function lineFindings(path: string, content: string, kind: FileKind, risky = false): ReviewFinding[] {
+  const found: { finding: ReviewFinding; fixed: Severity | undefined; weighed: boolean }[] = [];
   const lines = (content.startsWith(BOM) ? content.slice(1) : content).split(/\r?\n/);
   lines.forEach((line, index) => {
-    const seen = new Set<FindingRule>();
+    const byRule = new Map<FindingRule, { fixed: Severity | undefined; weighed: boolean }>();
     for (const rule of LINE_RULES) {
-      if (seen.has(rule.rule)) continue;
       if (rule.kinds !== undefined && !rule.kinds.includes(kind)) continue;
       if (!rule.pattern.test(line)) continue;
-      seen.add(rule.rule);
-      const severity = typeof rule.severity === 'function' ? rule.severity(kind) : rule.severity;
-      findings.push({ rule: rule.rule, severity, file: path, line: index + 1, excerpt: excerptOf(line) });
+      const entry = byRule.get(rule.rule) ?? { fixed: undefined, weighed: false };
+      if (rule.severity === 'weighed') entry.weighed = true;
+      else entry.fixed = moreSevere(entry.fixed, typeof rule.severity === 'function' ? rule.severity({ kind, path, line }) : rule.severity);
+      byRule.set(rule.rule, entry);
     }
-    if (findSecrets(line).length > 0) findings.push({ rule: 'secret', severity: 'high', file: path, line: index + 1, excerpt: excerptOf(line) });
+    for (const [rule, entry] of byRule) {
+      found.push({ finding: { rule, severity: entry.fixed ?? 'low', file: path, line: index + 1, excerpt: excerptOf(line) }, ...entry });
+    }
+    if (findSecrets(line).length > 0) found.push({ finding: { rule: 'secret', severity: 'high', file: path, line: index + 1, excerpt: excerptOf(line) }, fixed: 'high', weighed: false });
     // Minified code: one very long line in a code file.
-    if (kind === 'script' && line.length > 1000 && !seen.has('obfuscation')) {
-      findings.push({ rule: 'obfuscation', severity: 'medium', file: path, line: index + 1, excerpt: excerptOf(line) });
+    if (kind === 'script' && line.length > 1000 && !byRule.has('obfuscation')) {
+      found.push({ finding: { rule: 'obfuscation', severity: 'medium', file: path, line: index + 1, excerpt: excerptOf(line) }, fixed: 'medium', weighed: false });
     }
   });
-  return findings;
+  const signOfRisk = risky || found.some((item) => item.fixed !== undefined && SEVERITY_ORDER[item.fixed] <= SEVERITY_ORDER.medium);
+  return found.map(({ finding, fixed, weighed }) => (weighed ? { ...finding, severity: moreSevere(fixed, signOfRisk ? 'medium' : 'low') as Severity } : finding));
 }
 
 /** Files that make the skill folder more than instructions: a plugin, hooks, settings, MCP servers. */
@@ -470,10 +514,9 @@ export function reviewSkill(input: ReviewInput): StaticReview {
     const file = byPath.get(item.path);
     if (file === undefined || item.kind === 'binary') continue;
     const decoded = decodeText(file.bytes);
-    if (item.kind === 'script' && decoded.encoding !== 'utf-8') {
-      findings.push({ rule: 'encoding', severity: 'high', file: item.path, excerpt: `not UTF-8 text; read as ${decoded.encoding}` });
-    }
-    findings.push(...lineFindings(item.path, decoded.text, item.kind));
+    const misencoded = item.kind === 'script' && decoded.encoding !== 'utf-8';
+    if (misencoded) findings.push({ rule: 'encoding', severity: 'high', file: item.path, excerpt: `not UTF-8 text; read as ${decoded.encoding}` });
+    findings.push(...lineFindings(item.path, decoded.text, item.kind, misencoded));
   }
   if (license.source === 'none') findings.push({ rule: 'license', severity: 'medium', file: '', excerpt: 'no license found' });
   else if (license.spdx === null) findings.push({ rule: 'license', severity: 'low', file: license.file ?? '', excerpt: 'license not recognised' });
@@ -490,7 +533,7 @@ export function reviewSkill(input: ReviewInput): StaticReview {
     license,
     findings,
     hasScripts: items.some((item) => item.kind === 'script' || (item.kind === 'binary' && fileFindings(item).some((f) => f.severity === 'high'))),
-    // A link in prose is not network use; a network call, or any address in a script, is.
-    network: findings.some((f) => f.rule === 'network' && f.severity !== 'low'),
+    // A link in prose, an address on this machine or a lone socket is not network use; a network call, or an outside address in a script, is.
+    network: findings.some((f) => f.rule === 'network' && (f.severity === 'medium' || f.severity === 'high')),
   };
 }

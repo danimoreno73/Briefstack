@@ -3865,3 +3865,20 @@ recorded here.
   before the plan, so the tag marks the state before any change.
 - **(choice)** Part C: the user's text for the "Codex" section came with
   the request; it goes in as given, as section 5 of IDEAS.md.
+- **(choice)** A flaky unit test found on the way (the folder claims test
+  failed on Windows CI at `backlog-1-start`: the first creation held its
+  folder for a fixed 300 ms, which a slow runner outlasted) was fixed in
+  its own commit before A2, since CI must be green before each step: the
+  first creation now holds the folder at a question the test answers.
+- **(choice)** A2, `subprocess` and `socket` weighed "by context": by the
+  rest of the file, not by the line. Judged by the line, the malicious
+  fixture's `import os, shutil, subprocess, requests` would drop to `low`;
+  judged by the file, it stays `medium` because the same file reads a
+  token and sends it out. A file whose only signs are a process started
+  without a shell and a local socket gets `low` for both, and no network
+  flag. A URL is `info` in a license file, or when every URL on its line
+  points to this machine (`localhost`, `*.localhost`, `127.x.x.x`,
+  `0.0.0.0`, `[::1]`); a line that also names an outside address keeps its
+  severity. Each rule now keeps the highest severity of its patterns on a
+  line (it used to keep the first match). The skill's network flag counts
+  only `medium` and `high` network findings, so `info` does not set it.
