@@ -1,6 +1,7 @@
-# Every push runs on Linux only: macOS and Windows runners use the private
-# repo's minutes faster. The full matrix runs only when started by hand
-# (Actions → CI → Run workflow). Windows is verified locally.
+# Every push runs on Linux and Windows (a primary platform). macOS runs too
+# once the repository is public, where runner minutes are free, and always
+# when started by hand (Actions → CI → Run workflow); while the repository
+# is private, macOS minutes cost ten times Linux ones.
 name: CI
 
 on:
@@ -13,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ github.event_name == 'workflow_dispatch' && fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]') || fromJSON('["ubuntu-latest"]') }}
+        os: ${{ (github.event_name == 'workflow_dispatch' || github.event.repository.private == false) && fromJSON('["ubuntu-latest", "windows-latest", "macos-latest"]') || fromJSON('["ubuntu-latest", "windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
