@@ -211,6 +211,30 @@ describe('static findings', () => {
     }
   });
 
+  it('flags absolute Linux paths in scripts as a portability finding, not elsewhere', () => {
+    const review = reviewSkill({
+      files: files({
+        'SKILL.md': '---\ndescription: x\n---\nSave it to /tmp/out.png.\n',
+        'shot.py': [
+          "OUT = '/mnt/user-data/outputs'",
+          'page.screenshot(path="/tmp/shot.png")',
+          'cd /home',
+          "DOCS = 'https://example.org/tmp/page'",
+          "LOCAL = '~/tmp/x'",
+          "NAME = '/tmpfile'",
+          "WIN = 'C:/tmp'",
+          '',
+        ].join('\n'),
+      }),
+    });
+    const lines = review.findings.filter((f) => f.rule === 'portability').map((f) => [f.file, f.line, f.severity]);
+    expect(lines).toEqual([
+      ['shot.py', 1, 'low'],
+      ['shot.py', 2, 'low'],
+      ['shot.py', 3, 'low'],
+    ]);
+  });
+
   it('flags a minified line in a script and caps the number of findings', () => {
     const minified = reviewSkill({ files: files({ 'SKILL.md': '---\ndescription: x\n---\n', 'a.js': `${'var a=1;'.repeat(200)}\n` }) });
     expect(minified.findings.find((f) => f.rule === 'obfuscation')).toMatchObject({ file: 'a.js', severity: 'medium' });

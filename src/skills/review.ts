@@ -34,6 +34,7 @@ export const FINDING_RULES = [
   'appDescription',
   'truncated',
   'encoding',
+  'portability',
 ] as const;
 export type FindingRule = (typeof FINDING_RULES)[number];
 
@@ -407,6 +408,8 @@ const LINE_RULES: readonly LineRule[] = [
     pattern:
       /[A-Za-z0-9+/]{200,}={0,2}|\b[0-9a-fA-F]{200,}\b|(?:\\x[0-9a-fA-F]{2}){20,}|\bbase64\s+(?:-d|--decode)\b|\batob\s*\(|\bb64decode\b|\bFromBase64String\b|\bexec\s*\(\s*compile\b|\beval\s*\(|\bexec\s*\(\s*(?:base64|codecs|zlib|marshal)|\bcodecs\.decode\b|\bmarshal\.loads\b|\bString\.fromCharCode\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+/,
   },
+  // An absolute Linux path: on Windows it lands under the current drive (`C:\tmp`), which seldom exists or is meant.
+  { rule: 'portability', severity: 'low', pattern: /(?:^|[\s'"`=(,[{])\/(?:tmp|mnt|home)(?=[/\s'"`),;:\]}]|$)/, kinds: ['script'] },
   {
     rule: 'settings',
     severity: 'high',
