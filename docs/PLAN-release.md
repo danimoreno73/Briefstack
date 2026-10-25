@@ -13,17 +13,15 @@ approval. The repository is made public only by the user.
 
 ## 0. Status
 
-Updated 2026-10-25. R0 done. R1 (privacy and secrets scan) in progress:
-the scan runs first and its findings go to the user before anything is
-changed.
+Updated 2026-10-25. R0–R4 done; R5 next.
 
 | # | Step | State |
 |---|---|---|
 | R0 | Brief committed, tag `release-start`, this plan | done |
-| R1 | Privacy and secrets scan of the whole history (brief section 3) | in progress |
-| R2 | Fixes for the scan findings the user decides on | pending |
-| R3 | Policy and authentication: verify and record, API key mode, mode display, usage hidden in API key mode (section 2) | pending |
-| R4 | Branding check (section 2) | pending |
+| R1 | Privacy and secrets scan of the whole history (brief section 3) | done: findings reported, decided by the user (decisions.md, "Release") |
+| R2 | Fixes for the scan findings the user decides on | done: plan path, mockup and test names, test e-mail domains; two flaky e2e waits fixed |
+| R3 | Policy and authentication: verify and record, API key mode, mode display, usage hidden in API key mode (section 2) | done: credentials pass to the user's Claude Code, mode read from `accountInfo()`, Settings card, banner, start line, usage hidden; `scripts/real/check-api-key.ts` for the user |
+| R4 | Branding check (section 2) | done: nothing to change |
 | R5 | `package.json` and first-run messages (section 4) | pending |
 | R6 | Fresh-clone run with an empty `BRIEFSTACK_HOME` (section 4) | pending |
 | R7 | CI matrix with `windows-latest` (and `macos-latest` if time allows) (section 4) | pending |

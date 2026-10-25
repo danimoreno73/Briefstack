@@ -3701,3 +3701,96 @@ to the user before any change; the user decided on each one.
   its config. Checked against `.gitignore` and against every path in the
   history.
 - **History.** Nothing sensitive exists only in old history; no rewrite.
+
+## Policy and authentication (2026-10-25)
+
+Sources, read again on 2026-10-25:
+
+- Agent SDK overview (code.claude.com/docs/en/agent-sdk/overview, no
+  date): "Unless previously approved, Anthropic does not allow third party
+  developers to offer claude.ai login or rate limits for their products,
+  including agents built on the Claude Agent SDK." Branding: not
+  permitted, "Claude Code" or "Claude Code Agent" as a product name, and
+  ASCII art or visuals that mimic Claude Code.
+- Legal and compliance (code.claude.com/docs/en/legal-and-compliance, no
+  date): developers may not offer Claude.ai login in their own apps, route
+  requests through Free, Pro or Max credentials on behalf of their users,
+  or collect, store or intermediate Claude.ai credentials or session
+  tokens. It "does not prevent an end user from signing in to the
+  unmodified Claude Code binary with their own Claude subscription". The
+  binary must not be modified, and no built-in authentication method may
+  be removed. A product may say in plain text that it runs Claude Code,
+  but not use the Claude Code or Anthropic names or logos in its own name
+  or logo, or suggest Anthropic endorses it.
+- Support article "Use the Claude Agent SDK with your Claude plan"
+  (support.claude.com/articles/15036540, updates of 2026-06-15 and
+  2026-10-07): "You can still use the Claude Agent SDK, `claude -p`, and
+  third-party apps with your subscription limits." Max and Team plans also
+  get monthly API credits that cover the Agent SDK.
+- Authentication (code.claude.com/docs/en/authentication) and environment
+  variables (code.claude.com/docs/en/env-vars): the precedence of
+  credentials, and the variables of each provider.
+
+Conclusion, with the user's decision (brief section 1, point 2): briefstack
+is a local tool each user runs on their own machine with their own Claude
+Code, signed in the way they chose. It offers no sign-in, holds no
+credential and intermediates nothing; usage is billed to the user under
+their own agreement. The overview's note is aimed at products that offer
+a claude.ai login; briefstack offers none. The README says this plainly,
+with the not-affiliated notice, and points to the sources.
+
+Verified in the code:
+
+1. **No sign-in offered.** No code runs `claude auth login`, `/login` or
+   `setup-token`, or opens a login page. When Claude Code is not signed
+   in, the CLI and the web tell the user to run `claude` themselves
+   (`src/i18n/web.ts`, `src/i18n/ui.ts`, `claudeModeNone`).
+2. **No credential read, stored or forwarded by briefstack.** No code
+   reads `.credentials.json`, the keychain or a key's value. The session
+   environment is the server's own, passed to the user's own `claude`
+   (`cleanEnvironment`, `src/creation/sdkRunner.ts`); only variable
+   names are ever reported. The sign-in mode comes from Claude Code's
+   `accountInfo()` and only its kind is kept, never the e-mail or the
+   organization (`src/creation/claudeAccount.ts`). The run files and
+   events hold no environment (`src/creation/runFiles.ts`).
+3. **The user's unmodified binary.** Every SDK session (creation, chat,
+   improvement, safety and skill review, plan usage, sign-in mode) passes
+   `pathToClaudeCodeExecutable` with the `claude` found on PATH or in
+   `~/.local/bin` (`findClaudeExecutable`); nothing writes to it.
+4. **Branding.** The product name is briefstack, its logo a "b", no ASCII
+   art. "Claude Code" appears only in plain text that says briefstack runs
+   it.
+
+Choices:
+
+- **(choice) What passes to the sessions.** `ANTHROPIC_API_KEY`,
+  `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN` and every other
+  `ANTHROPIC_*` variable pass as they are; of the `CLAUDE_CODE_*`
+  variables only the cloud providers' (`USE_*`, `SKIP_*_AUTH`, AWS
+  timeouts), the OAuth refresh ones and the client certificate ones.
+  `ANTHROPIC_MODEL` (the model is always an option), `CLAUDECODE` and
+  Claude Code's other `CLAUDE_CODE_*` are still taken out.
+- **(choice) Settings files are not read.** Sessions load no user
+  settings (`settingSources` is `project` for creations and empty for the
+  rest, as decided in phases 2 to 6), so an `apiKeyHelper` or an `env`
+  block in `~/.claude/settings.json` does not apply to them. The README
+  says to set the variables in the terminal that starts briefstack web.
+  Reading the user's settings file to copy them would mean reading
+  credentials.
+- **Sign-in mode, probed** with Claude Code 2.1.310 and SDK 0.3.286, from
+  a session that sends no message (probe script kept outside the repo):
+  a plan sign-in answers `subscriptionType` ("Claude Pro") and no key
+  source; a (fake) `ANTHROPIC_API_KEY` answers `apiKeySource:
+  "ANTHROPIC_API_KEY"` even with a claude.ai login stored; a (fake)
+  `ANTHROPIC_AUTH_TOKEN` answers `tokenSource: "ANTHROPIC_AUTH_TOKEN"`;
+  an empty `CLAUDE_CONFIG_DIR` answers `tokenSource: "none"`. Plan limits
+  were available only in the first case. A cloud provider was not probed;
+  `apiProvider` other than `firstParty` is read as one, per the SDK types.
+- **(choice) Plan usage.** Hidden, with the reason, for an API key or a
+  cloud provider; shown as before for a plan and when the mode is
+  unknown.
+- **(choice) Banner.** Shown when Claude Code is missing, older than the
+  SDK's version, or not signed in. An untested version, an unreadable
+  version or an unknown mode only show in Settings and at start.
+- **Real check.** `scripts/real/check-api-key.ts`, run only by the user
+  with their own key set: one tiny Haiku turn billed to that key.
