@@ -17,8 +17,8 @@ jobs:
         os: ${{ (github.event_name == 'workflow_dispatch' || github.event.repository.private == false) && fromJSON('["ubuntu-latest", "windows-latest", "macos-latest"]') || fromJSON('["ubuntu-latest", "windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -39,7 +39,7 @@ jobs:
       # The traces of failed end-to-end tests (fake data only), to see where the time went.
       - name: Keep the traces of failed end-to-end tests
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-traces-${{ matrix.os }}
           path: test-results/
