@@ -40,7 +40,7 @@ reachable, commit metadata), not only the current tree, for:
 
 - secrets and tokens (API keys, OAuth and GitHub tokens, private keys,
   high-entropy strings);
-- personal paths (`C:\Users\...`, `D:\Dani\...`, `/home/...`, `/Users/...`);
+- personal paths (`C:\Users\<user>\...`, `<home>\...`, `/home/<user>/...`, `/Users/<user>/...`);
 - email addresses other than the author's;
 - personal names other than the author's;
 - data from the user's personal library (project names, lessons, profile);
@@ -84,7 +84,7 @@ rules generic.
 
 ### R6. Fresh clone
 
-Clone into an empty folder under `D:\Dani\briefstack-real` with an empty
+Clone into an empty scratch folder outside the repo with an empty
 `BRIEFSTACK_HOME`: install, build, `briefstack init`, `briefstack web`, the
 fake-runner e2e suite. Fix anything that assumes this machine.
 
