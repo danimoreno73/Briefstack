@@ -362,3 +362,19 @@ export interface ProposalPage {
   blockers: string[];
   check?: { name: string; script: string; cost: { en: string; es: string } };
 }
+
+/** How the user's Claude Code signs in (`GET /api/claude`, `src/creation/claudeAccount.ts`). Never a secret. */
+export type AuthModeView =
+  | { kind: 'signIn'; plan?: string }
+  | { kind: 'apiKey'; source: 'environment' | 'helper' | 'login' | 'bearer' | 'other' }
+  | { kind: 'cloud'; provider: string }
+  | { kind: 'none' }
+  | { kind: 'unknown' };
+
+export interface ClaudeStatusView {
+  install:
+    | { status: 'notFound' }
+    | { status: 'unknownVersion' }
+    | { status: 'compatible' | 'older' | 'untested'; installed: string; expected: string };
+  mode: AuthModeView;
+}

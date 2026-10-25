@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { PANEL_STEPS, buildPanelState, type PanelEventInput, type PanelLive, type PanelNode, type PanelState, type PanelStepState } from '../panel/state.js';
-import { useApp, useDocumentTitle, useLoad } from './hooks.js';
+import { usageHiddenReason } from './claude.js';
+import { useApp, useClaudeStatus, useDocumentTitle, useLoad } from './hooks.js';
 import { IconCheck, IconCross } from './icons.js';
 import { LoadState, MetaLine, Note } from './kit.js';
 import {
@@ -126,6 +127,21 @@ export function StepCount({ position }: { position: { index: number; step: strin
 /** Plan usage at the start and at the latest reading, as two meters; never tokens or cost. */
 export function PlanUsage({ state, finished = false, compact = false }: { state: PanelState; finished?: boolean; compact?: boolean }) {
   const { t, lang } = useApp();
+  const { status: claude } = useClaudeStatus();
+  const hidden = usageHiddenReason(t, claude);
+  if (hidden !== undefined) {
+    // With an API key or a cloud provider there are no plan limits: the meters would mean nothing (BRIEF-release §2).
+    return (
+      <section class={compact ? 'card usage-card usage-compact' : 'card usage-card'} aria-labelledby="usage-title" data-testid="panel-usage" data-hidden="true">
+        <h2 class={compact ? 'sr-only' : 't-2'} id="usage-title">
+          {t.usageSession}
+        </h2>
+        <p class="t-small muted" role="status">
+          {hidden}
+        </p>
+      </section>
+    );
+  }
   const { start, now } = state.usage;
   const rows =
     start === undefined

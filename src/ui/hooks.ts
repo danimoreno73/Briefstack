@@ -3,6 +3,7 @@ import { useCallback, useContext, useEffect, useState } from 'preact/hooks';
 import type { Lang } from '../i18n/index.js';
 import { uiMessages } from '../i18n/ui.js';
 import { api } from './api.js';
+import type { ClaudeStatusView } from './types.js';
 
 /** What every view needs: the strings, the language, and the way to call the server. */
 export interface AppContext {
@@ -59,6 +60,38 @@ export function useDocumentTitle(subject: string | undefined): void {
     const text = subject?.replace(/\s+/g, ' ').trim();
     document.title = text === undefined || text === '' ? 'briefstack' : `${text.length > 60 ? `${text.slice(0, 60)}…` : text} · briefstack`;
   }, [subject]);
+}
+
+/** One reading of `GET /api/claude` shared by every view; `refresh` asks the server to read it again. */
+let claudeShared: { status: ClaudeStatusView | undefined; checking: boolean } = { status: undefined, checking: false };
+let claudeAsked = false;
+const claudeListeners = new Set<(value: typeof claudeShared) => void>();
+
+function loadClaude(token: string, refresh: boolean): void {
+  claudeAsked = true;
+  claudeShared = { ...claudeShared, checking: true };
+  for (const listener of claudeListeners) listener(claudeShared);
+  api<ClaudeStatusView>(token, 'GET', refresh ? '/api/claude?refresh=1' : '/api/claude').then(
+    (status) => (claudeShared = { status, checking: false }),
+    // Without an answer, nothing is said about Claude Code; creations report their own errors.
+    () => (claudeShared = { ...claudeShared, checking: false }),
+  ).finally(() => {
+    for (const listener of claudeListeners) listener(claudeShared);
+  });
+}
+
+export function useClaudeStatus(): { status: ClaudeStatusView | undefined; checking: boolean; refresh(): void } {
+  const { token } = useApp();
+  const [value, setValue] = useState(claudeShared);
+  useEffect(() => {
+    claudeListeners.add(setValue);
+    if (!claudeAsked) loadClaude(token, false);
+    return () => {
+      claudeListeners.delete(setValue);
+    };
+  }, [token]);
+  const refresh = useCallback(() => loadClaude(token, true), [token]);
+  return { ...value, refresh };
 }
 
 /** Calls a write route. */

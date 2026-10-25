@@ -6,6 +6,7 @@ import { ApiError, CREATIONS_CHANGED_EVENT, TOKEN_REJECTED_EVENT, api, takeToken
 import { NewProjectPage } from './creation.js';
 import { CreationsPage } from './creations.js';
 import { ChatDrawer, ChatPage } from './chat.js';
+import { ClaudeBanner } from './claude.js';
 import { ImprovePage } from './improve.js';
 import { AppCtx, useApp, useSend, type AppContext } from './hooks.js';
 import {
@@ -361,6 +362,7 @@ function Shell({ route, activeCreations, children }: { route: Route; activeCreat
             </button>
           </div>
         </div>
+        <ClaudeBanner onSettings={route.page === 'settings'} />
         {children}
       </main>
       {chatAllowed && chatOpen && <ChatDrawer onClose={closeChat} />}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { MANY_CREATIONS_NOTE_ABOVE } from '../config/limits.js';
 import { isLang } from '../i18n/index.js';
 import { api } from './api.js';
+import { ClaudeCard } from './claude.js';
 import { PathText } from './common.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { ErrorNote, LoadState, Note } from './kit.js';
@@ -103,6 +104,7 @@ export function SettingsPage() {
         </div>
       </header>
       <div class="page">
+        <ClaudeCard />
         <LoadState loaded={loaded}>
           {() => (
             <form class="settings" onSubmit={(event) => void save(event)}>

@@ -7,6 +7,7 @@ import { FakeChatRunner, type ChatScript } from '../../src/chat/fakeChatRunner.j
 import { ChatManager } from '../../src/chat/manager.js';
 import { ChatStore } from '../../src/chat/store.js';
 import { activeChatProfile } from '../../src/chat/wiring.js';
+import type { ClaudeStatus } from '../../src/creation/claudeAccount.js';
 import { CreationManager } from '../../src/creation/manager.js';
 import type { PermissionPolicy } from '../../src/creation/types.js';
 import { maxActiveCreationsOf, readConfig, updateConfig } from '../../src/config/index.js';
@@ -82,7 +83,12 @@ export interface App {
   /** The skill library over it, with a fake model review that flags skills with scripts. */
   skills: SkillService;
   usageCheck?: UsageCheck;
+  /** What `GET /api/claude` answers: a compatible Claude Code signed in with a plan unless a test sets `claude`. */
+  claudeStatus: (refresh: boolean) => Promise<ClaudeStatus>;
 }
+
+/** A compatible Claude Code signed in with a Claude plan: the default every test runs with. */
+export const SIGNED_IN: ClaudeStatus = { install: { status: 'compatible', installed: '2.1.310', expected: '2.1.286' }, mode: { kind: 'signIn', plan: 'Claude Pro' } };
 
 export interface AppOptions {
   /** Recording the fake runner replays; `full.jsonl` by default. */
@@ -101,6 +107,8 @@ export interface AppOptions {
   improveScript?: FakeImproveScript;
   /** The plan reading behind the start warning (phase 6); none (no warning) by default. */
   usageReading?: { fiveHour: number | null; sevenDay: number | null };
+  /** The user's Claude Code as the server reports it; `SIGNED_IN` by default. */
+  claude?: ClaudeStatus;
 }
 
 async function emptyGitConfig(dir: string): Promise<void> {
@@ -242,7 +250,9 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     announce: (suggestions) => holder.app?.chat.announceSuggestions(suggestions),
     gatePollMs: 100,
   });
-  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat, improvements, skills, ...(usageCheck === undefined ? {} : { usageCheck }) });
+  const claude = options.claude ?? SIGNED_IN;
+  const claudeStatus = async () => claude;
+  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat, improvements, skills, claudeStatus, ...(usageCheck === undefined ? {} : { usageCheck }) });
 
   const app: App = {
     url: server.url,
@@ -263,6 +273,7 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     gardenDir,
     gh,
     skills,
+    claudeStatus,
     ...(usageCheck === undefined ? {} : { usageCheck }),
   };
   holder.app = app;
@@ -303,7 +314,7 @@ export async function restartChatServer(app: App, script: ChatScript): Promise<v
   await app.server.close();
   app.chatRunner = new FakeChatRunner(script);
   app.chat = await openChat(app.pathEnv, app.repoDir, app.manager, app.chatRunner, () => app.improvements, app.skills, app.usageCheck);
-  app.server = await startWebServer({ port: 0, pathEnv: app.pathEnv, repoDir: app.repoDir, creations: app.manager, chat: app.chat, improvements: app.improvements, skills: app.skills });
+  app.server = await startWebServer({ port: 0, pathEnv: app.pathEnv, repoDir: app.repoDir, creations: app.manager, chat: app.chat, improvements: app.improvements, skills: app.skills, claudeStatus: app.claudeStatus });
   app.url = app.server.url;
 }
 
