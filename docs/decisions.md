@@ -3840,3 +3840,17 @@ reminder for sessions that follow `CLAUDE.md`, not a boundary.
 project settings: the generator must write with Write and Edit too, as
 its instructions already say. The chat, improvements and reviews load no
 settings files.
+
+## CI on Windows (2026-10-25)
+
+The CI runs on `windows-latest` on every push (brief section 4). Its first
+runs showed timing that the code does not explain: the same e2e test
+("requests nobody pre-approved") took 9.4 s, then 33.1 s (over the 30 s
+limit), then 3.1 s on three runs, against under 1 s on Linux and 2.3 s on
+a local Windows machine. Two fixes: the e2e waits that follow an
+improvement's checks get 20 s (a dozen git commands, slow under load), and
+**(choice)** Playwright retries a failed e2e test once, in CI only; a
+retried test is reported as flaky. Failed tests upload their traces as an
+artifact for a week. A real race found on the way (a slowed
+`/api/settings` answer continuing after its route was removed) was fixed
+in the test, not covered by the retry.

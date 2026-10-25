@@ -8,7 +8,10 @@ export default defineConfig({
   testMatch: '**/*.spec.ts',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
-  retries: 0,
+  // One retry in CI only: the Windows runner has slowed the same test from 3 s
+  // to over 30 s between runs of the same code (docs/decisions.md, "Release").
+  // A retried test is reported as flaky, so it still shows.
+  retries: process.env.CI ? 1 : 0,
   reporter: [['list']],
   use: {
     browserName: 'chromium',
