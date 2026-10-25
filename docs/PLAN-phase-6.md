@@ -13,11 +13,12 @@ push and CI after each milestone.
 
 ## 0. Status
 
-Updated 2026-10-25. M1–M11 done, the fixes from the security review
+Updated 2026-10-25. **Phase 6 is done and accepted by the user** (tag
+`phase-6-done`). M1–M11 done, the fixes from the security review
 (decisions.md, "Phase 6: fixes from the security review") and the closing
 of the hand-written skills gap (decisions.md, "Phase 6: library skills
-reach a project only through `skills install`"); the real checks
-and the real run (section 3) are the user's, not run yet. A new session reads `CLAUDE.md`,
+reach a project only through `skills install`"); the three real checks and
+the real run (section 3) are done (below). A new session reads `CLAUDE.md`,
 `docs/BRIEF-phase-6.md`, this file and `docs/decisions.md` from "# Phase 6"
 onwards before continuing.
 
@@ -44,6 +45,38 @@ onwards before continuing.
 Gates at the end: build, lint, 997 unit tests (2 more on Linux only) and the
 e2e tests pass locally on Windows; CI (Linux, unit and e2e) is checked after
 the push.
+
+### Real runs (2026-10-25)
+
+The three real checks (section 3, steps 1–3) were run by the user, who then
+accepted the phase. The real run (steps 4–8) went as follows, on the real
+library and the real projects folder:
+
+| Step | Result |
+|---|---|
+| 4. Build and web | Build passed; `briefstack web` started on port 4870 |
+| 5. Two real skills | `anthropics/skills` at commit `dbd4588`: `frontend-design` (no scripts) added from the Skills page; `webapp-testing` (four Python scripts, network use) added from the chat, confirming only its card. Both reviewed in quarantine (Apache-2.0, Haiku "clear"); the user approved both |
+| 6. New project with one | Idea: a one-page bakery landing in plain HTML and CSS. The spec listed `frontend-design` with its reason and it was kept. The project has `.claude/skills/frontend-design/`, `.briefstack/skills.json` and `librarySkills` in its spec; `validate` finds no errors; `claude -p --permission-mode plan --model haiku` in the folder lists the skill (nothing was run). No permission dialog appeared |
+| 7. Chat: add to an existing project | `add_skill_to_project` card for `webapp-testing` into `todo-cli`, showing the project folder, inside the projects folder (no grant asked); confirmed. Six files installed, `librarySkills` in its `spec.json`, `skills.json`, `validate` clean, line in the project note |
+| Archive | Archived and unarchived a test project from its page; hidden from the list until "show archived" |
+| Discard a suggestion | Covered by the e2e test only: the real library had no suggestions to discard |
+| 8. Accept | Accepted by the user |
+
+Not measured: the plan usage after the run (the Usage page showed no figures,
+see the backlog).
+
+### Backlog (not started; each needs its own plan and approval)
+
+1. **Less noise in the static scanner.** URLs inside license files and
+   `localhost` URLs become `info`. `subprocess` and `socket` are to be
+   weighed by context (for example, a script that only runs the commands its
+   caller passes is not the same as one that opens outside connections).
+   `webapp-testing` produced 16 medium findings, most of them this noise.
+2. **Portability finding.** Absolute Linux paths (`/tmp`, `/mnt`, `/home`)
+   in scripts: on Windows they end up under the current drive (`C:`). The
+   examples of `webapp-testing` write to `/mnt/user-data/outputs` and `/tmp`.
+3. **The Usage page shows no figures until a creation reads the usage.**
+   Show the last known values, or read them when the page opens.
 
 ## 1. Approach
 
