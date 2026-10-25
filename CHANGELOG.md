@@ -68,6 +68,9 @@ decisions of each are in [`docs/`](docs/).
   Code is missing, too old or not signed in. Plan usage is shown only
   with a plan.
 - `npm install` builds the app, so `npx briefstack` works from a clone.
+- Dependencies updated for the security advisories `npm audit` reported:
+  markdown-it 15.0.3, and body-parser 2.4.0 and fast-uri 3.1.9 through the
+  Agent SDK.
 - The CI runs on Linux and Windows.
 - README, license (MIT), security policy, contributing guide and this
   changelog.

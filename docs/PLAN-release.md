@@ -13,9 +13,11 @@ approval. The repository is made public only by the user.
 
 ## 0. Status
 
-Updated 2026-10-25. R0–R8 done; R9 done except the branch rename on
-GitHub, which is the user's (steps below, "Results and steps for the user"). R10 is the user's: read
-the README, make the repository public, then tag `v1.0.0`.
+Updated 2026-10-25. Release done: R0–R10 done. The user renamed the branch
+to `main`, read the README and made the repository public. The CI is green on
+Linux, Windows and macOS, and `npm audit` finds no vulnerabilities. Tag
+`v1.0.0` (annotated) is on commit `911c2c4` ("deps: markdown-it 15.0.3").
+Open items are in "2. Backlog".
 
 | # | Step | State |
 |---|---|---|
@@ -26,10 +28,10 @@ the README, make the repository public, then tag `v1.0.0`.
 | R4 | Branding check (section 2) | done: nothing to change |
 | R5 | `package.json` and first-run messages (section 4) | done: 1.0.0, MIT, repository, `prepare` builds on `npm install`; CLI and web say what to do when Claude Code is missing, too old or not signed in; a template line break fixed |
 | R6 | Fresh-clone run with an empty `BRIEFSTACK_HOME` (section 4) | done, passed (below) |
-| R7 | CI matrix with `windows-latest` (and `macos-latest` if time allows) (section 4) | done: Linux and Windows on every push (green); macOS once the repo is public, or by hand |
+| R7 | CI matrix with `windows-latest` (and `macos-latest` if time allows) (section 4) | done: Linux, Windows and macOS on every push since the repo is public (green) |
 | R8 | Documentation: README, LICENSE, SECURITY, CONTRIBUTING, CHANGELOG (section 5) | done; README waiting for the user's reading |
-| R9 | Repository hygiene: `main`, deny rules, GitHub settings checklist (section 6) | done here; the rename on GitHub is the user's |
-| R10 | Definition of done (section 7): user reads the README, makes the repo public, tag `v1.0.0` | pending (user) |
+| R9 | Repository hygiene: `main`, deny rules, GitHub settings checklist (section 6) | done; the user renamed the branch on GitHub |
+| R10 | Definition of done (section 7): user reads the README, makes the repo public, tag `v1.0.0` | done: tag `v1.0.0` on `911c2c4`, after a flaky unit test fix and dependency updates (CI green on all three systems) |
 
 ## Results and steps for the user
 
