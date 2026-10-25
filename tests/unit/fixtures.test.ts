@@ -56,6 +56,17 @@ async function listFiles(root: string): Promise<string[]> {
 
 const lineCount = (text: string): number => text.replace(/\r?\n$/, '').split(/\r?\n/).length;
 
+describe('base templates', () => {
+  it('never glue a list item to the end of the line before it', async () => {
+    const files = (await listFiles(TEMPLATES)).filter((file) => file.endsWith('.md'));
+    expect(files.length).toBeGreaterThan(5);
+    for (const file of files) {
+      const text = await readFile(path.join(TEMPLATES, file), 'utf8');
+      expect(text, file).not.toMatch(/[.:)`]- \S/);
+    }
+  });
+});
+
 describe('fixture specs', () => {
   let dir: string;
   let cleanup: () => Promise<void>;

@@ -19,7 +19,8 @@ None yet. Add the build, test and lint commands here as soon as they exist.
 - Keep real secrets (keys, passwords, tokens) out of this folder.
   `.claude/settings.json` stops Claude's file tools and common read commands
   from opening secret files, but not a script or a recursive search that
-  reads them, and native Windows has no sandbox. Keep that file as it is.- Project content language: `{{language}}`.
+  reads them, and native Windows has no sandbox. Keep that file as it is.
+- Project content language: `{{language}}`.
 
 ## End of session
 
