@@ -231,9 +231,11 @@ export interface CreationManagerOptions {
 
 type Listener = (event: StreamEvent) => void;
 
-/** Told when a creation starts and when it finishes (phase 5 suggestions). Errors in it are ignored. */
+/** Told when a creation starts, when a turn of it ends in text, and when it finishes (phase 5 suggestions). Errors in it are ignored. */
 export interface CreationObserver {
   started?(state: CreationState): void;
+  /** After `textTurns` went up by one. */
+  textTurn?(state: CreationState): void;
   finished?(state: CreationState): void;
 }
 
@@ -331,7 +333,7 @@ export class CreationManager {
     return () => this.observers.delete(observer);
   }
 
-  private tell(event: 'started' | 'finished', c: Creation): void {
+  private tell(event: 'started' | 'textTurn' | 'finished', c: Creation): void {
     for (const observer of this.observers) {
       try {
         observer[event]?.(this.snapshot(c));
@@ -757,6 +759,7 @@ export class CreationManager {
             if (c.queue.length === 0 && !this.isFinished(c) && !c.state.cancelling) {
               c.state.awaitingReply = { lastMessage: runner.message ?? '', at: this.now().toISOString() };
               c.state.textTurns = (c.state.textTurns ?? 0) + 1;
+              this.tell('textTurn', c);
             }
           } else if (runner.kind === 'status' && runner.status === 'running') {
             delete c.state.awaitingReply;

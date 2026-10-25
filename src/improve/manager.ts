@@ -61,7 +61,7 @@ export interface ImprovementManagerOptions {
   /** Reads the diff of a round that passed the validators and says whether it weakens a rule; never blocks. */
   safetyReviewer?: SafetyReviewer;
   /** Turns a creation ended in text, by session id (not in `events.jsonl`). */
-  textTurns?: (sessionId: string) => number | undefined;
+  textTurns?: (sessionId: string) => number | undefined | Promise<number | undefined>;
   /** Suggestions after creations: listed, used as evidence, marked once prepared. */
   suggestions?: SuggestionStore;
   now?: () => Date;

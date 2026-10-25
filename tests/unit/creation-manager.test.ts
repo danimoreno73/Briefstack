@@ -435,6 +435,7 @@ describe('CreationManager', () => {
     const told: string[] = [];
     const off = m.observe({
       started: (state) => told.push(`started ${state.idea}`),
+      textTurn: (state) => told.push(`text turn ${state.textTurns ?? 0} ${state.sessionId === undefined ? 'no session' : 'session'}`),
       finished: (state) => told.push(`finished ${state.outcome ?? ''} ${state.textTurns ?? 0}`),
     });
     m.observe({
@@ -447,7 +448,7 @@ describe('CreationManager', () => {
     expect(m.get(id).textTurns).toBe(1);
     m.reply(id, 'Seedling');
     await waitFor(() => (m.get(id).status === 'finished' ? true : undefined));
-    expect(told).toEqual(['started x', 'finished completed 1']);
+    expect(told).toEqual(['started x', 'text turn 1 session', 'finished completed 1']);
     off();
   });
 

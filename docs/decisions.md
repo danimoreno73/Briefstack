@@ -3892,3 +3892,15 @@ recorded here.
   before the first reading. `GET /api/usage` only reads the file. Readings
   made by `briefstack` CLI commands outside the server are not saved: none
   reads the plan usage today.
+- **(choice)** A5: the count goes to its own file,
+  `<home>/improve/text-turns.json` (session id and count, newest first,
+  200 at most), next to `suggestions.json`, not into `events.jsonl`: the
+  events schema, the panel and `docs/events.md` stay as they are. The
+  creation manager tells its observers after each turn that ended in text
+  (`CreationObserver.textTurn`); the improvements wiring writes the
+  manager's own count (so a repeated write changes nothing), and again when
+  the creation finishes. The evidence of an improvement takes the manager's
+  count while it knows the creation, and the file's after a restart.
+  Suggestions are still computed when a creation finishes, in the same
+  server, so they already had the count; what a restart lost was the
+  evidence.

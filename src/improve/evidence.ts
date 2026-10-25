@@ -39,8 +39,8 @@ export interface EvidenceInput {
   sessionsDir: string;
   libraryDir: string;
   homedir: string;
-  /** Turns a creation ended in text, by session id, from the creation manager (not in `events.jsonl`). */
-  textTurns?: (sessionId: string) => number | undefined;
+  /** Turns a creation ended in text, by session id, from the creation manager or `text-turns.json` (not in `events.jsonl`). */
+  textTurns?: (sessionId: string) => number | undefined | Promise<number | undefined>;
 }
 
 const short = (text: string) => (text.length > MAX_TEXT ? `${text.slice(0, MAX_TEXT)}\n…` : text);
@@ -79,7 +79,7 @@ export async function writeEvidence(input: EvidenceInput): Promise<EvidenceItem[
   for (const sessionId of (input.choice.sessions ?? []).slice(0, MAX_EVIDENCE_SESSIONS)) {
     let data;
     try {
-      data = await sessionEvidence(input.sessionsDir, sessionId, input.textTurns?.(sessionId));
+      data = await sessionEvidence(input.sessionsDir, sessionId, await input.textTurns?.(sessionId));
     } catch {
       data = undefined;
     }

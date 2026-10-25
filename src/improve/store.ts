@@ -60,6 +60,10 @@ export class ImproveStore {
     return path.join(this.root, 'suggestions.json');
   }
 
+  get textTurnsFile(): string {
+    return path.join(this.root, 'text-turns.json');
+  }
+
   private file(id: string): string {
     if (!PROPOSAL_ID_RE.test(id)) throw new Error(`Not a proposal id: ${id}`);
     return path.join(this.proposalsDir, `${id}.json`);

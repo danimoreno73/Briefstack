@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { resolveHome, type PathEnv } from '../config/index.js';
-import type { CreationManager } from '../creation/manager.js';
+import type { CreationManager, CreationState } from '../creation/manager.js';
 import { listSessions } from '../events/sessions.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import { loadUsageContext, resolveActiveProfile } from '../usage/index.js';
@@ -10,6 +10,7 @@ import { SdkSafetyReviewer, type SafetyReviewer } from './safetyReview.js';
 import { SuggestionStore, SuggestionTracker, type Suggestion } from './suggestions.js';
 import { SdkImprovementRunner } from './sdkRunner.js';
 import { ImproveStore } from './store.js';
+import { TextTurnStore } from './textTurns.js';
 import type { ImprovementRunner } from './types.js';
 import { NpmVerifier, type Verifier } from './verify.js';
 
@@ -51,6 +52,7 @@ export async function createWebImprovements(options: WebImproveOptions): Promise
   };
   const store = new ImproveStore(path.join(home, 'improve'));
   const suggestions = new SuggestionStore(store.suggestionsFile);
+  const textTurnStore = new TextTurnStore(store.textTurnsFile);
   if (options.creations !== undefined) {
     const tracker = new SuggestionTracker({
       store: suggestions,
@@ -58,10 +60,22 @@ export async function createWebImprovements(options: WebImproveOptions): Promise
       homedir: pathEnv.homedir,
       ...(options.announce === undefined ? {} : { announce: options.announce }),
     });
-    options.creations.observe({ started: (state) => tracker.started(state), finished: (state) => void tracker.finished(state).catch(() => undefined) });
+    // Kept on disk too, so they outlive a restart of the server; again at the end, in case the session id came late.
+    const keepTextTurns = (state: CreationState) => {
+      if (state.sessionId !== undefined && state.textTurns !== undefined) void textTurnStore.record(state.sessionId, state.textTurns).catch(() => undefined);
+    };
+    options.creations.observe({
+      started: (state) => tracker.started(state),
+      textTurn: keepTextTurns,
+      finished: (state) => {
+        keepTextTurns(state);
+        void tracker.finished(state).catch(() => undefined);
+      },
+    });
   }
-  // Turns that ended in text are known only to the creation manager.
-  const textTurns = (sessionId: string) => options.creations?.list().find((creation) => creation.sessionId === sessionId)?.textTurns;
+  // The creation manager's count while it knows the creation; the file's after a restart.
+  const textTurns = async (sessionId: string) =>
+    options.creations?.list().find((creation) => creation.sessionId === sessionId)?.textTurns ?? (await textTurnStore.count(sessionId));
   return ImprovementManager.open({
     store,
     suggestions,
