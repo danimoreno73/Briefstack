@@ -25,6 +25,8 @@ let repo: string;
 let home: string;
 let cleanup: () => Promise<void>;
 let blockers: string[];
+/** Told each time the manager looks for blockers, with what it found. */
+let onBlockerCheck: ((found: string[]) => void) | undefined;
 let manager: ImprovementManager | undefined;
 
 const read = (file: string) => readFile(path.join(repo, ...file.split('/')), 'utf8');
@@ -52,6 +54,7 @@ beforeEach(async () => {
   await mkdir(path.join(home, 'library', 'profile'), { recursive: true });
   await writeFile(path.join(home, 'library', 'profile', 'style.md'), '---\nsummary: Style\n---\n# Style\n\nI always want answers written as a haiku about mountains.\n', 'utf8');
   blockers = [];
+  onBlockerCheck = undefined;
   manager = undefined;
 });
 
@@ -81,7 +84,11 @@ async function open(script: FakeImproveScript, extra: { verifier?: FakeVerifier;
     pathEnv,
     locations: async () => ({ home, libraryDir: path.join(home, 'library'), projectsDir: path.join(dir, 'projects'), sessionsDir: path.join(home, 'sessions') }),
     profile: async () => ({ model: 'haiku', effort: 'low' }),
-    blockers: async () => blockers,
+    blockers: async () => {
+      const found = [...blockers];
+      onBlockerCheck?.(found);
+      return found;
+    },
     ...(extra.holdStarts === undefined ? {} : { holdStarts: extra.holdStarts }),
     ...(extra.safety === undefined ? {} : { safetyReviewer: extra.safety }),
     gatePollMs: 20,
@@ -174,7 +181,15 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     const before = await revParse(repo, 'HEAD');
     expect((await m.approve(id, (await m.get(id)).head ?? '')).status).toBe('waiting');
     expect(await m.blockers()).toEqual(['A packing list']);
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    // The next look is a gate tick; once it found the blocker, that tick commits nothing.
+    const tickFoundBlocker = new Promise<void>((resolve) => {
+      onBlockerCheck = (found) => {
+        if (found.length > 0) resolve();
+      };
+    });
+    await tickFoundBlocker;
+    onBlockerCheck = undefined;
+    expect((await m.get(id)).status).toBe('waiting');
     expect(await revParse(repo, 'HEAD')).toBe(before);
     blockers = [];
     for (let i = 0; i < 1500 && (await m.get(id)).status === 'waiting'; i += 1) await new Promise((resolve) => setTimeout(resolve, 10));
