@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main, type CliIO } from '../../src/cli.js';
 import { BriefstackError } from '../../src/errors.js';
 import { startWebServer, TOKEN_HEADER, type WebServer } from '../../src/server/index.js';
+import type { AuthMode } from '../../src/creation/claudeAccount.js';
 import type { ClaudeCheck } from '../../src/creation/claudeBinary.js';
 import { FakeRunner } from '../../src/creation/fakeRunner.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
@@ -192,6 +193,7 @@ describe('briefstack web', () => {
     untilStopped: () => Promise<void>,
     lang = 'en',
     checkClaude: () => Promise<ClaudeCheck> = compatible,
+    readAuthMode: () => Promise<AuthMode> = async () => ({ kind: 'signIn', plan: 'Claude Pro' }),
   ): CliIO => ({
     out: (line) => out.push(line),
     err: (line) => err.push(line),
@@ -200,6 +202,7 @@ describe('briefstack web', () => {
     uiDir: path.join(dir, 'ui'),
     untilStopped,
     checkClaude,
+    readAuthMode,
     pathEnv: {
       env: { BRIEFSTACK_HOME: path.join(dir, 'home'), BRIEFSTACK_LANG: lang },
       homedir: path.join(dir, 'user'),
@@ -344,7 +347,8 @@ describe('briefstack web', () => {
     expect(code).toBe(0);
     expect(out[0]).toContain('Open this address');
     expect(seen).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/#token=[A-Za-z0-9_-]{43}$/);
-    expect(out[2]).toBe('briefstack web stopped.');
+    expect(out[2]).toContain('Claude Code: signed in');
+    expect(out[3]).toBe('briefstack web stopped.');
   });
 
   it('warns when Claude Code is missing or not compatible', async () => {
@@ -352,7 +356,7 @@ describe('briefstack web', () => {
       [{ status: 'notFound' }, 'Claude Code was not found'],
       [{ status: 'older', executable: 'c', installed: [2, 1, 200], expected: [2, 1, 286] }, 'Claude Code 2.1.200 is older than the 2.1.286'],
       [{ status: 'untested', executable: 'c', installed: [2, 2, 0], expected: [2, 1, 286] }, 'Claude Code 2.2.0 has not been tested'],
-      [{ status: 'unknownVersion', executable: 'c' }, 'could not read the version of c'],
+      [{ status: 'unknownVersion', executable: 'c' }, 'could not read the version of Claude Code'],
     ];
     for (const [check, text] of cases) {
       const out: string[] = [];
@@ -364,6 +368,52 @@ describe('briefstack web', () => {
     const quiet: string[] = [];
     await main(['web', '--port', '0'], io([], quiet, async () => undefined));
     expect(quiet.filter((line) => line.startsWith('Warning'))).toEqual([]);
+  });
+
+  it('says how Claude Code signs in, and what to do when it does not, in both languages', async () => {
+    const cases: [string, AuthMode, 'out' | 'err', string][] = [
+      ['en', { kind: 'signIn', plan: 'Claude Max' }, 'out', 'signed in with a Claude plan (Claude Max)'],
+      ['en', { kind: 'apiKey', source: 'environment' }, 'out', 'API key (ANTHROPIC_API_KEY). Creations are billed per use'],
+      ['en', { kind: 'apiKey', source: 'bearer' }, 'out', 'API key (ANTHROPIC_AUTH_TOKEN)'],
+      ['en', { kind: 'cloud', provider: 'bedrock' }, 'out', 'cloud provider (bedrock)'],
+      ['en', { kind: 'none' }, 'err', 'Run `claude` in a terminal and sign in'],
+      ['en', { kind: 'unknown' }, 'err', 'could not ask Claude Code how it signs in'],
+      ['es', { kind: 'apiKey', source: 'environment' }, 'out', 'clave de API (ANTHROPIC_API_KEY)'],
+      ['es', { kind: 'none' }, 'err', 'inicia sesión con tu cuenta de Claude'],
+    ];
+    for (const [lang, mode, stream, text] of cases) {
+      const out: string[] = [];
+      const err: string[] = [];
+      expect(await main(['web', '--port', '0'], io(out, err, async () => undefined, lang, compatible, async () => mode))).toBe(0);
+      expect((stream === 'out' ? out : err).join('\n')).toContain(text);
+    }
+  });
+
+  it('serves the Claude Code status without the executable path or any account detail, and reads it again on request', async () => {
+    let reads = 0;
+    const out: string[] = [];
+    let stop!: () => void;
+    const stopped = new Promise<void>((resolve) => (stop = resolve));
+    const options = io(out, [], () => stopped, 'en', compatible, async () => {
+      reads += 1;
+      return { kind: 'apiKey', source: 'environment' };
+    });
+    const done = main(['web', '--port', '0'], options);
+    for (let i = 0; i < 200 && out[1] === undefined; i += 1) await new Promise((resolve) => setTimeout(resolve, 20));
+    const url = new URL(out[1] ?? '');
+    const get = async (route: string) => {
+      const reply = await fetch(`${url.origin}${route}`, { headers: { [TOKEN_HEADER]: url.hash.replace('#token=', '') } });
+      return { status: reply.status, body: (await reply.json()) as unknown };
+    };
+    expect(await get('/api/claude')).toEqual({
+      status: 200,
+      body: { install: { status: 'compatible', installed: '2.1.300', expected: '2.1.286' }, mode: { kind: 'apiKey', source: 'environment' } },
+    });
+    expect(reads).toBe(1);
+    await get('/api/claude?refresh=1');
+    expect(reads).toBe(2);
+    stop();
+    expect(await done).toBe(0);
   });
 
   it('suggests --port 0 when the port is taken, in both languages', async () => {

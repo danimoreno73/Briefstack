@@ -46,6 +46,29 @@ text use those. The security rejections above send `{ "code" }` only.
 
 `200 { "ok": true, "version": "0.1.0" }`
 
+### `GET /api/claude` and `GET /api/claude?refresh=1`
+
+The user's Claude Code, as the server read it at start (`refresh=1` reads
+it again): whether it is installed and how its version compares with the
+one the SDK was built for, and how it signs in, as Claude Code itself
+reports it (`accountInfo()`, from a session that sends no message). No
+executable path, no e-mail or organization, no secret.
+
+```json
+{
+  "install": { "status": "compatible", "installed": "2.1.310", "expected": "2.1.286" },
+  "mode": { "kind": "signIn", "plan": "Claude Pro" }
+}
+```
+
+`install.status`: `compatible`, `older`, `untested` (with both versions),
+`unknownVersion` or `notFound`. `mode.kind`: `signIn` (optional `plan`),
+`apiKey` (`source`: `environment`, `helper`, `login`, `bearer` or
+`other`), `cloud` (`provider`, as Claude Code names it: `bedrock`,
+`vertex`, `foundry`, `anthropicAws`, `mantle`, `gateway`…), `none` (not
+signed in) or `unknown` (Claude Code could not be asked). Without a reader
+(tests that pass none): `503 { "code": "claude.unavailable" }`.
+
 ## Read routes
 
 All `GET`, all need the token. They read the config and files on every call,

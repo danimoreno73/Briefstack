@@ -52,7 +52,8 @@ import { getPreset, loadUsageContext, usageSet, usageShow, type ApplyResult } fr
 import { validateProject } from './validate/index.js';
 import { DEFAULT_WEB_PORT, startWebServer } from './server/index.js';
 import { webMessages } from './i18n/web.js';
-import { checkClaudeCode, formatVersion, type ClaudeCheck } from './creation/claudeBinary.js';
+import { ClaudeStatusReader, keySourceLabel, realClaudeStatusDeps, type AuthMode, type ClaudeStatus } from './creation/claudeAccount.js';
+import type { ClaudeCheck } from './creation/claudeBinary.js';
 import type { ChatRunner } from './chat/types.js';
 import type { CreationRunner } from './creation/types.js';
 import { createWebChat } from './chat/wiring.js';
@@ -102,6 +103,12 @@ export interface CliIO {
   uiDir?: string;
   /** Checks the installed Claude Code for `web`; tests pass their own. */
   checkClaude?: () => Promise<ClaudeCheck>;
+  /**
+   * Asks the installed Claude Code how it signs in, for `web`. The real
+   * question unless a test passes its own; a test that passes `checkClaude`
+   * and not this gets `unknown`, so no test ever runs the real `claude`.
+   */
+  readAuthMode?: (executable: string) => Promise<AuthMode>;
   /** The runner `web` creates projects with: the real SDK runner unless a test passes the fake one. */
   creationRunner?: CreationRunner;
   /** The runner of the global chat: the real SDK one unless a test passes the fake one. */
@@ -572,20 +579,22 @@ async function runLibrary(args: readonly string[], io: CliIO, lang: Lang): Promi
   throw new UsageError(cliMessages[lang].wrongArguments(libraryMessages[lang].usage));
 }
 
-function claudeWarning(check: ClaudeCheck, lang: Lang): string | undefined {
+/** What `web` prints about Claude Code at start: a warning on `err`, the sign-in mode on `out`. */
+function claudeLines(status: ClaudeStatus, lang: Lang): { warnings: string[]; info: string[] } {
   const messages = webMessages[lang];
-  switch (check.status) {
-    case 'compatible':
-      return undefined;
-    case 'notFound':
-      return messages.claudeNotFound;
-    case 'unknownVersion':
-      return messages.claudeUnknownVersion(check.executable);
-    case 'older':
-      return messages.claudeOlder(formatVersion(check.installed), formatVersion(check.expected));
-    case 'untested':
-      return messages.claudeUntested(formatVersion(check.installed), formatVersion(check.expected));
-  }
+  const warnings: string[] = [];
+  const info: string[] = [];
+  const { install, mode } = status;
+  if (install.status === 'notFound') return { warnings: [messages.claudeNotFound], info };
+  if (install.status === 'unknownVersion') warnings.push(messages.claudeUnknownVersion);
+  if (install.status === 'older') warnings.push(messages.claudeOlder(install.installed, install.expected));
+  if (install.status === 'untested') warnings.push(messages.claudeUntested(install.installed, install.expected));
+  if (mode.kind === 'signIn') info.push(messages.authSignIn(mode.plan));
+  if (mode.kind === 'apiKey') info.push(messages.authApiKey(keySourceLabel(mode.source)));
+  if (mode.kind === 'cloud') info.push(messages.authCloud(mode.provider));
+  if (mode.kind === 'none') warnings.push(messages.authNone);
+  if (mode.kind === 'unknown') warnings.push(messages.authUnknown);
+  return { warnings, info };
 }
 
 async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
@@ -611,6 +620,12 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   // The real plan reading only with the real runner; tests pass their own or none.
   const planReading = io.planUsage ?? (io.creationRunner === undefined ? planUsageReader({ pathEnv: io.pathEnv, repoDir: io.repoDir ?? PACKAGE_ROOT }) : undefined);
   const usageCheck = planReading === undefined ? undefined : new UsageCheck({ read: planReading, thresholds: configThresholds(io.pathEnv) });
+  // The user's Claude Code: the real readings unless a test passes its own; never the real `claude` in a test.
+  const realDeps = realClaudeStatusDeps({ pathEnv: io.pathEnv, repoDir: io.repoDir ?? PACKAGE_ROOT });
+  const claudeStatus = new ClaudeStatusReader({
+    check: io.checkClaude ?? realDeps.check,
+    mode: io.readAuthMode ?? (io.checkClaude === undefined ? realDeps.mode : async (): Promise<AuthMode> => ({ kind: 'unknown' })),
+  });
   const creations = await createWebCreations({
     pathEnv: io.pathEnv,
     repoDir: io.repoDir,
@@ -641,6 +656,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       chat,
       improvements,
       skills,
+      claudeStatus: (refresh) => claudeStatus.get(refresh),
       ...(usageCheck === undefined ? {} : { usageCheck }),
       ...(io.repoDir === undefined ? {} : { repoDir: io.repoDir }),
       ...(io.uiDir === undefined ? {} : { uiDir: io.uiDir }),
@@ -654,10 +670,9 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   io.out(messages.listening);
   // Alone on its own line, so it is easy to copy.
   io.out(server.url);
-  const claude = await (io.checkClaude ?? (() =>
-    checkClaudeCode({ env: io.pathEnv.env, platform: process.platform, homedir: io.pathEnv.homedir })))();
-  const warning = claudeWarning(claude, lang);
-  if (warning !== undefined) io.err(warning);
+  const lines = claudeLines(await claudeStatus.get(), lang);
+  for (const line of lines.info) io.out(line);
+  for (const line of lines.warnings) io.err(line);
   // A crash stops it like Ctrl+C does: the shutdown below ends every creation's process tree.
   // Tests that pass `untilStopped` and no emitter never hear the test runner's own process events.
   const events: StopEvents = io.processEvents ?? (io.untilStopped === undefined ? process : new EventEmitter());

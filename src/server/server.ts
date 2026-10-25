@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { ChatManager } from '../chat/manager.js';
+import type { ClaudeStatus } from '../creation/claudeAccount.js';
 import type { CreationManager } from '../creation/manager.js';
 import type { ImprovementManager } from '../improve/manager.js';
 import { systemPathEnv, type PathEnv } from '../config/index.js';
@@ -54,6 +55,12 @@ export interface WebServerOptions {
   repoDir?: string;
   /** Time between heartbeat comments on a creation stream (tests shorten it). */
   heartbeatMs?: number;
+  /**
+   * The user's Claude Code: installed or not, its version, and how it signs
+   * in (`src/creation/claudeAccount.ts`). `refresh` reads it again. Without
+   * it, `GET /api/claude` answers 503 `claude.unavailable`.
+   */
+  claudeStatus?: (refresh: boolean) => Promise<ClaudeStatus>;
 }
 
 export interface WebServer {
@@ -72,6 +79,17 @@ function apiRoutes(options: WebServerOptions): RouteTable {
   const pathEnv = options.pathEnv ?? systemPathEnv();
   return [
     ['GET /api/health', (_req, res) => sendJson(res, 200, { ok: true, version: VERSION })],
+    [
+      'GET /api/claude',
+      async (req, res) => {
+        if (options.claudeStatus === undefined) {
+          sendJson(res, 503, { code: 'claude.unavailable' });
+          return;
+        }
+        const refresh = new URL(req.url ?? '/', 'http://localhost').searchParams.get('refresh') === '1';
+        sendJson(res, 200, await options.claudeStatus(refresh));
+      },
+    ],
     ...readRoutes({ pathEnv, repoDir: options.repoDir, lang: options.lang }),
     ...writeRoutes({ pathEnv, repoDir: options.repoDir }),
     ...creationRoutes(options.creations, { ...(options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }), usage: options.usageCheck }),
