@@ -18,7 +18,7 @@ to `main`, read the README and made the repository public. The CI is green on
 Linux, Windows and macOS, and `npm audit` finds no vulnerabilities. Tag
 `v1.0.0` (annotated) is on commit `911c2c4` ("deps: markdown-it 15.0.3").
 Open items, this plan's backlog among them, are now in
-[IDEAS.md](IDEAS.md), "4. Open items from the plans".
+[IDEAS.md](../IDEAS.md), "4. Open items from the plans".
 
 | # | Step | State |
 |---|---|---|

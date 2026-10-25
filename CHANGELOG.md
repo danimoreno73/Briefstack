@@ -2,8 +2,9 @@
 
 ## 1.0.0 — 2026-10-25
 
-First public release. briefstack was built in phases; the brief, plan and
-decisions of each are in [`docs/`](docs/).
+First public release. briefstack was built in phases; the brief and plan of
+each are in [`docs/history/`](docs/history/) and the decisions in
+[`docs/decisions.md`](docs/decisions.md).
 
 ### Creator and library (phase 1)
 

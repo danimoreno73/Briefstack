@@ -1,8 +1,8 @@
 # briefstack — design
 
 How the web app looks. The pass that defines it is in
-[BRIEF-ui.md](BRIEF-ui.md); the audit of the app before it is in
-[design/audit.md](design/audit.md). The structure of this file follows the
+[BRIEF-ui.md](history/BRIEF-ui.md); the audit of the app before it is in
+[design/audit.md](history/design/audit.md). The structure of this file follows the
 DESIGN.md convention (theme, colour roles, type, components, layout, depth,
 do's and don'ts, responsive behaviour) noted in
 `design/vendor/awesome-design-md/`; no value here comes from any brand.

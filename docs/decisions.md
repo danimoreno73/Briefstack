@@ -3665,8 +3665,8 @@ with its test. Choices where the request left one are marked **(choice)**.
 
 # Release
 
-Decisions for the release pass ([BRIEF-release.md](BRIEF-release.md),
-[PLAN-release.md](PLAN-release.md)).
+Decisions for the release pass ([BRIEF-release.md](history/BRIEF-release.md),
+[PLAN-release.md](history/PLAN-release.md)).
 
 ## Privacy and secrets scan (2026-10-25)
 

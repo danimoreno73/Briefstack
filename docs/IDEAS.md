@@ -6,7 +6,7 @@ decides so; each needs its own plan and approval.
 
 ## 1. A library of third-party skills
 
-**Done in phase 6** ([BRIEF-phase-6.md](BRIEF-phase-6.md)).
+**Done in phase 6** ([BRIEF-phase-6.md](history/BRIEF-phase-6.md)).
 
 - Add skills from the chat or from a page: a GitHub link, a zip or a
   `SKILL.md`.
@@ -73,7 +73,7 @@ this tool created) and tests on the three systems.
 
 ### Improvements: "Discard" a suggestion
 
-**Done in phase 6** (M8 in [PLAN-phase-6.md](PLAN-phase-6.md)).
+**Done in phase 6** (M8 in [PLAN-phase-6.md](history/PLAN-phase-6.md)).
 
 Remove a suggestion from the list without preparing it. Suggestions are
 kept by the improvement manager; it would need a discard route with the
@@ -98,38 +98,38 @@ are not repeated.
 
 - `/tasks` was captured for the generator and the reviewer only; the
   interviewer, researcher and architect still need one during a run
-  (verification 9). From [PLAN-phase-1.md](PLAN-phase-1.md).
+  (verification 9). From [PLAN-phase-1.md](history/PLAN-phase-1.md).
 - A `claude-code` project does not show its scheduled tasks anywhere; only
   `NEXT_STEPS.md` of a `claude-app` project does. From
-  [PLAN-phase-1.md](PLAN-phase-1.md).
+  [PLAN-phase-1.md](history/PLAN-phase-1.md).
 - The chat sometimes describes a creation's step wrongly: it should quote the
-  exact step from the panel. From [PLAN-phase-4.md](PLAN-phase-4.md), carried
-  in [PLAN-phase-5.md](PLAN-phase-5.md).
+  exact step from the panel. From [PLAN-phase-4.md](history/PLAN-phase-4.md), carried
+  in [PLAN-phase-5.md](history/PLAN-phase-5.md).
 - Creations see the repo's `CLAUDE.md`. From
-  [PLAN-phase-4.md](PLAN-phase-4.md), carried in
-  [PLAN-phase-5.md](PLAN-phase-5.md).
+  [PLAN-phase-4.md](history/PLAN-phase-4.md), carried in
+  [PLAN-phase-5.md](history/PLAN-phase-5.md).
 - Folder claims live in the server's memory, so a creation started from the
   terminal (`/new-project` in Claude Code) is not seen by them (the apply
-  gate of improvements does see it). From [PLAN-phase-4.md](PLAN-phase-4.md),
-  carried in [PLAN-phase-5.md](PLAN-phase-5.md).
+  gate of improvements does see it). From [PLAN-phase-4.md](history/PLAN-phase-4.md),
+  carried in [PLAN-phase-5.md](history/PLAN-phase-5.md).
 - The library lock on writes that take more than 2 minutes. From
-  [PLAN-phase-4.md](PLAN-phase-4.md), carried in
-  [PLAN-phase-5.md](PLAN-phase-5.md).
+  [PLAN-phase-4.md](history/PLAN-phase-4.md), carried in
+  [PLAN-phase-5.md](history/PLAN-phase-5.md).
 - Check whether the SDK passes the abort signal to the chat's tools. From
-  [PLAN-phase-4.md](PLAN-phase-4.md), carried in
-  [PLAN-phase-5.md](PLAN-phase-5.md).
+  [PLAN-phase-4.md](history/PLAN-phase-4.md), carried in
+  [PLAN-phase-5.md](history/PLAN-phase-5.md).
 - Turns that ended in text are counted in memory only, so suggestions after
-  a server restart miss them. From [PLAN-phase-5.md](PLAN-phase-5.md).
+  a server restart miss them. From [PLAN-phase-5.md](history/PLAN-phase-5.md).
 - Less noise in the skills static scanner: URLs in license files and
   `localhost` URLs as `info`, `subprocess` and `socket` weighed by context.
-  From [PLAN-phase-6.md](PLAN-phase-6.md).
+  From [PLAN-phase-6.md](history/PLAN-phase-6.md).
 - A portability finding for absolute Linux paths (`/tmp`, `/mnt`, `/home`)
   in skill scripts, which on Windows end up under the current drive. From
-  [PLAN-phase-6.md](PLAN-phase-6.md).
+  [PLAN-phase-6.md](history/PLAN-phase-6.md).
 - The Usage page shows no figures until a creation reads the usage: show
   the last known values, or read them when the page opens. From
-  [PLAN-phase-6.md](PLAN-phase-6.md).
+  [PLAN-phase-6.md](history/PLAN-phase-6.md).
 - `tests/unit/improve-manager.test.ts`, "waits while a creation runs and
   applies once none does", sleeps a fixed 80 ms to check that nothing was
   committed; wait for a gate tick that found the blocker instead. From
-  [PLAN-release.md](PLAN-release.md).
+  [PLAN-release.md](history/PLAN-release.md).

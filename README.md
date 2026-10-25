@@ -179,8 +179,10 @@ npm run lint             # lint
 npm run briefstack -- <command>   # run the CLI from source
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). The design history (briefs, plans
-and decisions of each phase) is in [`docs/`](docs/).
+See [CONTRIBUTING.md](CONTRIBUTING.md). The briefs and plans of each phase
+are in [`docs/history/`](docs/history/), the decisions behind them in
+[`docs/decisions.md`](docs/decisions.md) and open ideas in
+[`docs/IDEAS.md`](docs/IDEAS.md).
 
 ## License
 

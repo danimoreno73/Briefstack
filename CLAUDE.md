@@ -1,17 +1,17 @@
 # briefstack
 
 Local tool that turns an idea into a ready-to-use Claude project and learns from
-each one. Scope and requirements: @docs/BRIEF-release.md — read it before planning.
+each one.
 
-## Current phase
+## Current state
 
-Release: preparing the repository to be public (authentication modes,
-privacy scan, first run, docs, repository hygiene). Anything listed in
-BRIEF section 8 is out of scope; do not start it. The plan and its Status
-are in `docs/PLAN-release.md`. Phases 1–6 and the UI pass are done (tags
-`phase-1-done` … `phase-6-done`, `ui-done`); their briefs and plans are in
-`docs/`, open them only when needed. Contributors' rules are also in
-`CONTRIBUTING.md`.
+`v1.0.0` is published: the repository is public and the release is tagged.
+No phase is in progress. The next work comes from `docs/IDEAS.md`, the
+living backlog; nothing there is started without its own plan and the
+user's approval. The briefs and plans of phases 1–6, the UI pass and the
+release are in `docs/history/` (tags `phase-1-done` … `phase-6-done`,
+`ui-done`, `v1.0.0`); open them only when needed. Contributors' rules are
+also in `CONTRIBUTING.md`.
 
 ## Commands
 
@@ -22,7 +22,7 @@ are in `docs/PLAN-release.md`. Phases 1–6 and the UI pass are done (tags
 
 A task is not done until build, tests and lint pass. Run them; do not assume.
 
-CI runs on GitHub (Linux). After every push, check it with `gh run list` and
+CI runs on GitHub (Linux, Windows and macOS). After every push, check it with `gh run list` and
 `gh run watch` (if `gh` is not available, say so and read the public API,
 `https://api.github.com/repos/danimoreno73/Briefstack/actions/runs`). A
 milestone is not done while CI is red; local Windows runs do not stand in for it.
@@ -34,7 +34,8 @@ milestone is not done while CI is red; local Windows runs do not stand in for it
 - `.claude/skills/new-project/` — the entry-point skill
 - `.claude/agents/` — the five flow agents
 - `tests/` — unit tests and fixture specs
-- `docs/` — brief and design notes
+- `docs/` — reference (web API, events, design, decisions) and the backlog
+  (`IDEAS.md`); `docs/history/` — past briefs, plans and the UI audit
 
 ## Rules
 
