@@ -10,7 +10,7 @@ import { redactSecretLines } from '../validate/secrets.js';
  * reads every text file of the skill and says whether anything looks
  * harmful, with reasons. The skill's text is data: each file goes between
  * tags with a random value it cannot guess, and the whole reply must be the
- * answer's JSON, so a skill that writes its own verdict into the review is
+ * answer's JSON (bare, or alone in one code block), so a skill that writes its own verdict into the review is
  * not taken at its word. It never blocks.
  */
 
@@ -59,11 +59,24 @@ export interface SkillModelReviewer {
 
 const answerSchema = z.strictObject({ harmful: z.boolean(), reason: z.string().trim().min(1).max(3000) });
 
-/** The answer when the whole reply is exactly one JSON object of the expected shape; otherwise `undefined`. */
+/**
+ * A reply that is exactly one fenced code block (with no language or
+ * `json`) holding only the JSON: its body. Anything before or after the
+ * block, or a second fence inside it, and it is not one.
+ */
+const FENCED_JSON_RE = /^```(?:json)?[ \t]*\r?\n((?:(?!```)[\s\S])*?)\r?\n?```$/i;
+
+/**
+ * The answer when the whole reply is exactly one JSON object of the expected
+ * shape, bare or as the only content of a single code block; otherwise
+ * `undefined`.
+ */
 export function parseSkillReviewAnswer(text: string): SkillReviewAnswer | undefined {
+  const reply = text.trim();
+  const fenced = FENCED_JSON_RE.exec(reply);
   let data: unknown;
   try {
-    data = JSON.parse(text.trim());
+    data = JSON.parse(fenced === null ? reply : (fenced[1] ?? ''));
   } catch {
     return undefined;
   }
