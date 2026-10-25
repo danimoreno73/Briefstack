@@ -3615,4 +3615,50 @@ reading was taken; each such choice is marked **(choice)**.
 Not covered by these fixes, as before: the generator has `Write` in the
 projects folder, so it could still write skill files by hand instead of
 through `skills install`. The guard checks only the CLI command, and
-these fixes add no check for that case.
+these fixes add no check for that case. (Closed by the next section.)
+
+## Phase 6: library skills reach a project only through `skills install` (2026-10-25)
+
+The gap above, closed at the user's request, each point in its own commit
+with its test. Choices where the request left one are marked **(choice)**.
+
+1. **No reads of the library's skills** (`e41f750`). Both guards (callback
+   and command hook) deny, to the main session and to every agent of a
+   creation, `Read` of a file inside `<library>/skills/`, and `Glob` or
+   `Grep` whose search starts inside it **or above it** **(choice)**: a
+   search over the library folder or the home could reach it. A Glob's
+   start is its `path` plus the fixed folders its pattern begins with
+   (`../lib/skills/**` starts at `../lib/skills/`); relative paths and a
+   search without `path` start at the session's folder (the repo); `~` is
+   expanded; on Windows a Git Bash form (`/d/x`) is checked both as written
+   and as `D:/x`; symlinks are resolved on both sides. A path that cannot be
+   resolved counts as reaching it. The guard context and `guard.json` now
+   carry `libraryDir` and `cwd`. The architect and the interviewer keep
+   what they had: the approved index in the library context.
+2. **No hand-written library skills** (`ec94663`). Both guards deny
+   `Write`, `Edit`, `NotebookEdit` and `MultiEdit` to every caller when the
+   path, as written or after symlinks, goes through `.claude/skills/<name>`
+   (at any depth) and `<name>` is the name of a folder in
+   `<library>/skills/`, whatever its status. Names compare in lower case
+   and without the trailing dots and spaces Windows drops. **(choice)** When
+   that folder exists but cannot be listed, every `.claude/skills/<name>`
+   write is denied. Project skills with other names are written as before.
+3. **Validator: unapproved content** (`ca5ade7`). New error
+   `librarySkill.unapproved`: a file under any `.claude/skills/` folder of
+   the project (symlinks read through) whose SHA-256 is that of a library
+   skill file the user has not approved: a skill in quarantine or rejected,
+   a new version waiting in `next/` (also of an approved skill)
+   **(choice)**, or a skill folder whose note does not read back (hashed on
+   disk) **(choice)**. **(choice)** Two cases do not count: content that an
+   approved skill's current version also holds (two skills sharing an MIT
+   `LICENSE` would otherwise make the approved one fail), and empty files,
+   which carry nothing. The hashes come from `SkillService.contentHashes()`;
+   `briefstack validate` passes them when the library exists, and
+   `validateProject` without them skips the rule.
+4. **Fenced model answer** (`2cf8986`). Changes point 3 of the previous
+   section: a reply that is exactly one code block (opening fence with no
+   language or `json`, any case, then a line break; closing fence at the
+   end) holding only the answer's JSON is read like the bare JSON. Text
+   before or after the block, a second fence, other text inside it, another
+   language tag or `~~~` fences are still `failed`. The system prompt still
+   asks for no fence.

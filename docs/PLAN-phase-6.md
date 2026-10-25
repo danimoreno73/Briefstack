@@ -13,8 +13,10 @@ push and CI after each milestone.
 
 ## 0. Status
 
-Updated 2026-10-25. M1–M11 done, and the fixes from the security review
-(decisions.md, "Phase 6: fixes from the security review"); the real checks
+Updated 2026-10-25. M1–M11 done, the fixes from the security review
+(decisions.md, "Phase 6: fixes from the security review") and the closing
+of the hand-written skills gap (decisions.md, "Phase 6: library skills
+reach a project only through `skills install`"); the real checks
 and the real run (section 3) are the user's, not run yet. A new session reads `CLAUDE.md`,
 `docs/BRIEF-phase-6.md`, this file and `docs/decisions.md` from "# Phase 6"
 onwards before continuing.
@@ -37,8 +39,9 @@ onwards before continuing.
 | M11 | `scripts/real/check-skill-fetch.ts`, `check-skill-model-review.ts`, `check-skill-creation.ts` with static tests (not run); `docs/api.md` (skill routes, `skills install`, archive, discard, `usage.high`, chat tools, `generate` recording line); decisions "Decisiones sin Dani (fase 6)" |
 
 | Review fixes | File kinds by name first and decoded text (`encoding` finding); only the approved spec's library skills are installed (guard list, `skills.notInSpec`, `librarySkill.notChosen`); strict model answer, nonce tags, every text file, `failed` state, partial review; `add_skill_to_project` folder checks and a protected project `path`; architect descriptions as JSON lines cut to 300; 40-hex listing ids, more reserved and invisible names, `skills.pathTooLong`; the heuristic note on the skill page |
+| Skills gap | Guards deny reading the library's `skills/` (all callers) and writing in a `.claude/skills/<name>/` named like a library skill; validator `librarySkill.unapproved` by hash (`SkillService.contentHashes`); a model answer alone in one code block is accepted |
 
-Gates at the end: build, lint, 981 unit tests (2 more on Linux only) and the
+Gates at the end: build, lint, 997 unit tests (2 more on Linux only) and the
 e2e tests pass locally on Windows; CI (Linux, unit and e2e) is checked after
 the push.
 

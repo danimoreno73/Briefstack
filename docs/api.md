@@ -689,11 +689,16 @@ over 250 characters (`skills.pathTooLong`, checked before copying). `claude-code
 (source, commit, agent, file hashes, the archive's hash). The validator
 checks those hashes (`librarySkill.*`), reports an installed skill the
 spec does not choose (`librarySkill.notChosen`), and leaves the skills' own
-text alone. The creation guard lets the generator run it, into an allowed
-folder, and only for the library skills of the spec as the user approved it
-(the runner records them at the approval): a `--skill` outside that list,
-or a project `spec.json` that names another, is denied, and so is any
-install before an approval.
+text alone. `briefstack validate` also reports any file under a
+`.claude/skills/` folder identical to a library skill file the user has not
+approved (`librarySkill.unapproved`). The creation guard lets the generator
+run it, into an allowed folder, and only for the library skills of the spec
+as the user approved it (the runner records them at the approval): a
+`--skill` outside that list, or a project `spec.json` that names another, is
+denied, and so is any install before an approval. In a creation no caller
+may read the library's `skills/` folder, nor write or edit in a
+`.claude/skills/<name>/` whose name is that of a library skill: `skills
+install` is the only way in.
 
 ## Appendix: fake runner recordings
 
