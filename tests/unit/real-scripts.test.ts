@@ -573,6 +573,25 @@ describe('phase 6 real checks: prepared, guarded, and kept off real data', () =>
     expect(script).toContain('malicious?.harmful === true');
   });
 
+  it('the API key check asks for --yes, needs the key in the terminal, uses the web environment, and never prints the key', async () => {
+    const script = await read('check-api-key.ts');
+    expect(script).toContain('requireConfirmation(');
+    expect(script).toContain("await sandbox('api-key')");
+    expect(script).toContain('box.cleanup()');
+    expect(script).toContain("throw new CheckStop(2, 'ANTHROPIC_API_KEY is not set");
+    expect(script).toContain('sessionEnv(box)');
+    expect(script).toContain("tools: [], model: 'haiku', maxTurns: 1");
+    expect(script).not.toMatch(/console\.log\([^)]*ANTHROPIC_API_KEY/);
+    expect(script).not.toMatch(/report\([^)]*process\.env\.ANTHROPIC_API_KEY\s*[,)]/);
+    expect(script).not.toContain('bypassPermissions');
+  });
+
+  it('the preflight says how Claude Code signs in and never prints a credential', async () => {
+    const script = await read('preflight.ts');
+    expect(script).toContain('readAuthMode(');
+    expect(script).not.toMatch(/process\.env\[name\]|process\.env\.ANTHROPIC_API_KEY/);
+  });
+
   it('the creation check runs on the saver profile with this folder and the temp library', async () => {
     const script = await read('check-skill-creation.ts');
     expect(script).toContain("activeProfile: 'saver'");

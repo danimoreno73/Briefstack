@@ -265,7 +265,10 @@ export function startCheck(proc: CheckProcess = process, log: (line: string) => 
   return new Check(proc, log);
 }
 
-/** The environment of a session: no API key, no CLAUDE_CODE_*, the sandbox as BRIEFSTACK_HOME. */
+/**
+ * The environment of a session, as `briefstack web` builds it: the user's own
+ * credentials as they are, no other CLAUDE_CODE_*, the sandbox as BRIEFSTACK_HOME.
+ */
 export function sessionEnv(box: Sandbox): Record<string, string | undefined> {
   const { env, removed } = cleanEnvironment(process.env, box.home);
   if (removed.length > 0) console.log(`Not passed to Claude Code: ${removed.join(', ')}`);
