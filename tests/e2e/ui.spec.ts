@@ -124,8 +124,12 @@ test.describe('start-up', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(app.url);
     await page.getByRole('button', { name: 'Menu', exact: true }).click();
+    // Opening the rail moves focus to its close button; wait for that before
+    // focusing the theme button, or the move lands after it and takes focus away.
+    await expect(page.getByRole('button', { name: 'Close the menu' })).toBeFocused();
     const theme = page.getByRole('button', { name: /^Theme:/ });
     await theme.focus();
+    await expect(theme).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(page.getByRole('menu', { name: 'Theme' })).toBeVisible();
     await page.keyboard.press('Escape');
