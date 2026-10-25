@@ -47,7 +47,7 @@ the next interview asks less.
 - **A current browser** for the web app: Chrome or Edge 123, Firefox 121,
   Safari 17.5 or later.
 - **Operating systems:** Windows (native), macOS and Linux. The CI runs on
-  Linux and Windows on every push.
+  Linux, Windows and macOS on every push.
 
 ## Install
 

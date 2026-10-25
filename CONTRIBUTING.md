@@ -28,7 +28,7 @@ npm test           # unit tests
 npm run test:e2e   # end-to-end tests over the fake runners
 ```
 
-The CI runs the same on Linux and Windows for every push and pull request.
+The CI runs the same on Linux, Windows and macOS for every push and pull request.
 
 The tests never reach the network, never start a real Claude Code session
 and never touch your own data: they work in temp folders, with a fake
