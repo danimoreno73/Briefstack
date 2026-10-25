@@ -132,7 +132,8 @@ describe('two creations and one folder (manager over the fake runner)', () => {
     const recording = [
       '{"do":"session","phase":"started"}',
       '{"do":"claim","dir":"garden","onRefused":"refused"}',
-      '{"do":"wait","ms":300}',
+      // The first holds the folder until the test answers, not for a fixed time a slow machine can outlast.
+      '{"do":"question","questions":[{"question":"Go on?","header":"","options":[{"label":"Yes","description":""}],"multiSelect":false}]}',
       '{"do":"session","phase":"finished","outcome":"completed"}',
       '{"do":"label","name":"refused"}',
       '{"do":"claim","dir":"garden-2"}',
@@ -148,7 +149,7 @@ describe('two creations and one folder (manager over the fake runner)', () => {
     });
     const m = manager;
     const first = await m.create('A garden planner');
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    const question = await waitFor(() => m.get(first.id).pending);
     const second = await m.create('A second garden');
     const done = await waitFor(() => (m.get(second.id).status === 'finished' ? m.get(second.id) : undefined));
     const lines = (await readEvents(sessionEventsFile(sessionsDir, done.sessionId ?? ''))).events;
@@ -168,8 +169,11 @@ describe('two creations and one folder (manager over the fake runner)', () => {
     expect(JSON.stringify(denial)).not.toContain(slash(dir));
     expect(m.get(first.id).status).not.toBe('finished');
 
+    m.answer(first.id, question.id, { 'Go on?': 'Yes' });
     await waitFor(() => (m.get(first.id).status === 'finished' ? true : undefined));
     const third = await m.create('A third garden');
+    // It takes "garden" and holds it at the same question.
+    m.answer(third.id, (await waitFor(() => m.get(third.id).pending)).id, { 'Go on?': 'Yes' });
     await waitFor(() => (m.get(third.id).status === 'finished' ? true : undefined));
     const thirdLines = (await readEvents(sessionEventsFile(sessionsDir, m.get(third.id).sessionId ?? ''))).events;
     // The first creation finished, so "garden" was free again: no refusal for the third.
