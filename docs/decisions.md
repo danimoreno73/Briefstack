@@ -3662,3 +3662,42 @@ with its test. Choices where the request left one are marked **(choice)**.
    before or after the block, a second fence, other text inside it, another
    language tag or `~~~` fences are still `failed`. The system prompt still
    asks for no fence.
+
+# Release
+
+Decisions for the release pass ([BRIEF-release.md](BRIEF-release.md),
+[PLAN-release.md](PLAN-release.md)).
+
+## Privacy and secrets scan (2026-10-25)
+
+Scope: every blob reachable from any ref (1,993 blobs, 392 commits, one
+branch, 17 tags, all on `master`), commit messages, annotated tag objects,
+and the 152 images the history ever held, each one looked at. Findings went
+to the user before any change; the user decided on each one.
+
+- **No secrets.** Only synthetic keys in tests (secret-check fixtures).
+- **No personal paths or machine values** apart from one the release plan
+  added and removed (`6e93ba0`, fixed in `f5f1c19`).
+- **Images.** All show fixture data; paths are masked as `<tmp>`.
+- **Author's identity.** The author's git name and e-mail are in every
+  commit and annotated tag; kept, by the user's decision (brief section 1,
+  point 3). The author's first name appears in the docs in the section
+  titles "Decisiones sin Dani"; kept, as the brief allows.
+- **Names of the author's own projects** (from the personal library, not
+  their notes, lessons or profile) appear in the plans and in this file,
+  in the records of real runs (`receipt-parser-api`, `entrenador-examenes`,
+  `photo-exif-renamer`, `todo-cli`, a bakery landing). The user chose to
+  keep them there as history. In the design mockups (`docs/diseno/`) and
+  in tests they were replaced with generic names (`album-tidy`,
+  `recipe-box`, `packing-list`); the old versions stay in the history.
+- **E-mail addresses in tests.** Addresses at registrable domains were
+  replaced. Where a placeholder is enough, `example.org` or `example.net`.
+  **(choice)** Where a test checks that an address at a non-placeholder
+  domain is rejected, `example.*` cannot be used (the filter treats it as
+  a placeholder on purpose), so those use `.local` and `.internal`, names
+  that never resolve on the public internet.
+- **Ignored and never committed:** `CLAUDE.local.md`,
+  `.claude/settings.local.json`, `/screenshots/`, the local `gh` folder and
+  its config. Checked against `.gitignore` and against every path in the
+  history.
+- **History.** Nothing sensitive exists only in old history; no rewrite.
