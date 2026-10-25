@@ -1,7 +1,24 @@
 {
   "name": "briefstack",
-  "version": "0.1.0",
-  "description": "Turn an idea into a ready-to-use Claude project, and learn from each one.",
+  "version": "1.0.0",
+  "description": "A local tool that turns an idea into a ready-to-use Claude project by running your own Claude Code, and learns from each one.",
+  "license": "MIT",
+  "author": "danimoreno73",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/danimoreno73/Briefstack.git"
+  },
+  "homepage": "https://github.com/danimoreno73/Briefstack#readme",
+  "bugs": {
+    "url": "https://github.com/danimoreno73/Briefstack/issues"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "agents",
+    "project-generator",
+    "cli"
+  ],
   "private": true,
   "type": "module",
   "bin": {
@@ -20,6 +37,8 @@
     "node": ">=24"
   },
   "scripts": {
+    "prepare": "npm run build:app",
+    "build:app": "tsc -p tsconfig.build.json && npm run build:ui",
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json && tsc -p tests/e2e/tsconfig.json && node scripts/copy-ui-static.mjs",
     "test": "vitest run",
     "lint": "eslint .",
