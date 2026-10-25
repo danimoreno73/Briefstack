@@ -185,6 +185,7 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
   it('applies and reverts while creation starts are held, and looks for running creations inside that hold', async () => {
     const events: string[] = [];
     let startJustBefore = true;
+    let onRelease: (() => void) | undefined;
     const holdStarts = async <T,>(task: () => Promise<T>): Promise<T> => {
       events.push('hold');
       // A creation that registered just before the hold was taken: the check inside it must see it.
@@ -196,6 +197,7 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
         return await task();
       } finally {
         events.push('release');
+        onRelease?.();
       }
     };
     const { manager: m } = await open({ rounds: [{ edits: [researcherEdit], submission: submission([RESEARCHER]) }] }, { holdStarts });
@@ -203,10 +205,15 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     await settled(id);
     expect((await m.approve(id, (await m.get(id)).head ?? '')).status).toBe('waiting');
     expect(events).toEqual(['hold', 'release']);
+    // The gate's next hold applies it. The status is saved inside that hold, so wait for the hold's release, not for the status.
+    const applied = new Promise<void>((resolve) => {
+      onRelease = resolve;
+    });
     blockers = [];
-    for (let i = 0; i < 1500 && (await m.get(id)).status === 'waiting'; i += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+    await applied;
+    onRelease = undefined;
     expect((await m.get(id)).status).toBe('applied');
-    expect(events.slice(-2)).toEqual(['hold', 'release']);
+    expect(events).toEqual(['hold', 'release', 'hold', 'release']);
     events.length = 0;
     expect((await m.revert(id)).status).toBe('reverted');
     expect(events).toEqual(['hold', 'release']);
