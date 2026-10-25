@@ -310,6 +310,7 @@ class SdkRun {
   private readonly sessionPromise: Promise<string>;
   private readonly donePromise: Promise<RunnerOutcome>;
   private projectsDir = '';
+  private libraryDir = '';
   private failure: BriefstackError | undefined;
   /** The run file of this creation, once `claude` exists; its writes are serialised. */
   private runRecord: RunRecord | undefined;
@@ -361,6 +362,7 @@ class SdkRun {
     try {
       const { projectsDir, libraryDir } = await this.deps.locations();
       this.projectsDir = projectsDir;
+      this.libraryDir = libraryDir;
       // Before claude exists: the command-hook guard denies everything until its rules are there.
       this.rulesWritten = true;
       this.writeRules(true);
@@ -385,6 +387,8 @@ class SdkRun {
         },
         sessionDir: (id) => this.sessionDir(id),
         projectsDir,
+        libraryDir,
+        cwd: this.deps.repoDir,
         grantedDirs: () => this.granted,
         cancelled: () => this.cancelled,
         approvedLibrarySkills: () => this.approvedLibrarySkills,
@@ -526,6 +530,8 @@ class SdkRun {
         v: 1,
         projectsDir: this.projectsDir,
         sessionsDir: this.options.sessionsDir,
+        libraryDir: this.libraryDir,
+        cwd: this.deps.repoDir,
         granted: [...this.granted],
         cancelled: this.cancelled,
         ...(this.approvedLibrarySkills === undefined ? {} : { librarySkills: [...this.approvedLibrarySkills] }),

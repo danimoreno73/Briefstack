@@ -28,6 +28,8 @@ describe('the command-hook guard', () => {
       v: 1,
       projectsDir: path.join(dir, 'projects'),
       sessionsDir: path.join(dir, 'sessions'),
+      libraryDir: path.join(dir, 'library'),
+      cwd: path.join(dir, 'repo'),
       granted: [],
       cancelled: false,
     };
@@ -114,6 +116,8 @@ describe('the command-hook guard', () => {
       isOwnSession: () => true,
       sessionDir: (id: string) => path.join(rules.sessionsDir, id),
       projectsDir: rules.projectsDir,
+      libraryDir: rules.libraryDir,
+      cwd: rules.cwd,
       grantedDirs: () => [],
       cancelled: () => false,
       pathEnv: systemPathEnv(),
@@ -129,6 +133,8 @@ describe('the command-hook guard', () => {
       ['SubagentHandback', {}, {}],
       ['SubagentHandback', {}, { agent_id: 'i', agent_type: 'interviewer' }],
       ['Read', { file_path: path.join(dir, 'outside', 'a.txt') }, {}],
+      ['Read', { file_path: path.join(rules.libraryDir, 'skills', 'x', 'files', 'SKILL.md') }, { agent_id: 'g', agent_type: 'generator' }],
+      ['Grep', { pattern: 'x', path: rules.libraryDir }, {}],
       ['CronCreate', {}, {}],
     ];
     for (const [tool, toolInput, who] of calls) {

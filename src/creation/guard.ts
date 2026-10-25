@@ -1,7 +1,7 @@
 import type { HookCallback } from '@anthropic-ai/claude-agent-sdk';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { isFullyAbsolute, isPathInside, systemPathEnv, type PathEnv } from '../config/paths.js';
+import { expandHome, isFullyAbsolute, isPathInside, systemPathEnv, type PathEnv } from '../config/paths.js';
 import { realpathNearest } from '../scaffold/outputDir.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './toolNames.js';
@@ -24,6 +24,9 @@ import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './toolNames.js';
  *   no shell operators, and only the subcommands each caller needs;
  * - after a cancel, nothing except the `briefstack event` calls that close
  *   the session;
+ * - no caller reads the personal library's `skills/` folder (Read in it,
+ *   Glob or Grep in it or above it); library skills reach a project only
+ *   through `skills install`;
  * - web access is allowed for the researcher and denied to everyone else;
  * - `SubagentHandback` is left to the permission mode for subagents, also
  *   after a cancel, and denied to the main session;
@@ -32,8 +35,16 @@ import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './toolNames.js';
  */
 
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit', 'MultiEdit']);
+const READ_TOOLS = new Set(['Read', 'Glob', 'Grep']);
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 const WEB_TOOLS = new Set(['WebSearch', 'WebFetch']);
+
+/**
+ * The library's skills folder (`SKILLS_DIR` in `skills/service.ts`, not
+ * imported so the hook process stays small). No caller in a creation reads
+ * it: library skills reach a project only through `skills install`.
+ */
+export const LIBRARY_SKILLS_DIR = 'skills';
 
 /**
  * The built-in tools a creation offers: what the skill and the five agents
@@ -174,6 +185,10 @@ export interface GuardContext {
   /** The folder of this creation's files, `<sessionsDir>/<session id>`. */
   sessionDir(sessionId: string): string;
   projectsDir: string;
+  /** The personal library. Nothing in its `skills/` folder may be read. */
+  libraryDir: string;
+  /** The session's working folder: a relative read path, or a search with no `path`, starts there. */
+  cwd: string;
   /** Folders the user confirmed for this session only. Read on every call. */
   grantedDirs(): readonly string[];
   /** Whether the user cancelled. Read on every call. */
@@ -254,6 +269,66 @@ async function touchesGitDir(target: string, pathEnv: PathEnv): Promise<boolean>
     return false;
   }
 }
+
+/**
+ * The fixed folders a glob pattern starts with: everything before the
+ * segment that holds the first glob character, so `../lib/skills/**` keeps
+ * `../lib/skills/` and `**\/*.md` keeps nothing. A pattern without glob
+ * characters is a path.
+ */
+export function globPrefix(pattern: string): string {
+  const first = pattern.search(/[*?[\]{}]/);
+  if (first === -1) return pattern;
+  const head = pattern.slice(0, first);
+  const cut = Math.max(head.lastIndexOf('/'), head.lastIndexOf(String.fromCharCode(92)));
+  return cut === -1 ? '' : head.slice(0, cut + 1);
+}
+
+/**
+ * Where a read tool looks: Read's file, or the folder Glob or Grep starts
+ * from (Glob's `path` plus the fixed start of its pattern), resolved against
+ * the session's folder, with `~` expanded. On Windows a Git Bash form
+ * (`/d/x`) may reach a tool as `D:\x`, so both readings are returned.
+ */
+export function readRootsOf(tool: string, input: Record<string, unknown>, cwd: string, pathEnv: PathEnv): string[] {
+  const { pathApi } = pathEnv;
+  const readings = (value: string): string[] => {
+    const home = expandHome(value, pathEnv);
+    const drive = pathApi.sep === '\\' ? /^[\\/]([A-Za-z])(?:[\\/]|$)(.*)$/.exec(home) : null;
+    return drive === null ? [home] : [home, `${drive[1] ?? ''}:/${drive[2] ?? ''}`];
+  };
+  const resolveAll = (bases: readonly string[], value: string): string[] =>
+    bases.flatMap((base) => readings(value).map((reading) => pathApi.resolve(base, reading)));
+  if (tool === 'Read') return resolveAll([cwd], text(input.file_path) ?? '');
+  const bases = resolveAll([cwd], text(input.path) ?? '.');
+  if (tool !== 'Glob') return bases;
+  const prefix = globPrefix(text(input.pattern) ?? '');
+  return prefix === '' ? bases : resolveAll(bases, prefix);
+}
+
+/**
+ * Whether a read reaches the library's skills folder, after symlinks are
+ * resolved on both sides: Read of a file in it, or a Glob or Grep that starts
+ * in it or above it. A path that cannot be resolved counts as reaching it.
+ */
+export async function readsLibrarySkills(tool: string, input: Record<string, unknown>, ctx: Pick<GuardContext, 'libraryDir' | 'cwd'>, pathEnv: PathEnv): Promise<boolean> {
+  try {
+    const skills = await realpathNearest(pathEnv.pathApi.join(ctx.libraryDir, LIBRARY_SKILLS_DIR));
+    for (const candidate of readRootsOf(tool, input, ctx.cwd, pathEnv)) {
+      const root = await realpathNearest(candidate);
+      if (isPathInside(root, skills, pathEnv)) return true;
+      if (tool !== 'Read' && isPathInside(skills, root, pathEnv)) return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+const LIBRARY_SKILLS_MESSAGE =
+  "The personal library's skills folder is not readable in a creation. What you may know about library skills is in the " +
+  'library context (approved ones only: name, description, tags); the generator installs them with `skills install`, ' +
+  'which copies the approved files itself. Search other folders by giving Glob or Grep a `path` that does not contain it.';
 
 const GIT_MESSAGE =
   'Writing inside a .git folder is not allowed: git runs hooks and settings from there. Let `briefstack scaffold` create ' +
@@ -391,6 +466,10 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
   }
 
   if (ctx.cancelled()) return deny(CANCEL_MESSAGE, `${tool}`);
+
+  if (READ_TOOLS.has(tool) && (await readsLibrarySkills(tool, toolInput, ctx, pathEnv))) {
+    return deny(LIBRARY_SKILLS_MESSAGE, `${tool}: ${text(toolInput.file_path) ?? text(toolInput.path) ?? ''} ${text(toolInput.pattern) ?? ''}`.trim());
+  }
 
   if (WRITE_TOOLS.has(tool)) {
     const target = targetOf(tool, toolInput);

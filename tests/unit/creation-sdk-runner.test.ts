@@ -569,7 +569,15 @@ describe('SdkRunner', () => {
     const handle = start();
     for (let i = 0; i < 100 && captured === undefined; i += 1) await tick();
     // In place before claude starts, so its first tool call already has them.
-    expect(await rules()).toEqual({ v: 1, projectsDir, sessionsDir, granted: [], cancelled: false });
+    expect(await rules()).toEqual({
+      v: 1,
+      projectsDir,
+      sessionsDir,
+      libraryDir: path.join(dir, 'library'),
+      cwd: PACKAGE_ROOT,
+      granted: [],
+      cancelled: false,
+    });
     const hook = (options().settings as unknown as { hooks: { PreToolUse: { hooks: { args: string[]; onFailure: string }[] }[] } }).hooks.PreToolUse[0]?.hooks[0];
     expect(hook?.onFailure).toBe('block');
     expect(hook?.args.at(-1)).toBe(rulesFile);

@@ -42,6 +42,10 @@ const rulesSchema = z
     v: z.literal(1),
     projectsDir: absolute,
     sessionsDir: absolute,
+    /** The personal library: its `skills/` folder is never read. */
+    libraryDir: absolute,
+    /** The session's working folder. */
+    cwd: absolute,
     /** Folders the user granted to this session. */
     granted: z.array(absolute),
     cancelled: z.boolean(),
@@ -122,6 +126,8 @@ export async function decideToolUse(stdin: string, rulesFile: string): Promise<C
       isOwnSession: (id) => rules.sessionId === undefined || rules.sessionId === id,
       sessionDir: (id) => path.join(rules.sessionsDir, id),
       projectsDir: rules.projectsDir,
+      libraryDir: rules.libraryDir,
+      cwd: rules.cwd,
       grantedDirs: () => rules.granted,
       cancelled: () => rules.cancelled,
       approvedLibrarySkills: () => rules.librarySkills,

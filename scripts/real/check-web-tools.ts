@@ -61,6 +61,8 @@ try {
     },
     sessionDir: () => sessionDir,
     projectsDir: box.projects,
+    libraryDir: path.join(box.home, 'library'),
+    cwd: box.project,
     grantedDirs: () => [],
     cancelled: () => false,
   };

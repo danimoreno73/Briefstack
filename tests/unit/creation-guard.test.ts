@@ -3,16 +3,20 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   FLOW_TOOLS,
+  LIBRARY_SKILLS_DIR,
   classifyPath,
   evaluateToolUse,
+  globPrefix,
   guardHook,
   matchSubcommand,
   parseBriefstackCommand,
+  readRootsOf,
   type GuardContext,
   type GuardDenial,
   type GuardInput,
 } from '../../src/creation/guard.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
+import { SKILLS_DIR } from '../../src/skills/service.js';
 import { tempDir } from '../helpers.js';
 
 const SESSION = '3f2b9c1e-0000-4a5b-9c8d-123456789abc';
@@ -109,12 +113,36 @@ describe('classifyPath', () => {
   });
 });
 
+describe('where a read looks', () => {
+  it('keeps the fixed folders a glob pattern starts with', () => {
+    expect(globPrefix('**/*.md')).toBe('');
+    expect(globPrefix('*.md')).toBe('');
+    expect(globPrefix('../lib/skills/**/x')).toBe('../lib/skills/');
+    expect(globPrefix('D:/lib/sk*/x')).toBe('D:/lib/');
+    expect(globPrefix(`D:${BS}lib${BS}skills${BS}{a,b}`)).toBe(`D:${BS}lib${BS}skills${BS}`);
+    expect(globPrefix('lib/skills')).toBe('lib/skills');
+  });
+
+  it('reads a Git Bash drive form both ways on Windows', () => {
+    const env = { env: {}, homedir: 'C:\\Users\\ana', pathApi: path.win32, caseInsensitive: true };
+    expect(readRootsOf('Read', { file_path: '/d/lib/skills/x' }, 'C:\\repo', env)).toEqual(['C:\\d\\lib\\skills\\x', 'd:\\lib\\skills\\x']);
+    expect(readRootsOf('Glob', { pattern: '~/lib/skills/**' }, 'C:\\repo', env)).toEqual(['C:\\Users\\ana\\lib\\skills']);
+    expect(readRootsOf('Grep', { pattern: 'x' }, 'C:\\repo', env)).toEqual(['C:\\repo']);
+  });
+
+  it("names the library's skills folder as the skill service does", () => {
+    expect(LIBRARY_SKILLS_DIR).toBe(SKILLS_DIR);
+  });
+});
+
 describe('evaluateToolUse', () => {
   let dir: string;
   let cleanup: () => Promise<void>;
   let projectsDir: string;
   let sessionsDir: string;
   let outside: string;
+  let libraryDir: string;
+  let repoDir: string;
   let granted: string[];
   let cancelled: boolean;
   let approvedSkills: string[] | undefined;
@@ -137,6 +165,12 @@ describe('evaluateToolUse', () => {
     projectsDir = path.join(dir, 'projects');
     sessionsDir = path.join(dir, 'sessions');
     outside = path.join(dir, 'elsewhere');
+    libraryDir = path.join(dir, 'home', 'library');
+    repoDir = path.join(dir, 'repo');
+    await mkdir(path.join(libraryDir, 'skills', 'helper', 'files'), { recursive: true });
+    await writeFile(path.join(libraryDir, 'skills', 'helper', 'files', 'SKILL.md'), '---\nname: helper\n---\n', 'utf8');
+    await mkdir(path.join(libraryDir, 'profile'), { recursive: true });
+    await mkdir(path.join(repoDir, 'library', 'skills'), { recursive: true });
     await mkdir(path.join(projectsDir, 'app'), { recursive: true });
     await mkdir(path.join(sessionsDir, SESSION), { recursive: true });
     await mkdir(outside, { recursive: true });
@@ -147,12 +181,80 @@ describe('evaluateToolUse', () => {
       isOwnSession: (id) => id === SESSION,
       sessionDir: (id) => path.join(sessionsDir, id),
       projectsDir,
+      libraryDir,
+      cwd: repoDir,
       grantedDirs: () => granted,
       cancelled: () => cancelled,
       approvedLibrarySkills: () => approvedSkills,
     };
   });
   afterEach(() => cleanup());
+
+  describe("the library's skills folder", () => {
+    const callers: Partial<GuardInput>[] = [
+      {},
+      { agent_id: 'a1', agent_type: 'generator' },
+      { agent_id: 'a3', agent_type: 'architect' },
+      { agent_id: 'a4', agent_type: 'interviewer' },
+      { agent_id: 'a5', agent_type: 'reviewer' },
+      { agent_id: 'a6', agent_type: 'researcher' },
+    ];
+    const skillFile = () => path.join(libraryDir, 'skills', 'helper', 'files', 'SKILL.md');
+
+    it('is not readable by the main session or any agent of the creation', async () => {
+      const reads: [string, Record<string, unknown>][] = [
+        ['Read', { file_path: skillFile() }],
+        ['Read', { file_path: path.join(libraryDir, 'skills', 'helper', 'helper.md') }],
+        ['Read', { file_path: slashes(skillFile()) }],
+        ['Read', { file_path: path.join(libraryDir, 'skills', 'not-there', 'x.md') }],
+        ['Glob', { pattern: '**/*', path: path.join(libraryDir, 'skills') }],
+        ['Glob', { pattern: '**/SKILL.md', path: libraryDir }],
+        ['Glob', { pattern: '*', path: dir }],
+        ['Glob', { pattern: `${slashes(libraryDir)}/skills/**/*` }],
+        ['Glob', { pattern: `${slashes(path.relative(repoDir, libraryDir))}/skills/*/files/*` }],
+        ['Grep', { pattern: 'curl', path: path.join(libraryDir, 'skills', 'helper') }],
+        ['Grep', { pattern: 'curl', path: libraryDir, glob: '*.md' }],
+        ['Grep', { pattern: 'curl', path: path.relative(repoDir, path.join(libraryDir, 'skills')) }],
+      ];
+      for (const who of callers) {
+        for (const [tool, toolInput] of reads) {
+          const verdict = await evaluateToolUse(ctx, input(tool, toolInput, who));
+          expect(verdict, `${who.agent_type ?? 'main'} ${tool} ${JSON.stringify(toolInput)}`).toMatchObject({
+            verdict: 'deny',
+            reason: expect.stringContaining('skills install'),
+          });
+        }
+      }
+    });
+
+    it('is not reached through a symlink either', async () => {
+      const link = path.join(projectsDir, 'app', 'linked');
+      try {
+        await symlink(path.join(libraryDir, 'skills'), link, 'junction');
+      } catch {
+        return; // No symlinks here (an unprivileged Windows account without junctions).
+      }
+      expect(await verdictOf('Read', { file_path: path.join(link, 'helper', 'files', 'SKILL.md') }, generator)).toBe('deny');
+      expect(await verdictOf('Glob', { pattern: '**/*', path: link }, generator)).toBe('deny');
+    });
+
+    it('leaves the rest of the library, the repo and the projects to the permission mode', async () => {
+      for (const who of callers) {
+        const reads: [string, Record<string, unknown>][] = [
+          ['Read', { file_path: path.join(libraryDir, 'profile', 'profile.md') }],
+          ['Read', { file_path: path.join(repoDir, 'library', 'skills', 'base', 'SKILL.md') }],
+          ['Glob', { pattern: '**/*.md', path: path.join(libraryDir, 'lessons') }],
+          ['Glob', { pattern: 'library/skills/**/SKILL.md' }],
+          ['Grep', { pattern: 'x' }],
+          ['Grep', { pattern: 'x', path: path.join(projectsDir, 'app') }],
+          ['Read', { file_path: path.join(libraryDir, 'skills-notes.md') }],
+        ];
+        for (const [tool, toolInput] of reads) {
+          expect(await verdictOf(tool, toolInput, who), `${who.agent_type ?? 'main'} ${tool} ${JSON.stringify(toolInput)}`).toBe('pass');
+        }
+      }
+    });
+  });
 
   describe('writes', () => {
     it('allows the projects folder, the session folder and granted folders only', async () => {

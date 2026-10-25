@@ -64,6 +64,8 @@ describe('the guard reports who made a denied call', () => {
       isOwnSession: () => true,
       sessionDir: () => '/tmp/s',
       projectsDir: '/tmp/projects',
+      libraryDir: '/tmp/library',
+      cwd: '/tmp/repo',
       grantedDirs: () => [],
       cancelled: () => false,
     };
