@@ -13,7 +13,9 @@ approval. The repository is made public only by the user.
 
 ## 0. Status
 
-Updated 2026-10-25. R0–R4 done; R5 next.
+Updated 2026-10-25. R0–R8 done; R9 done except the branch rename on
+GitHub, which is the user's (steps below, "Results and steps for the user"). R10 is the user's: read
+the README, make the repository public, then tag `v1.0.0`.
 
 | # | Step | State |
 |---|---|---|
@@ -22,12 +24,73 @@ Updated 2026-10-25. R0–R4 done; R5 next.
 | R2 | Fixes for the scan findings the user decides on | done: plan path, mockup and test names, test e-mail domains; two flaky e2e waits fixed |
 | R3 | Policy and authentication: verify and record, API key mode, mode display, usage hidden in API key mode (section 2) | done: credentials pass to the user's Claude Code, mode read from `accountInfo()`, Settings card, banner, start line, usage hidden; `scripts/real/check-api-key.ts` for the user |
 | R4 | Branding check (section 2) | done: nothing to change |
-| R5 | `package.json` and first-run messages (section 4) | pending |
-| R6 | Fresh-clone run with an empty `BRIEFSTACK_HOME` (section 4) | pending |
-| R7 | CI matrix with `windows-latest` (and `macos-latest` if time allows) (section 4) | pending |
-| R8 | Documentation: README, LICENSE, SECURITY, CONTRIBUTING, CHANGELOG (section 5) | pending |
-| R9 | Repository hygiene: `main`, deny rules, GitHub settings checklist (section 6) | pending |
+| R5 | `package.json` and first-run messages (section 4) | done: 1.0.0, MIT, repository, `prepare` builds on `npm install`; CLI and web say what to do when Claude Code is missing, too old or not signed in; a template line break fixed |
+| R6 | Fresh-clone run with an empty `BRIEFSTACK_HOME` (section 4) | done, passed (below) |
+| R7 | CI matrix with `windows-latest` (and `macos-latest` if time allows) (section 4) | done: Linux and Windows on every push (green); macOS once the repo is public, or by hand |
+| R8 | Documentation: README, LICENSE, SECURITY, CONTRIBUTING, CHANGELOG (section 5) | done; README waiting for the user's reading |
+| R9 | Repository hygiene: `main`, deny rules, GitHub settings checklist (section 6) | done here; the rename on GitHub is the user's |
 | R10 | Definition of done (section 7): user reads the README, makes the repo public, tag `v1.0.0` | pending (user) |
+
+## Results and steps for the user
+
+### Fresh clone (R6), 2026-10-25, Windows 11, Node 24.18, npm 11.16
+
+Cloned from GitHub into an empty scratch folder outside the repo, with
+`BRIEFSTACK_HOME` and the home folder (`USERPROFILE`, `HOME`) pointing at
+empty folders, so nothing of this machine's data was used:
+
+| Step | Result |
+|---|---|
+| `npm install` | 20 s; `prepare` built `dist/` (CLI and web) |
+| `npx briefstack --version` | `briefstack 1.0.0` |
+| `npx briefstack init` | library (git repository), projects folder `<home>/briefstack-projects`, sessions folder, the clone's `.claude/settings.local.json` |
+| `briefstack web --port 0` | served; `/api/health` 200; with an empty home Claude Code reported not signed in, and the start line said exactly what to do |
+| `npm run build`, `npm run lint` | pass |
+| `npm test` | 1013 passed, 2 skipped |
+| `npm run test:e2e` | 97 passed |
+
+Nothing assumed this machine. npm 11 notes that esbuild's install script
+did not run (`allowScripts`); the build and all tests pass without it.
+
+### Branch rename (R9), for the user
+
+On GitHub: **Settings → General → Default branch**, the pencil next to
+`master`, type `main`, **Rename branch**. GitHub moves the branch,
+redirects old links, and keeps the tags.
+
+Then, in the local clone:
+
+```sh
+git branch -m master main
+git fetch origin
+git branch -u origin/main main
+git remote set-head origin -a
+```
+
+Nothing in the CI, the scripts or the code names the branch (the CI runs
+on every push; improvements apply to the branch `HEAD` is on). The test
+repositories that tests create still use `master`; they are temporary and
+unrelated to GitHub.
+
+### GitHub settings after making the repository public (R9), for the user
+
+1. **Settings → Code security → Private vulnerability reporting:** Enable
+   (`SECURITY.md` points to it).
+2. **Settings → Code security → Secret scanning:** Enable, and **Push
+   protection:** Enable.
+3. **Settings → Code security → Dependabot alerts:** Enable (optional:
+   security updates).
+4. **Settings → Branches → Add branch ruleset** (or classic branch
+   protection) for `main`: require a pull request before merging,
+   require the `check (ubuntu-latest)` and `check (windows-latest)`
+   status checks to pass, block force pushes, block deletions.
+5. **Settings → Actions → General:** workflow permissions *Read
+   repository contents*; require approval for workflows from first-time
+   contributors.
+6. **Settings → General → Features:** keep Issues on; Wikis and Projects
+   off unless wanted.
+7. After the first push on the public repository, check that the CI also
+   runs `check (macos-latest)`, then tag `v1.0.0`.
 
 ## 1. Steps
 
