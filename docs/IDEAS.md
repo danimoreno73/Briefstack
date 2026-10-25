@@ -237,3 +237,14 @@ are not repeated.
   applies once none does", sleeps a fixed 80 ms to check that nothing was
   committed; wait for a gate tick that found the blocker instead. From
   [PLAN-release.md](history/PLAN-release.md).
+
+## 5. Codex
+
+To consider, not planned. (a) Generated projects: add skills-directory/
+skill-codex (MIT, runs `codex exec`) through the skills library; it goes
+through quarantine like any skill with scripts. The official
+openai/codex-plugin-cc (Apache-2.0) is a plugin, not a skill: at most a
+recommendation in NEXT_STEPS.md. (b) briefstack's own flow: an optional,
+off-by-default Codex read-only review round. Writing through Codex is out:
+the guard does not see Codex's writes. Delegating moves usage to the user's
+OpenAI quota; it is not free, and every user would need Codex installed.
