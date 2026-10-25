@@ -198,7 +198,7 @@ describe('discarded suggestions and the usage note on chat cards', { timeout: 60
     const repo = path.join(world.dir, 'improve-repo');
     await makeImproveRepo(repo);
     const store = new SuggestionStore(path.join(world.home, 'improve', 'suggestions.json'));
-    suggestions = computeSuggestions({ state: { id: 'c1', idea: 'A meal planner', sessionId: 's1', textTurns: 1, outcome: 'failed' }, lessons: [] }, new Date('2026-10-18T10:00:00Z'));
+    suggestions = computeSuggestions({ state: { id: 'c1', idea: 'A packing list', sessionId: 's1', textTurns: 1, outcome: 'failed' }, lessons: [] }, new Date('2026-10-18T10:00:00Z'));
     await store.add(suggestions);
     improve = await openImproveWorld({ repoDir: repo, home: world.home, pathEnv: world.pathEnv, sessionsDir: world.sessionsDir, libraryDir: world.libraryDir, projectsDir: world.projectsDir, script: { rounds: [researcherRound()] }, suggestions: store });
     world.tools.improvements = () => improve.manager;

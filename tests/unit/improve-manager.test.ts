@@ -170,10 +170,10 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
     const { manager: m } = await open({ rounds: [{ edits: [researcherEdit], submission: submission([RESEARCHER]) }] });
     const { id } = await m.prepare('Shorter reports.');
     await settled(id);
-    blockers = ['A meal planner'];
+    blockers = ['A packing list'];
     const before = await revParse(repo, 'HEAD');
     expect((await m.approve(id, (await m.get(id)).head ?? '')).status).toBe('waiting');
-    expect(await m.blockers()).toEqual(['A meal planner']);
+    expect(await m.blockers()).toEqual(['A packing list']);
     await new Promise((resolve) => setTimeout(resolve, 80));
     expect(await revParse(repo, 'HEAD')).toBe(before);
     blockers = [];
@@ -189,7 +189,7 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
       events.push('hold');
       // A creation that registered just before the hold was taken: the check inside it must see it.
       if (startJustBefore) {
-        blockers = ['A meal planner'];
+        blockers = ['A packing list'];
         startJustBefore = false;
       }
       try {
@@ -286,13 +286,13 @@ describe('ImprovementManager', { timeout: 60_000 }, () => {
   it("rejects the git user's name, a library project's name and lesson text, read from the repo and the library", async () => {
     await git(repo, ['config', 'user.name', 'Alice Liddell']);
     await mkdir(path.join(home, 'library', 'projects'), { recursive: true });
-    await writeFile(path.join(home, 'library', 'projects', 'meal-planner.md'), '---\nsummary: Meals\n---\n# Meal planner\n', 'utf8');
+    await writeFile(path.join(home, 'library', 'projects', 'packing-list.md'), '---\nsummary: Packing\n---\n# Packing list\n', 'utf8');
     await writeFile(path.join(home, 'library', 'lessons.md'), '# Lessons\n\n- The architect wrote the spec before the interviewer had asked about the target.\n', 'utf8');
     const { manager: m } = await open({
       rounds: [
         {
           edits: [
-            { file: RESEARCHER, find: 'Rules:', replace: 'As Alice Liddell asked for the meal planner.\n\nRules:' },
+            { file: RESEARCHER, find: 'Rules:', replace: 'As Alice Liddell asked for the packing list.\n\nRules:' },
             { file: INTERVIEWER, find: 'Rules:', replace: 'Note that the architect wrote the spec before the interviewer had asked.\n\nRules:' },
           ],
           submission: submission([RESEARCHER, INTERVIEWER]),

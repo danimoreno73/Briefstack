@@ -20,7 +20,7 @@ describe('improvement tools of the chat', { timeout: 60_000 }, () => {
     const repo = path.join(world.dir, 'improve-repo');
     await makeImproveRepo(repo);
     const store = new SuggestionStore(path.join(world.home, 'improve', 'suggestions.json'));
-    suggestion = computeSuggestions({ state: { id: 'c1', idea: 'A meal planner', sessionId: 's1', textTurns: 1 }, lessons: [] }, new Date('2026-10-18T10:00:00Z'))[0] as Suggestion;
+    suggestion = computeSuggestions({ state: { id: 'c1', idea: 'A packing list', sessionId: 's1', textTurns: 1 }, lessons: [] }, new Date('2026-10-18T10:00:00Z'))[0] as Suggestion;
     await store.add([suggestion]);
     improve = await openImproveWorld({
       repoDir: repo,
@@ -59,7 +59,7 @@ describe('improvement tools of the chat', { timeout: 60_000 }, () => {
   it('lists suggestions with their text and source', async () => {
     const listed = await read('list_suggestions');
     expect(listed.data).toEqual([expect.objectContaining({ suggestionId: suggestion.id, target: '.claude/skills/new-project/SKILL.md', text: expect.stringContaining('plain text') })]);
-    expect(listed.sources).toEqual([{ kind: 'suggestion', ref: suggestion.id, label: 'A meal planner' }]);
+    expect(listed.sources).toEqual([{ kind: 'suggestion', ref: suggestion.id, label: 'A packing list' }]);
   });
 
   it('prepares only after the card is confirmed, then lists and shows the proposal', async () => {

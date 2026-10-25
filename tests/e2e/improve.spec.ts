@@ -240,13 +240,13 @@ test.describe('an approval while a creation runs', () => {
   test('waits, says why, and applies as soon as the creation finishes', async ({ page, app }) => {
     await prepareFromPage(page, app);
     await expect(status(page)).toHaveAttribute('data-status', 'ready');
-    const creation = await app.manager.create('A meal planner');
+    const creation = await app.manager.create('A packing list');
     await expect.poll(() => app.manager.get(creation.id).pending?.kind).toBe('question');
 
     await page.getByTestId('approve').click();
     await confirmDialog(page, 'Approve and apply');
     await expect(status(page)).toHaveAttribute('data-status', 'waiting');
-    await expect(status(page)).toContainText('A meal planner');
+    await expect(status(page)).toContainText('A packing list');
     expect(await lastCommit(app)).toBe('start');
 
     const pending = app.manager.get(creation.id).pending;

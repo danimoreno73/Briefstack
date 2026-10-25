@@ -337,7 +337,7 @@ test.describe('archived projects', () => {
 
 test.describe('discarded suggestions', () => {
   test('a discarded suggestion goes and does not come back after a reload', async ({ page, app }) => {
-    const suggestions = computeSuggestions({ state: { id: 'c1', idea: 'A meal planner', sessionId: 's1', textTurns: 1, outcome: 'failed' }, lessons: [] }, new Date('2026-10-18T10:00:00Z'));
+    const suggestions = computeSuggestions({ state: { id: 'c1', idea: 'A packing list', sessionId: 's1', textTurns: 1, outcome: 'failed' }, lessons: [] }, new Date('2026-10-18T10:00:00Z'));
     await mkdir(path.join(app.home, 'improve'), { recursive: true });
     await writeFile(path.join(app.home, 'improve', 'suggestions.json'), JSON.stringify({ v: 1, suggestions }), 'utf8');
     await page.goto(app.url);

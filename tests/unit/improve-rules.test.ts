@@ -214,27 +214,29 @@ describe('filters', () => {
       folders: [],
       profileTexts: [],
       gitName: 'Alice Liddell',
-      gitEmail: 'alice.l@wonder.io',
-      projectNames: ['meal-planner', 'Garden Journal', 'app'],
+      gitEmail: 'alice.l@example.org',
+      projectNames: ['packing-list', 'Garden Journal', 'app'],
       lessonTexts: ['# Lessons\n\n- 2026-10-01: The architect wrote the spec before the interviewer had asked about the target platform.\n'],
     });
     const kinds = (added: string) => checkProposedText('Line one.\n', `Line one.\n${added}\n`, personal).map((p) => p.kind);
 
     it('rejects e-mail addresses, apart from placeholder domains', () => {
-      expect(kinds('Write to bob@company.io for help.')).toEqual(['personalData']);
-      expect(kinds('Contact: Carol.Smith+x@mail.example-corp.com')).toEqual(['personalData']);
+      // Reserved names that never resolve on the internet, but are not placeholder domains.
+      expect(kinds('Write to bob@company.local for help.')).toEqual(['personalData']);
+      expect(kinds('Contact: Carol.Smith+x@mail.corp.internal')).toEqual(['personalData']);
       expect(kinds('Use you@example.com or name@test.example or a@b.invalid.')).toEqual([]);
     });
 
     it("rejects the git user's name and e-mail", () => {
       expect(kinds('Thanks to alice LIDDELL.')).toEqual(['personalData']);
-      expect(kinds('Ask alice.l@wonder.io.')).toEqual(['personalData']);
+      // The git user's own address counts even at a placeholder domain.
+      expect(kinds('Ask alice.l@example.org.')).toEqual(['personalData']);
       expect(kinds('Alice and the liddell scheme are fine apart.')).toEqual([]);
     });
 
     it("rejects the names of the library's projects, whatever the separators", () => {
-      expect(kinds('As in the meal planner project.')).toEqual(['personalData']);
-      expect(kinds('See meal-planner/README.md.')).toEqual(['personalData']);
+      expect(kinds('As in the packing list project.')).toEqual(['personalData']);
+      expect(kinds('See packing-list/README.md.')).toEqual(['personalData']);
       expect(kinds('Like the garden_journal app.')).toEqual(['personalData']);
       // Names shorter than four letters are too common to tell apart.
       expect(kinds('Plan meals in the app.')).toEqual([]);

@@ -51,8 +51,8 @@ describe('validateRound', () => {
   it('checks the title and the expected effect, which go into the commit message, like the files', async () => {
     const { base } = await round();
     const head = await commit('round');
-    const submission = { ...researcherRound().submission, title: 'Shorter reports for bob@company.io', expectedEffect: 'Notes stay in ~/notes, as Alice Liddell wants.' };
-    const personal = prepareContext({ homedir: path.join(dir, 'user'), username: undefined, folders: [], profileTexts: [], gitName: 'Alice Liddell' });
+    const submission = { ...researcherRound().submission, title: 'Shorter reports for alice@example.net', expectedEffect: 'Notes stay in ~/notes, as Alice Liddell wants.' };
+    const personal = prepareContext({ homedir: path.join(dir, 'user'), username: undefined, folders: [], profileTexts: [], gitName: 'Alice Liddell', gitEmail: 'alice@example.net' });
     const check = await validateRound({ repoDir: repo, baseCommit: base, head, stray: { untracked: [], ignored: [] }, submission, context: personal });
     expect(check.problems.map((p) => [p.kind, p.file, p.detail.split(':')[0]])).toEqual([
       ['personalData', undefined, 'in the title'],

@@ -8,7 +8,7 @@ import type { SessionSignals } from '../../src/improve/signals.js';
 import { tempDir } from '../helpers.js';
 
 const NOW = new Date('2026-10-18T12:00:00Z');
-const state = (fields: Partial<CreationState> = {}) => ({ id: 'c1', idea: 'A meal planner for the week', sessionId: 's1', ...fields });
+const state = (fields: Partial<CreationState> = {}) => ({ id: 'c1', idea: 'A packing list for a trip', sessionId: 's1', ...fields });
 const signals = (fields: Partial<SessionSignals> = {}): SessionSignals => ({ sessionId: 's1', reviewRounds: 1, denials: [], failedSteps: [], endedWithoutClose: false, outcome: 'completed', ...fields });
 
 describe('computeSuggestions', () => {
