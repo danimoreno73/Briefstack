@@ -19,22 +19,31 @@ here and the next one starts.
 
 ## 0. Status
 
-Updated 2026-10-25. In progress.
+Updated 2026-10-25. Done: every step passed, none failed twice. Each fix
+was pushed alone and CI was green on Linux, Windows and macOS before the
+next one. Choices made without the user are in decisions.md, "Backlog 1".
+One step outside the list: a flaky folder-claims test that failed on
+Windows CI at `backlog-1-start` was fixed first (A0), since CI had to be
+green.
 
 | # | Step | State |
 |---|---|---|
-| A1 | `improve-manager.test.ts`: wait for a gate tick that found the blocker instead of a fixed 80 ms | to do |
-| A2 | Skills scanner: URLs in license files and `localhost` URLs as `info`; `subprocess` and `socket` weighed by context; no malicious fixture finding goes down in severity | to do |
-| A3 | Skills scanner: portability finding for absolute Linux paths (`/tmp`, `/mnt`, `/home`) in scripts | to do |
-| A4 | Usage page: the last known plan usage with its time, saved in the briefstack home; no new reading when the page opens | to do |
-| A5 | Suggestions: the count of turns that ended in text persisted on disk, so it survives a restart | to do |
-| A6 | Check whether the SDK passes the abort signal to the chat's tools; record it; fix only if local, with a test | to do |
-| A7 | The library lock on writes longer than 2 minutes: reproduce with a test and fix | to do |
-| B8 | Proposal: creations see the repo's `CLAUDE.md` | to do |
-| B9 | Proposal: folder claims do not see creations started from the terminal | to do |
-| B10 | Proposal: the chat describes a creation's step wrongly | to do |
-| C | IDEAS.md: section "Codex" with the user's text | to do |
-| — | Status updated, tag `backlog-1-done` | to do |
+| A0 | (found on the way) `folder-claims.test.ts`: the first creation holds its folder at a question, not for a fixed 300 ms | done, `ddd35c0` |
+| A1 | `improve-manager.test.ts`: wait for a gate tick that found the blocker instead of a fixed 80 ms | done, `c07dd86` |
+| A2 | Skills scanner: URLs in license files and `localhost` URLs as `info`; `subprocess` and `socket` weighed by context; no malicious fixture finding goes down in severity | done, `3da6749`: weighed by the rest of the file; a test pins every malicious fixture finding at its earlier severity |
+| A3 | Skills scanner: portability finding for absolute Linux paths (`/tmp`, `/mnt`, `/home`) in scripts | done, `1cb82ef`: rule `portability`, `low`, scripts only |
+| A4 | Usage page: the last known plan usage with its time, saved in the briefstack home; no new reading when the page opens | done, `ecbab9a`: `<home>/plan-usage.json`, `lastPlanUsage` in `GET /api/usage`, a card on the page |
+| A5 | Suggestions: the count of turns that ended in text persisted on disk, so it survives a restart | done, `59859da`: `<home>/improve/text-turns.json`, read by the evidence after a restart |
+| A6 | Check whether the SDK passes the abort signal to the chat's tools; record it; fix only if local, with a test | done, `222d58d`: it does (SDK 0.3.286); nothing to fix; a test pins it. Whether Claude Code sends the cancellation needs a real session |
+| A7 | The library lock on writes longer than 2 minutes: reproduce with a test and fix | done, `3c0d343`: reproduced with a second process; the holder keeps its lock fresh |
+| B8 | Proposal: creations see the repo's `CLAUDE.md` | done, `47b3fd8`, in IDEAS.md |
+| B9 | Proposal: folder claims do not see creations started from the terminal | done, `47b3fd8`, in IDEAS.md |
+| B10 | Proposal: the chat describes a creation's step wrongly | done, `47b3fd8`, in IDEAS.md |
+| C | IDEAS.md: section "Codex" with the user's text | done, `63d46d3`, section 5 |
+| — | Status updated, tag `backlog-1-done` | done |
+
+Not run in this pass (its rules): real SDK sessions. The real checks that
+B8–B10 would need, and the open half of A6, are for the user.
 
 ## 1. Steps
 

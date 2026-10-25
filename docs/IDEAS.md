@@ -216,27 +216,32 @@ are not repeated.
     the fake runner); the folder-claims tests as they are; an e2e with a
     fake terminal session; a real check for the user with one terminal and
     one web creation.
-- The library lock on writes that take more than 2 minutes. From
+- **Done in backlog 1** (A7 in [PLAN-backlog-1.md](PLAN-backlog-1.md)).
+  The library lock on writes that take more than 2 minutes. From
   [PLAN-phase-4.md](history/PLAN-phase-4.md), carried in
   [PLAN-phase-5.md](history/PLAN-phase-5.md).
-- Check whether the SDK passes the abort signal to the chat's tools. From
+- **Done in backlog 1** (A6): the SDK passes it; whether Claude Code sends
+  the cancellation is still to be seen in a real session. Check whether the
+  SDK passes the abort signal to the chat's tools. From
   [PLAN-phase-4.md](history/PLAN-phase-4.md), carried in
   [PLAN-phase-5.md](history/PLAN-phase-5.md).
-- Turns that ended in text are counted in memory only, so suggestions after
-  a server restart miss them. From [PLAN-phase-5.md](history/PLAN-phase-5.md).
-- Less noise in the skills static scanner: URLs in license files and
-  `localhost` URLs as `info`, `subprocess` and `socket` weighed by context.
-  From [PLAN-phase-6.md](history/PLAN-phase-6.md).
-- A portability finding for absolute Linux paths (`/tmp`, `/mnt`, `/home`)
-  in skill scripts, which on Windows end up under the current drive. From
+- **Done in backlog 1** (A5). Turns that ended in text are counted in
+  memory only, so suggestions after a server restart miss them. From
+  [PLAN-phase-5.md](history/PLAN-phase-5.md).
+- **Done in backlog 1** (A2). Less noise in the skills static scanner: URLs
+  in license files and `localhost` URLs as `info`, `subprocess` and `socket`
+  weighed by context. From [PLAN-phase-6.md](history/PLAN-phase-6.md).
+- **Done in backlog 1** (A3). A portability finding for absolute Linux
+  paths (`/tmp`, `/mnt`, `/home`) in skill scripts, which on Windows end up
+  under the current drive. From [PLAN-phase-6.md](history/PLAN-phase-6.md).
+- **Done in backlog 1** (A4: the last known values). The Usage page shows
+  no figures until a creation reads the usage: show the last known values,
+  or read them when the page opens. From
   [PLAN-phase-6.md](history/PLAN-phase-6.md).
-- The Usage page shows no figures until a creation reads the usage: show
-  the last known values, or read them when the page opens. From
-  [PLAN-phase-6.md](history/PLAN-phase-6.md).
-- `tests/unit/improve-manager.test.ts`, "waits while a creation runs and
-  applies once none does", sleeps a fixed 80 ms to check that nothing was
-  committed; wait for a gate tick that found the blocker instead. From
-  [PLAN-release.md](history/PLAN-release.md).
+- **Done in backlog 1** (A1). `tests/unit/improve-manager.test.ts`, "waits
+  while a creation runs and applies once none does", sleeps a fixed 80 ms
+  to check that nothing was committed; wait for a gate tick that found the
+  blocker instead. From [PLAN-release.md](history/PLAN-release.md).
 
 ## 5. Codex
 
