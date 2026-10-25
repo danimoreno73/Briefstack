@@ -3794,3 +3794,49 @@ Choices:
   version or an unknown mode only show in Settings and at start.
 - **Real check.** `scripts/real/check-api-key.ts`, run only by the user
   with their own key set: one tiny Haiku turn billed to that key.
+
+## Deny rules: files written only with Write and Edit (2026-10-25)
+
+Brief section 6: enforce the rule for Claude Code sessions in this repo
+with deny rules in `.claude/settings.json`, and record their limits.
+
+Source: code.claude.com/docs/en/permissions, "Bash", "Redirections",
+"What a Bash rule doesn't match", "PowerShell" (read 2026-10-25). A Bash
+rule matches the command text after compound commands are split and
+wrappers stripped; it "isn't a security boundary around the program". For
+an output redirection, Claude Code checks the target against the `Edit`
+rules instead.
+
+Probe (Claude Code 2.1.310, Haiku, a scratch folder outside the repo with
+the candidate rules in its `.claude/settings.json`, `Bash(*)` and
+`PowerShell(*)` allowed from the command line, `acceptEdits`):
+
+| Command | Result |
+|---|---|
+| `sed -i 's/one/two/' a.txt` | denied by `Bash(sed *-i*)` |
+| `printf x \| tee b.txt` | denied by `Bash(tee *)` (the piped part alone) |
+| `node -e "…writeFileSync…"` | denied by `Bash(node -e *)` |
+| `echo one > a.txt`, `>> a2.txt`, `>a3.txt` | **ran**: `Bash(* >*)` does not match a redirection |
+| `Set-Content -Path d.txt -Value x` | denied by `PowerShell(Set-Content *)` |
+| `'x' > e.txt` | denied by `PowerShell(* >*)` |
+| `New-Item -ItemType File -Path f.txt -Value x` | denied by `PowerShell(New-Item * -Value *)` |
+| `[IO.File]::WriteAllText(...)` | **ran** |
+| `ls`, `Get-ChildItem`, `echo ok 2>/dev/null` | ran |
+
+The rules kept: `sed -i`, `perl -i`, `tee`, `node -e`/`--eval`,
+`python`/`python3`/`py -c` for Bash; `Set-Content`, `Add-Content`,
+`Out-File`, `Tee-Object`, `New-Item … -Value` and a redirection for
+PowerShell. `Bash(* >*)` was dropped: it matches nothing and would only
+look like a protection.
+
+Limits, also in CONTRIBUTING.md: a Bash redirection into a file in the
+working folder, .NET calls from PowerShell, a program called by another
+path or inside `sh -c`/`bash -c`, a script file that writes, and any
+other tool that writes files are not caught. Denying redirections through
+an `Edit` deny rule would also deny the Edit tool. The rules are a
+reminder for sessions that follow `CLAUDE.md`, not a boundary.
+
+**(choice)** These rules also apply to creation sessions, which load the
+project settings: the generator must write with Write and Edit too, as
+its instructions already say. The chat, improvements and reviews load no
+settings files.

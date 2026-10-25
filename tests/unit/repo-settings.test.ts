@@ -10,9 +10,22 @@ describe('repo permission rules', () => {
     const settings = JSON.parse(await readFile(path.join(PACKAGE_ROOT, '.claude', 'settings.json'), 'utf8')) as {
       permissions?: Record<string, unknown>;
     };
-    expect(settings.permissions).toEqual({
-      allow: ['Bash(npm run --silent briefstack *)', 'PowerShell(npm run --silent briefstack *)'],
-    });
+    expect(settings.permissions?.allow).toEqual(['Bash(npm run --silent briefstack *)', 'PowerShell(npm run --silent briefstack *)']);
+    expect(Object.keys(settings.permissions ?? {}).sort()).toEqual(['allow', 'deny']);
+  });
+
+  it('denies the shell forms of editing a file, so files are written with Write and Edit (BRIEF-release §6)', async () => {
+    // Each rule was checked against a real session (decisions.md, "Release", "Deny rules").
+    // A Bash redirection (`>`, `>>`) cannot be denied this way: Claude Code checks only its target.
+    const settings = JSON.parse(await readFile(path.join(PACKAGE_ROOT, '.claude', 'settings.json'), 'utf8')) as {
+      permissions?: { deny?: string[] };
+    };
+    const deny = settings.permissions?.deny ?? [];
+    for (const rule of ['Bash(sed *-i*)', 'Bash(tee *)', 'Bash(node -e *)', 'Bash(python -c *)', 'PowerShell(Set-Content *)', 'PowerShell(Out-File *)', 'PowerShell(* >*)']) {
+      expect(deny).toContain(rule);
+    }
+    // Nothing that would stop the CLI the agents run, or reading.
+    for (const rule of deny) expect(rule).not.toMatch(/^(Read|Edit|Write)\b|npm|briefstack/);
   });
 
   it('sets no model: the session model comes only from the usage profile', async () => {

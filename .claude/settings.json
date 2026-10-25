@@ -6,6 +6,22 @@
     "allow": [
       "Bash(npm run --silent briefstack *)",
       "PowerShell(npm run --silent briefstack *)"
+    ],
+    "deny": [
+      "Bash(sed *-i*)",
+      "Bash(perl *-i*)",
+      "Bash(tee *)",
+      "Bash(node -e *)",
+      "Bash(node --eval *)",
+      "Bash(python -c *)",
+      "Bash(python3 -c *)",
+      "Bash(py -c *)",
+      "PowerShell(Set-Content *)",
+      "PowerShell(Add-Content *)",
+      "PowerShell(Out-File *)",
+      "PowerShell(Tee-Object *)",
+      "PowerShell(New-Item * -Value *)",
+      "PowerShell(* >*)"
     ]
   },
   "hooks": {
