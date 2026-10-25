@@ -105,13 +105,117 @@ are not repeated.
 - The chat sometimes describes a creation's step wrongly: it should quote the
   exact step from the panel. From [PLAN-phase-4.md](history/PLAN-phase-4.md), carried
   in [PLAN-phase-5.md](history/PLAN-phase-5.md).
+
+  **Proposal** (backlog 1, B10; not built):
+  - *Cause.* The chat gets the step as data and words it itself.
+    `list_sessions` gives the open step's id (`gap-analysis`,
+    `validate-review`, …) only while a step is open: the manager's
+    `currentStep` is unset between a `step.finished` and the next
+    `step.started`. `session_panel` gives every step's state, but not the
+    position or the name the panel shows ("step 3 / 9", "Validate and
+    review"), which come from UI code (`stepPosition` and `t.stepLabel` in
+    `src/ui/`). The system prompt does not say to quote the step, so the
+    model infers it, at times from which agent runs or from the order, and
+    between steps it has nothing to go on.
+  - *Options.* (1) One `stepText` in both tools, built by the same code as
+    the panel: the step reached (the open one, else the last one that is not
+    waiting, as `stepPosition` does), "Step n of 9: name" in the chat's
+    language, and what the creation waits for. `stepPosition` and the step
+    labels move to code both sides import (`src/panel/`, `src/i18n/`), and
+    the system prompt says to tell what a creation is doing by quoting
+    `stepText`, never by inferring it. (2) Only the prompt line, with the
+    ids as they are: cheaper, but the wording and the gaps between steps
+    stay with the model. Recommended: (1).
+  - *Risk.* Low. The panel's own text must not change (the moved function
+    is the same one); the prompt change shifts how the model answers, so it
+    needs a real check.
+  - *Tests.* `stepText` equals what the panel shows for an open step,
+    between steps, waiting for an answer, finished and interrupted, in
+    English and Spanish; `list_sessions` and `session_panel` carry it; the
+    system prompt names it; a real check for the user that asks the chat
+    mid-creation and compares the answer with the panel.
 - Creations see the repo's `CLAUDE.md`. From
   [PLAN-phase-4.md](history/PLAN-phase-4.md), carried in
   [PLAN-phase-5.md](history/PLAN-phase-5.md).
+
+  **Proposal** (backlog 1, B8; not built):
+  - *Cause.* Creation sessions run with the repo as working folder and
+    `settingSources: ['project']` (`buildQueryOptions` in
+    `src/creation/sdkRunner.ts`); that is how they get the flow's skill,
+    agents and hooks. The same source loads the repo's `CLAUDE.md` as
+    project memory, in the main session and in every subagent. That file
+    is for contributors ("plan first and wait for approval", "when the
+    brief is ambiguous, ask", commit and CI rules), and some of it pulls
+    against the flow, which must ask only through its tools. `CLAUDE.local.md`
+    is not loaded (`local` is not a source). Whether `CLAUDE.md` files in
+    folders above the repo load too is to be checked.
+  - *Options.* (1) The `claudeMdExcludes` setting (in the SDK 0.3.286
+    types: "glob patterns or absolute paths of CLAUDE.md files to exclude",
+    for user, project and local memory) with the repo's `CLAUDE.md`, in the
+    flag settings the runner already passes to each creation. Skills,
+    agents and hooks still load. To verify in the docs first: that flag
+    settings honour it and that subagents follow it. (2) `omitClaudeMd` on
+    agent definitions: subagents only ("no effect on the main session
+    agent"), and the flow's agents are files, not SDK definitions; at most
+    a complement to (1). (3) Move the contributor rules from the root
+    `CLAUDE.md` to `CONTRIBUTING.md`: no code, but contributors' own Claude
+    Code sessions lose them, and whatever stays in the root file still
+    reaches creations. (4) Run creations from a folder of their own with a
+    copy of `.claude/`: the guard's paths, the `npm run briefstack` command
+    and the hooks all assume the repo as working folder; too large for the
+    gain. Recommended: (1).
+  - *Risk.* Low for the flow, which never needed those rules. The setting
+    sits in the same flag settings as the command-hook guard, so the change
+    must leave the guard's settings exactly as they are. If Claude Code
+    ignores the setting, nothing breaks: the file is still loaded, as now.
+  - *Tests.* `buildQueryOptions` carries the exclusion with the repo's
+    `CLAUDE.md` path, written by code from the repo folder, and the guard's
+    settings unchanged (unit); the guard and creation security tests as
+    they are; a real check for the user (`scripts/real/`) that asks a
+    creation's main session and one subagent whether a marker line of the
+    repo's `CLAUDE.md` is in their instructions.
 - Folder claims live in the server's memory, so a creation started from the
   terminal (`/new-project` in Claude Code) is not seen by them (the apply
   gate of improvements does see it). From [PLAN-phase-4.md](history/PLAN-phase-4.md),
   carried in [PLAN-phase-5.md](history/PLAN-phase-5.md).
+
+  **Proposal** (backlog 1, B9; not built):
+  - *Cause.* `FolderClaims` is a map in the server's `CreationManager`,
+    filled by the server's own `PreToolUse` hook (`folderClaims.ts`) when
+    the flow runs `paths check`, `grant_directory` or `scaffold`. A creation
+    started from Claude Code has none of the server's hooks (only the repo's
+    command hooks, which append events), so it never claims a folder: the
+    server cannot refuse it one, nor refuse its own creations the folder the
+    terminal one writes. Its `events.jsonl` does not name the output folder
+    either (targets are relative to their roots), so the server cannot
+    rebuild the claim from disk the way the apply gate finds in-progress
+    sessions.
+  - *Options.* (1) Claims on disk, written by the CLI: `paths check` and
+    `scaffold`, which both flows run, take `--session SESSION` (the flow
+    already passes it to `event`) and record `{ session, dir, at }` in
+    `<home>/claims/<session>.json`; the server writes its creations' claims
+    there too. A claim counts while its session is in progress (the apply
+    gate's rule: started, not ended, last event within 2 hours). The
+    server's claims hook and the CLI both refuse a folder that overlaps
+    another live claim. (2) Read only: a new event records the folder of
+    `paths check`, and the server treats the folders of in-progress terminal
+    sessions as claimed; the terminal flow is still refused nothing.
+    (3) Leave it, and say in the README that a terminal creation and the web
+    app must not target the same folder. Recommended: (2) as a first step,
+    then (1).
+  - *Risk.* A claim left by a session that died blocks its folder until it
+    goes stale (2 hours); the refusal must name the session. The claims
+    hook is part of the security model: changing what it refuses needs the
+    security suite. Several processes write claims, so each session has its
+    own file, written aside and renamed. Absolute paths stay in the
+    briefstack home, never in events or in the repo.
+  - *Tests.* The claims file: overlap, case on Windows and macOS, stale and
+    ended sessions, a damaged file (unit); `paths check` and `scaffold`
+    refusing a held folder and allowing it once stale or ended (CLI); a web
+    creation refused the folder of a terminal session on disk (server, with
+    the fake runner); the folder-claims tests as they are; an e2e with a
+    fake terminal session; a real check for the user with one terminal and
+    one web creation.
 - The library lock on writes that take more than 2 minutes. From
   [PLAN-phase-4.md](history/PLAN-phase-4.md), carried in
   [PLAN-phase-5.md](history/PLAN-phase-5.md).
