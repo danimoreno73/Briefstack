@@ -172,3 +172,14 @@ their limits recorded. Checklist of GitHub settings for after going public.
 Gates green on Linux and Windows in CI, fresh clone passes, scan clean or
 decided, README approved. The user makes the repository public; tag
 `v1.0.0` after that.
+
+## 2. Backlog
+
+Not part of this pass; recorded so it is not lost.
+
+- `tests/unit/improve-manager.test.ts`, "waits while a creation runs and
+  applies once none does": it sleeps a fixed 80 ms and then checks that no
+  commit was made while a creation blocks the apply. It cannot fail wrongly,
+  but it proves little: a late commit would pass too. Replace the sleep
+  with a wait on a gate tick that found the blocker (for example, count the
+  `blockers` calls) before checking `HEAD`.
