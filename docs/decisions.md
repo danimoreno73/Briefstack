@@ -4337,3 +4337,240 @@ projects folder was allowed). The folder claims no longer look at it,
 which the guard's denial makes moot. The guard tests now pin both: denied
 on `.git` paths and inside an allowed folder. The security suite (guard,
 command-hook guard, server security, folder claims) passes as it was.
+
+# Phase 7
+
+## Phase 7: H0 (2026-10-26, Claude Code 2.1.310, SDK 0.3.286, git 2.55, Windows 11)
+
+[BRIEF-phase-7.md](BRIEF-phase-7.md) §6, before any design. No real SDK
+session was run (the user's rule for this pass); the git points were
+verified with plain git on this machine (`<home>`-free scratch folder,
+three probe scripts). Docs read on 2026-10-26. Sources:
+
+- [M] memory: <https://code.claude.com/docs/en/memory>
+- [F] SDK, Claude Code features: <https://code.claude.com/docs/en/agent-sdk/claude-code-features>
+- [P] permissions: <https://code.claude.com/docs/en/permissions>
+- [SP] SDK permissions: <https://code.claude.com/docs/en/agent-sdk/permissions>
+- [H] hooks: <https://code.claude.com/docs/en/hooks>
+- [SH] SDK hooks: <https://code.claude.com/docs/en/agent-sdk/hooks>
+- [R] settings reference: <https://code.claude.com/docs/en/settings-reference>
+- [MS] managed settings: <https://code.claude.com/docs/en/managed-settings>
+- [G] Claude apps gateway, "Restrict parent settings": <https://code.claude.com/docs/en/claude-apps-gateway>
+- [T] tools reference: <https://code.claude.com/docs/en/tools-reference>
+- [SA] subagents: <https://code.claude.com/docs/en/sub-agents>
+
+Carried from backlog 2: `claudeMdExcludes` in the flag settings holds for
+the main session and file-based subagents (B8, real check); `CLAUDE.md`
+files in every folder above the working folder load [F]; a subagent gets
+only tools the session has, and `Glob` and `Grep` are absent by default on
+macOS and Linux unless the session names them [T][SA]; in `auto` mode a
+subagent's report comes back through `SubagentHandback`.
+
+### 1. The project's `CLAUDE.md`, agents and skills without its hooks
+
+**What `settingSources: ['project']` brings from a folder never trusted, in
+an SDK session** [P, "What runs before you trust a folder", the `claude -p`
+or SDK column]: hooks in settings files, the settings `env` block and
+helper commands such as `apiKeyHelper` — **used**; a project skill's hooks
+and `allowed-tools` — **used**; `permissions.allow` and
+`additionalDirectories` in `.claude/settings.json` — not used (a stderr
+warning); frontmatter hooks of a project subagent — not used; `.mcp.json`
+servers — connected without asking when project settings load, but
+`strictMcpConfig` (which creations already set) ignores every MCP config
+but the options'. Project `settings.json` and hooks load only from
+`<cwd>/.claude/` [F]; `CLAUDE.md` and rules from `<cwd>` and every folder
+above it; skills, commands and agents from `<cwd>` up to the repository
+root [F]. `CLAUDE.md` loading depends on the setting sources, not on the
+system prompt (<https://code.claude.com/docs/en/agent-sdk/modifying-system-prompts>,
+"CLAUDE.md files for project-level instructions").
+
+So loading the project as a creation loads the repo is not enough: the
+project's settings would also bring its `env` (which can, for example,
+point Claude Code at another API endpoint), its helper commands and its
+hooks.
+
+**The ways to turn hooks off, and what they also turn off:**
+
+- `disableAllHooks: true` in the flag settings (the SDK `settings` option,
+  where the command-hook guard lives): "disables user, project, local, and
+  plugin hooks; managed hooks, Agent SDK hooks, and hooks from plugins
+  force-enabled in managed `enabledPlugins` keep running" [R,
+  `disableAllHooks`]; `--settings '{"disableAllHooks": true}'` "takes
+  precedence over project and local settings" [H, "Disable or remove
+  hooks"]. **Not documented:** whether a hook defined in that same flag
+  layer (the command-hook guard) still runs, and whether a project skill's
+  frontmatter hook is among those it stops.
+- `disableAllHooks: true` in the SDK's `managedSettings` (parent settings):
+  stops user, project and local hooks, agent frontmatter hooks "**and any
+  in the SDK's `settings` option**" — the command-hook guard included; SDK
+  callbacks keep running [R][G]. Needs Claude Code 2.1.309 and the
+  TypeScript SDK 0.3.309 (installed: 0.3.286). `hooks` passed in
+  `managedSettings` are ignored [G]. On a machine with admin-deployed
+  managed settings, parent settings are ignored unless the admin opts in
+  [MS, "Let an embedding host add policy"]. **Ruled out**: it removes the
+  independent guard the brief requires (phase 4: the callback guard alone
+  does not hold when the server is gone).
+- `allowManagedHooksOnly`: managed settings only; with it "everything else
+  is blocked", hooks of the SDK `settings` option among them [R]. Ruled
+  out for the same reason.
+
+**What is reliable by documented rule, and verified for its git part:**
+the task's worktree does not contain `.claude/settings.json`. After `git
+worktree add`, the server sets `--skip-worktree` on that path in the
+worktree's own index and deletes the file from the worktree only.
+Verified (probe 1): the worktree's status is empty, `git add -A` does not
+stage the deletion, the task's commit does not contain it, and the project
+folder keeps the file and a clean status. With no settings file, project
+settings bring no hooks, `env`, helpers or rules; `CLAUDE.md`, rules,
+agents and skills still load from the worktree [F]. What remains:
+
+- project skills (and commands) with `hooks` in their frontmatter: used in
+  SDK sessions [P]. Refused at the start of a task, and the task guard
+  refuses a write that adds `hooks` to a skill, command or agent file;
+- agent frontmatter hooks: not used in an untrusted folder [P]; refused
+  the same way, so trust given later cannot turn them on;
+- the project's `deny` and `ask` rules, lost with the file: the server
+  reads them and passes them in the flag settings (they only restrict).
+
+**Conclusion:** there is a way that holds by documented rules and keeps
+the command-hook guard (it is in the flag settings, untouched): hide the
+settings file in the worktree, refuse hooks in skills, commands and
+agents, and keep `strictMcpConfig`. Whether `disableAllHooks` in the flag
+settings can be added on top without stopping the command-hook guard is
+not documented; the plan's M0 asks the user to run a probe for it. Nothing
+in the design depends on that answer.
+
+### 2. The project's permission settings and briefstack's handler
+
+- Order of evaluation in an SDK session: hooks, then deny rules, ask rules,
+  the permission mode, allow rules (with the calls a tool approves by
+  itself: reads inside the working folders, **read-only Bash commands**),
+  then `canUseTool` [SP]. "Auto-approved tools never reach `canUseTool`"
+  [SP]. A hook's `allow` does not skip deny and ask rules [SP]; a hook's
+  `deny` stops the call [SH]; a hook's `ask` "forces a permission prompt in
+  auto mode" [H].
+- `permissions.allow` and `additionalDirectories` of a project's
+  `.claude/settings.json` are not used in an SDK session of an untrusted
+  folder [P]; `permissions.defaultMode` `auto` and `bypassPermissions` do
+  not take effect from project or local settings [R]; briefstack passes
+  the mode explicitly. `allowManagedPermissionRulesOnly` would drop every
+  non-managed allow rule but is a managed key [R].
+- With the settings file hidden (point 1), none of these is read at all.
+- **Conclusion:** the task's shell decisions belong in its `PreToolUse`
+  hook, not in `canUseTool`. The hook runs first for every call, so
+  neither an allow rule (from any source), nor `auto` mode's classifier,
+  nor the read-only commands Claude Code approves by itself can skip the
+  dialog. The hook waits for the user's answer, as a pending request does;
+  SDK callbacks take a `timeout` per matcher (default: the `command`
+  hook's 600 seconds) [SH], so the task sets one, like the chat's cards.
+  Paths outside the worktree are refused by the guard whatever the
+  working folders say.
+
+### 3. Projects generated by briefstack: git, branch, test commands
+
+From the code: `scaffold` runs `git init --quiet` (no `-b`), and the flow's
+hand-off runs `briefstack commit`, one commit "Prepare the project with
+briefstack" with the project's git hooks and `core.fsmonitor` off. Either
+can fail (git missing, signing refused) with a warning, so a generated
+project is usually a git repository with one commit, not always. The
+default branch is git's `init` default: `master` on this machine (no
+`init.defaultBranch` set), whatever the user's git configures elsewhere.
+No test command is recorded anywhere in a structured way: the software
+template's `CLAUDE.md` says "None yet. Add the build, test and lint
+commands here", in prose. The generated `.claude/settings.json` holds only
+`permissions.deny` rules for secret files.
+
+- **(choice)** The task's base branch is the one checked out in the
+  project folder when it starts; a detached `HEAD` is refused. Declared
+  checks are new data in the project's library note (BRIEF §3.4).
+
+### 4. Git: worktree, apply, revert, long paths, dependencies
+
+Verified with git 2.55 on Windows (probes 1 to 3, in a scratch folder):
+
+- A worktree outside the project folder (`git worktree add -b
+  briefstack/task-<id> <home>/tasks/<id>/… <base>`) works; its `.git` is a
+  file pointing at the project's `.git/worktrees/<name>`; `worktree remove
+  --force`, `branch -D` and `worktree prune` leave nothing behind.
+- **A project's `.git/hooks` run from a worktree** for a plain `git
+  commit` (probe 2: the project's `pre-commit` ran). With
+  `core.hooksPath=<empty folder>` (what `briefstack commit` already
+  passes) none ran, through worktree add, commits, apply and revert. So
+  every server-side git command passes it, with `core.fsmonitor=false`.
+  Commands the user approves in the task (`git commit`) run the project's
+  hooks; the dialog says so.
+- **Long paths on Windows:** without `core.longpaths=true`, `git add -A`
+  skipped a 347-character path with only a warning and **exit code 0**;
+  with it, the file was committed and the worktree removed. Every
+  server-side git command passes `core.longpaths=true`, or a task's change
+  could be silently left out.
+- **Apply as one commit** without touching the user's folder until the
+  end (probe 3): `git merge-tree --write-tree --merge-base <task base>
+  <branch head> <task commit>` computes the result tree, or fails on a
+  conflict; `git commit-tree -p <branch head>` makes one commit with one
+  parent and the task's message; `git merge --ff-only <commit>` in the
+  user's clean folder moves the branch and the files together. Verified: a
+  branch that moved with an unrelated commit still applies; a conflict is
+  refused with the branch and the folder unchanged; revert is the same
+  with `--merge-base <applied> … <applied>^`. `merge-tree --write-tree`
+  needs git 2.38 or later: checked before a task starts. The dirty-folder
+  check is the server's own (`status --porcelain`), before anything.
+  (Self-improvement applies with a temporary index for its own reasons:
+  it keeps uncommitted `usage set` changes in the repo; a task requires a
+  clean folder instead, so the simpler path above is enough.)
+- **Dependencies:** a worktree has none of the ignored files
+  (`node_modules`, `.env`). Self-improvement links the repo's
+  `node_modules` into its worktree; for a task that would let the
+  session's commands change the user's folder through the link.
+  **(choice)** No link: a project that needs its dependencies declares an
+  install command among its checks (run by the server, in the worktree),
+  and the session may ask to run one.
+- **(choice)** The worktree is `<home>/tasks/<id>/work/`, not
+  `<home>/tasks/<id>/` itself, so the task's own record next to it is
+  never inside the folder the session works in, nor in its diff. The
+  folders above it (`<home>/tasks`, `<home>`, the user's home…) may hold a
+  `CLAUDE.md` [F]; they are excluded with `claudeMdExcludes` (B8).
+- Not verified here: macOS and Linux (the CI of M2 covers the lifecycle on
+  the three systems), and paths with non-ASCII names.
+
+### 5. Shell commands and the permission handler
+
+- The `Bash` and `PowerShell` tool inputs carry the whole command string
+  (`command`), compound or not; a `PreToolUse` hook gets it as
+  `tool_input.command` [SH].
+- Claude Code's own rules split compound commands: separators `&&`, `||`,
+  `;`, `|`, `|&`, `&` and newlines; "a rule must match each subcommand",
+  deny and ask rules apply to any subcommand, including subshells and
+  command substitution; "don't ask again" on a compound command saves one
+  rule per subcommand; PowerShell is parsed from its AST [P, "Compound
+  commands"]. A rule "isn't a security boundary around the program": the
+  same program in another form is not matched [P].
+- **Conclusion:** "this exact command for this task" is matched on the
+  tool name and the whole command string, byte for byte: no splitting, no
+  prefix, no normalising, so an approved `npm test` never approves
+  `npm test && curl …`, and a compound command is approved only as the
+  whole string the user saw. The dialog shows that whole string, and
+  notes separators, substitutions and backticks it contains (parsed for
+  display only). A command whose text holds something that looks like a
+  secret is shown redacted, and the dialog says that parts are hidden; the
+  approval still applies to the original string. Remembered in memory for
+  the task only (BRIEF §3.2).
+- Not documented, and not needed with the hook-based dialog: whether a
+  hook's `ask` overrides a matching allow rule.
+
+### 6. External `@` imports in a project's `CLAUDE.md`
+
+Found on the way. "An import in a project-level memory file is external
+when its path resolves outside your working directory … The first time
+Claude Code encounters external imports in a project, it shows an
+approval dialog" [M]. An SDK session has no dialog, and the docs do not
+say whether such imports load there. A task's `CLAUDE.md` could import a
+file of the user's home. **Open**, for M0's probe; until then the plan
+refuses a task whose `CLAUDE.md` or rules import a path outside the
+worktree.
+
+### Decision needed from the user
+
+None blocks the plan: point 1 has a documented way. The user's approval
+is asked for the plan as a whole, including the choices marked above and
+the probe M0, which only adds `disableAllHooks` if it keeps the guard.

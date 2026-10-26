@@ -5,15 +5,19 @@ each one.
 
 ## Current state
 
-`v1.0.0` is published: the repository is public and the release is tagged.
-No phase is in progress. The next work comes from `docs/IDEAS.md`, the
-living backlog; nothing there is started without its own plan and the
-user's approval. The briefs and plans of phases 1–6, the UI pass and the
-release are in `docs/history/` (tags `phase-1-done` … `phase-6-done`,
-`ui-done`, `v1.0.0`); open them only when needed. Contributors' rules are
-also in `CONTRIBUTING.md`.
-Backlog 1 is done (tag `backlog-1-done`); details in `docs/PLAN-backlog-1.md`.
-Backlog 2 is done (tag `backlog-2-done`); details in `docs/PLAN-backlog-2.md`.
+Phase 7 is in progress (tag `phase-7-start`): tasks in existing projects.
+Scope and requirements: @docs/BRIEF-phase-7.md — read it before planning.
+The plan, with its Status, is `docs/PLAN-phase-7.md`; H0 is in
+`docs/decisions.md`, "Phase 7". No code of the phase is written before the
+user approves H0 and the plan.
+
+`v1.0.0` is published. The living backlog is `docs/IDEAS.md`. The briefs
+and plans of phases 1–6, the UI pass and the release are in
+`docs/history/` (tags `phase-1-done` … `phase-6-done`, `ui-done`,
+`v1.0.0`); open them only when needed. Backlogs 1 and 2 are done (tags
+`backlog-1-done`, `backlog-2-done`; `docs/PLAN-backlog-1.md`,
+`docs/PLAN-backlog-2.md`). Contributors' rules are also in
+`CONTRIBUTING.md`.
 
 ## Commands
 
