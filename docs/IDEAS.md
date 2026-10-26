@@ -263,6 +263,16 @@ are not repeated.
   while a creation runs and applies once none does", sleeps a fixed 80 ms
   to check that nothing was committed; wait for a gate tick that found the
   blocker instead. From [PLAN-release.md](history/PLAN-release.md).
+- An intermittent end-to-end failure on Windows CI: "Test timeout of
+  30000ms exceeded while setting up "app"" in two tests of
+  `tests/e2e/ui.spec.ts`, "usage › offers the user presets as cards of
+  their own" (failed, retry included) and "usage › shows the last known
+  plan usage …" (flaky), on the run of `db9b812` (2026-10-26, run
+  40391171879), a commit that changed only documentation. The next run,
+  with the same code, was green. The `app` fixture (the server and the
+  page) took longer than the test's 30 seconds on that runner. To look
+  at: what the fixture waits for, and whether its setup needs its own
+  timeout. From [PLAN-backlog-2.md](PLAN-backlog-2.md).
 
 ## 5. Codex
 
@@ -281,3 +291,33 @@ both build the project. Codex's writes are outside the guard, so Codex runs
 in its own sandbox limited to the task's worktree, and the diff, the
 declared checks and the user's approval are the control. Auth with the
 user's own Codex login; usage goes to the user's OpenAI quota.
+
+## 6. Unattended runs that reach the user
+
+Goal (user): define a project fully up front, leave Claude working
+locally or in the cloud until the plan's usage runs out, resume on its own
+after the reset, and contact the user by WhatsApp (message or call) only
+when a decision is needed, so the user does not have to watch a screen.
+
+- Up-front definition: the creation spec and phase 7 tasks; a run is a
+  queue of tasks with their checks, decided before it starts.
+- Running unattended: a run goes task after task; a task's diff is
+  applied by rules the user set beforehand (for example checks green and
+  no new shell commands) or waits for the user.
+- Usage: before each step, read plan usage; at a threshold, pause and
+  resume after the reset time the reading gives.
+- Reaching the user: a separate project, a personal message gateway
+  (notify, ask with options, receive the answer), reusable by other
+  tools. Not part of briefstack: it needs an outside account, credentials
+  and inbound messages, which briefstack never handles. briefstack talks
+  to it through one small interface.
+- Channel: WhatsApp Business Platform (business number, templates only
+  outside the 24-hour window, charged per message, a Calling API).
+  Unofficial personal-WhatsApp automation is out (against its terms). A
+  Telegram bot is a simpler first channel: free, and long polling needs
+  no public address.
+- Safety: messages carry the question and its options, never secrets or
+  code; only answers from the user's own number or chat count; approving
+  a new shell command from the phone is off unless the user turns it on;
+  an unanswered request times out to the safe choice.
+- Order: after phase 7 and Codex.
