@@ -117,7 +117,7 @@ export interface FolderClaimContext {
   pathEnv?: PathEnv;
 }
 
-const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit', 'MultiEdit']);
+const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 /** Options of the claiming commands that take a value. */
 const VALUE_OPTIONS = new Set(['--session']);

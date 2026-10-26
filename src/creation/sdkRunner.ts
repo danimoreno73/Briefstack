@@ -198,7 +198,7 @@ export function webReminderHook(isOwnSession: (id: string) => boolean): HookCall
   };
 }
 
-const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit', 'MultiEdit']);
+const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
 const MAX_SUMMARY = 500;
 
 /** What a permission dialog shows for a tool call: the command, path, url or query, with secrets hidden. */

@@ -37,7 +37,7 @@ import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './toolNames.js';
  * Everything else is left to the permission mode and `canUseTool`.
  */
 
-const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit', 'MultiEdit']);
+const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
 const READ_TOOLS = new Set(['Read', 'Glob', 'Grep']);
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 const WEB_TOOLS = new Set(['WebSearch', 'WebFetch']);

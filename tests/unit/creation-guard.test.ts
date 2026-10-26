@@ -389,13 +389,17 @@ describe('evaluateToolUse', () => {
         path.join(app, 'sub', '.git'),
         `${slashes(app)}/.git/hooks/pre-commit`,
       ]) {
-        for (const tool of ['Write', 'Edit', 'MultiEdit']) expect(await verdictOf(tool, { file_path: target }), `${tool} ${target}`).toBe('deny');
+        for (const tool of ['Write', 'Edit']) expect(await verdictOf(tool, { file_path: target }), `${tool} ${target}`).toBe('deny');
+        // No longer a Claude Code tool, and not in the flow's list: denied whatever its target.
+        expect(await verdictOf('MultiEdit', { file_path: target }), `MultiEdit ${target}`).toBe('deny');
         expect(await verdictOf('NotebookEdit', { notebook_path: target }), target).toBe('deny');
       }
       granted.push(outside);
       expect(await verdictOf('Write', { file_path: path.join(outside, '.git', 'config') })).toBe('deny');
       // Names that only look alike are fine.
       expect(await verdictOf('Write', { file_path: path.join(app, '.gitignore') })).toBe('allow');
+      // Even inside an allowed folder: MultiEdit is no write tool of the flow any more.
+      expect(await verdictOf('MultiEdit', { file_path: path.join(app, '.gitignore') })).toBe('deny');
       expect(await verdictOf('Write', { file_path: path.join(app, '.github', 'workflows', 'ci.yml') })).toBe('allow');
       expect(await verdictOf('Write', { file_path: path.join(app, 'docs', 'git.md') })).toBe('allow');
     });

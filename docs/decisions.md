@@ -4320,3 +4320,20 @@ What was built:
   by the user are theirs.
 - **(choice)** A tool Claude Code adds after 2026-10-26 is refused until it
   is added to the list; the list's header says where to check it.
+
+## Backlog 2: `MultiEdit` out of the write-tool sets (2026-10-26)
+
+Proposal 4 of the same section, built at the user's request. `MultiEdit`
+is no longer a Claude Code tool (previous section), and it was named in
+three sets of write tools: the guard's (`guard.ts`), the folder claims'
+(`folderClaims.ts`) and the runner's (`sdkRunner.ts`, which only names a
+write's target for the panel). It is gone from all three.
+
+What changes for a call named `MultiEdit`, should one ever come: the
+guard no longer checks it as a write; it falls to the guard's last rule,
+"a tool outside `FLOW_TOOLS` is denied", so it is denied whatever its
+target, inside an allowed folder too (before, a `MultiEdit` inside the
+projects folder was allowed). The folder claims no longer look at it,
+which the guard's denial makes moot. The guard tests now pin both: denied
+on `.git` paths and inside an allowed folder. The security suite (guard,
+command-hook guard, server security, folder claims) passes as it was.
