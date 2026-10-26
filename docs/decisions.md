@@ -4250,3 +4250,22 @@ against the tools reference's list of tools):
    Bash are only used on Windows.
 4. `MultiEdit` in the three write-tool sets: leave it (harmless), or drop
    it in a clean-up with the security tests run.
+
+## Backlog 2: B8 closed (2026-10-26)
+
+The user's third run of `scripts/real/check-claude-md.ts` (Windows 11,
+Claude Code 2.1.310, SDK 0.3.286), both modes, passed: with
+`claudeMdExcludes` neither the main session nor the `probe` subagent saw
+the repo's `CLAUDE.md` word, and both saw the control memory
+(`.claude/rules/control.md`); the control run (`--no-exclude`) saw the
+repo's word. So the exclusion in the flag settings holds for the main
+session and for file-based subagents, which the docs only implied
+(section "`claudeMdExcludes` for creations" above, point 3).
+
+Note on how the subagent's report arrived: it reached the main session
+through `SubagentHandback` (in `auto` mode the subagent hands its report
+back with that tool, and the Agent result only says it was delivered;
+decisions.md, H10). The script takes the subagent's words from its own
+streamed messages when there are any, else from the Agent result and the
+main session's `PROBE:` line, so the report that came through
+`SubagentHandback` and the main session is what counted.

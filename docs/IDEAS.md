@@ -141,7 +141,8 @@ are not repeated.
 - **Done in backlog 2** (B8 in [PLAN-backlog-2.md](PLAN-backlog-2.md),
   option (1); what the docs say is in decisions.md, "Backlog 2:
   `claudeMdExcludes` for creations"; its real check,
-  `scripts/real/check-claude-md.ts`, is for the user to run). Creations see the repo's `CLAUDE.md`. From
+  `scripts/real/check-claude-md.ts`, passed for the main session and a
+  subagent on 2026-10-26: closed). Creations see the repo's `CLAUDE.md`. From
   [PLAN-phase-4.md](history/PLAN-phase-4.md), carried in
   [PLAN-phase-5.md](history/PLAN-phase-5.md).
 
