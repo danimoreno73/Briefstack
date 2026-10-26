@@ -36,7 +36,7 @@ the templates.
 |---|---|---|
 | — | Plan, tag `backlog-2-start` | done, `5fc8d7b` |
 | B10 | The chat quotes the creation's step: `stepText` in `list_sessions` and `session_panel`, and the line in the chat's prompt | done, `abb1b04`: `stepText` in `src/panel/steps.ts`, names in `src/i18n/steps.ts`; real check `check-chat-step.ts` written, not run |
-| B8 | Creations do not load the repo's `CLAUDE.md`: `claudeMdExcludes` in the creation's flag settings | done, `106977c`: the docs support it for flag settings and the main session, and for subagents by inference (decisions.md); parent folders' `CLAUDE.md` do load (left as they are, in IDEAS.md); real check `check-claude-md.ts` written, not run |
+| B8 | Creations do not load the repo's `CLAUDE.md`: `claudeMdExcludes` in the creation's flag settings | done, `106977c`: the docs support it for flag settings and the main session, and for subagents by inference (decisions.md); parent folders' `CLAUDE.md` do load (left as they are, in IDEAS.md); real check `check-claude-md.ts` run by the user: the main session passes (the excluded word is gone, the control run sees it, the folder above loads); the subagent was refused by the script's tool list, fixed, to run again (decisions.md) |
 | B9 | The web app treats the folders of terminal creations in progress as taken; README note | done, `0670789`: `paths check --session` records `folder.json` in the session folder; the server's claims count the folders of sessions in progress it does not run; option (1) stays in IDEAS.md |
 | C | IDEAS.md: Codex goal (c); section 2 marked "brief in phase 7" | done, `1779649`: the user's text as given, in section 5 |
 | — | Status updated, tag `backlog-2-done` | done |

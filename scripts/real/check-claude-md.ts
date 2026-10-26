@@ -12,9 +12,12 @@
 //     too (reported, not excluded).
 // A file-based agent, `probe` (<repo>/.claude/agents/probe.md, as the flow's
 // agents are), reports the markers in its context; the main session reports
-// its own. Neither can read files: the words can only come from the memory
-// Claude Code loaded. Everything the main session and the subagent wrote is
-// printed and searched, not only the final reply.
+// its own. Neither can read files (the session has only Agent and Glob, which
+// lists names; a subagent gets only tools the session has): the words can
+// only come from the memory Claude Code loaded. Everything the main session
+// and the subagent wrote is printed and searched, not only the final reply.
+// The probe counts as run only when its SubagentStart and SubagentStop hooks
+// fired and the Agent call returned a result, not an error such as a refusal.
 //
 // Expected, normal run:
 //   1. main and subagent see the control word (memory loads, the model reports it);
@@ -27,7 +30,7 @@
 // A few short haiku turns.
 // Run:  npx tsx scripts/real/check-claude-md.ts --yes [--no-exclude]
 
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { query, type HookCallback } from '@anthropic-ai/claude-agent-sdk';
 import { randomInt } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -43,6 +46,8 @@ requireConfirmation(
 const word = (stem: string) => `${stem}${randomInt(1000, 10000)}`;
 /** Marker-like words ("otter1234") anywhere in a text. */
 const markers = (text: string): string[] => [...new Set([...text.matchAll(/\b[a-z]+\d{4}\b/g)].map((match) => match[0]))];
+/** An Agent result that is Claude Code refusing to start the subagent, not the subagent's report. */
+const REFUSED = /would be spawned with zero tools|refusing/i;
 /** The text blocks of an assistant message. */
 const textOf = (content: unknown): string =>
   Array.isArray(content) ? content.map((block: { type?: string; text?: string }) => (block.type === 'text' ? (block.text ?? '') : '')).join('\n') : '';
@@ -92,6 +97,13 @@ try {
 
   const tracked = spawnTracked();
   const calls: string[] = [];
+  /** `start:probe` and `stop:probe` from the SubagentStart and SubagentStop hooks: the probe really ran. */
+  const lifecycle: string[] = [];
+  const recordAgent: HookCallback = async (input) => {
+    if (input.hook_event_name === 'SubagentStart') lifecycle.push(`start:${input.agent_type}`);
+    if (input.hook_event_name === 'SubagentStop') lifecycle.push(`stop:${input.agent_type}`);
+    return {};
+  };
   const options = buildQueryOptions({
     repoDir: box.project,
     executable,
@@ -109,6 +121,8 @@ try {
           ],
         },
       ],
+      SubagentStart: [{ hooks: [recordAgent] }],
+      SubagentStop: [{ hooks: [recordAgent] }],
     },
     canUseTool: async () => ({ behavior: 'deny', message: 'Not allowed in this check.' }),
     mcpServers: {},
@@ -118,8 +132,10 @@ try {
   // The control run: the same flag settings without the exclusion.
   if (noExclude) options.settings = {};
   console.log(`Flag settings: ${JSON.stringify(options.settings)}`);
-  // No file reads: the markers must come from the memory Claude Code loaded, not from the files.
-  options.tools = ['Agent'];
+  // No file reads: the markers must come from the memory Claude Code loaded, not from the files. A
+  // subagent only gets tools the main session has, so the probe's one tool, Glob (file names, never
+  // their text), is in the list too; with `Agent` alone the probe was refused ("zero tools").
+  options.tools = ['Agent', 'Glob'];
   options.maxTurns = 6;
 
   const prompt = [
@@ -133,6 +149,8 @@ try {
   const mainTexts: string[] = [];
   const agentTexts: string[] = [];
   const agentResults: string[] = [];
+  /** Agent calls that came back as an error, such as a refusal to start the probe. */
+  const agentErrors: string[] = [];
   const agentUseIds = new Set<string>();
   let finalText = '';
   const q = check.query(query({ prompt: oneShot(prompt), options }), tracked);
@@ -150,7 +168,9 @@ try {
     if (message.type === 'user' && message.parent_tool_use_id === null && Array.isArray(message.message.content)) {
       for (const block of message.message.content) {
         if (typeof block === 'object' && block.type === 'tool_result' && agentUseIds.has(block.tool_use_id)) {
-          agentResults.push(typeof block.content === 'string' ? block.content : JSON.stringify(block.content));
+          const text = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
+          if (block.is_error === true || REFUSED.test(text)) agentErrors.push(text);
+          else agentResults.push(text);
         }
       }
     }
@@ -164,6 +184,8 @@ try {
 
   console.log(`\nWords: repo CLAUDE.md ${excluded}, control (rules) ${control}, folder above ${above}`);
   console.log('Tool calls:', calls);
+  console.log('Subagent hooks:', lifecycle);
+  console.log(`Agent errors:\n${agentErrors.join('\n---\n') || '(none)'}`);
   console.log(`Main session wrote:\n${mainTexts.join('\n---\n') || '(nothing)'}`);
   console.log(`Subagent wrote:\n${agentTexts.join('\n---\n') || '(nothing streamed)'}`);
   console.log(`Agent results:\n${agentResults.join('\n---\n') || '(none)'}`);
@@ -178,7 +200,14 @@ try {
   const probe = agentTexts.length > 0 ? markers(agentTexts.join('\n')) : markers([...agentResults, probeLine.join(' ')].join('\n'));
   const planted = new Set([excluded, control, above]);
   const list = (words: string[]) => words.join(', ') || 'none';
-  ok = report('the probe agent ran', calls.includes('main:Agent'), calls.join(', ') || 'no tool calls') && ok;
+  // A call to Agent is not enough: Claude Code may refuse to start the probe and answer with an error.
+  const probeRan = lifecycle.includes('start:probe') && lifecycle.includes('stop:probe') && agentErrors.length === 0 && agentResults.length > 0;
+  ok =
+    report(
+      'the probe agent ran and returned a result',
+      probeRan,
+      `hooks ${lifecycle.join(', ') || 'none'}; ${agentResults.length} result(s); ${agentErrors.length} error(s)${agentErrors[0] === undefined ? '' : `: ${agentErrors[0].slice(0, 160)}`}`,
+    ) && ok;
   ok = report('main: the control word is there (memory loads and is reported)', mainOwn.includes(control), list(mainOwn)) && ok;
   ok = report('subagent: the control word is there', probe.includes(control), list(probe)) && ok;
   if (noExclude) {

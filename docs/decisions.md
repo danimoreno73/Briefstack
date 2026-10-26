@@ -4155,3 +4155,98 @@ without `claudeMdExcludes`: there both must see the repo's `CLAUDE.md`
 word. If that control run still sees no word at all, the cause is not the
 exclusion and the runner's options are next to examine; if it sees them
 and the normal run does not see the excluded one, B8 holds.
+
+## Backlog 2: `check-claude-md`, second run, and Glob in subagents (2026-10-26)
+
+The user's second run (Windows 11, Claude Code 2.1.310, SDK 0.3.286), both
+modes:
+
+- **Main session: B8 holds.** The control run (`--no-exclude`) saw the
+  repo's `CLAUDE.md` word; the normal run did not see it and did see the
+  control word.
+- **The `CLAUDE.md` of the folder above the repo loads** in the main
+  session, as the docs say (it stays not excluded; IDEAS.md).
+- **The subagent never started**, in either mode: "Agent 'probe' would be
+  spawned with zero tools — refusing. Its tools list resolved to nothing:
+  unrecognized [Glob]." So B8 is **not yet verified for subagents**.
+- "the probe agent ran" passed anyway: it only checked that the main
+  session called Agent.
+
+**Why Glob was "unrecognized": the script, not Claude Code.** The script
+set the session's tools to `['Agent']` so that nothing could read the
+memory files. A subagent's tools come from the main conversation's:
+"Subagents inherit the built-in tools and MCP tools available in the main
+conversation, narrowed by two filters"
+(<https://code.claude.com/docs/en/sub-agents>, "Available tools"). Glob
+was not in the session, so the probe's only entry resolved to nothing and
+Claude Code refused to start it; the error page lists such an entry as
+"Unrecognized" ("the entry matches no tool name") or "Matched no tools in
+this session" (<https://code.claude.com/docs/en/errors>, "Agent would be
+spawned with zero tools"; refusal since v2.1.208). Glob still exists in
+2.1.310: the tools reference lists it and says "On Windows, it's part of
+the default tool set" (<https://code.claude.com/docs/en/tools-reference>,
+"Glob tool behavior").
+
+Script fixed: the session's tools are `['Agent', 'Glob']` (Glob gives file
+names, never their text, so the markers can still come only from memory),
+and the probe counts as run only when its `SubagentStart` and
+`SubagentStop` hooks fired and the Agent call returned a result that is
+not an error or a refusal.
+
+**What the docs say about Glob and Grep on other systems**, which matters
+to the flow: "On macOS, Linux, and WSL, Claude Code leaves Glob and Grep
+out of the default tool set, and Claude searches with `find` and `grep`
+through the Bash tool instead" (embedded `bfs` and `ugrep`). They come back
+when the session names them in `--tools` or `--allowedTools` (or the SDK
+equivalents), or for a subagent that lists `Glob` or `Grep` in `tools`
+and leaves out `Bash` (same page).
+
+**Agents that list Glob or a tool that no longer exists** (checked
+against the tools reference's list of tools):
+
+- `.claude/agents/`: `interviewer` and `architect` (`Read, Grep, Glob`),
+  `reviewer` (`Read, Grep, Glob, Bash`), `generator` (`Read, Write, Edit,
+  Bash, Glob`), `researcher` (`WebSearch, WebFetch, Read`). Every name
+  exists.
+- The creation sessions' closed list (`FLOW_BUILTIN_TOOLS`, passed as
+  `tools`, that is `--tools`) holds `Read, Glob, Grep, Write, Edit, Bash,
+  PowerShell, Agent, AskUserQuestion, WebSearch, WebFetch, ToolSearch`:
+  every name exists, and because Glob and Grep are named there, web
+  creations have them on every system and the flow's agents inherit them.
+  **Not affected.**
+- Terminal creations (`/new-project` in Claude Code, no `--tools`): on
+  Windows, not affected. On macOS, Linux and WSL, `interviewer` and
+  `architect` get Glob and Grep back (they list them without Bash);
+  `reviewer` and `generator` list Bash too, so they do **not** get Glob
+  (nor Grep, for the reviewer) and search with `find`/`grep` through Bash
+  instead. They lose no ability and are never refused (Read and Bash still
+  resolve); the cost is that their searches are Bash calls (which the
+  repo's own permission rules and hooks see as Bash).
+- `library/templates/`: no agent file. Generated agents get the `tools`
+  the architect writes in the spec (`AgentSpecSchema`: any capitalised
+  name, not checked against Claude Code's list; the fixtures use `Read,
+  Grep, Glob`). In a generated project opened on macOS, Linux or WSL, an
+  agent that lists Glob or Grep with Bash loses them the same way; one
+  whose every entry is unknown would be refused.
+- `MultiEdit` is not in the tools reference any more; briefstack only
+  names it in its sets of write tools (`guard.ts`, `folderClaims.ts`,
+  `sdkRunner.ts`), where an extra name denies or watches nothing new.
+
+**Proposed, not done** (each needs its own approval):
+
+1. `generator` and `reviewer`: leave the `tools` lists as they are. They
+   work on every system; on macOS and Linux they search through Bash,
+   which is what Claude Code does there by default. Changing them to keep
+   Glob would mean dropping Bash, which both need. No change.
+2. Spec validation: check each agent's `tools` against a list of Claude
+   Code's built-in tool names (plus `mcp__…` and specifiers such as
+   `Bash(npm test:*)`), so that a typo or a removed tool in a generated
+   agent is an error before the project is written, not a refused agent
+   when the user runs it. A list in `src/spec/` with a unit test that
+   keeps it in step with `FLOW_BUILTIN_TOOLS`; the list itself has to be
+   kept up to date with Claude Code.
+3. The architect's guidance: a line saying that on macOS and Linux an
+   agent that lists Bash searches through it, so Glob and Grep next to
+   Bash are only used on Windows.
+4. `MultiEdit` in the three write-tool sets: leave it (harmless), or drop
+   it in a clean-up with the security tests run.

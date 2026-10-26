@@ -211,7 +211,10 @@ describe('backlog 2 real checks: prepared, guarded, and kept off real data', () 
     expect(script).toContain('repoDir: box.project');
     // Never the real repo: its CLAUDE.md is not touched, the markers are planted in the sandbox.
     expect(script).not.toContain('PACKAGE_ROOT');
-    expect(script).toContain("options.tools = ['Agent']");
+    // Agent, and Glob for the probe (a subagent gets only tools the session has): nothing that reads a file's text.
+    expect(script).toContain("options.tools = ['Agent', 'Glob']");
+    expect(script).toMatch(/^\s*'tools: Glob',$/m);
+    expect(script).not.toMatch(/options\.tools = \[[^\]]*'(Read|Grep|Bash|PowerShell)'/);
     expect(script).not.toMatch(/settingSources = \[\]/);
     expect(script).not.toContain('bypassPermissions');
   });
@@ -226,6 +229,15 @@ describe('backlog 2 real checks: prepared, guarded, and kept off real data', () 
     // The main session's report before the Agent call and the subagent's own messages are kept.
     expect(script).toContain('mainTexts.push(text)');
     expect(script).toContain('agentTexts.push(text)');
+  });
+
+  it('check-claude-md: the probe counts as run only with its start and stop hooks and a result that is not a refusal', async () => {
+    const script = await read('check-claude-md.ts');
+    expect(script).toContain('SubagentStart: [{ hooks: [recordAgent] }]');
+    expect(script).toContain('SubagentStop: [{ hooks: [recordAgent] }]');
+    expect(script).toContain("lifecycle.includes('start:probe') && lifecycle.includes('stop:probe') && agentErrors.length === 0 && agentResults.length > 0");
+    expect(script).toContain('block.is_error === true || REFUSED.test(text)');
+    expect(script).not.toContain("report('the probe agent ran', calls.includes('main:Agent')");
   });
 });
 
