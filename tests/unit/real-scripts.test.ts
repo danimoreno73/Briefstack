@@ -215,6 +215,18 @@ describe('backlog 2 real checks: prepared, guarded, and kept off real data', () 
     expect(script).not.toMatch(/settingSources = \[\]/);
     expect(script).not.toContain('bypassPermissions');
   });
+
+  it('check-claude-md: a control run drops only the exclusion, and every message is searched, not only the final reply', async () => {
+    const script = await read('check-claude-md.ts');
+    expect(script).toContain("process.argv.includes('--no-exclude')");
+    expect(script).toContain('if (noExclude) options.settings = {};');
+    // The control word is in a rules file, which project settings load at start, never next to the excluded file.
+    expect(script).toContain("'.claude', 'rules', 'control.md'");
+    expect(script).not.toContain("path.join(box.project, '.claude', 'CLAUDE.md')");
+    // The main session's report before the Agent call and the subagent's own messages are kept.
+    expect(script).toContain('mainTexts.push(text)');
+    expect(script).toContain('agentTexts.push(text)');
+  });
 });
 
 describe('phase 5 real checks: prepared, guarded, and kept off real data', () => {

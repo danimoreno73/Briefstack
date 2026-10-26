@@ -4099,3 +4099,59 @@ also obeys, stays in IDEAS.md.
 - The README says, under "Limitations", that a terminal creation and a
   web creation must not use the same folder, and that only the web app
   checks.
+
+## Backlog 2: `check-claude-md` was not conclusive (2026-10-26)
+
+The user's first run of `scripts/real/check-claude-md.ts`: neither the main
+session nor the subagent reported the control word (`PROBE: none`), nor
+the word of the `CLAUDE.md` in the folder above, which the docs say loads.
+The run's output did not reach this note. Diagnosed without a real
+session, by reading the script, the runner's options and the docs.
+
+Probable cause: the script, not the runner.
+
+1. **Only the final reply was searched.** The script read the `result`
+   message, which holds the main session's last text only. The prompt asked
+   for the `MAIN:` line first, then the Agent call, then the `PROBE:` line,
+   so the main session's own report was most likely in an earlier message
+   and never searched.
+2. **The prompt pointed at the wrong place.** It asked the main session and
+   the probe to look at "your own instructions and the project memory
+   loaded with them". Per the SDK docs, CLAUDE.md content is not in the
+   system prompt: "The SDK injects their content into the conversation and
+   leaves the system prompt untouched"
+   (<https://code.claude.com/docs/en/agent-sdk/modifying-system-prompts>,
+   "CLAUDE.md files for project-level instructions"). A model asked about
+   its instructions can look only at its system prompt and answer, truly,
+   "none". That fits a `none` for all three words, the control included.
+3. **The control was in a doubtful place.** It was `.claude/CLAUDE.md`,
+   next to the excluded `CLAUDE.md` in the same folder; the docs speak of
+   "`CLAUDE.md` or `.claude/CLAUDE.md`" and do not say that both load when
+   both exist.
+
+Ruled out by reading (no change to the runner, none proposed):
+
+- `buildQueryOptions` passes `settingSources: ['project']`; the docs say
+  CLAUDE.md loading "is controlled by setting sources, not by the
+  `claude_code` preset", so the SDK's minimal default system prompt does
+  not stop it. The probe agent ran from `.claude/agents/`, so project
+  settings did load in that run.
+- `cleanEnvironment` sets only `CLAUDE_CODE_DISABLE_AUTO_MEMORY` (auto
+  memory, not CLAUDE.md) and `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`, and it
+  removes a `CLAUDE_CODE_DISABLE_CLAUDE_MDS` the user may have set (every
+  `CLAUDE_CODE_*` outside the auth and network list goes).
+- The flag settings hold `claudeMdExcludes` with the two exact forms of
+  `<repo>/CLAUDE.md` (and, in a creation, the guard's hooks); neither
+  pattern can match another file.
+
+Script fixed: every text the main session wrote is searched (its
+`PROBE:` line kept apart), the subagent's words come from its own messages
+when the stream carries them (else from the Agent result and the `PROBE:`
+line), the prompts say where Claude Code puts the memory (reminders
+headed "Contents of …", not the system prompt), the control moved to
+`.claude/rules/control.md`, which project settings load at start, and
+everything both wrote is printed. `--no-exclude` runs the same session
+without `claudeMdExcludes`: there both must see the repo's `CLAUDE.md`
+word. If that control run still sees no word at all, the cause is not the
+exclusion and the runner's options are next to examine; if it sees them
+and the normal run does not see the excluded one, B8 holds.
