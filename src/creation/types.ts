@@ -108,6 +108,12 @@ export interface RunnerIO {
   claimFolder(dir: string): ClaimResult;
   /** The start of the idea of another active creation whose folder holds `target`, if any. */
   folderHeldByOther(target: string): string | undefined;
+  /**
+   * Reads again the folders of creation sessions this server does not run
+   * (a terminal creation in progress), which the two calls above then count
+   * as taken. Awaited right before them; it never rejects.
+   */
+  refreshFolderClaims?(): Promise<void>;
   emit(event: RunnerEvent): void;
 }
 

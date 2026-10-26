@@ -275,6 +275,28 @@ describe('cli: paths', () => {
     });
   });
 
+  it('with --session, records the checked folder in the session folder, never a forbidden one', async () => {
+    await main(['init'], capture(dir).io);
+    const projects = path.join(dir, 'user', 'briefstack-projects');
+    const record = path.join(dir, 'home', 'sessions', 's-1', 'folder.json');
+    const run = capture(dir);
+    expect(await main(['paths', 'check', path.join(projects, 'garden'), '--json', '--session', 's-1'], run.io)).toBe(0);
+    // The report is the same as without it.
+    expect(json(run)).toMatchObject({ outDir: path.join(projects, 'garden'), status: 'missing' });
+    expect(JSON.parse(await readFile(record, 'utf8'))).toEqual({ v: 1, dir: path.join(projects, 'garden'), at: expect.any(String) });
+    // A new check replaces it; the option may come first.
+    expect(await main(['paths', 'check', '--session', 's-1', path.join(projects, 'orchard')], capture(dir).io)).toBe(0);
+    expect(JSON.parse(await readFile(record, 'utf8'))).toMatchObject({ dir: path.join(projects, 'orchard') });
+    // A forbidden folder is not recorded: the last one stays.
+    expect(await main(['paths', 'check', path.join(dir, 'home', 'library', 'x'), '--session', 's-1'], capture(dir).io)).toBe(0);
+    expect(JSON.parse(await readFile(record, 'utf8'))).toMatchObject({ dir: path.join(projects, 'orchard') });
+
+    const bad = capture(dir);
+    expect(await main(['paths', 'check', path.join(projects, 'x'), '--session', '../escape'], bad.io)).toBe(1);
+    expect(bad.err.join('\n')).toContain('../escape');
+    expect(await main(['paths', '--session', 's-1'], capture(dir).io)).toBe(2);
+  });
+
   it('inside a web session, reports the folders the runner gave it, not the settings file', async () => {
     await main(['init'], capture(dir).io);
     const given = path.join(dir, 'given');

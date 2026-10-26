@@ -2,7 +2,7 @@ import { defineCatalogue } from './index.js';
 
 export const pathsMessages = defineCatalogue({
   en: {
-    usage: 'briefstack paths [--json] | briefstack paths check <dir> [--json]',
+    usage: 'briefstack paths [--json] | briefstack paths check <dir> [--json] [--session <id>]',
     home: (dir: string) => `briefstack home: ${dir}`,
     library: (dir: string, exists: boolean) =>
       exists ? `Personal library: ${dir}` : `Personal library: ${dir} (not created yet; run briefstack init)`,
@@ -18,7 +18,7 @@ export const pathsMessages = defineCatalogue({
       `Not in .claude/settings.local.json: run /add-dir ${dir} in Claude Code before generating (folders added with /add-dir last for the session and are not visible here).`,
   },
   es: {
-    usage: 'briefstack paths [--json] | briefstack paths check <carpeta> [--json]',
+    usage: 'briefstack paths [--json] | briefstack paths check <carpeta> [--json] [--session <id>]',
     home: (dir: string) => `Carpeta de briefstack: ${dir}`,
     library: (dir: string, exists: boolean) =>
       exists

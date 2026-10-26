@@ -140,7 +140,9 @@ Step `interview`.
    from the idea (lowercase, hyphens). If the user already named a folder,
    do not ask; use it.
 3. Check the folder:
-   `npm run --silent briefstack -- paths check "<dir>" --json`
+   `npm run --silent briefstack -- paths check "<dir>" --json --session SESSION`
+   (with `--session`, briefstack records the folder as this creation's, so
+   the web app does not give it to another creation while this one runs)
    - `forbidden` or `notADirectory`: explain and ask for another folder.
    - `nonEmpty`: say so and ask whether to create the project inside it
      anyway (existing files are never overwritten). Only if they confirm,

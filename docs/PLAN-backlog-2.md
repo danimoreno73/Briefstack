@@ -26,7 +26,7 @@ Updated 2026-10-26. In progress.
 | — | Plan, tag `backlog-2-start` | done |
 | B10 | The chat quotes the creation's step: `stepText` in `list_sessions` and `session_panel`, and the line in the chat's prompt | done: `stepText` in `src/panel/steps.ts`, names in `src/i18n/steps.ts`; real check `check-chat-step.ts` written, not run |
 | B8 | Creations do not load the repo's `CLAUDE.md`: `claudeMdExcludes` in the creation's flag settings | done: the docs support it for flag settings and the main session, and for subagents by inference (decisions.md); parent folders' `CLAUDE.md` do load (left as they are, in IDEAS.md); real check `check-claude-md.ts` written, not run |
-| B9 | The web app treats the folders of terminal creations in progress as taken; README note | to do |
+| B9 | The web app treats the folders of terminal creations in progress as taken; README note | done: `paths check --session` records `folder.json` in the session folder; the server's claims count the folders of sessions in progress it does not run; option (1) stays in IDEAS.md |
 | C | IDEAS.md: Codex goal (c); section 2 marked "brief in phase 7" | to do |
 | — | Status updated, tag `backlog-2-done` | to do |
 

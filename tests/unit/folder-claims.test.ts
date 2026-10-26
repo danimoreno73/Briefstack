@@ -1,12 +1,14 @@
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeRunner, parseRecording } from '../../src/creation/fakeRunner.js';
-import { FolderClaims, claimRefusedMessage, evaluateFolderClaim, folderLabel, type FolderClaimContext } from '../../src/creation/folderClaims.js';
+import { FolderClaims, claimRefusedMessage, evaluateFolderClaim, folderClaimHook, folderLabel, type FolderClaimContext } from '../../src/creation/folderClaims.js';
 import { CreationManager } from '../../src/creation/manager.js';
-import { readEvents, sessionEventsFile } from '../../src/events/index.js';
+import { appendEvent, flowEvent, readEvents, sessionEventsFile, sessionLifecycleEvent } from '../../src/events/index.js';
+import { recordSessionFolder } from '../../src/events/sessionFolder.js';
 import { tempDir } from '../helpers.js';
 
 const root = path.resolve('/work/projects');
+const TERMINAL = 'terminal-session-1';
 const at = (...parts: string[]) => path.join(root, ...parts);
 const slash = (value: string) => value.replaceAll('\\', '/');
 
@@ -40,6 +42,21 @@ describe('FolderClaims', () => {
     claims.claim('a', at('x'), `${'long idea '.repeat(20)}`);
     const refused = claims.claim('b', at('x'), 'B');
     expect(refused.ok === false && refused.holder.length).toBeLessThanOrEqual(60);
+  });
+
+  it('counts the folders held outside this server as taken by every creation, until a refresh drops them', () => {
+    const claims = new FolderClaims();
+    claims.setOutside([{ dir: at('garden'), label: 'session t1 started elsewhere' }]);
+    expect(claims.claim('a', at('garden'), 'A')).toEqual({ ok: false, holder: 'session t1 started elsewhere' });
+    expect(claims.claim('a', at('garden', 'sub'), 'A')).toEqual({ ok: false, holder: 'session t1 started elsewhere' });
+    expect(claims.claim('a', root, 'A')).toEqual({ ok: false, holder: 'session t1 started elsewhere' });
+    expect(claims.heldByOther('a', at('garden', 'README.md'))).toBe('session t1 started elsewhere');
+    expect(claims.claim('a', at('orchard'), 'A')).toEqual({ ok: true });
+    // The same folder written another way on a case-insensitive system.
+    expect(claims.claim('b', at('Garden'), 'B').ok).toBe(process.platform === 'linux');
+    claims.setOutside([]);
+    expect(claims.claim('c', at('garden'), 'C')).toEqual({ ok: true });
+    expect(claims.heldByOther('a', at('garden', 'README.md'))).toBe('C');
   });
 });
 
@@ -81,6 +98,30 @@ describe('evaluateFolderClaim', () => {
       verdict: 'deny',
       reason: expect.stringContaining('Another creation in progress ("Other idea")'),
     });
+  });
+
+  it('claims the folder of paths check with --session SESSION, wherever the option is', () => {
+    expect(run('Bash', cli(`paths check "${slash(at('garden'))}" --json --session s1`))).toEqual({ verdict: 'pass' });
+    expect(run('Bash', cli(`paths check --session s1 "${slash(at('orchard'))}" --json`))).toEqual({ verdict: 'pass' });
+    expect(claimed).toEqual([slash(at('garden')), slash(at('orchard'))]);
+  });
+
+  it('the hook reads the folders held outside the server before a call that can claim or write, and not for others', async () => {
+    let refreshes = 0;
+    const hook = folderClaimHook({ ...ctx(), refresh: async () => void (refreshes += 1) });
+    const call = (tool: string, input: Record<string, unknown>, session = 's1') =>
+      hook({ hook_event_name: 'PreToolUse', session_id: session, transcript_path: '', cwd: '', tool_name: tool, tool_input: input, tool_use_id: 't' } as never, 't', {
+        signal: new AbortController().signal,
+      });
+    await call('Bash', cli(`paths check "${slash(at('garden'))}" --json`));
+    await call('Write', { file_path: at('garden', 'a.md') });
+    expect(refreshes).toBe(2);
+    await call('Read', { file_path: at('garden', 'a.md') });
+    await call('Write', { file_path: at('garden', 'a.md') }, 'someone-else');
+    expect(refreshes).toBe(2);
+    // A failed read does not fail the call: the last list stays.
+    const failing = folderClaimHook({ ...ctx(), refresh: () => Promise.reject(new Error('disk')) });
+    await expect(failing({ hook_event_name: 'PreToolUse', session_id: 's1', transcript_path: '', cwd: '', tool_name: 'Write', tool_input: { file_path: at('x', 'a.md') }, tool_use_id: 't' } as never, 't', { signal: new AbortController().signal })).resolves.toEqual({});
   });
 
   it('refuses a commit or a write into a folder another creation holds', () => {
@@ -178,5 +219,79 @@ describe('two creations and one folder (manager over the fake runner)', () => {
     const thirdLines = (await readEvents(sessionEventsFile(sessionsDir, m.get(third.id).sessionId ?? ''))).events;
     // The first creation finished, so "garden" was free again: no refusal for the third.
     expect(thirdLines.some((event) => event.type === 'tool.denied')).toBe(false);
+  });
+
+  it('a creation here is refused the folder of a terminal creation in progress, and gets it once that one finished', async () => {
+    const sessionsDir = path.join(dir, 'sessions');
+    const projectsDir = path.join(dir, 'projects');
+    // A creation started from the terminal: its events and the folder its `paths check --session` recorded.
+    await appendEvent(sessionsDir, sessionLifecycleEvent(TERMINAL, 'started'));
+    await appendEvent(sessionsDir, flowEvent(TERMINAL, 'interview', 'started'));
+    await recordSessionFolder(sessionsDir, TERMINAL, path.join(projectsDir, 'garden'));
+    const recording = [
+      '{"do":"session","phase":"started"}',
+      '{"do":"claim","dir":"garden","onRefused":"refused"}',
+      '{"do":"session","phase":"finished","outcome":"completed"}',
+      '{"do":"label","name":"refused"}',
+      '{"do":"claim","dir":"garden-2"}',
+      '{"do":"session","phase":"finished","outcome":"completed"}',
+    ].join('\n');
+    // The clock moves past the one-second reuse of a read between the two creations.
+    let offset = 0;
+    manager = new CreationManager({
+      runner: new FakeRunner({ steps: parseRecording(recording), projectsDir }),
+      sessionsDir,
+      policy: () => 'ask',
+      profile: () => ({ name: 'balanced', sessionModel: 'sonnet' }),
+      now: () => new Date(Date.now() + offset),
+      pollMs: 10,
+      tailMs: 20,
+    });
+    const m = manager;
+    const denials = async (id: string) => {
+      const state = await waitFor(() => (m.get(id).status === 'finished' ? m.get(id) : undefined));
+      return (await readEvents(sessionEventsFile(sessionsDir, state.sessionId ?? ''))).events.filter((event) => event.type === 'tool.denied');
+    };
+
+    const first = await m.create('A garden planner');
+    expect(await denials(first.id)).toEqual([
+      expect.objectContaining({ by: 'guard', reason: expect.stringContaining(`("session ${TERMINAL} started elsewhere")`) }),
+    ]);
+    // Never an absolute path in the reason.
+    expect(JSON.stringify(await denials(first.id))).not.toContain(slash(dir));
+
+    await appendEvent(sessionsDir, sessionLifecycleEvent(TERMINAL, 'finished', 'completed'));
+    offset = 2000;
+    const second = await m.create('A second garden');
+    expect(await denials(second.id)).toEqual([]);
+  });
+
+  it('a session it runs itself never blocks its own creation, even with a recorded folder', async () => {
+    const sessionsDir = path.join(dir, 'sessions');
+    const projectsDir = path.join(dir, 'projects');
+    // The flow records its folder too (the skill passes --session in both flows), then claims it.
+    const runner = new FakeRunner({
+      steps: parseRecording(
+        [
+          '{"do":"session","phase":"started"}',
+          // Held here until the test has recorded the folder.
+          '{"do":"question","questions":[{"question":"Go on?","header":"","options":[{"label":"Yes","description":""}],"multiSelect":false}]}',
+          '{"do":"claim","dir":"garden"}',
+          '{"do":"session","phase":"finished","outcome":"completed"}',
+        ].join('\n'),
+      ),
+      projectsDir,
+    });
+    manager = new CreationManager({ runner, sessionsDir, policy: () => 'ask', profile: () => ({ name: 'balanced', sessionModel: 'sonnet' }), pollMs: 10, tailMs: 20 });
+    const m = manager;
+    const created = await m.create('A garden planner');
+    const question = await waitFor(() => m.get(created.id).pending);
+    const sessionId = m.get(created.id).sessionId;
+    if (sessionId === undefined) throw new Error('no session id');
+    await recordSessionFolder(sessionsDir, sessionId, path.join(projectsDir, 'garden'));
+    m.answer(created.id, question.id, { 'Go on?': 'Yes' });
+    const state = await waitFor(() => (m.get(created.id).status === 'finished' ? m.get(created.id) : undefined));
+    const lines = (await readEvents(sessionEventsFile(sessionsDir, state.sessionId ?? ''))).events;
+    expect(lines.some((event) => event.type === 'tool.denied')).toBe(false);
   });
 });

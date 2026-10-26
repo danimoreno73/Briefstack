@@ -47,3 +47,14 @@ The server redacts targets again before showing them.
 
 Runner lines are not activity: they do not change whether a session reads
 as in progress or interrupted.
+
+## Not an event: the session's folder record
+
+`briefstack paths check <dir> --session <id>` (the flow passes it since
+backlog 2) writes the folder it checked to
+`<briefstack home>/sessions/<session id>/folder.json` (`{ "v": 1, "dir",
+"at" }`; not for a forbidden folder or a file), replacing the last one. It
+is kept out of `events.jsonl` because it holds an absolute path. The web
+server reads it for the sessions it does not run: while such a session is
+in progress (by the rules above), its folder counts as taken for the
+server's own creations (`src/events/sessionFolder.ts`).

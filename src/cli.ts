@@ -14,6 +14,7 @@ import {
   appendEvent,
   flowEvent,
   isFlowStep,
+  isSessionId,
   sessionLifecycleEvent,
   type FlowStep,
   type SessionOutcome,
@@ -21,6 +22,7 @@ import {
   type StepOutcome,
   type StepPhase,
 } from './events/index.js';
+import { recordSessionFolder } from './events/sessionFolder.js';
 import { cliMessages } from './i18n/cli.js';
 import { formatError } from './i18n/errors.js';
 import { eventMessages } from './i18n/events.js';
@@ -210,8 +212,11 @@ async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Prom
 /** Where things live, and whether an output folder is usable. Reports; never fails on what it finds. */
 async function runPaths(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
   const messages = pathsMessages[lang];
-  const { positionals, flags } = parseArgs(args, ['--json'], lang, [], messages.usage);
+  const { positionals, flags, values } = parseArgs(args, ['--json'], lang, ['--session'], messages.usage);
   const json = flags.has('--json');
+  const session = values.get('--session');
+  if (session !== undefined && positionals[0] !== 'check') throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  if (session !== undefined && !isSessionId(session)) throw new BriefstackError('events.invalidSession', { session });
   const paths = await resolvedPaths(io);
   const repoDir = io.repoDir ?? PACKAGE_ROOT;
   const allowedDirs = await sessionAllowedDirectories(repoDir, io.pathEnv);
@@ -237,6 +242,11 @@ async function runPaths(args: readonly string[], io: CliIO, lang: Lang): Promise
     throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   }
   const report = await inspectOutputDir(argPath(io, lang, dirArg), protectedDirs(paths.libraryDir, repoDir, io.pathEnv));
+  // The folder the flow chose, so the web server can treat it as taken while this session runs (backlog 2, B9).
+  // Best effort: a record that cannot be written only leaves the folder unclaimed, as before.
+  if (session !== undefined && report.status !== 'forbidden' && report.status !== 'notADirectory') {
+    await recordSessionFolder(paths.sessionsDir, session, report.outDir).catch(() => undefined);
+  }
   const allowedBy = allowingDirectory(report.outDir, allowedDirs, io.pathEnv) ?? null;
   if (json) {
     const overlaps = report.overlaps === undefined ? null : report.overlaps;

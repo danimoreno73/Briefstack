@@ -371,6 +371,7 @@ export class FakeRunner implements CreationRunner {
           }
           case 'claim': {
             const dir = path.resolve(this.options.projectsDir ?? sessionDir, step.dir);
+            await io.refreshFolderClaims?.();
             const result = io.claimFolder(dir);
             if (!result.ok) {
               io.emit({

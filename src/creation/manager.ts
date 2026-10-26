@@ -23,6 +23,7 @@ import {
   type SessionLifecycleEvent,
   type SessionOutcome,
 } from '../events/index.js';
+import { sessionFoldersInProgress } from '../events/sessionFolder.js';
 import { hideAbsolutePaths, projectEvent } from '../panel/project.js';
 import { settlesWithin } from '../timeLimit.js';
 import { FolderClaims } from './folderClaims.js';
@@ -55,6 +56,11 @@ import type {
  * `session.finished`, or when the server ends it (stop, cancel fallback,
  * runner gone): an SDK `result` is not the end.
  */
+
+/** How long a read of the folders held outside this server serves the claims that follow it. */
+const OUTSIDE_READ_MS = 1000;
+/** How a refusal names a creation this server does not run: by its session, the only name on disk. */
+const outsideLabel = (session: string): string => `session ${session} started elsewhere`;
 
 /** The fields of `spec.json` the approval screen shows. */
 const SPEC_FIELDS = ['name', 'slug', 'summary', 'type', 'target', 'targetChosenBy', 'targetReason', 'profile', 'language'] as const;
@@ -308,6 +314,8 @@ export class CreationManager {
   private readonly creations = new Map<string, Creation>();
   /** The output folder of each active creation: two never share one. */
   private readonly claims = new FolderClaims();
+  /** The last read of the folders held outside this server, shared by the calls of the next second. */
+  private outsideRead: { at: number; done: Promise<void> } | undefined;
   private readonly observers = new Set<CreationObserver>();
   /** Set while `holdStarts` runs a task: starts wait for it. */
   private startsHeld: Promise<void> | undefined;
@@ -696,6 +704,23 @@ export class CreationManager {
     return c.state.status === 'finished';
   }
 
+  /**
+   * The folders of creation sessions in progress that this server does not
+   * run (a terminal creation records its folder with `paths check --session`),
+   * as claims no creation here may overlap (backlog 2, B9). Read at most once
+   * a second; a failed read keeps the last list. Never rejects.
+   */
+  private readOutsideClaims(): Promise<void> {
+    const at = this.now().getTime();
+    if (this.outsideRead !== undefined && at - this.outsideRead.at < OUTSIDE_READ_MS) return this.outsideRead.done;
+    const own = new Set([...this.creations.values()].flatMap((c) => (c.state.sessionId === undefined ? [] : [c.state.sessionId])));
+    const done = sessionFoldersInProgress(this.options.sessionsDir, { skip: own, now: this.now() })
+      .then((found) => this.claims.setOutside(found.map(({ session, dir }) => ({ dir, label: outsideLabel(session) }))))
+      .catch(() => undefined);
+    this.outsideRead = { at, done };
+    return done;
+  }
+
   private find(id: string): Creation {
     const c = this.creations.get(id);
     if (c === undefined) throw new BriefstackError('creation.notFound', { id });
@@ -733,6 +758,7 @@ export class CreationManager {
       grantDirectory: (request) => this.request(c, 'grant', request),
       claimFolder: (dir) => (this.isFinished(c) ? { ok: true } : this.claims.claim(c.state.id, dir, c.state.idea)),
       folderHeldByOther: (target) => this.claims.heldByOther(c.state.id, target),
+      refreshFolderClaims: () => this.readOutsideClaims(),
       emit: (event) => {
         if (event.kind === 'denial') {
           const data: DeniedEventData = {

@@ -458,6 +458,7 @@ class SdkRun {
           },
           grantDirectory: (request) => this.whileAsking(() => this.io.grantDirectory(request)),
           claimFolder: (dir) => this.io.claimFolder(dir),
+          refreshFolderClaims: async () => this.io.refreshFolderClaims?.(),
         },
         sessionDir: () => (this.claimed === undefined ? undefined : this.sessionDir(this.claimed)),
         protectedDirs: protectedDirs(libraryDir, this.deps.repoDir, this.deps.pathEnv),
@@ -485,6 +486,7 @@ class SdkRun {
                 folderClaimHook(
                   {
                     isOwnSession: guardContext.isOwnSession,
+                    refresh: async () => this.io.refreshFolderClaims?.(),
                     claim: (dir) => this.io.claimFolder(dir),
                     heldByOther: (target) => this.io.folderHeldByOther(target),
                     projectsDir,

@@ -4059,3 +4059,43 @@ If Claude Code ignored the setting, the file would load as before.
   `.claude/CLAUDE.md` (a control that shows project memory loads) and a
   third in the folder above; the main session and a file-based subagent
   report the words they see, with no tool that reads files.
+
+## Backlog 2: the web app sees the folders of terminal creations (2026-10-26)
+
+B9 of [PLAN-backlog-2.md](PLAN-backlog-2.md), option (2) of the proposal
+in IDEAS.md: read only. Option (1), claims on disk that the terminal flow
+also obeys, stays in IDEAS.md.
+
+- **(choice)** The folder is recorded in its own file in the session
+  folder, `folder.json`, not as a new event as the proposal said: the
+  record holds an absolute path, and `events.jsonl` is what the panel, the
+  chat and `docs/events.md` read, with targets relative to their roots.
+  The events schema does not change.
+- **(choice)** Only `paths check --session` records it, as the proposal
+  says; the skill passes `--session SESSION` in both flows. `scaffold`
+  does not record. A forbidden folder or a file is not recorded. A record
+  that cannot be written is ignored: the folder is then unclaimed, as
+  before B9, and `paths check` reports as always.
+- **(choice)** A session counts while it is in progress by the apply
+  gate's rule (`summarizeSession`: started, not finished, no `session.end`
+  after its last activity, an event within 2 hours). A session whose
+  `events.jsonl` was not written for 2 hours is skipped without reading
+  it. Sessions the server runs itself are skipped: its in-memory claims
+  cover them.
+- **(choice)** When the server reads them: right before each call that
+  can claim or write a folder (a shell call or a write tool of the
+  creation's own session, `grant_directory`, the fake runner's `claim`),
+  at most once a second, the read shared by the calls in that second. A
+  failed read keeps the last list. `evaluateFolderClaim` stays synchronous
+  and its tests as they were; the hook awaits the read before calling it.
+- **(choice)** A refusal names the other creation as "session <id>
+  started elsewhere": its id is the only name the session folder gives,
+  and it may come from the terminal or from another server.
+- **(choice, found on the way)** The claims hook took the first word that
+  is not an option after `paths check` as the folder; with
+  `--session SESSION` written before the folder, that word would have
+  been the session id and nothing would have been claimed. It now skips
+  the value of `--session`.
+- The README says, under "Limitations", that a terminal creation and a
+  web creation must not use the same folder, and that only the web app
+  checks.

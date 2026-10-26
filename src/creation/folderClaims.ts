@@ -33,6 +33,13 @@ const LABEL_LENGTH = 60;
 
 export class FolderClaims {
   private readonly claims = new Map<string, Claim>();
+  /**
+   * Folders of creation sessions this server does not run (started from the
+   * terminal, or by another server), read from their session folders
+   * (`sessionFolder.ts`). Taken, never released here: each refresh replaces
+   * the whole list.
+   */
+  private outside: Claim[] = [];
 
   constructor(private readonly pathEnv: PathEnv = systemPathEnv()) {}
 
@@ -40,11 +47,19 @@ export class FolderClaims {
     return isPathInside(a, b, this.pathEnv) || isPathInside(b, a, this.pathEnv);
   }
 
+  /** Replaces the folders held outside this server. */
+  setOutside(claims: readonly Claim[]): void {
+    this.outside = claims.map((held) => ({ dir: this.pathEnv.pathApi.resolve(held.dir), label: redactSecretLines(held.label.trim()).slice(0, LABEL_LENGTH) }));
+  }
+
   /** The creation `owner` takes `dir` (it replaces its earlier claim), unless another active creation holds an overlapping one. */
   claim(owner: string, dir: string, label: string): ClaimResult {
     const resolved = this.pathEnv.pathApi.resolve(dir);
     for (const [other, held] of this.claims) {
       if (other !== owner && this.overlaps(resolved, held.dir)) return { ok: false, holder: held.label };
+    }
+    for (const held of this.outside) {
+      if (this.overlaps(resolved, held.dir)) return { ok: false, holder: held.label };
     }
     this.claims.set(owner, { dir: resolved, label: redactSecretLines(label.trim()).slice(0, LABEL_LENGTH) });
     return { ok: true };
@@ -56,7 +71,7 @@ export class FolderClaims {
     for (const [other, held] of this.claims) {
       if (other !== owner && isPathInside(resolved, held.dir, this.pathEnv)) return held.label;
     }
-    return undefined;
+    return this.outside.find((held) => isPathInside(resolved, held.dir, this.pathEnv))?.label;
   }
 
   release(owner: string): void {
@@ -93,6 +108,8 @@ export function claimRefusedMessage(dir: string, holder: string, projectsDir?: s
 
 export interface FolderClaimContext {
   isOwnSession(id: string): boolean;
+  /** Reads the folders held outside this server again; the hook awaits it before deciding. */
+  refresh?(): Promise<void>;
   claim(dir: string): ClaimResult;
   heldByOther(target: string): string | undefined;
   /** The projects folder, which the refusal names the folder against. */
@@ -102,6 +119,8 @@ export interface FolderClaimContext {
 
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit', 'MultiEdit']);
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
+/** Options of the claiming commands that take a value. */
+const VALUE_OPTIONS = new Set(['--session']);
 
 export type ClaimVerdict = { verdict: 'pass' } | { verdict: 'deny'; reason: string; summary: string };
 
@@ -126,7 +145,9 @@ export function evaluateFolderClaim(
     // Anything the guard would refuse is left to it.
     if (!parsed.ok) return { verdict: 'pass' };
     const [sub, second] = parsed.argv;
-    const positionals = (from: number) => parsed.argv.slice(from).filter((word) => !word.startsWith('-'));
+    // The words that are not options, nor the value of one (`--session SESSION` of `paths check`).
+    const positionals = (from: number) =>
+      parsed.argv.slice(from).filter((word, index, words) => !word.startsWith('-') && !VALUE_OPTIONS.has(words[index - 1] ?? ''));
     if (sub === 'paths' && second === 'check') {
       const dir = positionals(2)[0];
       if (!absolute(dir)) return { verdict: 'pass' };
@@ -162,6 +183,8 @@ export function evaluateFolderClaim(
 export function folderClaimHook(ctx: FolderClaimContext, onDeny: (denial: GuardDenial) => void = () => undefined): HookCallback {
   return async (input) => {
     if (input.hook_event_name !== 'PreToolUse') return {};
+    // Only the calls that can claim or write read the disk; a failed read keeps the last list.
+    if ((SHELL_TOOLS.has(input.tool_name) || WRITE_TOOLS.has(input.tool_name)) && ctx.isOwnSession(input.session_id)) await ctx.refresh?.().catch(() => undefined);
     const verdict = evaluateFolderClaim(ctx, input);
     if (verdict.verdict === 'pass') return {};
     const denial: GuardDenial = { toolName: input.tool_name, summary: verdict.summary, reason: verdict.reason };

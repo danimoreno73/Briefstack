@@ -190,7 +190,14 @@ are not repeated.
   gate of improvements does see it). From [PLAN-phase-4.md](history/PLAN-phase-4.md),
   carried in [PLAN-phase-5.md](history/PLAN-phase-5.md).
 
-  **Proposal** (backlog 1, B9; not built):
+  **Half done in backlog 2** (B9 in [PLAN-backlog-2.md](PLAN-backlog-2.md)):
+  option (2), read only, recorded in the session's `folder.json` rather
+  than in an event (decisions.md, "Backlog 2: the web app sees the folders
+  of terminal creations"), and the README note of option (3). Still open:
+  option (1), so that the terminal flow is refused the folder of a web
+  creation too.
+
+  **Proposal** (backlog 1, B9):
   - *Cause.* `FolderClaims` is a map in the server's `CreationManager`,
     filled by the server's own `PreToolUse` hook (`folderClaims.ts`) when
     the flow runs `paths check`, `grant_directory` or `scaffold`. A creation

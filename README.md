@@ -161,6 +161,9 @@ See [SECURITY.md](SECURITY.md) to report a vulnerability.
   for shell commands.
 - A creation uses your plan or key like any Claude Code session; several
   at once add up.
+- A creation from the terminal and one from the web app must not use the
+  same project folder. The web app treats the folder of a terminal creation
+  in progress as taken; the terminal flow does not check the web app's.
 - The skill review is heuristic: it can miss code that is split, built at
   run time or encoded. Read every script before approving a skill.
 - Public GitHub repositories only, for skills. No automatic updates.

@@ -19,7 +19,7 @@ import type { RunnerIO } from './types.js';
 export { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL, WEB_SERVER_NAME };
 
 export interface WebToolsDeps {
-  io: Pick<RunnerIO, 'approveSpec' | 'grantDirectory' | 'claimFolder'>;
+  io: Pick<RunnerIO, 'approveSpec' | 'grantDirectory' | 'claimFolder' | 'refreshFolderClaims'>;
   /** The session folder, once the session id is known. Spec files must be inside it. */
   sessionDir(): string | undefined;
   /** Folders a granted output folder must not overlap (`protectedDirs`). */
@@ -80,6 +80,7 @@ export async function grantDirectory(deps: WebToolsDeps, args: { dir: string }):
   }
   if (report.status === 'notADirectory') return fail('That path is a file, not a folder.');
   // Before the user is asked: a folder another creation in progress holds is refused outright.
+  await deps.io.refreshFolderClaims?.();
   const claim = deps.io.claimFolder(dir);
   if (!claim.ok) return fail(claimRefusedMessage(dir, claim.holder, deps.projectsDir, pathEnv));
 
