@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isDocumentPath } from './preparation.js';
+import { checkToolName, toolBaseName } from './tools.js';
 
 /**
  * The project spec: written by the architect, approved by the user, read by
@@ -23,6 +24,8 @@ export const SPEC_RULES = [
   'reservedPath',
   'toolName',
   'noAgentTool',
+  'unknownTool',
+  'retiredTool',
   'duplicate',
   'claudeCodeOnly',
   'documentOnly',
@@ -89,7 +92,16 @@ const SPAWN_TOOLS = new Set(['Agent', 'Task']);
 const tool = z
   .string()
   .refine((value) => TOOL_RE.test(value), rule('toolName'))
-  .refine((value) => !SPAWN_TOOLS.has(value.replace(/\(.*$/, '')), rule('noAgentTool'));
+  .refine((value) => !SPAWN_TOOLS.has(value.replace(/\(.*$/, '')), rule('noAgentTool'))
+  // A well-formed name must also be a tool Claude Code has now (`tools.ts`); the issue names it, and its
+  // replacement when the tool was retired, so the architect can correct it.
+  .superRefine((value, ctx) => {
+    if (!TOOL_RE.test(value) || SPAWN_TOOLS.has(toolBaseName(value))) return;
+    const verdict = checkToolName(value);
+    if (verdict === undefined) return;
+    const { rule: name, ...detail } = verdict;
+    ctx.addIssue({ code: 'custom', params: { rule: name, ...detail } });
+  });
 
 export const SkillSpecSchema = z.strictObject({
   name: slug,

@@ -1,8 +1,13 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { FLOW_BUILTIN_TOOLS } from '../../src/creation/guard.js';
 import { BriefstackError } from '../../src/errors.js';
+import { formatSpecIssue } from '../../src/i18n/spec.js';
 import {
+  CLAUDE_CODE_TOOLS,
+  RETIRED_TOOLS,
+  checkToolName,
   isReservedPath,
   isSafeRelativePath,
   parseSpec,
@@ -110,6 +115,45 @@ describe('parseSpec', () => {
       expect.objectContaining({ path: 'agents.0.tools.2', rule: 'noAgentTool' }),
       expect.objectContaining({ path: 'agents.0.tools.3', rule: 'toolName' }),
     ]);
+  });
+
+  it('refuses a tool Claude Code does not have, naming it, and a retired one with its replacement', () => {
+    const issues = issuesOf(
+      specInput({
+        agents: [
+          {
+            name: 'helper',
+            description: 'Helps',
+            tier: 'light',
+            tools: ['Read', 'MultiEdit', 'Serach', 'TaskOutput', 'Bash(npm test:*)', 'mcp__srv__do', 'mcp__srv', 'Glob', 'Grep'],
+          },
+        ],
+      }),
+    );
+    expect(issues).toEqual([
+      expect.objectContaining({ path: 'agents.0.tools.1', rule: 'retiredTool', tool: 'MultiEdit', replacement: 'Edit' }),
+      expect.objectContaining({ path: 'agents.0.tools.2', rule: 'unknownTool', tool: 'Serach' }),
+      expect.objectContaining({ path: 'agents.0.tools.3', rule: 'retiredTool', tool: 'TaskOutput', replacement: 'Read' }),
+    ]);
+    const text = (lang: 'en' | 'es') => issues.map((issue) => formatSpecIssue(issue, lang));
+    expect(text('en')).toEqual([
+      'agents.0.tools.1: "MultiEdit" is no longer a Claude Code tool: use Edit instead',
+      expect.stringContaining('agents.0.tools.2: "Serach" is not a Claude Code tool'),
+      'agents.0.tools.3: "TaskOutput" is no longer a Claude Code tool: use Read instead',
+    ]);
+    expect(text('es')[0]).toBe('agents.0.tools.1: "MultiEdit" ya no es una herramienta de Claude Code: usa Edit en su lugar');
+    // A specifier names the tool before the parenthesis.
+    expect(issuesOf(specInput({ agents: [{ name: 'h', description: 'd', tier: 'light', tools: ['MultiEdit(src/**)'] }] }))).toEqual([
+      expect.objectContaining({ rule: 'retiredTool', tool: 'MultiEdit' }),
+    ]);
+  });
+
+  it('knows every built-in tool the flow itself uses, and lists no retired tool as current', () => {
+    for (const name of FLOW_BUILTIN_TOOLS) expect(checkToolName(name), name).toBeUndefined();
+    for (const [retired, replacement] of Object.entries(RETIRED_TOOLS)) {
+      expect(CLAUDE_CODE_TOOLS as readonly string[]).not.toContain(retired);
+      expect(checkToolName(replacement), replacement).toBeUndefined();
+    }
   });
 
   it('flags case-insensitive duplicates', () => {

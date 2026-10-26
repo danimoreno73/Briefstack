@@ -82,6 +82,13 @@ Rules:
 - Keep generated instructions short. A project `CLAUDE.md` stays under 60
   lines; long material goes in `docs/` or a skill.
 - Nothing specific to this tool's author. The spec must make sense for any user.
+- An agent's `tools` are Claude Code's own tool names (`Read`, `Grep`,
+  `Glob`, `Edit`, `Write`, `Bash`, `WebSearch`, `WebFetch`, …) or `mcp__…`
+  names. The spec check refuses any other name and gives the replacement of
+  a retired one; use it. On macOS and Linux, an agent that lists `Bash`
+  searches through it: Claude Code gives it `Glob` and `Grep` only when
+  `Bash` is not in the list. Give a read-only agent `Read, Grep, Glob`
+  without `Bash`.
 <!-- briefstack:locked architect-safety -->
 - No secrets and no absolute paths in the spec. The output folder is not
   part of the spec.

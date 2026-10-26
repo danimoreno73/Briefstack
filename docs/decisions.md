@@ -4269,3 +4269,54 @@ decisions.md, H10). The script takes the subagent's words from its own
 streamed messages when there are any, else from the Agent result and the
 main session's `PROBE:` line, so the report that came through
 `SubagentHandback` and the main session is what counted.
+
+## Backlog 2: agent tools checked against Claude Code's list (2026-10-26)
+
+Proposal 2 of "check-claude-md, second run, and Glob in subagents", built
+at the user's request.
+
+Source: the tools reference, <https://code.claude.com/docs/en/tools-reference>,
+read on 2026-10-26 (the installed Claude Code is 2.1.310). Its table lists
+45 tools: `Agent`, `Artifact`, `AskUserQuestion`, `Bash`, `CronCreate`,
+`CronDelete`, `CronList`, `Edit`, `EndConversation`, `EnterPlanMode`,
+`EnterWorktree`, `ExitPlanMode`, `ExitWorktree`, `Glob`, `Grep`,
+`ListAgents`, `ListMcpResourcesTool`, `LSP`, `Monitor`, `NotebookEdit`,
+`PowerShell`, `PushNotification`, `Read`, `ReadMcpResourceTool`,
+`RemoteTrigger`, `ReportFindings`, `ScheduleWakeup`, `SendFeedback`,
+`SendMessage`, `SendUserFile`, `ShareOnboardingGuide`, `Skill`,
+`SubagentHandback`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskStop`,
+`TaskUpdate`, `TodoWrite`, `ToolSearch`, `WaitForMcpServers`, `WebFetch`,
+`WebSearch`, `Workflow`, `Write`; and one more row, `TaskOutput`, marked
+"Removed in v2.1.277 … Claude reads a background task's output file with
+`Read` instead". `MultiEdit` is in neither the table nor the SDK's tool
+input types (`sdk-tools.d.ts`, 0.3.286).
+
+What was built:
+
+- `src/spec/tools.ts`: `CLAUDE_CODE_TOOLS` (the 45 names) and
+  `RETIRED_TOOLS` with a replacement each: `MultiEdit` → `Edit`,
+  `TaskOutput` → `Read`.
+- The spec schema refuses an agent tool whose name (before any
+  `(specifier)`) is not in the list: rule `unknownTool`, or `retiredTool`
+  with the replacement. `mcp__…` names pass. `Agent` and `Task` keep their
+  own rule (`noAgentTool`) and are not reported twice; a malformed name
+  keeps `toolName`. The issue carries the tool and the replacement, and
+  the message (English and Spanish) names both, so the architect, who gets
+  `spec check`'s errors back from the flow, can correct the spec.
+- The architect's guidance (outside its locked block) says to use Claude
+  Code's tool names, that a retired one's replacement is given, and that
+  on macOS and Linux an agent that lists `Bash` gets no `Glob` or `Grep`,
+  so a read-only agent lists `Read, Grep, Glob` without `Bash`.
+- A test keeps every tool of the flow's closed list (`FLOW_BUILTIN_TOOLS`)
+  in `CLAUDE_CODE_TOOLS`, and no retired name in it.
+
+- **(choice)** The list holds every tool in the reference, not only those
+  that suit a generated agent: the check is about names that exist, not a
+  policy on which tools an agent should have (that stays with the
+  architect's guidance and the `noAgentTool` rule).
+- **(choice)** Only the spec is checked. `briefstack validate` of a
+  generated project does not check agent tool names: the agent files are
+  written from a spec that was checked, and a project's agents edited later
+  by the user are theirs.
+- **(choice)** A tool Claude Code adds after 2026-10-26 is refused until it
+  is added to the list; the list's header says where to check it.

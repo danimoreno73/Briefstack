@@ -5,12 +5,16 @@ import { SLUG_RE, SPEC_RULES, SpecSchema, type Spec, type SpecRule } from './sch
 
 export * from './preparation.js';
 export * from './schema.js';
+export * from './tools.js';
 
 /** One problem in a spec. `rule` is set for briefstack's own rules. */
 export interface SpecIssue {
   /** Dotted path such as `agents.0.tools.1`; empty for the root. */
   path: string;
   rule?: SpecRule;
+  /** For `unknownTool` and `retiredTool`: the tool named, and the one to use instead when there is one. */
+  tool?: string;
+  replacement?: string;
   /** zod's message, in whatever locale zod is configured with. */
   message: string;
 }
@@ -18,9 +22,17 @@ export interface SpecIssue {
 function toIssue(issue: core.$ZodIssue): SpecIssue {
   const path = issue.path.map(String).join('.');
   const isSlug = issue.code === 'invalid_format' && issue.pattern === String(SLUG_RE);
-  const candidate = isSlug ? 'slug' : (issue as { params?: { rule?: unknown } }).params?.rule;
+  const params = (issue as { params?: { rule?: unknown; tool?: unknown; replacement?: unknown } }).params;
+  const candidate = isSlug ? 'slug' : params?.rule;
   const rule = SPEC_RULES.find((name) => name === candidate);
-  return rule === undefined ? { path, message: issue.message } : { path, rule, message: issue.message };
+  if (rule === undefined) return { path, message: issue.message };
+  return {
+    path,
+    rule,
+    ...(typeof params?.tool === 'string' ? { tool: params.tool } : {}),
+    ...(typeof params?.replacement === 'string' ? { replacement: params.replacement } : {}),
+    message: issue.message,
+  };
 }
 
 /** Validates parsed JSON and applies defaults. `file` is for error messages. */
