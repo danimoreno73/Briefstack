@@ -21,6 +21,8 @@ decides so; each needs its own plan and approval.
 
 ## 2. Working inside projects from briefstack
 
+**Brief in phase 7.**
+
 Today briefstack only creates projects; the work on them happens in Claude
 Code or the app. To consider: whether the global chat should be able to
 open and direct work sessions in an existing project.
@@ -271,3 +273,10 @@ recommendation in NEXT_STEPS.md. (b) briefstack's own flow: an optional,
 off-by-default Codex read-only review round. Writing through Codex is out:
 the guard does not see Codex's writes. Delegating moves usage to the user's
 OpenAI quota; it is not free, and every user would need Codex installed.
+
+The user's goal (added in backlog 2): (c) After phase 7: in tasks and in
+generation, Claude Code delegates parts of the implementation to Codex and
+both build the project. Codex's writes are outside the guard, so Codex runs
+in its own sandbox limited to the task's worktree, and the diff, the
+declared checks and the user's approval are the control. Auth with the
+user's own Codex login; usage goes to the user's OpenAI quota.
