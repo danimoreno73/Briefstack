@@ -12,3 +12,6 @@ CLAUDE.local.md
 test-results/
 playwright-report/
 /screenshots/
+
+# A personal Obsidian vault over docs/
+docs/.obsidian/
