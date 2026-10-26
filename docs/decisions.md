@@ -3988,3 +3988,74 @@ recorded here.
   creations mid-flow (at a question, and between two steps) and asks the
   real chat (haiku) about each: only the chat's wording is under test, and
   no creation session is spent.
+
+## Backlog 2: `claudeMdExcludes` for creations, what the docs say (2026-10-26)
+
+B8 of [PLAN-backlog-2.md](PLAN-backlog-2.md). Read on 2026-10-26 in the
+official docs, and in the installed SDK (`@anthropic-ai/claude-agent-sdk`
+0.3.286, `sdk.d.ts`):
+
+1. **Flag settings honour it: yes, by the docs' rules, not in one
+   sentence.** `claudeMdExcludes` has scope "Any file" (user, project,
+   local, managed) in the settings reference
+   (<https://code.claude.com/docs/en/settings-reference>, "claudeMdExcludes":
+   "array of strings, each a glob pattern or absolute path"; "Patterns match
+   against absolute file paths"; "Exclusions apply only to user, project,
+   and local memory files"). The settings page says `--settings` "can set
+   any key your user settings file can set" and sits above user, project
+   and local settings (<https://code.claude.com/docs/en/settings>, "Change
+   a setting for one session" and "Settings precedence"). The SDK's
+   `settings` option "Populates the flag-settings layer"
+   (<https://code.claude.com/docs/en/agent-sdk/typescript>, Options). The
+   memory page says "Arrays merge across layers" and lists user, project,
+   local and managed, without naming `--settings`
+   (<https://code.claude.com/docs/en/memory>, "Exclude specific CLAUDE.md
+   files"). The SDK type describes it the same way and says the patterns
+   are matched with picomatch.
+2. **Main session: yes**, it is the memory the session loads at start.
+3. **Subagents: yes by inference, not stated.** A subagent's initial
+   context has "every level of the CLAUDE.md hierarchy the main
+   conversation loads" (<https://code.claude.com/docs/en/sub-agents>, "What
+   loads at startup"); a file the main conversation does not load is not
+   in that list. The docs do not say in so many words that
+   `claudeMdExcludes` applies to subagents; for `AGENTS.md` they say its
+   patterns apply. `omitClaudeMd` (subagents only, "No effect on the main
+   session agent") would drop every user, project and local file, not one.
+4. **Folders above the repo: yes, they load.** With `settingSources`
+   including `project`, `CLAUDE.md` files load from `<cwd>` "and every
+   parent directory" at session start
+   (<https://code.claude.com/docs/en/agent-sdk/claude-code-features>,
+   "CLAUDE.md load locations": "Project (parent dirs)"; the memory page,
+   "How CLAUDE.md files load"). Files in subdirectories of `<cwd>` load on
+   demand, when Claude reads or writes a file there. Folders passed with
+   `--add-dir` (the projects folder, the session folder, grants) do not
+   load theirs unless `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` is set.
+   On this machine no folder above the repo has a `CLAUDE.md`.
+
+What was built: `buildQueryOptions` adds `claudeMdExcludes` with the repo's
+`CLAUDE.md` to the flag settings, next to the guard's hooks, which stay
+exactly as `guardCommandSettings` writes them (a unit test compares them).
+If Claude Code ignored the setting, the file would load as before.
+
+- **(choice)** The path goes in twice: as the system writes it and with
+  forward slashes (one entry where both are the same). The docs say
+  "absolute path" and "glob pattern" without saying how a Windows path is
+  matched. Glob characters in the repo's path (`(`, `[`, `{`) are not
+  escaped: an escaped Windows path could stop matching, and a pattern that
+  misses only leaves the file loaded, as before.
+- **(choice)** Only the repo's root `CLAUDE.md` is excluded, as the
+  proposal says. Not excluded, and recorded in IDEAS.md: a `CLAUDE.md` in
+  a folder above the repo (the user's own, if any), and the templates'
+  `library/templates/*/claude-code/CLAUDE.md`, which as files in a
+  subdirectory of the repo would load on demand if an agent read a file
+  next to them (the generator scaffolds through the CLI, which reads them
+  as templates, not as memory).
+- **(choice)** The improvement sessions, which run in a worktree of the
+  repo and change briefstack itself, keep the contributors' `CLAUDE.md`:
+  for them it is the right instructions.
+- The real check, `scripts/real/check-claude-md.ts`, is written and not
+  run (no real sessions in this pass): a temp folder stands in for the
+  repo, with a marker word in its `CLAUDE.md` (excluded), another in
+  `.claude/CLAUDE.md` (a control that shows project memory loads) and a
+  third in the folder above; the main session and a file-based subagent
+  report the words they see, with no tool that reads files.

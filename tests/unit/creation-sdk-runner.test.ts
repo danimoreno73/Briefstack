@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { CanUseTool, HookCallback, Options, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -8,9 +8,11 @@ import {
   buildQueryOptions,
   cleanEnvironment,
   describeToolUse,
+  repoClaudeMdExcludes,
   webReminderHook,
   type QueryFn,
 } from '../../src/creation/sdkRunner.js';
+import { guardCommandSettings } from '../../src/creation/guardCommand.js';
 import type { TrackedSpawn } from '../../src/creation/processTree.js';
 import { ALLOWED_DIRS_ENV } from '../../src/library/settings.js';
 import type {
@@ -60,6 +62,46 @@ describe('buildQueryOptions', () => {
       additionalDirectories: ['/projects', '/sessions'],
     });
     expect(options.allowedTools).toEqual(['mcp__briefstack-web__approve_spec', 'mcp__briefstack-web__grant_directory']);
+  });
+
+  it('leaves the repo’s CLAUDE.md out of the session’s memory, by its absolute path', async () => {
+    const file = path.join(path.resolve('/repo'), 'CLAUDE.md');
+    const excludes = [...new Set([file, file.replaceAll('\\', '/')])];
+    expect(base().settings).toEqual({ claudeMdExcludes: excludes });
+    // On Windows also with forward slashes, the form glob patterns use; elsewhere one entry.
+    expect(excludes).toHaveLength(path.sep === '\\' ? 2 : 1);
+    // Built from the repo folder: for this repo, its real contributors' file.
+    const own = repoClaudeMdExcludes(PACKAGE_ROOT);
+    expect(own[0]).toBe(path.join(PACKAGE_ROOT, 'CLAUDE.md'));
+    expect((await stat(own[0] as string)).isFile()).toBe(true);
+    expect(own.every((pattern) => path.isAbsolute(pattern))).toBe(true);
+  });
+
+  it('keeps the guard’s flag settings exactly as guardCommandSettings writes them, next to the exclusion', () => {
+    const rulesFile = path.resolve('/home/runs/c1/guard.json');
+    const guard = guardCommandSettings(rulesFile);
+    const before = JSON.parse(JSON.stringify(guard)) as unknown;
+    const options = buildQueryOptions({
+      repoDir: '/repo',
+      executable: '/bin/claude',
+      profile: { name: 'balanced', sessionModel: 'sonnet', effort: 'medium' },
+      env: {},
+      additionalDirectories: [],
+      hooks: {},
+      canUseTool: async () => ({ behavior: 'deny', message: 'x' }),
+      mcpServers: {},
+      abortController: new AbortController(),
+      spawn: () => {
+        throw new Error('not used');
+      },
+      settings: guard,
+    });
+    const settings = options.settings as unknown as Record<string, unknown>;
+    expect(Object.keys(settings).sort()).toEqual(['claudeMdExcludes', 'hooks']);
+    expect(settings.hooks).toEqual(guardCommandSettings(rulesFile).hooks);
+    expect(settings.claudeMdExcludes).toEqual(repoClaudeMdExcludes('/repo'));
+    // The object the runner passed is not changed.
+    expect(guard).toEqual(before);
   });
 
   it('offers only the built-in tools the flow uses', () => {

@@ -202,6 +202,19 @@ describe('backlog 2 real checks: prepared, guarded, and kept off real data', () 
     expect(script).toContain('answer.includes(expected)');
     expect(script).not.toContain('bypassPermissions');
   });
+
+  it('check-claude-md: asks for --yes, uses the runner’s options in the sandbox, and lets no session read the files', async () => {
+    const script = await read('check-claude-md.ts');
+    expect(script).toContain('requireConfirmation(');
+    expect(script).toMatch(/await sandbox\('/);
+    expect(script).toContain('buildQueryOptions({');
+    expect(script).toContain('repoDir: box.project');
+    // Never the real repo: its CLAUDE.md is not touched, the markers are planted in the sandbox.
+    expect(script).not.toContain('PACKAGE_ROOT');
+    expect(script).toContain("options.tools = ['Agent']");
+    expect(script).not.toMatch(/settingSources = \[\]/);
+    expect(script).not.toContain('bypassPermissions');
+  });
 });
 
 describe('phase 5 real checks: prepared, guarded, and kept off real data', () => {

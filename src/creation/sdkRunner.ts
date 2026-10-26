@@ -121,6 +121,18 @@ export interface QueryOptionsParams {
 }
 
 /**
+ * The repo's own `CLAUDE.md`, as `claudeMdExcludes` patterns: it is for
+ * contributors ("plan first", "ask when in doubt", commit rules) and pulls
+ * against the flow, which asks only through its tools (backlog 2, B8;
+ * docs/decisions.md). Patterns match absolute paths with glob syntax, so the
+ * file goes in both as the system writes it and with forward slashes.
+ */
+export function repoClaudeMdExcludes(repoDir: string): string[] {
+  const file = path.join(path.resolve(repoDir), 'CLAUDE.md');
+  return [...new Set([file, file.split(path.sep).join('/')])];
+}
+
+/**
  * The `query()` options of a creation. Never `bypassPermissions`: the session
  * runs in `auto` mode, and the guard and `canUseTool` decide what the
  * classifier must not.
@@ -151,8 +163,9 @@ export function buildQueryOptions(params: QueryOptionsParams): Options {
     canUseTool: params.canUseTool,
     abortController: params.abortController,
     spawnClaudeCodeProcess: params.spawn,
-    // The command-hook guard, which Claude Code runs itself: it holds when the server is gone.
-    ...(params.settings === undefined ? {} : { settings: params.settings as NonNullable<Options['settings']> }),
+    // Flag settings: the command-hook guard, which Claude Code runs itself (it holds when the server is
+    // gone), as `guardCommandSettings` wrote it; and the repo's CLAUDE.md left out of every session's memory.
+    settings: { ...params.settings, claudeMdExcludes: repoClaudeMdExcludes(params.repoDir) } as NonNullable<Options['settings']>,
   };
 }
 

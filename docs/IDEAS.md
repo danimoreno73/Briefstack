@@ -136,11 +136,20 @@ are not repeated.
     English and Spanish; `list_sessions` and `session_panel` carry it; the
     system prompt names it; a real check for the user that asks the chat
     mid-creation and compares the answer with the panel.
-- Creations see the repo's `CLAUDE.md`. From
+- **Done in backlog 2** (B8 in [PLAN-backlog-2.md](PLAN-backlog-2.md),
+  option (1); what the docs say is in decisions.md, "Backlog 2:
+  `claudeMdExcludes` for creations"; its real check,
+  `scripts/real/check-claude-md.ts`, is for the user to run). Creations see the repo's `CLAUDE.md`. From
   [PLAN-phase-4.md](history/PLAN-phase-4.md), carried in
   [PLAN-phase-5.md](history/PLAN-phase-5.md).
 
-  **Proposal** (backlog 1, B8; not built):
+  Still open after B8: a `CLAUDE.md` in a folder above the repo (the
+  user's own, if any) still loads in creations, as the docs say every
+  parent folder's does; and the templates'
+  `library/templates/*/claude-code/CLAUDE.md` would load on demand if an
+  agent read a file in their folder. Neither is excluded yet.
+
+  **Proposal** (backlog 1, B8):
   - *Cause.* Creation sessions run with the repo as working folder and
     `settingSources: ['project']` (`buildQueryOptions` in
     `src/creation/sdkRunner.ts`); that is how they get the flow's skill,
