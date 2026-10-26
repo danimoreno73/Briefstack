@@ -13,6 +13,7 @@ release are in `docs/history/` (tags `phase-1-done` … `phase-6-done`,
 `ui-done`, `v1.0.0`); open them only when needed. Contributors' rules are
 also in `CONTRIBUTING.md`.
 Backlog 1 is done (tag `backlog-1-done`); details in `docs/PLAN-backlog-1.md`.
+Backlog 2 is done (tag `backlog-2-done`); details in `docs/PLAN-backlog-2.md`.
 
 ## Commands
 

@@ -19,16 +19,27 @@ twice is marked here and the next one starts.
 
 ## 0. Status
 
-Updated 2026-10-26. In progress.
+Updated 2026-10-26. Done: every step passed, none failed twice. Each item
+was pushed alone and CI was green on Linux, Windows and macOS before the
+next one. Choices made without the user, and what the docs say about
+`claudeMdExcludes`, are in decisions.md, "Backlog 2".
+
+Not run in this pass (its rules): real SDK sessions. Two real checks are
+written for the user: `npx tsx scripts/real/check-chat-step.ts --yes`
+(B10: the chat quotes `stepText`) and
+`npx tsx scripts/real/check-claude-md.ts --yes` (B8: neither the main
+session nor a subagent sees the excluded `CLAUDE.md`). Left in IDEAS.md:
+B9's option (1); for B8, the `CLAUDE.md` of folders above the repo and of
+the templates.
 
 | # | Step | State |
 |---|---|---|
-| — | Plan, tag `backlog-2-start` | done |
-| B10 | The chat quotes the creation's step: `stepText` in `list_sessions` and `session_panel`, and the line in the chat's prompt | done: `stepText` in `src/panel/steps.ts`, names in `src/i18n/steps.ts`; real check `check-chat-step.ts` written, not run |
-| B8 | Creations do not load the repo's `CLAUDE.md`: `claudeMdExcludes` in the creation's flag settings | done: the docs support it for flag settings and the main session, and for subagents by inference (decisions.md); parent folders' `CLAUDE.md` do load (left as they are, in IDEAS.md); real check `check-claude-md.ts` written, not run |
-| B9 | The web app treats the folders of terminal creations in progress as taken; README note | done: `paths check --session` records `folder.json` in the session folder; the server's claims count the folders of sessions in progress it does not run; option (1) stays in IDEAS.md |
-| C | IDEAS.md: Codex goal (c); section 2 marked "brief in phase 7" | done: the user's text as given, in section 5 |
-| — | Status updated, tag `backlog-2-done` | to do |
+| — | Plan, tag `backlog-2-start` | done, `5fc8d7b` |
+| B10 | The chat quotes the creation's step: `stepText` in `list_sessions` and `session_panel`, and the line in the chat's prompt | done, `abb1b04`: `stepText` in `src/panel/steps.ts`, names in `src/i18n/steps.ts`; real check `check-chat-step.ts` written, not run |
+| B8 | Creations do not load the repo's `CLAUDE.md`: `claudeMdExcludes` in the creation's flag settings | done, `106977c`: the docs support it for flag settings and the main session, and for subagents by inference (decisions.md); parent folders' `CLAUDE.md` do load (left as they are, in IDEAS.md); real check `check-claude-md.ts` written, not run |
+| B9 | The web app treats the folders of terminal creations in progress as taken; README note | done, `0670789`: `paths check --session` records `folder.json` in the session folder; the server's claims count the folders of sessions in progress it does not run; option (1) stays in IDEAS.md |
+| C | IDEAS.md: Codex goal (c); section 2 marked "brief in phase 7" | done, `1779649`: the user's text as given, in section 5 |
+| — | Status updated, tag `backlog-2-done` | done |
 
 ## 1. Steps
 
