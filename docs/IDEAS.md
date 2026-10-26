@@ -102,11 +102,13 @@ are not repeated.
 - A `claude-code` project does not show its scheduled tasks anywhere; only
   `NEXT_STEPS.md` of a `claude-app` project does. From
   [PLAN-phase-1.md](history/PLAN-phase-1.md).
-- The chat sometimes describes a creation's step wrongly: it should quote the
+- **Done in backlog 2** (B10 in [PLAN-backlog-2.md](PLAN-backlog-2.md),
+  option (1); its real check, `scripts/real/check-chat-step.ts`, is for the
+  user to run). The chat sometimes describes a creation's step wrongly: it should quote the
   exact step from the panel. From [PLAN-phase-4.md](history/PLAN-phase-4.md), carried
   in [PLAN-phase-5.md](history/PLAN-phase-5.md).
 
-  **Proposal** (backlog 1, B10; not built):
+  **Proposal** (backlog 1, B10):
   - *Cause.* The chat gets the step as data and words it itself.
     `list_sessions` gives the open step's id (`gap-analysis`,
     `validate-review`, …) only while a step is open: the manager's

@@ -3955,3 +3955,36 @@ and stops before it releases. A live holder's lock never grows old; the
 age rule still frees a lock whose holder stopped, including a pid that was
 reused. **(choice)** The age rule is kept rather than trusting a live pid
 alone, because a pid can be reused by an unrelated process after a crash.
+
+# Backlog 2
+
+## Backlog 2: choices made without the user (2026-10-26)
+
+The user asked for [PLAN-backlog-2.md](PLAN-backlog-2.md) to run unattended:
+no questions, the most conservative option where a decision is needed,
+recorded here.
+
+- **(choice)** Tag `backlog-2-start` is on `745efb3`, the last commit
+  before the plan.
+- **(choice)** B10, the wording of `stepText`: "Step 3 of 9: Interview —
+  waiting for your answers". The position and the step's name come from
+  the panel's own code (`stepPosition`, moved unchanged to
+  `src/panel/steps.ts`; the names moved to `src/i18n/steps.ts`, which the
+  UI's `stepLabel` reads), so the panel's text does not change: it still
+  says "step 3 / 9". The rest is in the second person, because the model
+  quotes it to the user. The language is the configured one (`lang` of the
+  chat's tools), as for the rest of the chat's data; the model answers in
+  the user's language and may then quote a line in the other one.
+- **(choice)** B10, which step: the step the manager knows open, else a
+  step left running in the events, else the last one that is not waiting
+  (the panel's rule between steps). What it waits for follows the creation
+  page's head: a pending request, else a reply to the session's last
+  message; cancelling wins over both; a finished or interrupted session
+  says so instead.
+- **(choice)** B10, `list_sessions` reads each active creation's
+  `events.jsonl` to build its panel state: one read per active creation
+  (at most the active limit), the same read `session_panel` already made.
+- **(choice)** B10, the real check (`check-chat-step.ts`) holds two FAKE
+  creations mid-flow (at a question, and between two steps) and asks the
+  real chat (haiku) about each: only the chat's wording is under test, and
+  no creation session is spent.

@@ -1,5 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
+import { stepPosition } from '../panel/steps.js';
 import { CreationSuggestions } from './improve.js';
 import { ApiError, CREATIONS_CHANGED_EVENT, TOKEN_HEADER, noteRejection } from './api.js';
 import { answersFor, defaultSelection, type Selection } from './answers.js';
@@ -9,7 +10,7 @@ import { formatWhen, openCommandLines, withoutLeadingHeading } from './format.js
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { IconCheck, IconFolder, IconQuestion, IconReply, IconSpec, IconTerminal } from './icons.js';
 import { ConfirmModal, ErrorNote, LoadState, Loading, MetaLine, Note, UsageWarningModal, usageWarningIn } from './kit.js';
-import { AgentPanel, PENDING_CONTROL_ID, PlanUsage, StepBar, StepCount, stepPosition, usePanelState } from './panel.js';
+import { AgentPanel, PENDING_CONTROL_ID, PlanUsage, StepBar, StepCount, usePanelState } from './panel.js';
 import { formatClock, formatDuration, liveFromState, panelEventsFromStream, percent, stepLooks } from './panelData.js';
 import { STEPS, deriveProgress, parseSse, type Progress } from './progress.js';
 import { ReplyBox } from './reply.js';

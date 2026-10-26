@@ -188,6 +188,22 @@ describe('phase 4 real checks: prepared, guarded, and kept off real data', () =>
   });
 });
 
+describe('backlog 2 real checks: prepared, guarded, and kept off real data', () => {
+  const read = (name: string) => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', name), 'utf8');
+
+  it('check-chat-step: asks for --yes, runs the real chat on haiku over fake creations, and compares with stepText', async () => {
+    const script = await read('check-chat-step.ts');
+    expect(script).toContain('requireConfirmation(');
+    expect(script).toMatch(/await sandbox\('/);
+    expect(script).toContain("profile: async () => ({ model: 'haiku', effort: 'low' })");
+    expect(script).toContain('new SdkChatRunner(');
+    expect(script).toContain('new FakeRunner(');
+    expect(script).toContain("findChatTool('list_sessions')");
+    expect(script).toContain('answer.includes(expected)');
+    expect(script).not.toContain('bypassPermissions');
+  });
+});
+
 describe('phase 5 real checks: prepared, guarded, and kept off real data', () => {
   const read = (name: string) => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', name), 'utf8');
 

@@ -487,8 +487,13 @@ string redacted.
 | `show_project` | read | `slug` | the project note and status |
 | `search_library` | read | `query`, `section`? | up to 10 notes with matching lines |
 | `read_note` | read | `section` (`index`, `profile`, `projects`, `log`, `skills`, `lessons`), `name`? | one note |
-| `list_sessions` | read | — | sessions on disk and the active creations (creation id, idea, step, what it waits for) |
-| `session_panel` | read | `sessionId` | `buildPanelState` of the session, compact: agents, status, current tool, denials, steps, plan usage |
+| `list_sessions` | read | — | sessions on disk and the active creations (creation id, idea, step, what it waits for, `stepText`) |
+| `session_panel` | read | `sessionId` | `buildPanelState` of the session, compact: agents, status, `stepText`, current tool, denials, steps, plan usage |
+
+`stepText` is where a creation is, worded as its panel shows it ("Step 3 of 9:
+Interview — waiting for your answers"), in the configured language
+(`stepText` in `src/panel/steps.ts`). The chat's system prompt tells the model
+to quote it rather than infer the step.
 | `show_usage` | read | — | the active profile (session, chat and agent models), the profiles, the plan usage now |
 | `show_settings` | read | — | language, permission policy, limit of creations, resolved folders |
 | `start_creation` | action | `idea` | card, then starts a creation as the New project page does; an idea with something that looks like a secret is refused, so the card always shows the idea exactly as it will start |

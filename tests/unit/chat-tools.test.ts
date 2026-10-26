@@ -26,6 +26,16 @@ import { useHermeticGit } from '../helpers.js';
 
 useHermeticGit();
 
+async function waitFor<T>(probe: () => T | undefined | false, timeoutMs = 5000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const value = probe();
+    if (value !== undefined && value !== false) return value;
+    if (Date.now() > deadline) throw new Error('waitFor timed out');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
 describe('line diff', () => {
   it('finds the lines that go and come, and keeps the rest', () => {
     expect(diffLines('a\nb\nc\n', 'a\nB\nc\nd\n')).toEqual([
@@ -162,6 +172,24 @@ describe('the tools', () => {
     expect(panel.data).toMatchObject({ session: { status: 'finished', outcome: 'completed' }, agents: [expect.objectContaining({ agent: 'main', status: 'done' })] });
     expect(panel.sources).toEqual([{ kind: 'session', ref: SESSION }]);
     await expect(read('session_panel', { sessionId: '../x' })).rejects.toBeInstanceOf(BriefstackError);
+  });
+
+  it('list_sessions and session_panel give the step as the panel words it (stepText)', async () => {
+    const started = await world.creations.create('A recipe box');
+    // The fake flow opens the interview and asks a question there.
+    await waitFor(() => world.creations.get(started.id).pending !== undefined);
+    const listed = await read('list_sessions');
+    const active = (listed.data as { activeCreations: { creationId: string; stepText: string }[] }).activeCreations;
+    expect(active).toEqual([expect.objectContaining({ creationId: started.id, stepText: 'Step 3 of 9: Interview — waiting for your answers' })]);
+
+    const sessionId = world.creations.get(started.id).sessionId;
+    if (sessionId === undefined) throw new Error('no session id');
+    const live = await read('session_panel', { sessionId });
+    expect(live.data).toMatchObject({ stepText: 'Step 3 of 9: Interview — waiting for your answers' });
+    const done = await read('session_panel', { sessionId: SESSION });
+    expect(done.data).toMatchObject({ stepText: 'Step 3 of 9: Interview — finished, completed' });
+    const spanish = await (findChatTool('session_panel') as ReadTool).run({ ...world.tools, lang: 'es' }, { sessionId: SESSION });
+    expect(spanish.data).toMatchObject({ stepText: 'Paso 3 de 9: Entrevista — terminada, completada' });
   });
 
   it('gives the model no absolute path: folders under the home as ~/…, anything else hidden', async () => {

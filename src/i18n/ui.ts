@@ -1,4 +1,5 @@
 import { defineCatalogue } from './index.js';
+import { stepName } from './steps.js';
 
 /** Strings of the web UI. Pure module: the browser imports it directly. */
 export const uiMessages = defineCatalogue({
@@ -315,20 +316,7 @@ export const uiMessages = defineCatalogue({
         ? 'If Claude asks to do something outside the plan, it is denied automatically (unattended).'
         : 'If Claude asks to do something outside the plan, you decide here.',
     progressTitle: 'Progress',
-    stepLabel: (step: string): string => {
-      const labels: Record<string, string> = {
-        idea: 'Idea',
-        'gap-analysis': 'Gap analysis',
-        interview: 'Interview',
-        research: 'Research',
-        spec: 'Spec',
-        generate: 'Generate',
-        'validate-review': 'Validate and review',
-        learn: 'Learn',
-        handoff: 'Hand-off',
-      };
-      return labels[step] ?? step;
-    },
+    stepLabel: (step: string): string => stepName(step, 'en'),
     stepState: (state: string): string => {
       const labels: Record<string, string> = {
         waiting: 'waiting',
@@ -1164,20 +1152,7 @@ export const uiMessages = defineCatalogue({
         ? 'Si Claude pide hacer algo fuera del plan, se deniega automáticamente (desatendido).'
         : 'Si Claude pide hacer algo fuera del plan, decides tú aquí.',
     progressTitle: 'Progreso',
-    stepLabel: (step: string): string => {
-      const labels: Record<string, string> = {
-        idea: 'Idea',
-        'gap-analysis': 'Análisis de huecos',
-        interview: 'Entrevista',
-        research: 'Investigación',
-        spec: 'Spec',
-        generate: 'Generación',
-        'validate-review': 'Validación y revisión',
-        learn: 'Aprendizaje',
-        handoff: 'Entrega',
-      };
-      return labels[step] ?? step;
-    },
+    stepLabel: (step: string): string => stepName(step, 'es'),
     stepState: (state: string): string => {
       const labels: Record<string, string> = {
         waiting: 'pendiente',

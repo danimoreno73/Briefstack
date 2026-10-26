@@ -25,7 +25,8 @@ import {
   toNative,
 } from '../library/index.js';
 import { hideAbsolutePaths, projectEvent } from '../panel/project.js';
-import { buildPanelState, type PanelLive, type PanelTarget, type PendingKind } from '../panel/state.js';
+import { buildPanelState, type PanelLive, type PanelState, type PanelTarget, type PendingKind } from '../panel/state.js';
+import { stepText, type StepWaitingFor } from '../panel/steps.js';
 import { getPreset, loadUsageContext, resolveActiveProfile, usageSet, usageShow } from '../usage/index.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { addSkillToProject, checkInstallFolder, installLocation, isInstalled, projectTarget } from '../skills/projectInstall.js';
@@ -174,7 +175,33 @@ function liveOf(state: CreationState): PanelLive {
   return live;
 }
 
-const tool = <S extends z.ZodRawShape>(definition: ReadTool<S> | ActionTool<S>): ChatTool => definition as unknown as ChatTool;
+/** A session's panel state from its recorded events, with what the manager knows live when it runs it. */
+async function panelOf(sessionsDir: string, sessionId: string | undefined, running: CreationState | undefined): Promise<{ state: PanelState; eventCount: number }> {
+  const { events } = sessionId === undefined ? { events: [] } : await readEvents(sessionEventsFile(sessionsDir, sessionId));
+  const projected = events.map((event, index) => projectEvent(event, index + 1));
+  const state = buildPanelState(projected, { now: new Date(), ...(running === undefined ? {} : { live: liveOf(running) }) });
+  return { state, eventCount: events.length };
+}
+
+/** Where a creation is, worded as the panel shows it (`src/panel/steps.ts`): the chat quotes it. */
+function stepTextOf(panel: PanelState, running: CreationState | undefined, lang: Lang): string {
+  const open = running !== undefined && running.status !== 'finished';
+  const replying = open && running.pending === undefined && running.awaitingReply !== undefined && running.cancelling !== true;
+  const waitingFor = open ? ((running.pending?.kind as StepWaitingFor | undefined) ?? (replying ? 'reply' : undefined)) : undefined;
+  return stepText(
+    {
+      steps: panel.steps,
+      current: (open ? running.currentStep : undefined) ?? panel.steps.find((item) => item.state === 'running')?.step,
+      status: panel.session.status,
+      outcome: panel.session.outcome,
+      waitingFor,
+      cancelling: running?.cancelling,
+    },
+    lang,
+  );
+}
+
+const tool =<S extends z.ZodRawShape>(definition: ReadTool<S> | ActionTool<S>): ChatTool => definition as unknown as ChatTool;
 
 export const CHAT_TOOLS: readonly ChatTool[] = [
   tool({
@@ -283,13 +310,19 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
     name: 'list_sessions',
     kind: 'read',
     description:
-      'List the creation sessions on disk (id, status, outcome, times) and the creations active in this server (creation id, idea, step, what each waits for).',
+      'List the creation sessions on disk (id, status, outcome, times) and the creations active in this server (creation id, idea, what each waits for, and stepText: where it is, as its panel shows it).',
     input: {},
     summary: () => '',
     run: async (ctx) => {
       const { paths } = await load(ctx);
       const sessions = await listSessions(paths.sessionsDir);
-      const active = (ctx.creations?.list() ?? []).filter((creation) => creation.status !== 'finished').map(creationView);
+      const running = (ctx.creations?.list() ?? []).filter((creation) => creation.status !== 'finished');
+      const active = await Promise.all(
+        running.map(async (creation) => ({
+          ...creationView(creation),
+          stepText: stepTextOf((await panelOf(paths.sessionsDir, creation.sessionId, creation)).state, creation, ctx.lang),
+        })),
+      );
       return {
         data: { activeCreations: active, sessions: sessions.slice(0, 50) },
         sources: [
@@ -303,19 +336,18 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
     name: 'session_panel',
     kind: 'read',
     description:
-      'What a creation session is doing or did, from its recorded events: status, each agent (type, model, effort, status, the tool it uses now), denials, steps and plan usage.',
+      'What a creation session is doing or did, from its recorded events: status, stepText (where it is, as its panel shows it), each agent (type, model, effort, status, the tool it uses now), denials, steps and plan usage.',
     input: { sessionId: z.string().min(1).max(100) },
     summary: (args) => args.sessionId,
     run: async (ctx, args) => {
       const { paths } = await load(ctx);
-      const { events } = await readEvents(sessionEventsFile(paths.sessionsDir, args.sessionId));
-      if (events.length === 0) throw new BriefstackError('events.sessionNotFound', { session: args.sessionId });
-      const projected = events.map((event, index) => projectEvent(event, index + 1));
       const running = ctx.creations?.list().find((creation) => creation.sessionId === args.sessionId);
-      const state = buildPanelState(projected, { now: new Date(), ...(running === undefined ? {} : { live: liveOf(running) }) });
+      const { state, eventCount } = await panelOf(paths.sessionsDir, args.sessionId, running);
+      if (eventCount === 0) throw new BriefstackError('events.sessionNotFound', { session: args.sessionId });
       return {
         data: {
           session: state.session,
+          stepText: stepTextOf(state, running, ctx.lang),
           agents: state.nodes.map((node) => ({
             agent: node.agentType,
             status: node.status,

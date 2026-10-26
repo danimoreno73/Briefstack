@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { PANEL_STEPS, buildPanelState, type PanelEventInput, type PanelLive, type PanelNode, type PanelState, type PanelStepState } from '../panel/state.js';
+import { stepPosition, type StepPosition } from '../panel/steps.js';
 import { usageHiddenReason } from './claude.js';
 import { useApp, useClaudeStatus, useDocumentTitle, useLoad } from './hooks.js';
 import { IconCheck, IconCross } from './icons.js';
@@ -12,7 +13,6 @@ import {
   nodeLabels,
   percent,
   stepLooks,
-  stepNumber,
   targetText,
   timelineTicks,
   usageMeter,
@@ -100,15 +100,8 @@ export function StepBar({ steps, current, ended }: { steps: { step: string; stat
   );
 }
 
-/** "step 3 / 9" for the step running now or, between steps, the last one reached. */
-export function stepPosition(steps: { step: string; state: PanelStepState }[], current: string | undefined): { index: number; step: string } | undefined {
-  const reached = current ?? [...steps].reverse().find((item) => item.state !== 'waiting')?.step;
-  const index = stepNumber(PANEL_STEPS, reached);
-  return index === undefined || reached === undefined ? undefined : { index, step: reached };
-}
-
 /** "step 3 / 9", and on a phone, where the segments carry no names, the step's name beside it. */
-export function StepCount({ position }: { position: { index: number; step: string } }) {
+export function StepCount({ position }: { position: StepPosition }) {
   const { t } = useApp();
   return (
     <span class="meta">
