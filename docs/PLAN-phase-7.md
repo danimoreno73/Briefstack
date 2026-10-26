@@ -7,7 +7,8 @@ commits, one concern each; build, lint, unit and e2e tests green before each
 commit; CI checked after each push and green on Linux, Windows and macOS
 before the next milestone.
 
-**Not started: waiting for the user's approval of H0 and this plan.**
+**Approved by the user on 2026-10-26, as written, with the decisions of
+section 1.**
 
 ## 0. Status
 
@@ -16,7 +17,7 @@ Updated 2026-10-26.
 | # | Milestone | State |
 |---|---|---|
 | H0 | Verify before designing (BRIEF §6) | done, decisions.md "Phase 7: H0"; two points need a real probe (M0) |
-| M0 | Real probe for the user: hooks and the command-hook guard, external imports | to do (prepared by me, run by the user) |
+| M0 | Real probe for the user: hooks and the command-hook guard, external imports | prepared: `npx tsx scripts/real/probe-h0-phase7.ts --yes`; waiting for the user's run |
 | M1 | `work` entry in usage profiles | to do |
 | M2 | Tasks: records, preconditions, worktree lifecycle | to do |
 | M3 | Task guard, shell permission flow, project settings | to do |

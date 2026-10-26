@@ -241,6 +241,34 @@ describe('backlog 2 real checks: prepared, guarded, and kept off real data', () 
   });
 });
 
+describe('phase 7 H0 probe (M0): prepared, guarded, and kept off real data', () => {
+  const read = () => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'probe-h0-phase7.ts'), 'utf8');
+
+  it('asks for --yes, works in a sandbox on haiku, and stops above the usage limits', async () => {
+    const script = await read();
+    expect(script).toContain('requireConfirmation(');
+    expect(script).toMatch(/await sandbox\('/);
+    expect(script).toContain("model: 'haiku'");
+    expect(script).toContain("effort: 'low'");
+    expect(script).toContain('FIVE_HOUR_LIMIT = 85');
+    expect(script).not.toContain('bypassPermissions');
+    // Never the real repo or a real project: every folder it writes is under the sandbox.
+    expect(script).not.toContain('PACKAGE_ROOT');
+  });
+
+  it('asks the two open questions with a control run, and hides the settings file as the plan says', async () => {
+    const script = await read();
+    expect(script).toContain("mode === 'A1' ? { disableAllHooks: true } : {}");
+    expect(script).toContain("hooks: hooksOf(script, log, 'flag')");
+    expect(script).toContain('ANSWER A1.1');
+    expect(script).toContain('ANSWER B');
+    expect(script).toContain("['update-index', '--skip-worktree', '.claude/settings.json']");
+    // Server-side git runs no project hook and keeps long paths.
+    expect(script).toContain('core.hooksPath=');
+    expect(script).toContain('core.longpaths=true');
+  });
+});
+
 describe('phase 5 real checks: prepared, guarded, and kept off real data', () => {
   const read = (name: string) => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', name), 'utf8');
 
