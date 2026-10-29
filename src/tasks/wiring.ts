@@ -2,6 +2,7 @@ import { maxActiveCreationsOf, type PathEnv } from '../config/index.js';
 import type { Lang } from '../i18n/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import { loadUsageContext, resolveActiveProfile } from '../usage/index.js';
+import { afterRoundWith } from './afterRound.js';
 import { TaskManager, type AfterRoundResult, type TaskManagerOptions } from './manager.js';
 import type { TaskRunner } from './runner.js';
 import { TaskSdkRunner } from './sdkRunner.js';
@@ -39,6 +40,7 @@ export async function createWebTasks(options: WebTaskOptions): Promise<TaskManag
   const read = () => loadUsageContext(pathEnv);
   const { paths } = await read();
   const runner = options.runner ?? new TaskSdkRunner({ pathEnv, lang: options.lang });
+  const afterRound = options.afterRound ?? afterRoundWith({ libraryDir: async () => (await read()).paths.libraryDir, home: paths.home });
   return new TaskManager({
     runner,
     store: new TaskStore(tasksRoot(paths.home)),
@@ -49,6 +51,6 @@ export async function createWebTasks(options: WebTaskOptions): Promise<TaskManag
     maxActive: async () => maxActiveCreationsOf((await read()).config),
     pathEnv,
     ...(options.creations === undefined ? {} : { creations: options.creations }),
-    ...(options.afterRound === undefined ? {} : { afterRound: options.afterRound }),
+    afterRound,
   });
 }

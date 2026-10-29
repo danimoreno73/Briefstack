@@ -225,6 +225,34 @@ export async function commitRound(worktreeDir: string, message: string): Promise
   });
 }
 
+/**
+ * Puts the worktree back to its last commit after the checks: tracked files
+ * they changed are restored, untracked files they left are removed. What
+ * git ignores (dependencies, build output) stays. The hidden settings files
+ * are left alone. Returns the paths it put back.
+ */
+export async function restoreToHead(worktreeDir: string): Promise<string[]> {
+  return withSafeGit(worktreeDir, async (git) => {
+    const raw = await git(['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+    const entries = raw.split('\0').filter((entry) => entry.length > 3);
+    const tracked: string[] = [];
+    const untracked: string[] = [];
+    for (const entry of entries) {
+      const file = entry.slice(3);
+      if (entry.startsWith('??')) untracked.push(file);
+      else tracked.push(file);
+    }
+    if (tracked.length > 0) await git(['restore', '--source=HEAD', '--staged', '--worktree', '--pathspec-file-nul', '--pathspec-from-file=-'], `${tracked.join('\0')}\0`);
+    for (const file of untracked) await rm(path.join(worktreeDir, ...file.split('/')), { force: true, recursive: true });
+    return [...tracked, ...untracked];
+  });
+}
+
+/** The last commit of a folder's `HEAD`. */
+export async function headOf(dir: string): Promise<string> {
+  return (await gitOk(dir, ['rev-parse', '--verify', 'HEAD^{commit}'])).trim();
+}
+
 /** Message of the commit that makes a project folder a repository for tasks (BRIEF-phase-7 §3.1). */
 export const INIT_COMMIT_MESSAGE = 'Start version control for briefstack tasks';
 
