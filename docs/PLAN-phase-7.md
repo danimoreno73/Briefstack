@@ -25,8 +25,8 @@ or 90% of the 5-hour window.
 | H0 | Verify before designing (BRIEF §6) | done, decisions.md "Phase 7: H0" |
 | M0 | Real probe for the user: hooks and the command-hook guard, external imports | done 2026-10-29 (the user's run): decisions.md "Phase 7: M0"; `disableAllHooks` ruled out, external imports not loaded, C all pass. Follow-up: skills not of the project, decisions.md "Phase 7: skills that are not the project's", §1, 10 |
 | M1 | `work` entry in usage profiles | done (`14ab7df`), CI green on the three systems |
-| M2 | Tasks: records, preconditions, worktree lifecycle | done (`9bd4121`, `2600cca`); `src/tasks/` git, store, preconditions |
-| M3 | Task guard, shell permission flow, project settings | to do |
+| M2 | Tasks: records, preconditions, worktree lifecycle | done (`9bd4121`, `2600cca`), CI green on the three systems |
+| M3 | Task guard, shell permission flow, project settings | done (`070510f`, `b96d728`, `31b15d3`): `src/tasks/guard.ts`, `shell.ts`, `guardCommand.ts`, `session.ts` |
 | M4 | Task runner (SDK and fake), shared limit, panel | to do |
 | M5 | Declared checks and server-side validations | to do |
 | M6 | Proposal page, apply, revert, project page | to do |

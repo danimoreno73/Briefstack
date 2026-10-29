@@ -4737,3 +4737,47 @@ milestone.
 - `.claude/settings.local.json` is hidden like `settings.json` when it is
   tracked (it is usually not; an untracked one never reaches the
   worktree).
+
+**M3.**
+
+- **The command-hook guard and shell commands.** Matching hooks run in
+  parallel (hooks docs, "When an event fires, its matching hooks run in
+  parallel"), and a `PreToolUse` input carries `tool_use_id`. The command
+  hook cannot ask the user, and allowing every shell call in it would
+  leave shell commands to the callback alone, which phase 4 found does
+  not hold when the server is gone. So the command hook waits for the
+  server's record of the user's decision on that very call
+  (`<home>/tasks/<id>/approvals/<tool_use_id>.json`, holding a SHA-256 of
+  the tool and the whole command) and lets the call through only when it
+  says allow for the same tool and command. A deny, another command, the
+  server's process gone, or no record before its deadline: exit 2. If the
+  hooks did not run in parallel the call would wait and then be denied:
+  it fails closed. The records are removed after each call and when the
+  task ends; "this exact command" approvals live in memory only.
+- **Timeouts.** A dialog not answered in 59 minutes is a deny, as the
+  chat's cards; the SDK callback has 60 minutes, the command hook 61 (it
+  stops waiting 20 seconds before).
+- **Web requests** (`WebFetch`, `WebSearch`) ask the same way; "this exact
+  one" is the address for `WebFetch` (not its prompt, which changes
+  nothing fetched) and the query for `WebSearch`.
+- **What a task may not write**, besides `.git` and anything outside the
+  worktree: `.claude/settings.json` and `settings.local.json` at any
+  depth, `.mcp.json` (a later interactive session would offer to load
+  it), and hook folders (`.claude/hooks/`, `.husky/`, `.githooks/`). A
+  skill, command or agent file (`.claude/{skills,commands,agents}/**.md`,
+  at any depth) whose resulting text declares `hooks`, or whose
+  frontmatter cannot be parsed, is refused; an `Edit` to such a file is
+  checked on the text it would leave.
+- **What stops a task at the start** (the worktree is inspected right
+  after it is made, and removed if it fails): a skill, command or agent
+  that declares `hooks`; an agent with `mcpServers` (`strictMcpConfig`
+  is not documented to cover servers an agent defines), with a
+  `permissionMode` other than `default` or `plan`, or that preloads a
+  skill that is not the project's; a definition that cannot be read.
+  Agents whose `tools` name nothing the task offers, and `@` imports that
+  leave the worktree, are warnings on the page.
+- The `Agent` tool is refused with `isolation` (it would make a git
+  worktree of its own), with `mode`, or in the background.
+- `NotebookEdit` is not offered (`Write` covers notebooks), nor
+  `TodoWrite` or any task-list tool: the closed list is what the brief
+  needs.
