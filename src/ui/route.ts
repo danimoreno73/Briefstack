@@ -16,7 +16,9 @@ export type Route =
   /** Improvements of the creation flow; with `id`, one proposal. */
   | { page: 'improve'; id: string | undefined }
   /** Third-party skills of the library; with `name`, one skill. */
-  | { page: 'skills'; name: string | undefined };
+  | { page: 'skills'; name: string | undefined }
+  /** One task in an existing project: its live round, its proposal, its actions (phase 7). */
+  | { page: 'task'; id: string };
 
 export const DEFAULT_ROUTE: Route = { page: 'projects' };
 
@@ -55,6 +57,8 @@ export function parseRoute(hash: string): Route {
       return { page: 'improve', id: first };
     case 'skills':
       return { page: 'skills', name: first };
+    case 'tasks':
+      return first === undefined ? DEFAULT_ROUTE : { page: 'task', id: first };
     default:
       return DEFAULT_ROUTE;
   }
@@ -89,5 +93,7 @@ export function routeHash(route: Route): string {
       return route.id === undefined ? '#/improve' : `#/improve/${enc(route.id)}`;
     case 'skills':
       return route.name === undefined ? '#/skills' : `#/skills/${enc(route.name)}`;
+    case 'task':
+      return `#/tasks/${enc(route.id)}`;
   }
 }

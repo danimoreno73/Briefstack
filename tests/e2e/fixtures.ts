@@ -16,6 +16,9 @@ import { appendEvent, flowEvent, sessionEndEvent, sessionLifecycleEvent } from '
 import { addNote, initLibrary, saveNote } from '../../src/library/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { startWebServer, type WebServer } from '../../src/server/index.js';
+import { TaskFakeRunner, type TaskFakeScript } from '../../src/tasks/fakeRunner.js';
+import type { TaskManager } from '../../src/tasks/manager.js';
+import { createWebTasks } from '../../src/tasks/wiring.js';
 import { FakeImprovementRunner, type FakeImproveScript } from '../../src/improve/fakeRunner.js';
 import type { ImprovementManager } from '../../src/improve/manager.js';
 import { FakeRealCheckRunner } from '../../src/improve/realCheck.js';
@@ -69,6 +72,9 @@ export interface App {
   improveRunner: FakeImprovementRunner;
   realChecks: FakeRealCheckRunner;
   chatRunner: FakeChatRunner;
+  /** Tasks in existing projects over the fake task runner (phase 7). */
+  tasks: TaskManager;
+  taskRunner: TaskFakeRunner;
   pathEnv: PathEnv;
   dir: string;
   home: string;
@@ -109,6 +115,8 @@ export interface AppOptions {
   usageReading?: { fiveHour: number | null; sevenDay: number | null };
   /** The user's Claude Code as the server reports it; `SIGNED_IN` by default. */
   claude?: ClaudeStatus;
+  /** The fake task runner's script; it writes `CHANGES.md` and ends by default. */
+  taskScript?: TaskFakeScript;
 }
 
 async function emptyGitConfig(dir: string): Promise<void> {
@@ -205,6 +213,7 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   const usageReading = options.usageReading;
   const usageCheck = usageReading === undefined ? undefined : new UsageCheck({ read: async () => usageReading, thresholds: async () => ({ fiveHour: 80, week: 85 }), ttlMs: 0 });
 
+  const holderTasks: { value?: TaskManager } = {};
   const manager = new CreationManager({
     skills,
     runner:
@@ -216,6 +225,8 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     // As in `briefstack web`: the limit is read from the config at each start.
     maxActive: async () => maxActiveCreationsOf(await readConfig(path.join(home, 'config.json'))),
     profile: () => ({ name: 'balanced', sessionModel: 'opus', effort: 'medium' }),
+    // Running tasks share the limit, as in `briefstack web`.
+    otherActive: () => holderTasks.value?.activeIds() ?? [],
     pollMs: 20,
     tailMs: 20,
     ...(options.planUsage === undefined
@@ -252,7 +263,11 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   });
   const claude = options.claude ?? SIGNED_IN;
   const claudeStatus = async () => claude;
-  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat, improvements, skills, claudeStatus, ...(usageCheck === undefined ? {} : { usageCheck }) });
+  // Tasks (phase 7) over the fake task runner, with the real wiring (checks, validations, the shared limit).
+  const taskRunner = new TaskFakeRunner({ ...(options.taskScript === undefined ? {} : { script: options.taskScript }), stepMs: 30 });
+  const tasks = await createWebTasks({ pathEnv, repoDir, lang: 'en', runner: taskRunner, creations: manager });
+  holderTasks.value = tasks;
+  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat, improvements, skills, tasks, claudeStatus, ...(usageCheck === undefined ? {} : { usageCheck }) });
 
   const app: App = {
     url: server.url,
@@ -263,6 +278,8 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     improvements,
     improveRunner,
     realChecks,
+    tasks,
+    taskRunner,
     pathEnv,
     dir,
     home,
@@ -280,6 +297,7 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   const stop = async () => {
     await app.improvements.shutdown();
     await app.chat.shutdown();
+    await app.tasks.shutdown();
     await manager.shutdown();
     await app.server.close();
     await gh.close();
@@ -314,7 +332,7 @@ export async function restartChatServer(app: App, script: ChatScript): Promise<v
   await app.server.close();
   app.chatRunner = new FakeChatRunner(script);
   app.chat = await openChat(app.pathEnv, app.repoDir, app.manager, app.chatRunner, () => app.improvements, app.skills, app.usageCheck);
-  app.server = await startWebServer({ port: 0, pathEnv: app.pathEnv, repoDir: app.repoDir, creations: app.manager, chat: app.chat, improvements: app.improvements, skills: app.skills, claudeStatus: app.claudeStatus });
+  app.server = await startWebServer({ port: 0, pathEnv: app.pathEnv, repoDir: app.repoDir, creations: app.manager, chat: app.chat, improvements: app.improvements, skills: app.skills, tasks: app.tasks, claudeStatus: app.claudeStatus });
   app.url = app.server.url;
 }
 

@@ -8,6 +8,7 @@ import { CreationsPage } from './creations.js';
 import { ChatDrawer, ChatPage } from './chat.js';
 import { ClaudeBanner } from './claude.js';
 import { ImprovePage } from './improve.js';
+import { TaskPage } from './tasks.js';
 import { AppCtx, useApp, useSend, type AppContext } from './hooks.js';
 import {
   IconChat,
@@ -94,6 +95,8 @@ function Page({ route }: { route: Route }) {
       return <ImprovePage id={route.id} />;
     case 'skills':
       return <SkillsPage name={route.name} />;
+    case 'task':
+      return <TaskPage key={route.id} id={route.id} />;
   }
 }
 

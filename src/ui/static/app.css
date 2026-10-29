@@ -207,6 +207,36 @@ body {
   gap: var(--s-2);
 }
 
+/* Tasks (phase 7): the page's column, the dialog that waits for the user, plain lists and choices. */
+.stack-3 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.card-accent {
+  border-color: var(--accent);
+}
+
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.radio {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.t-strong {
+  font-weight: 600;
+}
+
 .stack-4 {
   display: flex;
   flex-direction: column;

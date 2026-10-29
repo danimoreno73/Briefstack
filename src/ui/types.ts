@@ -382,3 +382,42 @@ export interface ClaudeStatusView {
     | { status: 'compatible' | 'older' | 'untested'; installed: string; expected: string };
   mode: AuthModeView;
 }
+
+/** A task in an existing project, as `GET /api/tasks/:id` gives it (phase 7). */
+export interface TaskViewUi {
+  id: string;
+  project: string;
+  description: string;
+  state: string;
+  profile: string;
+  model: string;
+  effort: string;
+  baseBranch: string;
+  createdAt: string;
+  updatedAt: string;
+  rounds: { n: number; text: string; startedAt: string; finishedAt?: string; sessionId?: string; outcome?: string; commit?: string; summary?: string; error?: string }[];
+  checks?: { command: string; exitCode: number | null; timedOut: boolean; output: string; durationMs: number }[];
+  validations?: { kind: string; level: 'error' | 'warning'; file: string; detail?: string }[];
+  applied?: { commit: string; at: string };
+  reverted?: { commit: string; at: string };
+  error?: string;
+  pending?:
+    | { id: string; kind: 'approval'; payload: { kind: string; tool: string; text: string; redacted: boolean; features: string[]; compound: boolean; runsGit: boolean; agentType?: string } }
+    | { id: string; kind: 'question'; payload: { questions: { question: string; header: string; options: { label: string; description: string }[]; multiSelect: boolean }[] } };
+  awaitingReply?: { lastMessage: string; at: string };
+  cancelling?: true;
+  uncommitted?: string[];
+  warnings?: { agentsWithoutTools: string[]; externalImports: { file: string; target: string }[] };
+  allowedForTask?: number;
+}
+
+export interface TaskProposalUi {
+  task: TaskViewUi;
+  diff: { files: { path: string; status: string; added: number; removed: number; hunks: DiffHunkView[]; shown: boolean }[]; more: number } | null;
+}
+
+export interface ProjectTasksUi {
+  tasks: TaskViewUi[];
+  checks: { command: string; confirmed: boolean }[];
+  start: { ok: true; branch: string; uncommitted: string[] } | { ok: false; code: string; message: string };
+}
