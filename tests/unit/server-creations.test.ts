@@ -181,7 +181,7 @@ describe('creation API', () => {
     expect(JSON.parse(busy.body)).toEqual({
       code: 'creation.limit',
       params: { limit: 1, active: [id] },
-      message: 'The limit of active creations is reached (1 of 1). Finish or cancel one, or raise the limit in Settings.',
+      message: 'The limit of active sessions is reached (1 of 1; creations and tasks count together). Finish or cancel one, or raise the limit in Settings.',
     });
 
     const final = await driveToEnd(s, id);

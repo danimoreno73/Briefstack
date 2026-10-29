@@ -82,6 +82,15 @@ export class FolderClaims {
   of(owner: string): string | undefined {
     return this.claims.get(owner)?.dir;
   }
+
+  /** The label of any claim, here or outside, that overlaps `dir` (the same, inside it, or around it): a task's project folder (phase 7). */
+  holderOf(dir: string): string | undefined {
+    const resolved = this.pathEnv.pathApi.resolve(dir);
+    for (const held of [...this.claims.values(), ...this.outside]) {
+      if (this.overlaps(resolved, held.dir)) return held.label;
+    }
+    return undefined;
+  }
 }
 
 /**

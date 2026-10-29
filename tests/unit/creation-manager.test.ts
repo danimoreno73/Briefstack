@@ -291,6 +291,27 @@ describe('CreationManager', () => {
     expect(m.list().map((c) => c.idea)).toEqual(['one', 'two', 'three']);
   });
 
+  it('counts running tasks in the same limit, and names the creation that holds a folder', async () => {
+    let tasks: string[] = ['t1'];
+    manager = new CreationManager({
+      runner: await FakeRunner.fromFile(path.join(RECORDINGS, 'full.jsonl')),
+      sessionsDir,
+      policy: () => 'ask',
+      profile: () => ({ name: 'balanced', sessionModel: 'opus' }),
+      maxActive: () => 2,
+      otherActive: () => tasks,
+      pollMs: 10,
+      tailMs: 20,
+    });
+    const m = manager;
+    const one = await m.create('one');
+    expect(m.activeIds()).toEqual([one.id]);
+    await expect(m.create('two')).rejects.toMatchObject({ code: 'creation.limit', params: { limit: 2, active: [one.id, 't1'] } });
+    tasks = [];
+    await m.create('two');
+    expect(await m.folderHolder(path.join(sessionsDir, 'nowhere'))).toBeUndefined();
+  });
+
   it('denies permission requests under the unattended policy and lists them in the final state', async () => {
     const m = await make('full.jsonl', { policy: 'unattended' });
     const { id } = await m.create('x');

@@ -204,6 +204,8 @@ export interface CreationManagerOptions {
   profile: () => RunnerProfile | Promise<RunnerProfile>;
   /** How many creations may be active at once (config `maxActiveCreations`), read at each start. Default 2. */
   maxActive?: () => number | Promise<number>;
+  /** Other sessions that count against the same limit (running tasks, phase 7): their ids, read without waiting. */
+  otherActive?: () => readonly string[];
   now?: () => Date;
   /** How often `events.jsonl` is read. Default 300 ms. */
   pollMs?: number;
@@ -380,7 +382,7 @@ export class CreationManager {
     while (this.startsHeld !== undefined) await this.startsHeld;
     // From the check above to the registration below there is no await, so two starts at once both
     // count, and an improvement that takes the hold afterwards sees this creation as running.
-    const active = [...this.creations.values()].filter((c) => c.state.status !== 'finished').map((c) => c.state.id);
+    const active = [...this.activeIds(), ...(this.options.otherActive?.() ?? [])];
     if (active.length >= limit) throw new BriefstackError('creation.limit', { limit, active });
 
     const c: Creation = {
@@ -546,6 +548,17 @@ export class CreationManager {
 
   list(): CreationState[] {
     return [...this.creations.values()].map((c) => this.snapshot(c));
+  }
+
+  /** The creations not finished, by id: they count against the shared active-sessions limit. */
+  activeIds(): string[] {
+    return [...this.creations.values()].filter((c) => c.state.status !== 'finished').map((c) => c.state.id);
+  }
+
+  /** The idea of an active creation (here or from the terminal) whose folder overlaps `dir`, if any: a task cannot start there. */
+  async folderHolder(dir: string): Promise<string | undefined> {
+    await this.readOutsideClaims();
+    return this.claims.holderOf(dir);
   }
 
   get(id: string): CreationState {

@@ -16,6 +16,8 @@ export interface WebCreationOptions {
   runner?: CreationRunner | undefined;
   /** The skill library, for the spec approval screen. */
   skills?: SkillCatalogue | undefined;
+  /** Other sessions counted in the same limit (running tasks). */
+  otherActive?: (() => readonly string[]) | undefined;
 }
 
 /** The session model and effort of the active usage profile, read when a creation starts. */
@@ -56,6 +58,7 @@ export async function createWebCreations(options: WebCreationOptions): Promise<C
     maxActive: async () => maxActiveCreationsOf((await read()).config),
     profile: () => activeRunnerProfile(pathEnv),
     ...(options.skills === undefined ? {} : { skills: options.skills }),
+    ...(options.otherActive === undefined ? {} : { otherActive: options.otherActive }),
     // Only with the real runner: the fake one has no plan to read.
     ...(options.runner === undefined ? { planUsage: planUsageReader({ pathEnv, repoDir }) } : {}),
   });

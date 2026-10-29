@@ -188,7 +188,7 @@ const errors = defineCatalogue<ErrorMessages>({
       `The request body must be JSON (Content-Type: application/json), not "${p.contentType}".`,
     'creation.unavailable': () => 'Creating projects is not available in this server.',
     'creation.limit': (p) =>
-      `The limit of active creations is reached (${p.active.length} of ${p.limit}). Finish or cancel one, or raise the limit in Settings.`,
+      `The limit of active sessions is reached (${p.active.length} of ${p.limit}; creations and tasks count together). Finish or cancel one, or raise the limit in Settings.`,
     'creation.noSpec': (p) => `Creation ${p.id} has not shown a spec yet.`,
     'creation.claudeNotFound': () =>
       'Claude Code was not found. Install it (https://claude.com/claude-code), log in with `claude`, and start briefstack web again.',
@@ -372,7 +372,7 @@ const errors = defineCatalogue<ErrorMessages>({
       `El cuerpo de la petición debe ser JSON (Content-Type: application/json), no "${p.contentType}".`,
     'creation.unavailable': () => 'Este servidor no permite crear proyectos.',
     'creation.limit': (p) =>
-      `Se ha llegado al límite de creaciones activas (${p.active.length} de ${p.limit}). Termina o cancela una, o sube el límite en Ajustes.`,
+      `Se ha llegado al límite de sesiones activas (${p.active.length} de ${p.limit}; creaciones y tareas cuentan juntas). Termina o cancela una, o sube el límite en Ajustes.`,
     'creation.noSpec': (p) => `La creación ${p.id} aún no ha mostrado ninguna spec.`,
     'creation.claudeNotFound': () =>
       'No se encontró Claude Code. Instálalo (https://claude.com/claude-code), inicia sesión con `claude` y vuelve a arrancar briefstack web.',

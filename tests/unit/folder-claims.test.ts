@@ -58,6 +58,17 @@ describe('FolderClaims', () => {
     expect(claims.claim('c', at('garden'), 'C')).toEqual({ ok: true });
     expect(claims.heldByOther('a', at('garden', 'README.md'))).toBe('C');
   });
+
+  it('names any claim that overlaps a task\'s project folder, here or outside', () => {
+    const claims = new FolderClaims();
+    claims.claim('a', at('garden'), 'A garden');
+    claims.setOutside([{ dir: at('far', 'deep'), label: 'from the terminal' }]);
+    expect(claims.holderOf(at('garden'))).toBe('A garden');
+    expect(claims.holderOf(at('garden', 'src'))).toBe('A garden');
+    expect(claims.holderOf(root)).toBe('A garden');
+    expect(claims.holderOf(at('far'))).toBe('from the terminal');
+    expect(claims.holderOf(at('orchard'))).toBeUndefined();
+  });
 });
 
 describe('folderLabel', () => {
