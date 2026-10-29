@@ -4854,3 +4854,38 @@ milestone.
   added line that looks like a secret or holds an absolute path from this
   machine. Only added lines are scanned, files up to 1 MB, at most 50
   findings.
+
+**M6.**
+
+- **Filters in the user's folder.** Every server-side git command blanks
+  filter drivers, except the final `merge --ff-only` in the user's own
+  folder: there files are checked out as the user's git config says (an
+  LFS checkout with blanked filters would leave pointer files in the
+  user's copy). Filters come from git config, which the task cannot
+  write (`.git` is out of its reach); hooks never run there either.
+- **Merge drivers** (`merge.<name>.driver` in the config) would run during
+  `merge-tree`; a project that configures any is refused for approve and
+  revert (`task.mergeDrivers`), rather than blanking a driver whose
+  absence changes the merge.
+- **Compare and swap.** After the commit is built and before the folder
+  moves, the server reads the folder again: the same branch, the same
+  commit, still clean, or it refuses (`task.conflict` or
+  `task.dirtyFolder`) with nothing changed.
+- **The commit message** is the task's first line (secrets hidden, cut to
+  72 characters) and "Applied by briefstack from task <id> (<n> rounds)."
+  The revert's is `Revert "<first line>"`. Both are made with
+  `--no-gpg-sign` and the project's identity, or briefstack's fallback.
+- **The dated line in the note** says "Task applied: …" or "Task reverted:
+  …" with the short commit and the task id, through the library queue,
+  one library commit. A missing library or note is skipped; the line is
+  never a reason to fail an approval that already moved the folder.
+- **Confirmation in the body.** Approve, discard, revert, setting checks
+  and the git offer each need `{"confirm": true}`, which the page sends
+  only from its confirmation dialog. Asking for changes needs none: it
+  changes only the task's own branch.
+- **The task page polls** (once a second while a round or the checks run)
+  rather than holding the SSE stream; the stream route exists for the
+  panel and the tests. The agent panel of a round is the session page
+  (`#/sessions/<id>`), which the task page links.
+- The project page shows the tasks section only for `claude-code`
+  projects that are not archived.

@@ -28,8 +28,8 @@ or 90% of the 5-hour window.
 | M2 | Tasks: records, preconditions, worktree lifecycle | done (`9bd4121`, `2600cca`), CI green on the three systems |
 | M3 | Task guard, shell permission flow, project settings | done (`070510f`, `b96d728`, `31b15d3`), CI green on the three systems |
 | M4 | Task runner (SDK and fake), shared limit, panel | done (`4e10dc7` … `8fd825e`): `src/tasks/sdkRunner.ts`, `fakeRunner.ts`, `manager.ts`, `wiring.ts`; events in the session folder with a `work` root |
-| M5 | Declared checks and server-side validations | done (`da7669b`, `f3006a2`, `d235afd`): `src/tasks/checks.ts`, `validate.ts`, `afterRound.ts` |
-| M6 | Proposal page, apply, revert, project page | to do |
+| M5 | Declared checks and server-side validations | done (`da7669b`, `f3006a2`, `d235afd`), CI green on the three systems |
+| M6 | Proposal page, apply, revert, project page | done (`751385b`, `2a9bab6`, `ed1c08e`): `src/tasks/apply.ts`, `proposal.ts`, `src/server/tasks.ts`, `src/ui/tasks.tsx`; API in docs/api.md |
 | M7 | Sessions list, start from the page and the chat | to do |
 | M8 | End-to-end tests, security review, README | to do |
 | M9 | Real checks and the real run (the user) | to do |
