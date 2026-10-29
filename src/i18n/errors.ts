@@ -247,6 +247,26 @@ const errors = defineCatalogue<ErrorMessages>({
     'skills.installRecordInvalid': (p) => `${p.file} cannot be read. Fix or remove it, then install again.`,
     'usage.high': (p) =>
       `Plan usage is high: 5-hour window ${p.fiveHour ?? '?'}% (warning from ${p.warnFiveHour}%), week ${p.sevenDay ?? '?'}% (warning from ${p.warnWeek}%). Start anyway to go on.`,
+    'task.unavailable': () => 'Tasks are not available in this server.',
+    'task.notFound': (p) => `There is no task ${p.id}.`,
+    'task.wrongState': (p) => `Task ${p.id} is ${p.state}; that cannot be done now.`,
+    'task.projectNotFound': (p) => `There is no project "${p.project}" in the library.`,
+    'task.notClaudeCode': (p) => `Project "${p.project}" is a ${p.target} project. Tasks work only on claude-code projects.`,
+    'task.archived': (p) => `Project "${p.project}" is archived. Unarchive it to give it a task.`,
+    'task.folderMissing': (p) => `The folder of project "${p.project}" is not there: ${p.dir}`,
+    'task.folderProtected': (p) => `The folder of project "${p.project}" overlaps one of briefstack's own folders (the repo, the home, the library or the Claude Code settings): ${p.dir}`,
+    'task.notFromBriefstack': (p) => `The folder of project "${p.project}" has no .briefstack/profile.json: briefstack did not create it, or it was moved. Tasks work only on projects briefstack created: ${p.dir}`,
+    'task.gitMissing': () => 'Git was not found. Tasks need git 2.38 or later.',
+    'task.gitTooOld': (p) => `Git ${p.version} is installed; tasks need git ${p.required} or later.`,
+    'task.notGitRepo': (p) => `Project "${p.project}" is not a git repository. A task needs one with at least one commit.`,
+    'task.alreadyRepo': (p) => `Project "${p.project}" is already a git repository.`,
+    'task.insideOtherRepo': (p) => `The folder of project "${p.project}" is inside another git repository. A task needs the project folder to be a repository of its own.`,
+    'task.noCommit': (p) => `Project "${p.project}" has no commit yet. Commit its files once, then start the task.`,
+    'task.detachedHead': (p) => `Project "${p.project}" has no branch checked out (detached HEAD). Check out its default branch, then start the task.`,
+    'task.projectBusy': (p) => `Project "${p.project}" already has an open task (${p.id}). Approve or discard it first.`,
+    'task.creationOnFolder': (p) => `A creation is working on the folder of project "${p.project}" ("${p.holder}"). Wait until it ends.`,
+    'task.limit': (p) =>
+      `The limit of active sessions is reached (${p.active.length} of ${p.limit}; creations and tasks count together). Wait for one to end, or raise the limit in Settings.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -409,6 +429,26 @@ const errors = defineCatalogue<ErrorMessages>({
     'skills.installRecordInvalid': (p) => `No se puede leer ${p.file}. Corrígelo o bórralo y vuelve a instalar.`,
     'usage.high': (p) =>
       `El uso del plan está alto: ventana de 5 horas ${p.fiveHour ?? '?'} % (aviso desde ${p.warnFiveHour} %), semana ${p.sevenDay ?? '?'} % (aviso desde ${p.warnWeek} %). Empieza de todos modos para seguir.`,
+    'task.unavailable': () => 'Las tareas no están disponibles en este servidor.',
+    'task.notFound': (p) => `No existe la tarea ${p.id}.`,
+    'task.wrongState': (p) => `La tarea ${p.id} está en estado ${p.state}; eso no se puede hacer ahora.`,
+    'task.projectNotFound': (p) => `No hay ningún proyecto "${p.project}" en la biblioteca.`,
+    'task.notClaudeCode': (p) => `El proyecto "${p.project}" es de tipo ${p.target}. Las tareas solo funcionan en proyectos claude-code.`,
+    'task.archived': (p) => `El proyecto "${p.project}" está archivado. Desarchívalo para darle una tarea.`,
+    'task.folderMissing': (p) => `La carpeta del proyecto "${p.project}" no está: ${p.dir}`,
+    'task.folderProtected': (p) => `La carpeta del proyecto "${p.project}" se solapa con una carpeta propia de briefstack (el repo, el home, la biblioteca o los ajustes de Claude Code): ${p.dir}`,
+    'task.notFromBriefstack': (p) => `La carpeta del proyecto "${p.project}" no tiene .briefstack/profile.json: no la creó briefstack, o se movió. Las tareas solo funcionan en proyectos creados por briefstack: ${p.dir}`,
+    'task.gitMissing': () => 'No se encontró git. Las tareas necesitan git 2.38 o posterior.',
+    'task.gitTooOld': (p) => `Está instalado git ${p.version}; las tareas necesitan git ${p.required} o posterior.`,
+    'task.notGitRepo': (p) => `El proyecto "${p.project}" no es un repositorio git. Una tarea necesita uno con al menos un commit.`,
+    'task.alreadyRepo': (p) => `El proyecto "${p.project}" ya es un repositorio git.`,
+    'task.insideOtherRepo': (p) => `La carpeta del proyecto "${p.project}" está dentro de otro repositorio git. Una tarea necesita que la carpeta del proyecto sea un repositorio propio.`,
+    'task.noCommit': (p) => `El proyecto "${p.project}" aún no tiene ningún commit. Haz un commit de sus archivos y luego empieza la tarea.`,
+    'task.detachedHead': (p) => `El proyecto "${p.project}" no tiene ninguna rama activa (HEAD separado). Cambia a su rama principal y luego empieza la tarea.`,
+    'task.projectBusy': (p) => `El proyecto "${p.project}" ya tiene una tarea abierta (${p.id}). Apruébala o descártala primero.`,
+    'task.creationOnFolder': (p) => `Una creación está trabajando en la carpeta del proyecto "${p.project}" ("${p.holder}"). Espera a que termine.`,
+    'task.limit': (p) =>
+      `Se ha llegado al límite de sesiones activas (${p.active.length} de ${p.limit}; creaciones y tareas cuentan juntas). Espera a que termine una o sube el límite en Ajustes.`,
   },
 });
 

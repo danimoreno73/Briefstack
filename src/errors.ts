@@ -127,6 +127,25 @@ export interface ErrorParams {
   'skills.wouldOverwrite': { path: string };
   'skills.installRecordInvalid': { file: string };
   'usage.high': { fiveHour: number | null; sevenDay: number | null; warnFiveHour: number; warnWeek: number };
+  'task.unavailable': Record<string, never>;
+  'task.notFound': { id: string };
+  'task.wrongState': { id: string; state: string };
+  'task.projectNotFound': { project: string };
+  'task.notClaudeCode': { project: string; target: string };
+  'task.archived': { project: string };
+  'task.folderMissing': { project: string; dir: string };
+  'task.folderProtected': { project: string; dir: string };
+  'task.notFromBriefstack': { project: string; dir: string };
+  'task.gitMissing': Record<string, never>;
+  'task.gitTooOld': { version: string; required: string };
+  'task.notGitRepo': { project: string };
+  'task.alreadyRepo': { project: string };
+  'task.insideOtherRepo': { project: string };
+  'task.noCommit': { project: string };
+  'task.detachedHead': { project: string };
+  'task.projectBusy': { project: string; id: string };
+  'task.creationOnFolder': { project: string; holder: string };
+  'task.limit': { limit: number; active: string[] };
 }
 
 /** Why a skill link is refused. */
