@@ -4816,3 +4816,41 @@ milestone.
 - The reverse rule, a creation that would target an open task's project
   folder, needs nothing new: a creation's output folder must be empty or
   new (`scaffold.nonEmptyOutput`).
+
+**M5.**
+
+- **Where the checks live.** The note holds them in a fenced block
+  (` ```briefstack-checks `, one command per line, under `## Checks`), so
+  the library shows them; frontmatter takes only scalars. The server runs
+  a command only if the user confirmed **that exact command** on the
+  project page: the confirmation is recorded by hash in
+  `<home>/checks/<slug>.json`, outside the library. A command that reached
+  the note another way (a hand edit, or a model writing the note through
+  `library add` during a creation) is shown as not confirmed and never
+  runs until the user confirms it. At most 10 commands of at most 500
+  characters, one line each, no code fence, no duplicates.
+- **Checks run offline**, as improvement checks do (closed proxy, npm
+  offline, `CI=1`), without the user's Claude Code credentials, the
+  `ANTHROPIC_*`, `CLAUDE_CODE_*` and `BRIEFSTACK_*` variables, or git
+  location variables (BRIEF §4: "No new network access by briefstack
+  itself"). An install check works from the package manager's cache
+  (`npm ci --offline`); one that needs the network fails there. A session
+  that needs to install can ask, and the dialog shows the exact command.
+  This narrows plan §1, 7, which assumed an install check would fetch.
+- **How they run.** One after the other, in the worktree, through `cmd`
+  on Windows and `sh` elsewhere, each with a 10-minute timeout that ends
+  the whole process tree, every one run whatever the earlier ones gave.
+  The output kept is the last 16 KB, secrets hidden, the worktree shown as
+  `.`, other absolute paths hidden.
+- **After the checks** the worktree is put back to the round's commit:
+  tracked files they changed are restored and untracked files removed;
+  ignored files (dependencies, build output) stay. Nothing a check wrote
+  can reach the next round's commit.
+- **Validations** read the diff from the base commit to the branch with
+  git (`--no-ext-diff --no-textconv`, no renames). Errors, which stop the
+  approval: a link that leads out of the project or a submodule
+  (`outsideWorktree`), a change to settings, `.mcp.json` or hook files, or
+  a definition that would declare hooks (`settingsOrHooks`). Warnings: an
+  added line that looks like a secret or holds an absolute path from this
+  machine. Only added lines are scanned, files up to 1 MB, at most 50
+  findings.
