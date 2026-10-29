@@ -4,7 +4,10 @@ import { useApp, useDocumentTitle, useLoad } from './hooks.js';
 import { Empty, LoadState } from './kit.js';
 import { STEPS } from './progress.js';
 import { routeHash } from './route.js';
-import type { CreationState, SettingsView } from './types.js';
+import type { CreationState, SettingsView, TaskViewUi } from './types.js';
+
+/** Task states that keep a task's branch and worktree: shown in the sessions list. */
+const OPEN_TASK = new Set(['running', 'checking', 'proposal', 'failed', 'cancelled', 'interrupted']);
 
 /** What an active creation waits for, as a `waitingFor` key. */
 export function waitingKind(creation: CreationState): string {
@@ -19,13 +22,17 @@ export function CreationsPage() {
   const { t, lang } = useApp();
   const list = useLoad<{ creations: CreationState[] }>('/api/creations');
   const settings = useLoad<SettingsView>('/api/settings');
+  const taskList = useLoad<{ tasks: TaskViewUi[] }>('/api/tasks');
   useDocumentTitle(t.creationsTitle);
 
   // Kept current while the page is open: steps and requests change by themselves.
   useEffect(() => {
-    const timer = setInterval(() => list.reload(), 2000);
+    const timer = setInterval(() => {
+      list.reload();
+      taskList.reload();
+    }, 2000);
     return () => clearInterval(timer);
-  }, [list.reload]);
+  }, [list.reload, taskList.reload]);
 
   const newHref = routeHash({ page: 'new', id: undefined });
 
@@ -46,24 +53,27 @@ export function CreationsPage() {
         <LoadState loaded={list}>
           {({ creations }) => {
             const active = creations.filter((creation) => creation.status !== 'finished');
+            // Tasks (phase 7): the open ones are listed; the running ones share the limit.
+            const openTasks = (taskList.data?.tasks ?? []).filter((task) => OPEN_TASK.has(task.state));
+            const used = active.length + openTasks.filter((task) => task.state === 'running' || task.state === 'checking').length;
             const limit = settings.data?.maxActiveCreations;
             return (
               <>
                 {limit !== undefined && (
                   <div class="use-row limit-meter">
                     <span class="mono-s faint">{t.maxActiveLabel}</span>
-                    <div class="meter" role="img" aria-label={t.creationsCount(active.length, limit)}>
-                      <span class="m-now" style={{ width: `${Math.min(100, (active.length / Math.max(1, limit)) * 100)}%` }} />
+                    <div class="meter" role="img" aria-label={t.creationsCount(used, limit)}>
+                      <span class="m-now" style={{ width: `${Math.min(100, (used / Math.max(1, limit)) * 100)}%` }} />
                     </div>
                     <span class="mono-s">
-                      <span data-testid="creations-count">{t.creationsCount(active.length, limit)}</span>{' '}
+                      <span data-testid="creations-count">{t.creationsCount(used, limit)}</span>{' '}
                       <a class="link" href={routeHash({ page: 'settings' })}>
                         {t.changeLimit}
                       </a>
                     </span>
                   </div>
                 )}
-                {active.length === 0 ? (
+                {active.length === 0 && openTasks.length > 0 ? null : active.length === 0 ? (
                   <Empty title={t.creationsEmpty} action={{ href: newHref, label: t.navNew }} />
                 ) : (
                   <ul class="stack-4" data-testid="creations">
@@ -98,9 +108,39 @@ export function CreationsPage() {
                     })}
                   </ul>
                 )}
-                {active.length > 0 && limit !== undefined && active.length < limit && (
+                {openTasks.length > 0 && (
+                  <section class="stack-2" aria-labelledby="session-tasks-title">
+                    <h2 class="t-2" id="session-tasks-title">
+                      {t.sessionsTasks}
+                    </h2>
+                    <ul class="stack-4" data-testid="session-tasks">
+                      {openTasks.map((task) => {
+                        const forYou = task.pending !== undefined || task.awaitingReply !== undefined || task.state === 'proposal';
+                        return (
+                          <li key={task.id} class={forYou ? 'cr-card dec' : 'cr-card'} data-task={task.id}>
+                            <div class="cr-meta">
+                              <div class="cr-top">
+                                <span class="chip chip-outline">{t.sessionsTaskKind}</span>
+                                <span class="chip">{task.project}</span>
+                                <span class="mono-s">{formatWhen(task.createdAt, lang)}</span>
+                              </div>
+                              <h2 class="cr-title">{task.description.split(/\r?\n/, 1)[0]}</h2>
+                              <p class={forYou ? 'strong' : 'muted'} data-testid="task-session-state">
+                                {t.taskState(task.state)}
+                              </p>
+                            </div>
+                            <a class={forYou ? 'btn btn-primary' : 'btn btn-secondary'} href={routeHash({ page: 'task', id: task.id })}>
+                              {t.taskOpen}
+                            </a>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                )}
+                {active.length > 0 && limit !== undefined && used < limit && (
                   <div class="card card-dash free-slots">
-                    <span class="muted">{t.freeSlots(limit - active.length)}</span>
+                    <span class="muted">{t.freeSlots(limit - used)}</span>
                     <a class="btn btn-ghost btn-sm" href={newHref}>
                       {t.startAnother}
                     </a>

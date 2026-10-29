@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { appendEvent, EVENT_FORMAT, isSessionId, MAX_TARGET_LENGTH, sessionLifecycleEvent, type EventTarget, type HookEvent, type HookEventType, type SessionOutcome } from '../events/index.js';
+import { appendEvent, EVENT_FORMAT, isSessionId, MAX_TARGET_LENGTH, sessionLifecycleEvent, TASK_SESSION_MARKER, type EventTarget, type HookEvent, type HookEventType, type SessionOutcome } from '../events/index.js';
 import type { Effort } from '../models.js';
 import type { QuestionRequest, QuestionResult } from '../creation/types.js';
 import type { TaskApprovals } from './shell.js';
@@ -85,7 +85,7 @@ export function roundPrompt(input: { description: string; round: number; changes
 }
 
 /** What a task's session folder holds besides `events.jsonl`, so the sessions list can tell a task from a creation. */
-export const TASK_MARKER_FILE = 'task.json';
+export const TASK_MARKER_FILE = TASK_SESSION_MARKER;
 
 export interface TaskMarker {
   v: 1;

@@ -75,6 +75,12 @@ describe('sessions', () => {
     });
   });
 
+  it('leaves out the sessions of tasks, which hold a task marker', async () => {
+    await record([sessionLifecycleEvent('creation', 'started', undefined, at(0)), sessionLifecycleEvent('task-round', 'started', undefined, at(1))]);
+    await writeFile(path.join(sessionsDir, 'task-round', 'task.json'), '{"v":1}\n', 'utf8');
+    expect((await listSessions(sessionsDir, { now: at(2) })).map((item) => item.id)).toEqual(['creation']);
+  });
+
   it('builds a timeline: steps in first-start order, a restarted step keeps its last pair, agents with their stops', async () => {
     const id = 'run-1';
     await record([

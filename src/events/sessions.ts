@@ -84,10 +84,15 @@ function byStartDesc(a: SessionListing, b: SessionListing): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
+/** The marker a task's session folder holds (`src/tasks/runner.ts`, `TASK_MARKER_FILE`): such a session is not a creation. */
+export const TASK_SESSION_MARKER = 'task.json';
+
 /**
- * Every session folder that has an `events.jsonl`, summarised. Folders whose
- * name is not a valid session id are skipped. Sorted by start time, newest
- * first (a session that never recorded `session.started` uses its last event).
+ * Every creation session folder that has an `events.jsonl`, summarised.
+ * Folders whose name is not a valid session id, and the sessions of tasks
+ * (phase 7: they hold `task.json`), are skipped. Sorted by start time,
+ * newest first (a session that never recorded `session.started` uses its
+ * last event).
  */
 export async function listSessions(sessionsDir: string, options: SummaryOptions = {}): Promise<SessionListing[]> {
   let entries;
@@ -101,6 +106,7 @@ export async function listSessions(sessionsDir: string, options: SummaryOptions 
     if (!entry.isDirectory() || !isSessionId(entry.name)) continue;
     const file = path.join(sessionsDir, entry.name, EVENTS_FILE);
     if (!(await isFile(file))) continue;
+    if (await isFile(path.join(sessionsDir, entry.name, TASK_SESSION_MARKER))) continue;
     const { events } = await readEvents(file);
     sessions.push({ id: entry.name, ...summarizeSession(events, options) });
   }
