@@ -4781,3 +4781,38 @@ milestone.
 - `NotebookEdit` is not offered (`Write` covers notebooks), nor
   `TodoWrite` or any task-list tool: the closed list is what the brief
   needs.
+
+**M4.**
+
+- **When a round ends.** A turn that ends with nothing asked leaves the
+  round open: the page shows the session's last message and offers the
+  free-text reply (phase 4) or "review the changes", which ends the
+  round. Nothing guesses whether the model is done. If nothing arrives for
+  15 minutes after a turn (never while a dialog waits), the round ends as
+  if the user had finished it: the changes become a proposal the user can
+  still discard.
+- **Each round is a new session**, not a resumed one: its first message is
+  the task's text and, from round 2, the user's request for changes and a
+  note that the earlier rounds' changes are committed in the folder. The
+  user's words go in as they are; the rest of the message is fixed.
+- **"This exact command" lasts the whole task**, across its rounds (BRIEF:
+  "for the rest of this task"), in the server's memory only; the per-call
+  records for the command hook are removed at the end of each round.
+- **The round's commit** is the server's, on the task branch, with
+  `--no-verify` and `--no-gpg-sign`, message `briefstack task <id>, round
+  <n>`. The session is told not to commit; a `git commit` the user allows
+  adds commits of its own to the branch, which the proposal's diff (base
+  to branch) still shows whole.
+- **The shared limit** counts creations not finished and tasks whose
+  session or checks run (`running`, `checking`). A task waiting on its
+  proposal page does not count: it uses no plan. The error a creation gets
+  at the limit now says creations and tasks count together.
+- **A task's session folder** holds `task.json` (task id, project, round)
+  and no `folder.json`, so the folder claims of terminal creations never
+  read a task as one.
+- **After a crash** the next `briefstack web` marks tasks it finds
+  `running` or `checking` as `interrupted`; the worktree stays, for a new
+  round or a discard.
+- The reverse rule, a creation that would target an open task's project
+  folder, needs nothing new: a creation's output folder must be empty or
+  new (`scaffold.nonEmptyOutput`).
