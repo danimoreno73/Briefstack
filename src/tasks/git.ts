@@ -198,6 +198,17 @@ export async function removeTaskWorktree(projectDir: string, worktreeDir: string
   await rm(worktreeDir, { recursive: true, force: true });
 }
 
+/** A file's bytes at a commit as git stores them (no filter, no text conversion), or `undefined` when it is not there. */
+export async function fileAtCommit(repoDir: string, commit: string, file: string): Promise<string | undefined> {
+  const result = await runGit(repoDir, ['cat-file', 'blob', `${commit}:${file}`]);
+  return result.code === 0 ? result.stdout : undefined;
+}
+
+/** The files git tracks in a folder, with `/`. */
+export async function trackedFiles(dir: string): Promise<string[]> {
+  return withSafeGit(dir, async (git) => (await git(['ls-files', '-z'])).split('\0').filter((file) => file !== ''));
+}
+
 /** Message of the commit that makes a project folder a repository for tasks (BRIEF-phase-7 §3.1). */
 export const INIT_COMMIT_MESSAGE = 'Start version control for briefstack tasks';
 

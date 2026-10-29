@@ -26,6 +26,22 @@ const expectationEs: Record<FieldExpectation, string> = {
   percent: 'un número entero de 1 a 100',
 };
 
+type UnsafeReason = ErrorParams['task.unsafeDefinitions']['items'][number]['reason'];
+const unsafeEn: Record<UnsafeReason, string> = {
+  hooks: 'declares hooks',
+  mcpServers: 'declares MCP servers',
+  permissionMode: 'sets a permission mode',
+  foreignSkills: 'preloads skills that are not the project\'s',
+  unreadable: 'cannot be read',
+};
+const unsafeEs: Record<UnsafeReason, string> = {
+  hooks: 'declara hooks',
+  mcpServers: 'declara servidores MCP',
+  permissionMode: 'fija un modo de permisos',
+  foreignSkills: 'precarga skills que no son del proyecto',
+  unreadable: 'no se puede leer',
+};
+
 const rootEn: Record<ProtectedRoot, string> = {
   repo: 'the briefstack repo',
   library: 'the personal library',
@@ -267,6 +283,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'task.creationOnFolder': (p) => `A creation is working on the folder of project "${p.project}" ("${p.holder}"). Wait until it ends.`,
     'task.limit': (p) =>
       `The limit of active sessions is reached (${p.active.length} of ${p.limit}; creations and tasks count together). Wait for one to end, or raise the limit in Settings.`,
+    'task.unsafeDefinitions': (p) =>
+      `Project "${p.project}" has skills, commands or agents a task cannot load safely: ${p.items.map((item) => `${item.file} (${unsafeEn[item.reason]})`).join('; ')}. Change them in the project, commit, and start the task again.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -449,6 +467,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'task.creationOnFolder': (p) => `Una creación está trabajando en la carpeta del proyecto "${p.project}" ("${p.holder}"). Espera a que termine.`,
     'task.limit': (p) =>
       `Se ha llegado al límite de sesiones activas (${p.active.length} de ${p.limit}; creaciones y tareas cuentan juntas). Espera a que termine una o sube el límite en Ajustes.`,
+    'task.unsafeDefinitions': (p) =>
+      `El proyecto "${p.project}" tiene skills, comandos o agentes que una tarea no puede cargar con seguridad: ${p.items.map((item) => `${item.file} (${unsafeEs[item.reason]})`).join('; ')}. Cámbialos en el proyecto, haz commit y vuelve a empezar la tarea.`,
   },
 });
 
