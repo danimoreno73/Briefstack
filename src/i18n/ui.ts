@@ -127,7 +127,7 @@ export const uiMessages = defineCatalogue({
     panelUsageHint: 'From the same reading as /usage. No token or cost figures.',
     targetOutside: 'outside allowed folders',
     targetRoot: (root: string): string =>
-      ({ session: 'session folder', projects: 'projects folder', repo: 'briefstack' })[root] ?? root,
+      ({ session: 'session folder', projects: 'projects folder', repo: 'briefstack', work: 'task copy' })[root] ?? root,
     panelSessionTitle: 'Creation session',
     panelSessionStatus: (status: string, outcome: string | undefined): string =>
       status === 'running'
@@ -964,7 +964,7 @@ export const uiMessages = defineCatalogue({
     panelUsageHint: 'De la misma lectura que /usage. Sin cifras de tokens ni de coste.',
     targetOutside: 'fuera de las carpetas permitidas',
     targetRoot: (root: string): string =>
-      ({ session: 'carpeta de la sesión', projects: 'carpeta de proyectos', repo: 'briefstack' })[root] ?? root,
+      ({ session: 'carpeta de la sesión', projects: 'carpeta de proyectos', repo: 'briefstack', work: 'copia de la tarea' })[root] ?? root,
     panelSessionTitle: 'Sesión de creación',
     panelSessionStatus: (status: string, outcome: string | undefined): string =>
       status === 'running'

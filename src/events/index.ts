@@ -55,8 +55,8 @@ export const HOOK_EVENT_TYPES = [
 ] as const;
 export type HookEventType = (typeof HOOK_EVENT_TYPES)[number];
 
-/** Where a tool call's target lies. `cli` is a briefstack subcommand; `outside` has no path. */
-export const TARGET_ROOTS = ['session', 'projects', 'repo', 'cli', 'outside'] as const;
+/** Where a tool call's target lies. `cli` is a briefstack subcommand; `work` is a task's worktree (phase 7); `outside` has no path. */
+export const TARGET_ROOTS = ['session', 'projects', 'repo', 'cli', 'work', 'outside'] as const;
 export type TargetRoot = (typeof TARGET_ROOTS)[number];
 
 /** The short target of a tool call (docs/events.md, "Targets"). Never a tool input as such. */

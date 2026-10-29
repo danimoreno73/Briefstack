@@ -29,11 +29,13 @@ No `agentId` means the main session. Tool inputs and outputs are never recorded.
 
 ### Targets
 
-`target` is `{ "root": "session" | "projects" | "repo" | "cli" | "outside", "path"?: string }`:
+`target` is `{ "root": "session" | "projects" | "repo" | "cli" | "work" | "outside", "path"?: string }`:
 a file path relative to the session folder, the projects folder or the
 briefstack repo (the closest), or the briefstack subcommand of a shell
-command (`cli`, e.g. `library add`). A path in none of those folders is
-`{ "root": "outside" }` with no path. At most 120 characters, the end kept.
+command (`cli`, e.g. `library add`). In a task session (phase 7) a path
+is relative to the task's worktree (`work`). A path in none of those
+folders is `{ "root": "outside" }` with no path. At most 120 characters,
+the end kept.
 Other tools get no target: never a query, URL, pattern, command or content.
 The server redacts targets again before showing them.
 
