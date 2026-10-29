@@ -60,6 +60,9 @@ import type { ChatRunner } from './chat/types.js';
 import type { CreationRunner } from './creation/types.js';
 import { createWebChat } from './chat/wiring.js';
 import type { ChatManager } from './chat/manager.js';
+import type { TaskManager } from './tasks/manager.js';
+import type { TaskRunner } from './tasks/runner.js';
+import { createWebTasks } from './tasks/wiring.js';
 import { createWebCreations } from './creation/wiring.js';
 import { createWebImprovements } from './improve/wiring.js';
 import type { ImprovementManager } from './improve/manager.js';
@@ -117,6 +120,8 @@ export interface CliIO {
   chatRunner?: ChatRunner;
   /** The runner of improvement sessions and the verifier of their rounds: the real ones unless a test passes fakes. */
   improveRunner?: ImprovementRunner;
+  /** The runner of tasks in existing projects: the real SDK one unless a test passes the fake one. */
+  taskRunner?: TaskRunner;
   improveVerifier?: Verifier;
   safetyReviewer?: SafetyReviewer;
   /** The model review of skills and the GitHub hosts: the real ones unless a test passes its own. */
@@ -637,17 +642,23 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     check: io.checkClaude ?? realDeps.check,
     mode: io.readAuthMode ?? (io.checkClaude === undefined ? realDeps.mode : async (): Promise<AuthMode> => ({ kind: 'unknown' })),
   });
+  let tasks: TaskManager | undefined;
   const creations = await createWebCreations({
     pathEnv: io.pathEnv,
     repoDir: io.repoDir,
     lang,
     runner: io.creationRunner,
     skills,
+    // Tasks share the active-sessions limit (BRIEF-phase-7 §2.6).
+    otherActive: () => tasks?.activeIds() ?? [],
   });
   let chat: ChatManager | undefined;
   let improvements: ImprovementManager | undefined;
   let server;
   try {
+    tasks = await createWebTasks({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, runner: io.taskRunner, creations });
+    // A server that died with a task running left it interrupted; its worktree stays for the user.
+    await tasks.recover();
     chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements, skills, usageCheck });
     improvements = await createWebImprovements({
       pathEnv: io.pathEnv,
@@ -675,6 +686,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   } catch (error) {
     await improvements?.shutdown();
     await chat?.shutdown();
+    await tasks?.shutdown();
     await creations.shutdown();
     throw error;
   }
@@ -699,6 +711,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     // The chat and the creations first: a running creation is closed as interrupted before the server goes.
     await improvements.shutdown();
     await chat.shutdown();
+    await tasks.shutdown();
     await creations.shutdown();
     await server.close();
   } finally {
