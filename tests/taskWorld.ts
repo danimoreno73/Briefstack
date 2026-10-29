@@ -27,6 +27,8 @@ export interface TaskWorld {
   cleanup(): Promise<void>;
   /** A claude-code project made by briefstack, registered in the library, a git repository with one commit on `main`. */
   project(slug: string, files?: Record<string, string>, status?: Partial<ProjectStatus>): Promise<string>;
+  /** Makes the library an initialised git repository (its index file and a first commit). */
+  initLibrary(): Promise<void>;
 }
 
 /** A temp home, library, sessions and projects folder for task tests. Nothing of the user's is read or written. */
@@ -63,6 +65,13 @@ export async function taskWorld(prefix = 'tasks'): Promise<TaskWorld> {
       };
       await writeTree(library, { [`projects/${slug}.md`]: writeProjectNote(note, `# ${slug} project\n\nText.\n`) });
       return folder;
+    },
+    async initLibrary() {
+      await writeTree(library, { 'INDEX.md': '# Library index\n' });
+      await gitIn(library, 'init', '--quiet', '-b', 'main');
+      await gitIn(library, 'config', 'user.name', 't');
+      await gitIn(library, 'config', 'user.email', 't@example.invalid');
+      await commitAll(library, 'start');
     },
   };
   return world;

@@ -162,6 +162,7 @@ describe('error catalogue', () => {
     'task.creationOnFolder': { project: 'garden', holder: 'A garden' },
     'task.limit': { limit: 2, active: ['c1', 't1'] },
     'task.unsafeDefinitions': { project: 'garden', items: [{ file: '.claude/agents/a.md', reason: 'hooks' }] },
+    'task.invalidCheck': { command: 'npm test', problem: 'more than one line' },
     'creation.noSpec': { id: 'c1' },
     'creation.claudeNotFound': {},
     'creation.slashCommandMissing': { command: 'new-project' },

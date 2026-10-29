@@ -81,6 +81,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'task.creationOnFolder': 409,
   'task.limit': 409,
   'task.unsafeDefinitions': 409,
+  'task.invalidCheck': 400,
   'creation.wrongPending': 409,
   'creation.noSpec': 404,
   'skills.unavailable': 503,

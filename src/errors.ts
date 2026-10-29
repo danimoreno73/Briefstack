@@ -147,6 +147,7 @@ export interface ErrorParams {
   'task.creationOnFolder': { project: string; holder: string };
   'task.limit': { limit: number; active: string[] };
   'task.unsafeDefinitions': { project: string; items: { file: string; reason: 'hooks' | 'mcpServers' | 'permissionMode' | 'foreignSkills' | 'unreadable' }[] };
+  'task.invalidCheck': { command: string; problem: string };
 }
 
 /** Why a skill link is refused. */

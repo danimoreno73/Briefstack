@@ -285,6 +285,7 @@ const errors = defineCatalogue<ErrorMessages>({
       `The limit of active sessions is reached (${p.active.length} of ${p.limit}; creations and tasks count together). Wait for one to end, or raise the limit in Settings.`,
     'task.unsafeDefinitions': (p) =>
       `Project "${p.project}" has skills, commands or agents a task cannot load safely: ${p.items.map((item) => `${item.file} (${unsafeEn[item.reason]})`).join('; ')}. Change them in the project, commit, and start the task again.`,
+    'task.invalidCheck': (p) => (p.command === '' ? `The checks cannot be saved: ${p.problem}.` : `The check "${p.command}" cannot be saved: ${p.problem}.`),
   },
   es: {
     'config.invalidJson': (p) =>
@@ -469,6 +470,7 @@ const errors = defineCatalogue<ErrorMessages>({
       `Se ha llegado al límite de sesiones activas (${p.active.length} de ${p.limit}; creaciones y tareas cuentan juntas). Espera a que termine una o sube el límite en Ajustes.`,
     'task.unsafeDefinitions': (p) =>
       `El proyecto "${p.project}" tiene skills, comandos o agentes que una tarea no puede cargar con seguridad: ${p.items.map((item) => `${item.file} (${unsafeEs[item.reason]})`).join('; ')}. Cámbialos en el proyecto, haz commit y vuelve a empezar la tarea.`,
+    'task.invalidCheck': (p) => (p.command === '' ? `No se pueden guardar las comprobaciones: ${p.problem}.` : `No se puede guardar la comprobación "${p.command}": ${p.problem}.`),
   },
 });
 
