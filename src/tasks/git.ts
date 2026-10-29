@@ -209,6 +209,22 @@ export async function trackedFiles(dir: string): Promise<string[]> {
   return withSafeGit(dir, async (git) => (await git(['ls-files', '-z'])).split('\0').filter((file) => file !== ''));
 }
 
+/**
+ * Commits everything in the worktree on the task's branch, as one round
+ * (`git add -A` respects the project's `.gitignore`; the hidden settings
+ * files stay out). Returns the new commit, or `undefined` when nothing
+ * changed.
+ */
+export async function commitRound(worktreeDir: string, message: string): Promise<string | undefined> {
+  return withSafeGit(worktreeDir, async (git) => {
+    await git(['add', '-A']);
+    if ((await git(['status', '--porcelain'])).trim() === '') return undefined;
+    const identity = await identityArgs(worktreeDir);
+    await git([...identity, 'commit', '--quiet', '--no-verify', '--no-gpg-sign', '-m', message]);
+    return (await git(['rev-parse', 'HEAD'])).trim();
+  });
+}
+
 /** Message of the commit that makes a project folder a repository for tasks (BRIEF-phase-7 §3.1). */
 export const INIT_COMMIT_MESSAGE = 'Start version control for briefstack tasks';
 

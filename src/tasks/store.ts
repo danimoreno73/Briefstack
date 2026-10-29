@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { TASK_ID_RE, taskRecordSchema, type TaskRecord } from './types.js';
 
@@ -73,6 +73,11 @@ export class TaskStore {
     } catch {
       return undefined;
     }
+  }
+
+  /** Removes a task's folder: only for a task that never started (its start failed). */
+  async remove(id: string): Promise<void> {
+    await rm(this.taskDir(id), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 
   /** Every task, newest first. Folders without a readable record are skipped. */
