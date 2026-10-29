@@ -286,6 +286,13 @@ const errors = defineCatalogue<ErrorMessages>({
     'task.unsafeDefinitions': (p) =>
       `Project "${p.project}" has skills, commands or agents a task cannot load safely: ${p.items.map((item) => `${item.file} (${unsafeEn[item.reason]})`).join('; ')}. Change them in the project, commit, and start the task again.`,
     'task.invalidCheck': (p) => (p.command === '' ? `The checks cannot be saved: ${p.problem}.` : `The check "${p.command}" cannot be saved: ${p.problem}.`),
+    'task.notOnBranch': (p) => `Project "${p.project}" has ${p.current} checked out; the task was made from ${p.branch}. Check out ${p.branch}, then try again.`,
+    'task.dirtyFolder': (p) =>
+      `Project "${p.project}" has uncommitted changes${p.paths.length > 0 ? ` (${p.paths.join(', ')})` : ''}. Commit or put them aside, then try again.`,
+    'task.conflict': (p) => `The change no longer applies to project "${p.project}": its default branch moved in a way that conflicts with it. Ask for changes to make a new round, or discard the task.`,
+    'task.noChanges': (p) => `Task ${p.id} changes nothing in the project.`,
+    'task.blocked': (p) => `Task ${p.id} cannot be approved: the server's checks of the diff refused ${p.files.join(', ')}. Ask for changes or discard it.`,
+    'task.mergeDrivers': (p) => `Project "${p.project}" configures git merge drivers, which would run while the change is applied. Tasks cannot be applied there.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -471,6 +478,13 @@ const errors = defineCatalogue<ErrorMessages>({
     'task.unsafeDefinitions': (p) =>
       `El proyecto "${p.project}" tiene skills, comandos o agentes que una tarea no puede cargar con seguridad: ${p.items.map((item) => `${item.file} (${unsafeEs[item.reason]})`).join('; ')}. Cámbialos en el proyecto, haz commit y vuelve a empezar la tarea.`,
     'task.invalidCheck': (p) => (p.command === '' ? `No se pueden guardar las comprobaciones: ${p.problem}.` : `No se puede guardar la comprobación "${p.command}": ${p.problem}.`),
+    'task.notOnBranch': (p) => `El proyecto "${p.project}" tiene activa la rama ${p.current}; la tarea se hizo desde ${p.branch}. Cambia a ${p.branch} y vuelve a intentarlo.`,
+    'task.dirtyFolder': (p) =>
+      `El proyecto "${p.project}" tiene cambios sin commit${p.paths.length > 0 ? ` (${p.paths.join(', ')})` : ''}. Haz commit o apártalos y vuelve a intentarlo.`,
+    'task.conflict': (p) => `El cambio ya no se aplica al proyecto "${p.project}": su rama principal se movió de un modo que choca con él. Pide cambios para hacer otra ronda, o descarta la tarea.`,
+    'task.noChanges': (p) => `La tarea ${p.id} no cambia nada en el proyecto.`,
+    'task.blocked': (p) => `La tarea ${p.id} no se puede aprobar: las comprobaciones del diff en el servidor rechazaron ${p.files.join(', ')}. Pide cambios o descártala.`,
+    'task.mergeDrivers': (p) => `El proyecto "${p.project}" configura merge drivers de git, que se ejecutarían al aplicar el cambio. Ahí no se pueden aplicar tareas.`,
   },
 });
 

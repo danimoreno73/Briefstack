@@ -148,6 +148,12 @@ export interface ErrorParams {
   'task.limit': { limit: number; active: string[] };
   'task.unsafeDefinitions': { project: string; items: { file: string; reason: 'hooks' | 'mcpServers' | 'permissionMode' | 'foreignSkills' | 'unreadable' }[] };
   'task.invalidCheck': { command: string; problem: string };
+  'task.notOnBranch': { project: string; branch: string; current: string };
+  'task.dirtyFolder': { project: string; paths: string[] };
+  'task.conflict': { project: string };
+  'task.noChanges': { id: string };
+  'task.blocked': { id: string; files: string[] };
+  'task.mergeDrivers': { project: string };
 }
 
 /** Why a skill link is refused. */

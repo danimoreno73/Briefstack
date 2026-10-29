@@ -75,14 +75,21 @@ async function gitOk(cwd: string, args: readonly string[], input?: string): Prom
  * repository names: hooks from an empty folder made for this call, no
  * filesystem monitor, every filter driver blanked, long paths on.
  */
-export async function withSafeGit<T>(repoDir: string, task: (git: (args: readonly string[], input?: string) => Promise<string>, run: (args: readonly string[]) => Promise<GitResult>) => Promise<T>): Promise<T> {
+export async function withSafeGit<T>(
+  repoDir: string,
+  task: (git: (args: readonly string[], input?: string) => Promise<string>, run: (args: readonly string[]) => Promise<GitResult>) => Promise<T>,
+  options: { keepFilters?: boolean } = {},
+): Promise<T> {
   const emptyDir = await mkdtemp(path.join(os.tmpdir(), 'briefstack-no-hooks-'));
   try {
     const configArgs = ['-c', `core.hooksPath=${emptyDir}`, '-c', 'core.fsmonitor=false', '-c', 'core.longpaths=true'];
-    const listed = await runGit(repoDir, [...configArgs, 'config', '--name-only', '--get-regexp', '^filter\\.']);
-    const drivers = new Set(listed.stdout.split(/\r?\n/).flatMap((line) => /^filter\.(.+)\.[^.]+$/.exec(line.trim())?.[1] ?? []));
-    for (const driver of drivers) {
-      configArgs.push('-c', `filter.${driver}.clean=`, '-c', `filter.${driver}.smudge=`, '-c', `filter.${driver}.process=`, '-c', `filter.${driver}.required=false`);
+    // `keepFilters`: only for the user's own folder, where files must be checked out as the user's git config says (LFS, say).
+    if (options.keepFilters !== true) {
+      const listed = await runGit(repoDir, [...configArgs, 'config', '--name-only', '--get-regexp', '^filter\\.']);
+      const drivers = new Set(listed.stdout.split(/\r?\n/).flatMap((line) => /^filter\.(.+)\.[^.]+$/.exec(line.trim())?.[1] ?? []));
+      for (const driver of drivers) {
+        configArgs.push('-c', `filter.${driver}.clean=`, '-c', `filter.${driver}.smudge=`, '-c', `filter.${driver}.process=`, '-c', `filter.${driver}.required=false`);
+      }
     }
     return await task(
       (args, input) => gitOk(repoDir, [...configArgs, ...args], input),
