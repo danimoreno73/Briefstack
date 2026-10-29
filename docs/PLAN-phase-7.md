@@ -12,12 +12,18 @@ section 1.**
 
 ## 0. Status
 
-Updated 2026-10-26.
+Updated 2026-10-29.
+
+M1 to M8 run unattended (the user's instruction of 2026-10-29): doubts
+are settled with the most conservative option and recorded in
+decisions.md, "Decisiones sin Dani (fase 7)"; no real SDK session; the
+plan usage is read before each milestone, stopping above 95% of the week
+or 90% of the 5-hour window.
 
 | # | Milestone | State |
 |---|---|---|
-| H0 | Verify before designing (BRIEF §6) | done, decisions.md "Phase 7: H0"; two points need a real probe (M0) |
-| M0 | Real probe for the user: hooks and the command-hook guard, external imports | prepared: `npx tsx scripts/real/probe-h0-phase7.ts --yes`; waiting for the user's run |
+| H0 | Verify before designing (BRIEF §6) | done, decisions.md "Phase 7: H0" |
+| M0 | Real probe for the user: hooks and the command-hook guard, external imports | done 2026-10-29 (the user's run): decisions.md "Phase 7: M0"; `disableAllHooks` ruled out, external imports not loaded, C all pass. Follow-up: skills not of the project, decisions.md "Phase 7: skills that are not the project's", §1, 10 |
 | M1 | `work` entry in usage profiles | to do |
 | M2 | Tasks: records, preconditions, worktree lifecycle | to do |
 | M3 | Task guard, shell permission flow, project settings | to do |
@@ -50,10 +56,10 @@ decisions.md. They need the user's approval with this plan.
    refuses a write that would add `hooks` to a skill, command or agent
    file. Agent frontmatter hooks do not run in SDK sessions of an untrusted
    folder (documented), and are refused the same way. `.mcp.json` is
-   ignored (`strictMcpConfig`, as in creations). Whether the simpler route
-   works instead (`disableAllHooks` in the flag settings next to the
-   command-hook guard) is M0's first question; if it does, M3 uses it in
-   addition, not instead.
+   ignored (`strictMcpConfig`, as in creations). **M0 answered:**
+   `disableAllHooks` in the flag settings also stops the command-hook
+   guard, so it is not used; a project skill's frontmatter hook does run
+   in an SDK session, so the refusals above are required.
 3. **Every shell command is decided in the task's `PreToolUse` hook,**
    not in `canUseTool`: hooks run before every permission rule and mode, so
    neither a project's allow rules, nor `auto` mode's classifier, nor the
@@ -89,14 +95,25 @@ decisions.md. They need the user's approval with this plan.
    ask to run one.
 8. **CLAUDE.md files above the worktree are excluded** with
    `claudeMdExcludes` (what B8 verified), so the user's own files around
-   `<home>/tasks/` do not reach the session. Whether external `@` imports
-   of the project's `CLAUDE.md` load in an SDK session is M0's second
-   question; until it is answered, a task whose `CLAUDE.md` or rules import
-   a path outside the worktree is refused at the start.
+   `<home>/tasks/` do not reach the session; `AGENTS.md` files above it
+   are excluded the same way. **M0 answered:** external `@` imports do not
+   load in an SDK session, so there is no refusal; the task page warns
+   when the project's `CLAUDE.md` or rules import a path outside the
+   worktree.
 9. **The task's closed tool list names `Glob` and `Grep`** (they are absent
    by default on macOS and Linux) and every tool the session may use; a
    project agent whose `tools` resolve to nothing in the task's list is
    reported at the start (Claude Code would refuse it: "zero tools").
+10. **Only the project's own skills** (added 2026-10-29, after M0;
+    decisions.md, "Phase 7: skills that are not the project's"). Claude
+    Code's bundled skills, its built-in plugin skill and the user's synced
+    claude.ai skills are kept out: the SDK `skills` option lists only the
+    project's skills; the flag settings set `disableBundledSkills`,
+    `disableSkillShellExecution` and turn the built-in
+    `plugin-authoring` plugin off; the environment sets
+    `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS` and `CLAUDE_CODE_DISABLE_CRON`;
+    the task guard refuses a `Skill` call for any other skill, and a
+    project agent that preloads one is refused at the start.
 
 ## 2. Milestones
 
@@ -202,5 +219,6 @@ sandbox, every shell command asks.
 
 `scripts/real/`: a small task end to end; a task that needs a shell
 command; a project hook that must not run; project settings that allow
-every shell command and must still ask. Then the user's real run on one of
+every shell command and must still ask; the task session's skill list
+holds only the project's skills. Then the user's real run on one of
 their projects. Phase 7 is not done before it.

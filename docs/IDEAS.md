@@ -273,6 +273,14 @@ are not repeated.
   page) took longer than the test's 30 seconds on that runner. To look
   at: what the fixture waits for, and whether its setup needs its own
   timeout. From [PLAN-backlog-2.md](PLAN-backlog-2.md).
+- Creations and improvement sessions do not offer the `Skill` tool, so
+  their model cannot invoke Claude Code's bundled skills, built-in
+  plugins or synced claude.ai skills; but nothing in their settings turns
+  those off. Consider giving them the task's layers too
+  (`disableBundledSkills`, `disableSkillShellExecution`,
+  `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS`, `CLAUDE_CODE_DISABLE_CRON`).
+  From [PLAN-phase-7.md](PLAN-phase-7.md); decisions.md, "Phase 7: skills
+  that are not the project's".
 
 ## 5. Codex
 

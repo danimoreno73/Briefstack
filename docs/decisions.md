@@ -4574,3 +4574,122 @@ worktree.
 None blocks the plan: point 1 has a documented way. The user's approval
 is asked for the plan as a whole, including the choices marked above and
 the probe M0, which only adds `disableAllHooks` if it keeps the guard.
+
+## Phase 7: M0, the user's run of the H0 probe (2026-10-29)
+
+`scripts/real/probe-h0-phase7.ts`, run by the user (haiku, low effort,
+temp folders). Results as the user reported them:
+
+- **A, hooks.** With `disableAllHooks: true` in the flag settings, the
+  hook in that same flag layer (where the command-hook guard lives) **did
+  not run and did not block**. So `disableAllHooks` is ruled out: it
+  would switch the independent guard off. In the control session (A0) the
+  project skill's frontmatter hook **did run**: refusing skills, commands
+  and agents that declare `hooks`, and refusing writes that add them, is
+  required, not a precaution (plan §1, 2).
+- **B, external imports.** An `@` import of a file outside the project
+  is **not loaded** in an SDK session. The refusal planned in plan §1, 8
+  is dropped; the task page shows a warning instead when the project's
+  `CLAUDE.md` or rules import a path outside the worktree (the user's
+  decision), since an interactive session in the same folder would ask to
+  load it.
+- **C, the worktree with the settings file hidden.** Every line passed:
+  the worktree is clean, the project's `CLAUDE.md`, agent and skill load
+  from it, the settings hook never ran, the project folder keeps its file
+  and a clean status.
+
+## Phase 7: skills that are not the project's (2026-10-29, Claude Code 2.1.312, SDK 0.3.286)
+
+In probe C the session's init message listed skills that the sample
+project does not have: `design`, `design-sync`, `dataviz`,
+`plugin-authoring`, `run-skill-generator`, `schedule`, `loop` and more.
+The user asked where each comes from, whether any can use tools outside
+the task's closed list or schedule work, and to keep them out of tasks
+with the most conservative documented option. Docs read on 2026-10-29:
+skills (<https://code.claude.com/docs/en/skills>), commands
+(<https://code.claude.com/docs/en/commands>), settings reference, env
+vars, mods (<https://code.claude.com/docs/en/plugins/mods/overview>),
+memory; the SDK's `sdk.d.ts` (0.3.286). Nothing was run against the SDK.
+
+**Where they come from.** None from the user's configuration: on this
+machine `~/.claude/skills/` holds only the folders Claude Code syncs from
+the claude.ai account (`synced/`: docx, pdf, pptx, xlsx, docs and others)
+and `.trash/`; no plugin is installed (one marketplace is known, nothing
+from it is enabled). The listed names are in the Claude Code binary
+itself (each name found in `claude.exe` 2.1.312):
+
+| Skill | Source | What it does (commands reference) |
+|---|---|---|
+| `design`, `design-sync`, `dataviz`, `run-skill-generator`, `loop` (and `batch`, `debug`, `simplify`, `code-review`, `verify`, `run`, `claude-api`, `doctor`, …) | bundled skills | prompts that "orchestrate the work using its tools"; `design`/`design-sync` publish to Claude Design, `loop` repeats a prompt on a schedule in the session |
+| `schedule` | built-in command, offered to the model through the Skill tool | creates cloud scheduled tasks (routines) |
+| `plugin-authoring` | built-in plugin `cc-plugin-plugin-authoring` (a "built-in mod") | a reference skill for writing mods |
+| the claude.ai skills (docx, pdf, …) | synced from the user's claude.ai account; they load in sessions signed in with it | — |
+
+**Tools and scheduling.** Bundled skills are prompts: they use the
+session's tools and add none. A skill's `allowed-tools` only pre-approves
+tools "and does not restrict which tools are available"; it never adds
+one. A `context: fork` skill runs a subagent, which gets only tools the
+session has (H0 phase 7, carried). The documented ways out of the closed
+list are elsewhere:
+
+- **Inline shell (`` !`cmd` ``) in a skill runs a command while the skill
+  renders**, not through the Bash tool, so not through the task's
+  `PreToolUse` dialog. In `auto` mode a command no rule allows is handed
+  to the model as a tool call, but one an allow rule matches (a skill's
+  own `allowed-tools` among them) runs. `disableSkillShellExecution: true`
+  stops it for user, project, plugin and added-folder skills; **bundled
+  and managed skills are not affected** by it.
+- Scheduling: `loop` uses the session's cron tools; `schedule` uses the
+  cloud routines tools. Neither tool is in the task's list, and
+  `CLAUDE_CODE_DISABLE_CRON=1` makes "the `/loop` skill and cron tools
+  unavailable". Bundled workflows fan out background agents;
+  `disableBundledSkills` removes them.
+
+**Decision (the most conservative documented option, in layers; M3 and
+M4).** A task session:
+
+1. passes the SDK `skills` option with **only the project's own skills**
+   (the names found in the worktree's `.claude/skills/` and
+   `.claude/commands/` at the start). SDK: "unlisted skills are hidden
+   from the model's listing and rejected by the Skill tool". A project
+   with none passes `[]` and no `Skill` tool;
+2. sets `disableBundledSkills: true` in the flag settings and
+   `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS=1` in its environment (documented:
+   bundled skills and workflows "removed entirely", built-in commands
+   such as `/init` hidden from the model; either one turning them off
+   cannot be undone by the other);
+3. sets `disableSkillShellExecution: true` in the flag settings, so a
+   project skill's inline shell never runs outside the dialog;
+4. sets `CLAUDE_CODE_DISABLE_CRON=1` (with
+   `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, as creations);
+5. sets `enabledPlugins: { "cc-plugin-plugin-authoring@builtin": false }`
+   in the flag settings (the documented key form; the docs name built-in
+   plugins with `@builtin` but do not show this exact use, so it is an
+   extra layer, not the one relied on);
+6. **the task guard refuses every `Skill` call whose skill is not one of
+   the project's**, in the main session and in subagents (code, with
+   tests), and a project agent whose `skills:` preloads a name that is not
+   a project skill is refused at the start.
+
+Layers 1 and 6 hold whatever the settings do, so the synced claude.ai
+skills (whose `syncClaudeAiSkills` switch is user, local or managed only,
+not flag settings) are covered too. The closed tool list has no cron,
+routine, workflow, monitor or worktree tool. Whether the init message of a
+task session lists only the project's skills is added to M9's real checks.
+
+Also found: `claudeMdExcludes` applies to `AGENTS.md` files as well
+(memory docs, "AGENTS.md"), which load from the working folder and every
+folder above it when no `CLAUDE.md` is there. The task's excludes for the
+folders above the worktree name `AGENTS.md` and `.claude/AGENTS.md` too
+(M3).
+
+Creations do not offer the `Skill` tool (their `FLOW_BUILTIN_TOOLS`), so
+the model there cannot invoke these skills; the gap is noted in
+`docs/IDEAS.md` for a later pass (their flag settings could carry layers
+2 to 4 as well).
+
+## Decisiones sin Dani (fase 7)
+
+M1 to M8 run unattended (the user's instruction, 2026-10-29). Each doubt
+is settled with the most conservative option and listed here, by
+milestone.
