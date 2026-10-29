@@ -4705,3 +4705,35 @@ milestone.
 - The Usage page shows the task line under the chat line of the active
   profile; the preset cards stay as they are (they show the tiers'
   models, not the chat's either).
+
+**M2.**
+
+- "Created by briefstack" is checked on disk too: the folder must hold
+  `.briefstack/profile.json` (as `briefstack commit` requires), besides
+  the library note. A folder that overlaps briefstack's own folders (repo,
+  home, library, `~/.claude`, app data) is refused, as for an output
+  folder.
+- An archived project is refused (unarchive it first): the brief does not
+  say, and archived projects are hidden from the list.
+- **One open task per project**, not only one running: a task waiting on
+  its proposal page, or one that failed, was cancelled or interrupted,
+  still has its worktree and branch, so a new task on the project is
+  refused until it is approved or discarded. Two proposals on one project
+  could each be approved against a base the other moved.
+- The offer to initialise git (BRIEF §3.1) is made only for a folder in
+  no repository. A folder inside another repository is refused (a nested
+  repository would change what the outer one sees); a repository without
+  a commit is refused with a message to commit once, without an offer: the
+  brief's offer covers "not a git repository" only.
+- "Uncommitted changes" counts untracked files that are not ignored, as
+  `git status` does. They block approving (M6), and the page lists them
+  at the start.
+- Every server-side git command also drops `GIT_DIR`, `GIT_WORK_TREE`,
+  `GIT_INDEX_FILE` and the other location variables from its
+  environment, sets `GIT_TERMINAL_PROMPT=0`, and every server commit
+  passes `--no-gpg-sign`: a project's `.git/config` can name a signing
+  program (`gpg.program`), which is project code. A user who signs their
+  commits gets unsigned task commits; the README says so (M8).
+- `.claude/settings.local.json` is hidden like `settings.json` when it is
+  tracked (it is usually not; an untracked one never reaches the
+  worktree).
