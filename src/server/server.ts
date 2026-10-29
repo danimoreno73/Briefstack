@@ -4,7 +4,10 @@ import type { ChatManager } from '../chat/manager.js';
 import type { ClaudeStatus } from '../creation/claudeAccount.js';
 import type { CreationManager } from '../creation/manager.js';
 import type { ImprovementManager } from '../improve/manager.js';
-import { systemPathEnv, type PathEnv } from '../config/index.js';
+import { configFilePath, readConfig, resolvePaths, systemPathEnv, type PathEnv } from '../config/index.js';
+import { PACKAGE_ROOT } from '../packageRoot.js';
+import type { TaskManager } from '../tasks/manager.js';
+import { taskRoutes } from './tasks.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
 import { DEFAULT_LANG, type Lang } from '../i18n/index.js';
 import { VERSION } from '../version.js';
@@ -47,6 +50,8 @@ export interface WebServerOptions {
   improvements?: ImprovementManager;
   /** Third-party skills (phase 6). Without one, the skill routes answer 503 `skills.unavailable`. */
   skills?: SkillService;
+  /** Tasks in existing projects (phase 7). Without one, the task routes answer 503 `task.unavailable`. The caller owns it. */
+  tasks?: TaskManager;
   /** The plan-usage warning before a creation or an improvement starts (phase 6). Without it, no warning. */
   usageCheck?: UsageCheck;
   /** Where the user's files live; the real machine by default. Tests pass a temp home. */
@@ -96,6 +101,14 @@ function apiRoutes(options: WebServerOptions): RouteTable {
     ...chatRoutes(options.chat, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
     ...improveRoutes(options.improvements, { usage: options.usageCheck }),
     ...skillRoutes(options.skills),
+    ...taskRoutes(options.tasks, {
+      ...(options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
+      usage: options.usageCheck,
+      paths: async () => {
+        const paths = resolvePaths(await readConfig(configFilePath(pathEnv)), pathEnv);
+        return { libraryDir: paths.libraryDir, home: paths.home, repoDir: options.repoDir ?? PACKAGE_ROOT };
+      },
+    }),
   ];
 }
 

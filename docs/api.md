@@ -706,6 +706,43 @@ a commit). `409 skills.updatePending` while one waits. Never automatic.
 The new version replaces the approved one (checked against its hashes), or
 is dropped. `409 skills.noUpdate` when none waits.
 
+## Task routes (phase 7)
+
+Tasks in existing `claude-code` projects (BRIEF-phase-7). Without a task
+manager every route answers `503 task.unavailable`. Approve, ask for
+changes, discard and revert exist only here, for the proposal page; the
+chat has no tool for them. Routes that change the project or what runs
+take `{"confirm": true}` in the body, which the page sends only after its
+confirmation; without it they answer `400 web.invalidBody`.
+
+A task (`TaskView`) is its record (`src/tasks/types.ts`: `id`, `project`,
+`description`, `state`, `profile`, `model`, `effort`, `baseBranch`,
+`baseCommit`, `branch`, `rounds[]`, `checks?`, `validations?`, `applied?`,
+`reverted?`, `error?`) plus what the server knows live: `pending?` (an
+`approval` with the command as shown, or a `question`), `awaitingReply?`,
+`cancelling?`, `uncommitted?` (paths left out at the start), `warnings?`,
+`allowedForTask?`. States: `running`, `checking`, `proposal`, `applied`,
+`reverted`, `discarded`, `failed`, `cancelled`, `interrupted`.
+
+| Route | Body | Answer |
+|---|---|---|
+| `GET /api/tasks` | | `{ tasks }`, newest first |
+| `POST /api/tasks` | `{ project, description, force? }` | `201 { id }`; the preconditions refuse with `409 task.*`; `409 usage.high` without `force` when plan usage is high |
+| `GET /api/tasks/:id` | | the task |
+| `GET /api/tasks/:id/stream` | | SSE, as a creation's: `flow`, `hook`, `runner` (the round's `events.jsonl` lines, projected), `status`, `approval`, `question`, `denied`; each item has `seq`, `ts`, `round` |
+| `POST /api/tasks/:id/answer` | `{ pendingId, answer }` | an approval takes `"once"`, `"task"` (this exact command for the rest of the task) or `"deny"`; a question takes `{ "<question>": "<label>" }` or `"cancel"` |
+| `POST /api/tasks/:id/reply` | `{ text }` | the free-text reply after a turn that ended with nothing asked |
+| `POST /api/tasks/:id/finish` | | ends the round: commit on the task branch, checks, validations, then `proposal` |
+| `POST /api/tasks/:id/cancel` | | the existing cancel |
+| `GET /api/tasks/:id/proposal` | | `{ task, diff }`: each changed file with hunks (secrets hidden), or the applied commit's once applied |
+| `POST /api/tasks/:id/approve` | `{ confirm: true }` | one commit on the default branch, no push; `409 task.dirtyFolder`, `task.notOnBranch`, `task.conflict`, `task.blocked`, `task.projectBusy`, `task.mergeDrivers` |
+| `POST /api/tasks/:id/changes` | `{ text }` | a new round on the same branch and worktree |
+| `POST /api/tasks/:id/discard` | `{ confirm: true }` | the branch and the worktree are deleted |
+| `POST /api/tasks/:id/revert` | `{ confirm: true }` | one revert commit, under the approval's rules |
+| `GET /api/projects/:slug/tasks` | | `{ tasks, checks, start }`: the project's tasks, its declared checks (`{ command, confirmed }`), and whether a task can start (`{ ok: true, branch, uncommitted }` or `{ ok: false, code, message }`) |
+| `PUT /api/projects/:slug/checks` | `{ commands, confirm: true }` | the note's checks block rewritten through the library queue, each command recorded as confirmed; `400 task.invalidCheck` |
+| `POST /api/projects/:slug/git-init` | `{ confirm: true }` | for a folder in no git repository: `git init` and one commit of its files; `409 task.alreadyRepo`, `task.insideOtherRepo` |
+
 ## CLI: `skills install`
 
 `briefstack skills install <project-dir> [--skill <name>] [--json]`. Without

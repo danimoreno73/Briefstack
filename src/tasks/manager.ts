@@ -9,7 +9,9 @@ import type { Lang } from '../i18n/index.js';
 import type { Effort } from '../models.js';
 import { hideAbsolutePaths, projectEvent } from '../panel/project.js';
 import { redactSecretLines } from '../validate/secrets.js';
+import { applyTask, discardTask, revertTask, type ApplyDeps } from './apply.js';
 import { commitRound, createTaskWorktree, removeTaskWorktree } from './git.js';
+import { proposalDiff, type ProposalDiff } from './proposal.js';
 import { checkTaskPreconditions } from './preconditions.js';
 import { roundPrompt, type TaskRunner, type TaskRunnerEvent, type TaskRunnerHandle, type TaskRunnerOutcome } from './runner.js';
 import { inspectProject, projectRestrictions, type ProjectInspection } from './session.js';
@@ -319,6 +321,73 @@ export class TaskManager {
       await this.startRound(l, changes.trim());
       return this.view(l);
     });
+  }
+
+  /** Approve on the proposal page: one commit on the default branch (BRIEF §3.5). */
+  approve(id: string): Promise<TaskView> {
+    return this.act(id, async (record) => this.update(await applyTask(record, await this.applyDeps())));
+  }
+
+  /** Revert an applied task with one commit, after the user confirmed it. */
+  revert(id: string): Promise<TaskView> {
+    return this.act(id, async (record) => this.update(await revertTask(record, await this.applyDeps())));
+  }
+
+  /** Discard: the branch and the worktree go. Nothing allowed for the task is kept. */
+  discard(id: string): Promise<TaskView> {
+    return this.act(id, async (record) => {
+      const view = await this.update(await discardTask(record, await this.applyDeps()));
+      await this.live.get(id)?.approvals.clear();
+      return view;
+    });
+  }
+
+  /** What the proposal page shows: the task and its diff (the applied commit's, once applied). */
+  async proposal(id: string): Promise<{ task: TaskView; diff: ProposalDiff | null }> {
+    const task = await this.get(id);
+    let diff: ProposalDiff | null = null;
+    try {
+      if (['proposal', 'failed', 'cancelled', 'interrupted', 'checking'].includes(task.state)) diff = await proposalDiff(task.projectDir, task.baseCommit, `refs/heads/${task.branch}`);
+      else if (task.applied !== undefined) diff = await proposalDiff(task.projectDir, `${task.applied.commit}^`, task.applied.commit);
+    } catch {
+      diff = null;
+    }
+    return { task, diff };
+  }
+
+  /**
+   * Whether a task can start on a project now, for its page: the first
+   * precondition that fails (its code and message) or where it would
+   * start, with the uncommitted paths it leaves out.
+   */
+  async startInfo(project: string): Promise<{ ok: true; branch: string; uncommitted: string[] } | { ok: false; code: string; message: string }> {
+    const { libraryDir, repoDir } = await this.options.locations();
+    const limit = await this.limit();
+    try {
+      const start = await checkTaskPreconditions(
+        {
+          libraryDir,
+          repoDir,
+          pathEnv: this.pathEnv,
+          tasks: () => this.options.store.list(),
+          creationOn: (dir) => this.options.creations?.folderHolder(dir),
+          active: async () => {
+            const ids = [...this.activeIds(), ...(this.options.creations?.activeIds() ?? [])];
+            return { count: ids.length, limit, ids };
+          },
+        },
+        project,
+      );
+      return { ok: true, branch: start.branch, uncommitted: start.uncommitted };
+    } catch (error) {
+      if (!isBriefstackError(error)) throw error;
+      return { ok: false, code: error.code, message: formatError(error, await this.options.lang()) };
+    }
+  }
+
+  private async applyDeps(): Promise<ApplyDeps> {
+    const { libraryDir } = await this.options.locations();
+    return { store: this.options.store, libraryDir, now: this.now };
   }
 
   /** Saves a record a proposal action changed, and tells the stream. */

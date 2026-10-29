@@ -678,6 +678,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       chat,
       improvements,
       skills,
+      tasks,
       claudeStatus: (refresh) => claudeStatus.get(refresh),
       ...(usageCheck === undefined ? {} : { usageCheck }),
       ...(io.repoDir === undefined ? {} : { repoDir: io.repoDir }),

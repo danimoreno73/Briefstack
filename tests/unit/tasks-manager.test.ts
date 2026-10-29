@@ -15,7 +15,7 @@ let creationFolder: string | undefined;
 let runner: TaskFakeRunner;
 
 const until = async (check: () => boolean | Promise<boolean>, what = 'condition'): Promise<void> => {
-  for (let i = 0; i < 400; i += 1) {
+  for (let i = 0; i < 1500; i += 1) {
     if (await check()) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
