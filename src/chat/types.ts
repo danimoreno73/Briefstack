@@ -5,7 +5,7 @@
 
 /** Where an answer's data came from, so the user can open it. */
 export interface ChatSource {
-  kind: 'project' | 'note' | 'session' | 'creation' | 'usage' | 'settings' | 'proposal' | 'suggestion' | 'skill';
+  kind: 'project' | 'note' | 'session' | 'creation' | 'usage' | 'settings' | 'proposal' | 'suggestion' | 'skill' | 'task';
   /** A project slug, a note path (`projects/garden.md`), a session or creation id. */
   ref: string;
   label?: string;
@@ -35,6 +35,9 @@ export interface UsageWarning {
 export type ConfirmationCard =
   | { kind: 'startCreation'; idea: string; profile: string; active: number; limit: number; usage?: UsageWarning }
   | { kind: 'cancelCreation'; creationId: string; idea: string; step?: string }
+  /** A task in an existing project (phase 7): it uses plan; its shell commands ask; approving happens on its page. */
+  | { kind: 'startTask'; project: string; description: string; profile: string; model: string; effort: string; active: number; limit: number; uncommitted: number; usage?: UsageWarning }
+  | { kind: 'cancelTask'; taskId: string; project: string; description: string }
   | {
       kind: 'noteChange';
       section: string;

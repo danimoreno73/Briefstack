@@ -19,11 +19,14 @@ export const CHAT_READ_TOOLS = [
   'list_proposals',
   'show_proposal',
   'list_skills',
+  'list_tasks',
+  'show_task',
 ] as const;
 
 export const CHAT_ACTION_TOOLS = [
   'start_creation',
   'cancel_creation',
+  'start_task',
   'propose_note_change',
   'set_usage_profile',
   'prepare_improvement',

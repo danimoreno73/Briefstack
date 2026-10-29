@@ -2,6 +2,7 @@ import path from 'node:path';
 import { resolveHome, type PathEnv } from '../config/index.js';
 import type { CreationManager } from '../creation/manager.js';
 import type { ImprovementManager } from '../improve/manager.js';
+import type { TaskManager } from '../tasks/manager.js';
 import { planUsageReader } from '../creation/planUsage.js';
 import type { Lang } from '../i18n/index.js';
 import type { SkillService } from '../skills/service.js';
@@ -29,6 +30,8 @@ export interface WebChatOptions {
   skills?: SkillService | undefined;
   /** The plan-usage warning on start and improvement cards (phase 6). */
   usageCheck?: UsageCheck | undefined;
+  /** Tasks in existing projects (phase 7), once they exist. */
+  tasks?: (() => TaskManager | undefined) | undefined;
 }
 
 /** The chat's model and effort from the active usage profile (BRIEF-phase-4 §8.3). */
@@ -55,6 +58,7 @@ export async function createWebChat(options: WebChatOptions): Promise<ChatManage
       improvements: options.improvements,
       skills: options.skills,
       usageCheck: options.usageCheck,
+      tasks: options.tasks,
     },
     profile: () => activeChatProfile(pathEnv),
     ...(options.idleMs === undefined ? {} : { idleMs: options.idleMs }),

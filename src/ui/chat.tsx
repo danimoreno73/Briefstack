@@ -156,6 +156,28 @@ function Card({ confirmation, answer }: { confirmation: Confirmation; answer?: (
           )}
         </>
       )}
+      {card.kind === 'startTask' && (
+        <>
+          <p>{t.cardStartTask(card.project)}</p>
+          <p class="quote" data-testid="card-task">
+            {card.description}
+          </p>
+          <p class="t-small muted">{t.taskStartNotes(card.model, card.effort)}</p>
+          <p class="t-small muted">{t.cardStartNote(card.profile, card.active, card.limit)}</p>
+          {card.uncommitted > 0 && <p class="t-small muted">{t.cardTaskUncommitted(card.uncommitted)}</p>}
+          {card.usage !== undefined && (
+            <Note tone="warn" testId="card-usage-warning">
+              {t.cardUsageWarn(card.usage.fiveHour, card.usage.sevenDay)}
+            </Note>
+          )}
+        </>
+      )}
+      {card.kind === 'cancelTask' && (
+        <>
+          <p>{t.cardCancelTask(card.project)}</p>
+          <p class="quote">{card.description}</p>
+        </>
+      )}
       {card.kind === 'cancelCreation' && (
         <>
           <p>{t.cardCancelCreation}</p>

@@ -659,7 +659,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     tasks = await createWebTasks({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, runner: io.taskRunner, creations });
     // A server that died with a task running left it interrupted; its worktree stays for the user.
     await tasks.recover();
-    chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements, skills, usageCheck });
+    chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements, skills, usageCheck, tasks: () => tasks });
     improvements = await createWebImprovements({
       pathEnv: io.pathEnv,
       repoDir: io.repoDir,
