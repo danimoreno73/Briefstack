@@ -243,6 +243,7 @@ export function readRoutes(context: ReadContext): RouteTable {
           sessionModel: preset.sessionModel,
           effort: preset.effort,
           chat: preset.chat,
+          work: preset.work,
           tiers: preset.tiers,
           research: preset.research,
           reviewRounds: preset.reviewRounds,

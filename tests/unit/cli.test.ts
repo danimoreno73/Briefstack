@@ -259,6 +259,7 @@ describe('cli usage', () => {
     expect(out).toContain('this is the default');
     expect(out).toContain('/model sonnet');
     expect(out).toMatch(/architect\s+opus\s+effort medium/);
+    expect(out).toContain('Tasks in existing projects: sonnet, effort medium.');
     expect(out).toContain('Review rounds: at most 2');
     expect(out).toContain('Available profiles: saver, balanced, max');
     expect(out).toContain('/usage');
@@ -274,6 +275,7 @@ describe('cli usage', () => {
       profile: 'balanced',
       fromConfig: false,
       sessionModel: 'sonnet',
+      work: { model: 'sonnet', effort: 'medium' },
       research: 'when-useful',
       reviewRounds: 2,
       available: ['saver', 'balanced', 'max'],
@@ -347,6 +349,7 @@ describe('cli usage', () => {
       sessionModel: 'inherit',
       effort: 'low',
       chat: { model: 'haiku', effort: 'low' },
+      work: { model: 'haiku', effort: 'low' },
       agents: { interviewer: 'haiku', researcher: 'haiku', architect: 'haiku', generator: 'haiku', reviewer: 'haiku' },
       tiers: { light: 'haiku', standard: 'haiku', heavy: 'haiku' },
       research: 'required-only',

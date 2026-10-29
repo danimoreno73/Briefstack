@@ -96,6 +96,8 @@ export interface UsageView {
   label: string;
   sessionModel: string;
   chat: { model: string; effort: string };
+  /** The model and effort of a task in an existing project. */
+  work: { model: string; effort: string };
   /** The model and effort each flow agent runs with under the active profile. */
   agents?: Record<string, { model: string; effort: string }>;
   drift: { file: string; field: string; committed: string | null; current: string | null }[];

@@ -371,7 +371,7 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
     name: 'show_usage',
     kind: 'read',
     description:
-      'The active usage profile (models and efforts of the session, the chat and each agent), the available profiles, and the plan usage now (percent of the 5-hour and 7-day windows).',
+      'The active usage profile (models and efforts of the session, the chat, tasks and each agent), the available profiles, and the plan usage now (percent of the 5-hour and 7-day windows).',
     input: {},
     summary: () => '',
     run: async (ctx) => {
@@ -390,6 +390,7 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
           label: shown.label,
           sessionModel: shown.sessionModel,
           chat: shown.chat,
+          work: shown.work,
           agents: shown.agents,
           research: shown.research,
           reviewRounds: shown.reviewRounds,

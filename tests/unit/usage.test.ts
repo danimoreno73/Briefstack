@@ -33,6 +33,7 @@ const CUSTOM_PRESET: UsagePresetInput = {
   sessionModel: 'claude-sonnet-4-5',
   effort: 'xhigh',
   chat: { model: 'haiku', effort: 'low' },
+  work: { model: 'sonnet', effort: 'high' },
   agents: {
     interviewer: 'inherit',
     researcher: { model: 'haiku', effort: 'low' },
@@ -144,6 +145,31 @@ describe('usage profiles data', () => {
     expect((error as { params: { issues: string[] } }).params.issues.some((issue) => issue.startsWith('profiles.mine.chat'))).toBe(true);
     for (const chat of [{ model: 'haiku' }, { model: 'two words', effort: 'low' }, { model: 'haiku', effort: 'extreme' }, { model: 'haiku', effort: 'low', extra: 1 }]) {
       expect(() => parseProfilesFile(JSON.stringify({ profiles: { mine: { ...CUSTOM_PRESET, chat } } }), 'f'), JSON.stringify(chat)).toThrow(
+        expect.objectContaining({ code: 'usage.invalidProfiles' }),
+      );
+    }
+  });
+
+  it('gives every base preset the task model and effort of BRIEF-phase-7 §3.7', async () => {
+    const profiles = await loadUsageProfiles({ baseFile: baseProfilesFile() });
+    expect(profiles.presets.saver?.work).toEqual({ model: 'sonnet', effort: 'low' });
+    expect(profiles.presets.balanced?.work).toEqual({ model: 'sonnet', effort: 'medium' });
+    expect(profiles.presets.max?.work).toEqual({ model: 'opus', effort: 'high' });
+  });
+
+  it('refuses a user preset without the task model and effort, and names the field', () => {
+    const withoutWork: Partial<UsagePresetInput> = { ...CUSTOM_PRESET };
+    delete withoutWork.work;
+    let error: unknown;
+    try {
+      parseProfilesFile(JSON.stringify({ profiles: { mine: withoutWork } }), 'f');
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toMatchObject({ code: 'usage.invalidProfiles' });
+    expect((error as { params: { issues: string[] } }).params.issues.some((issue) => issue.startsWith('profiles.mine.work'))).toBe(true);
+    for (const work of [{ model: 'opus' }, { model: 'two words', effort: 'low' }, { model: 'opus', effort: 'extreme' }, { model: 'opus', effort: 'low', extra: 1 }]) {
+      expect(() => parseProfilesFile(JSON.stringify({ profiles: { mine: { ...CUSTOM_PRESET, work } } }), 'f'), JSON.stringify(work)).toThrow(
         expect.objectContaining({ code: 'usage.invalidProfiles' }),
       );
     }

@@ -4693,3 +4693,15 @@ the model there cannot invoke these skills; the gap is noted in
 M1 to M8 run unattended (the user's instruction, 2026-10-29). Each doubt
 is settled with the most conservative option and listed here, by
 milestone.
+
+**M1.**
+
+- `work` is required in every preset, as `chat` was in phase 4 (BRIEF
+  §3.7: "User presets must set it too"). A user's `usage-profiles.json`
+  written before phase 7 no longer loads: the error names
+  `profiles.<name>.work`, like any other missing field. No default is
+  filled in for it: a model the user never chose would run code in their
+  project. The README's upgrade note says so (M8).
+- The Usage page shows the task line under the chat line of the active
+  profile; the preset cards stay as they are (they show the tiers'
+  models, not the chat's either).

@@ -404,10 +404,12 @@ test.describe('usage', () => {
     await expect(page.getByTestId('level-hint')).toContainText('Moderate use');
     // Each agent's model and effort under the active profile.
     await expect(page.getByRole('table')).toContainText('architect');
+    await expect(page.getByTestId('work-model')).toHaveText('Tasks: sonnet, effort medium.');
 
     await levels.getByRole('radio', { name: /^Max/ }).check();
     await expect(page.getByRole('status')).toContainText('Profile set to max.');
     await expect(page.getByTestId('active-profile')).toContainText('Max');
+    await expect(page.getByTestId('work-model')).toHaveText('Tasks: opus, effort high.');
     await expect(page.getByTestId('level-hint')).toContainText('Heaviest use');
     await page.reload();
     await expect(page.getByRole('group', { name: 'Usage level' }).getByRole('radio', { name: /^Max/ })).toBeChecked();

@@ -166,6 +166,9 @@ export function UsageView() {
                     <p class="t-small muted card-foot" data-testid="chat-model">
                       {t.usageChatModel(usage.chat.model, usage.chat.effort)}
                     </p>
+                    <p class="t-small muted card-foot" data-testid="work-model">
+                      {t.usageWorkModel(usage.work.model, usage.work.effort)}
+                    </p>
                   </section>
                 )}
 

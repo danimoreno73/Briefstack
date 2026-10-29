@@ -208,7 +208,7 @@ describe('the tools', () => {
 
   it('show_usage and show_settings', async () => {
     const usage = await read('show_usage');
-    expect(usage.data).toMatchObject({ profile: 'balanced', chat: { model: 'sonnet', effort: 'medium' }, planUsage: { fiveHourPercent: 21, sevenDayPercent: 34 } });
+    expect(usage.data).toMatchObject({ profile: 'balanced', chat: { model: 'sonnet', effort: 'medium' }, work: { model: 'sonnet', effort: 'medium' }, planUsage: { fiveHourPercent: 21, sevenDayPercent: 34 } });
     const settings = await read('show_settings');
     expect(settings.data).toMatchObject({ permissionPolicy: 'ask', maxActiveCreations: 2, folders: { library: world.libraryDir } });
   });

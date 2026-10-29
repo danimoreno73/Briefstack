@@ -50,15 +50,22 @@ const tiersShape = Object.fromEntries(TIERS.map((tier) => [tier, AgentModelSchem
 export const ChatSettingSchema = z.strictObject({ model: ModelSchema, effort: z.enum(EFFORT_LEVELS) });
 
 /**
+ * The session of a task in an existing project (BRIEF-phase-7 §3.7): its
+ * model and effort, always passed explicitly, as the chat's.
+ */
+export const WorkSettingSchema = z.strictObject({ model: ModelSchema, effort: z.enum(EFFORT_LEVELS) });
+
+/**
  * One preset. `agents` must cover the five flow agents and may name more;
  * each entry is a model or `{ model, effort }` to override the global effort.
- * `chat` is required in every preset, user presets included.
+ * `chat` and `work` are required in every preset, user presets included.
  */
 export const UsagePresetSchema = z.strictObject({
   label: z.strictObject(labelShape),
   sessionModel: ModelSchema,
   effort: z.enum(EFFORT_LEVELS),
   chat: ChatSettingSchema,
+  work: WorkSettingSchema,
   agents: z.object(agentsShape).catchall(AgentEntrySchema),
   tiers: z.strictObject(tiersShape),
   research: z.enum(RESEARCH_MODES),

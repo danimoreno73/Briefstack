@@ -12,6 +12,7 @@ export const usageMessages = defineCatalogue({
     sessionModel: (model: string) =>
       `Main session model this profile expects: ${model}. briefstack cannot change it in an interactive session. For this session only, open /model and press s on ${model}, or start with claude --model ${model}; typing /model ${model} also makes it your default for new sessions.`,
     chatModel: (model: string, effort: string) => `Web app chat: ${model}, effort ${effort}.`,
+    workModel: (model: string, effort: string) => `Tasks in existing projects: ${model}, effort ${effort}.`,
     agentsHeader: 'Agents:',
     agentLine: (agent: string, model: string, effort: string) => `  ${agent.padEnd(12)} ${model.padEnd(8)} effort ${effort}`,
     projectTiers: (light: string, standard: string, heavy: string) =>
@@ -50,6 +51,7 @@ export const usageMessages = defineCatalogue({
     sessionModel: (model: string) =>
       `Modelo de la sesión principal que espera este perfil: ${model}. briefstack no puede cambiarlo en una sesión interactiva. Solo para esta sesión, abre /model y pulsa s sobre ${model}, o arranca con claude --model ${model}; escribir /model ${model} también lo deja como predeterminado para sesiones nuevas.`,
     chatModel: (model: string, effort: string) => `Chat de la app web: ${model}, esfuerzo ${effort}.`,
+    workModel: (model: string, effort: string) => `Tareas en proyectos existentes: ${model}, esfuerzo ${effort}.`,
     agentsHeader: 'Agentes:',
     agentLine: (agent: string, model: string, effort: string) =>
       `  ${agent.padEnd(12)} ${model.padEnd(8)} esfuerzo ${effort}`,
