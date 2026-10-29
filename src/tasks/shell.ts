@@ -164,6 +164,11 @@ export class TaskApprovals {
   /** The task ended: nothing is remembered. */
   async clear(): Promise<void> {
     this.exact.clear();
+    await this.clearRecords();
+  }
+
+  /** A round ended: the per-call records go; what the user allowed for the task stays. */
+  async clearRecords(): Promise<void> {
     let names: string[];
     try {
       names = await readdir(this.dir);

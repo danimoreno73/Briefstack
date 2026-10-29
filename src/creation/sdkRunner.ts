@@ -226,8 +226,8 @@ const askInputSchema = z.object({ questions: z.array(questionSchema).min(1).max(
 const CANCELLED_MESSAGE =
   'The user cancelled this creation. Close the open step as skipped and the session as cancelled, and stop.';
 
-/** A queue the SDK reads user messages from. The first one starts the skill; the rest are not used yet. */
-class InputQueue implements AsyncIterable<SDKUserMessage> {
+/** A queue the SDK reads user messages from: the first message, then the user's replies. Tasks use it too. */
+export class InputQueue implements AsyncIterable<SDKUserMessage> {
   private readonly items: SDKUserMessage[] = [];
   private waiting: ((result: IteratorResult<SDKUserMessage>) => void) | undefined;
   private closed = false;
