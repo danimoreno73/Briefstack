@@ -26,7 +26,58 @@ export const TASK_HOOK_TIMEOUT_S = 60 * 60;
 
 export type ShellAnswer = 'once' | 'task' | 'deny';
 
-export type CommandFeature = 'and' | 'or' | 'sequence' | 'pipe' | 'background' | 'newline' | 'substitution' | 'backtick' | 'processSubstitution' | 'redirect';
+export type CommandFeature =
+  | 'and'
+  | 'or'
+  | 'sequence'
+  | 'pipe'
+  | 'background'
+  | 'newline'
+  | 'substitution'
+  | 'backtick'
+  | 'processSubstitution'
+  | 'redirect'
+  /** Control, zero-width or direction characters: shown as `\u{…}` so nothing is hidden or reordered. */
+  | 'invisible';
+
+/**
+ * Code points that print nothing or change how the rest prints: controls
+ * other than tab and line feed (a carriage return included), soft hyphen,
+ * fillers, zero-width and joiner characters, direction marks and overrides,
+ * variation selectors, the byte-order mark and the tag characters.
+ */
+const INVISIBLE_RANGES: readonly (readonly [number, number])[] = [
+  [0x0000, 0x0008],
+  [0x000b, 0x001f],
+  [0x007f, 0x009f],
+  [0x00ad, 0x00ad],
+  [0x061c, 0x061c],
+  [0x115f, 0x1160],
+  [0x17b4, 0x17b5],
+  [0x180b, 0x180f],
+  [0x200b, 0x200f],
+  [0x202a, 0x202e],
+  [0x2060, 0x206f],
+  [0x3164, 0x3164],
+  [0xfe00, 0xfe0f],
+  [0xfeff, 0xfeff],
+  [0xffa0, 0xffa0],
+  [0xfff9, 0xfffb],
+  [0xe0000, 0xe007f],
+  [0xe0100, 0xe01ef],
+];
+
+const isInvisible = (codePoint: number): boolean => INVISIBLE_RANGES.some(([from, to]) => codePoint >= from && codePoint <= to);
+
+/** The text with every invisible character written out as `\u{…}`. */
+export function showInvisible(text: string): string {
+  let out = '';
+  for (const ch of text) {
+    const codePoint = ch.codePointAt(0) ?? 0;
+    out += isInvisible(codePoint) ? `\\u{${codePoint.toString(16).toUpperCase().padStart(4, '0')}}` : ch;
+  }
+  return out;
+}
 
 /** What the dialog shows of a command. The parsing is for display only: the approval is for the whole string. */
 export interface CommandDisplay {
@@ -83,11 +134,13 @@ export function describeCommand(command: string): CommandDisplay {
       if (command.slice(i + 1).trim() !== '') features.add('newline');
     }
   }
-  const shown = redactSecretLines(command);
+  const redacted = redactSecretLines(command);
+  const shown = showInvisible(redacted);
+  if (shown !== redacted) features.add('invisible');
   const list = [...features];
-  const compound = list.some((feature) => feature !== 'redirect');
+  const compound = list.some((feature) => feature !== 'redirect' && feature !== 'invisible');
   const runsGit = /(^|[\s;&|(`]|\$\()git(\.exe)?(\s|$)/i.test(command);
-  return { text: shown, redacted: shown !== command, features: list, compound, runsGit };
+  return { text: shown, redacted: redacted !== command, features: list, compound, runsGit };
 }
 
 /** What the dialog asks about. */

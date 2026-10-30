@@ -274,15 +274,29 @@ function ApprovalDialog({ task, onDone }: { task: TaskViewUi; onDone(): void }) 
       </pre>
       {payload.compound && <Note tone="warn" testId="task-approval-compound">{t.taskApprovalCompound}</Note>}
       {payload.runsGit && <Note tone="warn">{t.taskApprovalGit}</Note>}
-      {payload.redacted && <Note tone="plain">{t.taskApprovalRedacted}</Note>}
+      {payload.features.includes('invisible') && (
+        <Note tone="warn" testId="task-approval-invisible">
+          {t.taskApprovalInvisible}
+        </Note>
+      )}
+      {payload.redacted && (
+        <Note tone="warn" testId="task-approval-redacted">
+          {t.taskApprovalRedacted}
+        </Note>
+      )}
       {action.error !== undefined && <ErrorNote error={action.error} />}
       <div class="btn-row">
-        <button type="button" class="btn btn-primary" disabled={action.busy} onClick={() => answer('once')} data-testid="task-allow-once">
-          {t.taskAllowOnce}
-        </button>
-        <button type="button" class="btn btn-secondary" disabled={action.busy} onClick={() => answer('task')} data-testid="task-allow-task">
-          {t.taskAllowTask}
-        </button>
+        {/* Part of it is hidden: what the user cannot see is never allowed (the server refuses it too). */}
+        {!payload.redacted && (
+          <>
+            <button type="button" class="btn btn-primary" disabled={action.busy} onClick={() => answer('once')} data-testid="task-allow-once">
+              {t.taskAllowOnce}
+            </button>
+            <button type="button" class="btn btn-secondary" disabled={action.busy} onClick={() => answer('task')} data-testid="task-allow-task">
+              {t.taskAllowTask}
+            </button>
+          </>
+        )}
         <button type="button" class="btn btn-danger" disabled={action.busy} onClick={() => answer('deny')} data-testid="task-deny">
           {t.taskDeny}
         </button>

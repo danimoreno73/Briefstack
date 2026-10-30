@@ -202,6 +202,10 @@ export class TaskManager {
     if (head.pending.kind === 'approval') {
       const parsed = approvalAnswerSchema.safeParse(answer);
       if (!parsed.success) throw new BriefstackError('creation.invalidAnswer', { kind: 'approval', issues: issuesOf(parsed.error) });
+      // A command the dialog could not show whole is never allowed: the user would allow what they did not see.
+      if (head.pending.payload.redacted && parsed.data !== 'deny') {
+        throw new BriefstackError('creation.invalidAnswer', { kind: 'approval', issues: ['part of it is hidden, so it can only be denied'] });
+      }
       this.settle(l, parsed.data, parsed.data);
     } else {
       if (answer === 'cancel') {
