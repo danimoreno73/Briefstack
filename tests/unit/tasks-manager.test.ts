@@ -186,8 +186,10 @@ describe('TaskManager: shell commands and questions', () => {
     await until(async () => (await m.get(task.id)).awaitingReply !== undefined);
     expect((await m.get(task.id)).allowedForTask).toBe(1);
     const session = (await m.get(task.id)).rounds[0]?.sessionId as string;
-    const lines = await readFile(path.join(world.sessions, session, 'events.jsonl'), 'utf8');
-    expect(lines).toContain('"type":"tool.denied"');
+    const events = path.join(world.sessions, session, 'events.jsonl');
+    // The runner writes its lines in the background: the turn can end before the denial's line is on disk.
+    await until(async () => (await readFile(events, 'utf8')).includes('"type":"tool.denied"'), 'the denial in the events');
+    const lines = await readFile(events, 'utf8');
     expect(lines).toContain('"by":"user"');
     // Nothing of the command reaches the events file.
     expect(lines).not.toContain('curl');
