@@ -296,12 +296,13 @@ export const uiMessages = defineCatalogue({
     taskInitTitle: 'Make the project folder a git repository?',
     taskInitBody: 'Git starts tracking the folder and makes one commit of its current files (what .gitignore leaves out stays out). Nothing else changes.',
     taskChecksTitle: 'Checks',
-    taskChecksIntro: 'Commands the server runs in the task\'s copy after each round, one after the other, offline, with a 10-minute limit each. Only commands you confirm here run.',
+    taskChecksIntro: 'Commands the server runs in the task\'s copy after each round, one after the other, with network proxies pointed nowhere and a 10-minute limit each. Only commands you confirm here run, but what they run includes the files the task changed (a test script, say), with no dialog.',
     taskChecksEdit: 'Edit the checks',
     taskChecksLabel: 'One command per line',
     taskChecksSave: 'Save the checks',
     taskChecksConfirmTitle: 'Run these commands after each round?',
-    taskChecksConfirmBody: (list: string) => (list === '' ? 'No command will run.' : `They run project code on this computer, in the task's copy: ${list}`),
+    taskChecksConfirmBody: (list: string) =>
+      list === '' ? 'No command will run.' : `They run project code on this computer, in the task's copy, after each round and without asking, including code the task's session changed: ${list}`,
     taskChecksNone: 'No checks.',
     taskCheckUnconfirmed: 'not confirmed: it never runs until you save it here',
     taskListEmpty: 'No tasks yet.',
@@ -1269,12 +1270,15 @@ export const uiMessages = defineCatalogue({
     taskInitTitle: '¿Convertir la carpeta del proyecto en un repositorio git?',
     taskInitBody: 'Git empieza a seguir la carpeta y hace un commit con sus archivos actuales (lo que excluye .gitignore se queda fuera). No cambia nada más.',
     taskChecksTitle: 'Comprobaciones',
-    taskChecksIntro: 'Comandos que el servidor ejecuta en la copia de la tarea tras cada ronda, uno tras otro, sin red, con un límite de 10 minutos cada uno. Solo se ejecutan los que confirmas aquí.',
+    taskChecksIntro: 'Comandos que el servidor ejecuta en la copia de la tarea tras cada ronda, uno tras otro, con los proxies de red apuntando a ninguna parte y un límite de 10 minutos cada uno. Solo se ejecutan los que confirmas aquí, pero lo que ejecutan incluye los archivos que la tarea cambió (un script de tests, por ejemplo), sin diálogo.',
     taskChecksEdit: 'Editar las comprobaciones',
     taskChecksLabel: 'Un comando por línea',
     taskChecksSave: 'Guardar las comprobaciones',
     taskChecksConfirmTitle: '¿Ejecutar estos comandos tras cada ronda?',
-    taskChecksConfirmBody: (list: string) => (list === '' ? 'No se ejecutará ningún comando.' : `Ejecutan código del proyecto en este ordenador, en la copia de la tarea: ${list}`),
+    taskChecksConfirmBody: (list: string) =>
+      list === ''
+        ? 'No se ejecutará ningún comando.'
+        : `Ejecutan código del proyecto en este ordenador, en la copia de la tarea, tras cada ronda y sin preguntar, incluido el código que cambió la sesión de la tarea: ${list}`,
     taskChecksNone: 'Sin comprobaciones.',
     taskCheckUnconfirmed: 'sin confirmar: no se ejecuta hasta que la guardes aquí',
     taskListEmpty: 'Aún no hay tareas.',
