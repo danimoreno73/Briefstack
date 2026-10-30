@@ -85,6 +85,11 @@ describe('matchSubcommand', () => {
     for (const sub of ['scaffold', 'usage set', 'init', 'web', 'library list', 'library show']) {
       expect(matchSubcommand('main', sub.split(' ')), sub).toBeUndefined();
     }
+    // `paths` and `paths check` yes; `paths rewrite`, which writes the config and the library, never.
+    expect(matchSubcommand('main', ['paths', '--json'])).toEqual(['paths']);
+    expect(matchSubcommand('main', ['paths', 'check', '/p/x', '--json'])).toEqual(['paths']);
+    expect(matchSubcommand('main', ['paths', 'rewrite', '--from', '/a', '--to', '/b', '--apply'])).toBeUndefined();
+    expect(matchSubcommand('main', ['paths', 'rewrite'])).toBeUndefined();
     expect(matchSubcommand('generator', ['scaffold'])).toEqual(['scaffold']);
     expect(matchSubcommand('generator', ['validate'])).toEqual(['validate']);
     expect(matchSubcommand('generator', ['skills', 'install', 'x'])).toEqual(['skills', 'install']);

@@ -159,10 +159,19 @@ export function parseBriefstackCommand(command: string): ParsedCommand {
   return { ok: true, argv: tokens.slice(PREFIX.length) };
 }
 
+/**
+ * Subcommands no session may run, even under an allowed prefix: `paths
+ * rewrite` changes the config, the library notes, the tasks and the repo's
+ * settings, and only the user runs it.
+ */
+export const NEVER_SUBCOMMANDS: readonly (readonly string[])[] = [['paths', 'rewrite']];
+
 /** The subcommand that matches `argv` for `caller`, e.g. `['usage', 'show']`, or `undefined`. */
 export function matchSubcommand(caller: Caller, argv: readonly string[]): readonly string[] | undefined {
   if (caller === 'other') return undefined;
-  return ALLOWED_SUBCOMMANDS[caller].find((sub) => sub.every((word, index) => argv[index] === word));
+  const starts = (sub: readonly string[]) => sub.every((word, index) => argv[index] === word);
+  if (NEVER_SUBCOMMANDS.some(starts)) return undefined;
+  return ALLOWED_SUBCOMMANDS[caller].find(starts);
 }
 
 export type PathClass = 'ok' | 'relative' | 'not-fully-absolute';
