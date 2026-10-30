@@ -25,7 +25,7 @@ import { FakeRealCheckRunner } from '../../src/improve/realCheck.js';
 import { FakeSafetyReviewer } from '../../src/improve/safetyReview.js';
 import { FakeVerifier } from '../../src/improve/verify.js';
 import { createWebImprovements } from '../../src/improve/wiring.js';
-import { makeImproveRepo } from '../improveWorld.js';
+import { makeImproveRepo, testGit } from '../improveWorld.js';
 import { FakeSkillReviewer, hasScript } from '../../src/skills/modelReview.js';
 import { SkillService } from '../../src/skills/service.js';
 import { UsageCheck } from '../../src/usage/warning.js';
@@ -242,7 +242,8 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   });
   const chatRunner = new FakeChatRunner(options.chatScript ?? { turns: [] });
   const holder: { app?: App } = {};
-  const chat = await openChat(pathEnv, repoDir, manager, chatRunner, () => holder.app?.improvements, skills, usageCheck);
+  // As in `briefstack web`, the chat reads the task manager when a tool runs: it starts after the chat.
+  const chat = await openChat(pathEnv, repoDir, manager, chatRunner, () => holder.app?.improvements, skills, usageCheck, () => holderTasks.value);
   const improveRunner = new FakeImprovementRunner(options.improveScript ?? { rounds: [] });
   // Flags a change that lets an agent ask in plain text, like the real review should.
   const safetyReviewer = new FakeSafetyReviewer((diff) =>
@@ -314,11 +315,12 @@ async function openChat(
   improvements: () => ImprovementManager | undefined,
   skills?: SkillService,
   usageCheck?: UsageCheck,
+  tasks?: () => TaskManager | undefined,
 ): Promise<ChatManager> {
   return ChatManager.open({
     store: new ChatStore(path.join(pathEnv.env.BRIEFSTACK_HOME ?? '', 'chat')),
     runner,
-    tools: { pathEnv, repoDir, lang: 'en', creations, planUsage: async () => ({ fiveHour: 21, sevenDay: 34 }), improvements, skills, usageCheck },
+    tools: { pathEnv, repoDir, lang: 'en', creations, planUsage: async () => ({ fiveHour: 21, sevenDay: 34 }), improvements, skills, usageCheck, tasks },
     profile: () => activeChatProfile(pathEnv),
   });
 }
@@ -331,7 +333,7 @@ export async function restartChatServer(app: App, script: ChatScript): Promise<v
   await app.chat.shutdown();
   await app.server.close();
   app.chatRunner = new FakeChatRunner(script);
-  app.chat = await openChat(app.pathEnv, app.repoDir, app.manager, app.chatRunner, () => app.improvements, app.skills, app.usageCheck);
+  app.chat = await openChat(app.pathEnv, app.repoDir, app.manager, app.chatRunner, () => app.improvements, app.skills, app.usageCheck, () => app.tasks);
   app.server = await startWebServer({ port: 0, pathEnv: app.pathEnv, repoDir: app.repoDir, creations: app.manager, chat: app.chat, improvements: app.improvements, skills: app.skills, tasks: app.tasks, claudeStatus: app.claudeStatus });
   app.url = app.server.url;
 }
@@ -398,5 +400,24 @@ export async function recordProject(
   ].join(String.fromCharCode(10));
   await writeFile(file, text, 'utf8');
   await addNote({ libraryDir: app.libraryDir, section: 'projects', name: slug, fromFile: file, session, now: new Date('2026-10-15T10:00:00Z') });
+  return projectDir;
+}
+
+/**
+ * A `claude-code` project as briefstack makes one, for tasks (phase 7): the
+ * library note, `.briefstack/profile.json`, and a git repository on `main`
+ * with one commit of its files.
+ */
+export async function codeProject(app: App, slug: string, name: string, files: Record<string, string> = {}): Promise<string> {
+  const projectDir = await recordProject(app, slug, name, SESSION_DONE);
+  const all: Record<string, string> = { 'CLAUDE.md': `# ${name}\n`, '.briefstack/profile.json': '{}\n', '.gitignore': 'node_modules/\n', ...files };
+  for (const [file, text] of Object.entries(all)) {
+    await mkdir(path.dirname(path.join(projectDir, file)), { recursive: true });
+    await writeFile(path.join(projectDir, file), text, 'utf8');
+  }
+  await testGit(projectDir, ['init', '--quiet', '-b', 'main']);
+  await testGit(projectDir, ['config', 'core.autocrlf', 'false']);
+  await testGit(projectDir, ['add', '-A']);
+  await testGit(projectDir, ['commit', '--quiet', '--no-verify', '-m', 'Prepare the project with briefstack']);
   return projectDir;
 }
