@@ -419,5 +419,5 @@ export interface TaskProposalUi {
 export interface ProjectTasksUi {
   tasks: TaskViewUi[];
   checks: { command: string; confirmed: boolean }[];
-  start: { ok: true; branch: string; uncommitted: string[] } | { ok: false; code: string; message: string };
+  start: { ok: true; branch: string; uncommitted: string[] } | { ok: false; code: string; params: Record<string, unknown>; message: string };
 }

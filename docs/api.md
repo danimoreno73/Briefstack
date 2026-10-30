@@ -739,7 +739,7 @@ A task (`TaskView`) is its record (`src/tasks/types.ts`: `id`, `project`,
 | `POST /api/tasks/:id/changes` | `{ text }` | a new round on the same branch and worktree |
 | `POST /api/tasks/:id/discard` | `{ confirm: true }` | the branch and the worktree are deleted |
 | `POST /api/tasks/:id/revert` | `{ confirm: true }` | one revert commit, under the approval's rules |
-| `GET /api/projects/:slug/tasks` | | `{ tasks, checks, start }`: the project's tasks, its declared checks (`{ command, confirmed }`), and whether a task can start (`{ ok: true, branch, uncommitted }` or `{ ok: false, code, message }`) |
+| `GET /api/projects/:slug/tasks` | | `{ tasks, checks, start }`: the project's tasks, its declared checks (`{ command, confirmed }`), and whether a task can start (`{ ok: true, branch, uncommitted }` or `{ ok: false, code, params, message }`; the page shows its own text for `code` and `params`, never `message`) |
 | `PUT /api/projects/:slug/checks` | `{ commands, confirm: true }` | the note's checks block rewritten through the library queue, each command recorded as confirmed; `400 task.invalidCheck` |
 | `POST /api/projects/:slug/git-init` | `{ confirm: true }` | for a folder in no git repository: `git init` and one commit of its files; `409 task.alreadyRepo`, `task.insideOtherRepo` |
 

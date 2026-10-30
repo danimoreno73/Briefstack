@@ -1,6 +1,22 @@
 import { defineCatalogue } from './index.js';
 import { stepName } from './steps.js';
 
+/**
+ * What the page may show of a task error (phase 7): the state's label,
+ * numbers, branch names and the project-relative paths the page already
+ * lists. Never the server's text, a command or a folder.
+ */
+export interface TaskErrorFacts {
+  state: string;
+  limit: number;
+  active: number;
+  branch: string;
+  current: string;
+  paths: readonly string[];
+  items: number;
+  required: string;
+}
+
 /** Strings of the web UI. Pure module: the browser imports it directly. */
 export const uiMessages = defineCatalogue({
   en: {
@@ -43,6 +59,36 @@ export const uiMessages = defineCatalogue({
 
     // Errors by code. The server's own text is never shown.
     errGeneric: (code: string) => `Something went wrong (${code}).`,
+    errTask: (code: string, p: TaskErrorFacts): string | undefined =>
+      ({
+        'task.unavailable': 'Tasks are not available in this server.',
+        'task.notFound': 'This task does not exist.',
+        'task.wrongState': `The task is ${p.state.toLowerCase()}; that cannot be done now.`,
+        'task.projectNotFound': 'The project is not in the library.',
+        'task.notClaudeCode': 'Tasks work only on claude-code projects.',
+        'task.archived': 'The project is archived. Unarchive it first.',
+        'task.folderMissing': 'The project folder does not exist.',
+        'task.folderProtected': 'The project folder overlaps one of briefstack’s own folders (the repo, the home, the library or the Claude Code settings).',
+        'task.notFromBriefstack': 'The project folder was not made by briefstack: it has no .briefstack/profile.json.',
+        'task.gitMissing': 'Git is not installed, or not on the PATH.',
+        'task.gitTooOld': `Tasks need git ${p.required} or later.`,
+        'task.notGitRepo': 'The project folder is not a git repository.',
+        'task.alreadyRepo': 'The project folder is already a git repository.',
+        'task.insideOtherRepo': 'The project folder is inside another git repository.',
+        'task.noCommit': 'The project’s repository has no commit yet. Commit once, then start the task.',
+        'task.detachedHead': 'The project folder has no branch checked out. Check out its branch first.',
+        'task.projectBusy': 'Another task on this project is still open. Approve or discard it first.',
+        'task.creationOnFolder': 'A creation is working on this project’s folder.',
+        'task.limit': `The limit of active sessions is reached (${p.active} of ${p.limit}; creations and tasks count together). Wait for one to end, or raise the limit in Settings.`,
+        'task.unsafeDefinitions': `The project has ${p.items} skill, command or agent file(s) a task cannot load safely (hooks, MCP servers, a permission mode, or skills from elsewhere). Change them in the project and commit.`,
+        'task.invalidCheck': 'The checks cannot be saved: one command per line, at most 10, each one line of up to 500 characters, no code fences, no command twice.',
+        'task.notOnBranch': `The project folder has ${p.current} checked out; the task was made from ${p.branch}. Check out ${p.branch}, then try again.`,
+        'task.dirtyFolder': `The project folder has uncommitted changes${p.paths.length > 0 ? ` (${p.paths.join(', ')})` : ''}. Commit or put them aside, then try again.`,
+        'task.conflict': 'The change no longer applies: the project’s branch moved in a way that conflicts with it. Ask for changes to make a new round, or discard the task.',
+        'task.noChanges': 'The task changes nothing in the project.',
+        'task.blocked': 'The server’s checks of the diff refused this change. Ask for changes, or discard the task.',
+        'task.mergeDrivers': 'The project configures git merge drivers, which would run while the change is applied. Tasks cannot be applied there.',
+      })[code],
     errSecret: (lines: readonly number[]) =>
       `The note looks like it contains a secret (line ${lines.join(', ')}). Remove it and save again. Nothing was saved.`,
     errSecretNoLines: 'The note looks like it contains a secret. Remove it and save again. Nothing was saved.',
@@ -981,6 +1027,36 @@ export const uiMessages = defineCatalogue({
     notFound: 'No hay nada aquí.',
 
     errGeneric: (code: string) => `Algo ha ido mal (${code}).`,
+    errTask: (code: string, p: TaskErrorFacts): string | undefined =>
+      ({
+        'task.unavailable': 'Las tareas no están disponibles en este servidor.',
+        'task.notFound': 'Esta tarea no existe.',
+        'task.wrongState': `La tarea está en estado «${p.state.toLowerCase()}»; eso no se puede hacer ahora.`,
+        'task.projectNotFound': 'El proyecto no está en la biblioteca.',
+        'task.notClaudeCode': 'Las tareas solo funcionan en proyectos claude-code.',
+        'task.archived': 'El proyecto está archivado. Desarchívalo primero.',
+        'task.folderMissing': 'La carpeta del proyecto no existe.',
+        'task.folderProtected': 'La carpeta del proyecto se solapa con una carpeta propia de briefstack (el repo, el home, la biblioteca o los ajustes de Claude Code).',
+        'task.notFromBriefstack': 'La carpeta del proyecto no la creó briefstack: no tiene .briefstack/profile.json.',
+        'task.gitMissing': 'Git no está instalado o no está en el PATH.',
+        'task.gitTooOld': `Las tareas necesitan git ${p.required} o posterior.`,
+        'task.notGitRepo': 'La carpeta del proyecto no es un repositorio git.',
+        'task.alreadyRepo': 'La carpeta del proyecto ya es un repositorio git.',
+        'task.insideOtherRepo': 'La carpeta del proyecto está dentro de otro repositorio git.',
+        'task.noCommit': 'El repositorio del proyecto aún no tiene ningún commit. Haz uno y empieza la tarea.',
+        'task.detachedHead': 'La carpeta del proyecto no tiene ninguna rama activa. Cambia a su rama primero.',
+        'task.projectBusy': 'Otra tarea de este proyecto sigue abierta. Apruébala o descártala primero.',
+        'task.creationOnFolder': 'Una creación está trabajando en la carpeta de este proyecto.',
+        'task.limit': `Se alcanzó el límite de sesiones activas (${p.active} de ${p.limit}; creaciones y tareas cuentan juntas). Espera a que termine una o sube el límite en Ajustes.`,
+        'task.unsafeDefinitions': `El proyecto tiene ${p.items} archivo(s) de skills, comandos o agentes que una tarea no puede cargar con seguridad (hooks, servidores MCP, un modo de permisos o skills de fuera). Cámbialos en el proyecto y haz commit.`,
+        'task.invalidCheck': 'No se pueden guardar las comprobaciones: un comando por línea, como mucho 10, cada uno de una línea de hasta 500 caracteres, sin bloques de código y sin repetir comandos.',
+        'task.notOnBranch': `La carpeta del proyecto tiene activa ${p.current}; la tarea se hizo desde ${p.branch}. Cambia a ${p.branch} y vuelve a intentarlo.`,
+        'task.dirtyFolder': `La carpeta del proyecto tiene cambios sin commit${p.paths.length > 0 ? ` (${p.paths.join(', ')})` : ''}. Haz commit o apártalos y vuelve a intentarlo.`,
+        'task.conflict': 'El cambio ya no se aplica: la rama del proyecto se movió de un modo que choca con él. Pide cambios para hacer otra ronda, o descarta la tarea.',
+        'task.noChanges': 'La tarea no cambia nada en el proyecto.',
+        'task.blocked': 'Las comprobaciones del diff en el servidor rechazaron este cambio. Pide cambios o descarta la tarea.',
+        'task.mergeDrivers': 'El proyecto configura merge drivers de git, que se ejecutarían al aplicar el cambio. Ahí no se pueden aplicar tareas.',
+      })[code],
     errSecret: (lines: readonly number[]) =>
       `La nota parece contener un secreto (línea ${lines.join(', ')}). Quítalo y guarda otra vez. No se ha guardado nada.`,
     errSecretNoLines: 'La nota parece contener un secreto. Quítalo y guarda otra vez. No se ha guardado nada.',

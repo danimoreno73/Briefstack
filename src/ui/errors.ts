@@ -1,10 +1,36 @@
-import type { uiMessages } from '../i18n/ui.js';
+import type { TaskErrorFacts, uiMessages } from '../i18n/ui.js';
 import { ApiError } from './apiError.js';
 
 type Messages = (typeof uiMessages)['en'];
 
 function numbers(value: unknown): number[] {
   return Array.isArray(value) ? value.filter((item): item is number => typeof item === 'number') : [];
+}
+
+const TASK_STATES = new Set(['running', 'checking', 'proposal', 'applied', 'reverted', 'discarded', 'failed', 'cancelled', 'interrupted']);
+/** A branch name as git allows it, short: anything else is not shown. */
+const BRANCH_RE = /^[\w./-]{1,100}$/;
+
+/**
+ * What a task error may show (phase 7): a known state, numbers, branch
+ * names, and at most ten project-relative paths of uncommitted files (the
+ * project page lists them already). No command, folder or free text.
+ */
+function taskFacts(params: Readonly<Record<string, unknown>>, t: Messages): TaskErrorFacts {
+  const text = (value: unknown, re: RegExp) => (typeof value === 'string' && re.test(value) ? value : '?');
+  const paths = Array.isArray(params.paths)
+    ? params.paths.filter((item): item is string => typeof item === 'string' && item.length <= 200 && !/^([a-zA-Z]:)?[\\/]/.test(item)).slice(0, 10)
+    : [];
+  return {
+    state: typeof params.state === 'string' && TASK_STATES.has(params.state) ? t.taskState(params.state) : '?',
+    limit: typeof params.limit === 'number' ? params.limit : 0,
+    active: Array.isArray(params.active) ? params.active.length : 0,
+    branch: text(params.branch, BRANCH_RE),
+    current: text(params.current, BRANCH_RE),
+    paths,
+    items: Array.isArray(params.items) ? params.items.length : 0,
+    required: text(params.required, /^\d+(\.\d+)*$/),
+  };
 }
 
 /**
@@ -109,6 +135,6 @@ export function describeError(error: unknown, t: Messages): string {
         Number(error.params.warnWeek),
       );
     default:
-      return t.errGeneric(error.code);
+      return (error.code.startsWith('task.') ? t.errTask(error.code, taskFacts(error.params, t)) : undefined) ?? t.errGeneric(error.code);
   }
 }

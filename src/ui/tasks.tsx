@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
+import { ApiError } from './apiError.js';
+import { describeError } from './errors.js';
 import { formatWhen } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { Diff } from './improve.js';
@@ -119,7 +121,8 @@ export function ProjectTasks({ slug }: { slug: string }) {
               </form>
             ) : (
               <Note tone="plain" title={t.taskCannotStart} testId="task-cannot-start">
-                {start.message}
+                {/* The UI's own text for the reason, as for any error: never the server's. */}
+                {describeError(new ApiError(409, start.code, start.params), t)}
                 {start.code === 'task.notGitRepo' && (
                   <div class="btn-row">
                     <button type="button" class="btn btn-secondary btn-sm" onClick={() => setConfirmInit(true)} data-testid="task-git-init">

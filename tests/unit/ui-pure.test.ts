@@ -129,6 +129,22 @@ describe('describeError', () => {
     expect(describeError(new ApiError(500, 'weird.code'), t)).toContain('weird.code');
     expect(describeError(new Error('boom'), t)).not.toContain('boom');
   });
+
+  it('gives task errors their own text, with only safe parameters, in both languages', () => {
+    const dirty = new ApiError(409, 'task.dirtyFolder', { project: 'shed', paths: ['notes.txt', '/home/u/secret.txt', 'C:\\Users\\u\\x.txt'] });
+    expect(describeError(dirty, t)).toBe('The project folder has uncommitted changes (notes.txt). Commit or put them aside, then try again.');
+    expect(describeError(dirty, uiMessages.es)).toContain('cambios sin commit (notes.txt)');
+    expect(describeError(new ApiError(409, 'task.limit', { limit: 2, active: ['a', 'b'] }), t)).toContain('(2 of 2; creations and tasks count together)');
+    expect(describeError(new ApiError(409, 'task.wrongState', { id: 'x', state: 'proposal' }), t)).toBe('The task is waiting for review; that cannot be done now.');
+    expect(describeError(new ApiError(409, 'task.wrongState', { id: 'x', state: FAKE_KEY }), t)).not.toContain(FAKE_KEY);
+    const branch = describeError(new ApiError(409, 'task.notOnBranch', { project: 'p', branch: 'main', current: `x ${FAKE_KEY}` }), t);
+    expect(branch).toContain('the task was made from main');
+    expect(branch).not.toContain(FAKE_KEY);
+    // A command or a folder is never shown.
+    expect(describeError(new ApiError(400, 'task.invalidCheck', { command: FAKE_KEY, problem: 'x' }), t)).not.toContain(FAKE_KEY);
+    expect(describeError(new ApiError(409, 'task.folderMissing', { project: 'p', dir: '/home/u/p' }), t)).not.toContain('/home/u');
+    expect(describeError(new ApiError(409, 'task.somethingNew', {}), t)).toBe('Something went wrong (task.somethingNew).');
+  });
 });
 
 describe('diffRows', () => {

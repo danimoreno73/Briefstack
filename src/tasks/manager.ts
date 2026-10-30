@@ -360,7 +360,7 @@ export class TaskManager {
    * precondition that fails (its code and message) or where it would
    * start, with the uncommitted paths it leaves out.
    */
-  async startInfo(project: string): Promise<{ ok: true; branch: string; uncommitted: string[] } | { ok: false; code: string; message: string }> {
+  async startInfo(project: string): Promise<{ ok: true; branch: string; uncommitted: string[] } | { ok: false; code: string; params: Readonly<Record<string, unknown>>; message: string }> {
     const { libraryDir, repoDir } = await this.options.locations();
     const limit = await this.limit();
     try {
@@ -381,7 +381,7 @@ export class TaskManager {
       return { ok: true, branch: start.branch, uncommitted: start.uncommitted };
     } catch (error) {
       if (!isBriefstackError(error)) throw error;
-      return { ok: false, code: error.code, message: formatError(error, await this.options.lang()) };
+      return { ok: false, code: error.code, params: error.params as Readonly<Record<string, unknown>>, message: formatError(error, await this.options.lang()) };
     }
   }
 
