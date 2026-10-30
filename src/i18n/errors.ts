@@ -116,6 +116,11 @@ const errors = defineCatalogue<ErrorMessages>({
       `Config file ${p.file}: "${p.field}" must be ${expectationEn[p.expected]}.`,
     'config.relativePath': (p) =>
       `${p.source} must be a full absolute path (on Windows, with a drive letter such as C:/) or start with ~ (got "${p.value}").`,
+    'paths.overlapping': (p) =>
+      `${p.from} and ${p.to} are the same folder or one is inside the other; rewrite each moved folder on its own, from its old place to its new one.`,
+    'paths.targetMissing': (p) => `${p.dir} is not a folder. Move the folder there first, then rewrite its paths.`,
+    'paths.homeNotMoved': (p) =>
+      `BRIEFSTACK_HOME (${p.home}) still points inside ${p.from}. Set it to the folder's new place, open a new terminal, and run this again.`,
     'frontmatter.unclosed': (p) => `${p.file}: frontmatter starts with --- but is never closed.`,
     'frontmatter.invalidYaml': (p) => `${p.file}: frontmatter is not valid YAML: ${p.detail}`,
     'frontmatter.notAMapping': (p) => `${p.file}: frontmatter must be a set of key: value fields.`,
@@ -309,6 +314,11 @@ const errors = defineCatalogue<ErrorMessages>({
       `Archivo de configuración ${p.file}: "${p.field}" debe ser ${expectationEs[p.expected]}.`,
     'config.relativePath': (p) =>
       `${p.source} debe ser una ruta absoluta completa (en Windows, con letra de unidad como C:/) o empezar por ~ (se recibió "${p.value}").`,
+    'paths.overlapping': (p) =>
+      `${p.from} y ${p.to} son la misma carpeta o una está dentro de la otra; reescribe cada carpeta movida por separado, de su sitio antiguo al nuevo.`,
+    'paths.targetMissing': (p) => `${p.dir} no es una carpeta. Mueve antes la carpeta ahí y después reescribe sus rutas.`,
+    'paths.homeNotMoved': (p) =>
+      `BRIEFSTACK_HOME (${p.home}) aún apunta dentro de ${p.from}. Ponle el sitio nuevo de la carpeta, abre un terminal nuevo y vuelve a ejecutar esto.`,
     'frontmatter.unclosed': (p) => `${p.file}: el frontmatter empieza con --- pero no se cierra.`,
     'frontmatter.invalidYaml': (p) => `${p.file}: el frontmatter no es YAML válido: ${p.detail}`,
     'frontmatter.notAMapping': (p) =>

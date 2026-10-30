@@ -18,6 +18,9 @@ export interface ErrorParams {
   'config.notAnObject': { file: string };
   'config.invalidField': { file: string; field: string; expected: FieldExpectation };
   'config.relativePath': { source: string; value: string };
+  'paths.overlapping': { from: string; to: string };
+  'paths.targetMissing': { dir: string };
+  'paths.homeNotMoved': { home: string; from: string };
   'frontmatter.unclosed': { file: string };
   'frontmatter.invalidYaml': { file: string; detail: string };
   'frontmatter.notAMapping': { file: string };

@@ -40,6 +40,7 @@ export {
   type SaveNoteResult,
 } from './notes.js';
 export * from './projects.js';
+export * from './relocate.js';
 export * from './projectsDir.js';
 export * from './projectStatus.js';
 export * from './settings.js';

@@ -50,7 +50,7 @@ export class TaskStore {
     return path.join(this.taskDir(id), 'guard.json');
   }
 
-  private file(id: string): string {
+  recordFile(id: string): string {
     return path.join(this.taskDir(id), 'task.json');
   }
 
@@ -58,7 +58,7 @@ export class TaskStore {
   async save(record: TaskRecord): Promise<void> {
     const parsed = taskRecordSchema.parse(record);
     await mkdir(this.taskDir(parsed.id), { recursive: true });
-    const target = this.file(parsed.id);
+    const target = this.recordFile(parsed.id);
     const temp = `${target}.${process.pid}.${randomBytes(3).toString('hex')}.tmp`;
     await writeFile(temp, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
     await retrying(() => rename(temp, target));
@@ -68,7 +68,7 @@ export class TaskStore {
   async load(id: string): Promise<TaskRecord | undefined> {
     if (!TASK_ID_RE.test(id)) return undefined;
     try {
-      const result = taskRecordSchema.safeParse(JSON.parse(await retrying(() => readFile(this.file(id), 'utf8'))));
+      const result = taskRecordSchema.safeParse(JSON.parse(await retrying(() => readFile(this.recordFile(id), 'utf8'))));
       return result.success ? result.data : undefined;
     } catch {
       return undefined;

@@ -38,7 +38,8 @@ function dateText(value: unknown): string | undefined {
   return typeof value === 'string' && ISO_DATE_RE.test(value) ? value : undefined;
 }
 
-async function projectSlugs(libraryDir: string): Promise<string[]> {
+/** The names of the notes in `projects/`, sorted; none without the folder. */
+export async function projectSlugs(libraryDir: string): Promise<string[]> {
   try {
     const entries = await readdir(path.join(libraryDir, 'projects'), { withFileTypes: true });
     return entries

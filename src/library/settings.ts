@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { isFullyAbsolute, isPathInside, type PathEnv } from '../config/paths.js';
+import { isFullyAbsolute, isPathInside, rewritePathPrefix, type PathEnv } from '../config/paths.js';
 import { BriefstackError, type SettingsField } from '../errors.js';
 
 /**
@@ -184,6 +184,37 @@ export async function writePreparedDirectories(prepared: PreparedDirectories): P
     await rename(temp, file);
   }
   return entries.map((item) => ({ file, ...item }));
+}
+
+/**
+ * Points the `additionalDirectories` entries that lie in `from` to the same
+ * place in `to`, after the user moved that folder; every other key and entry
+ * stays. Without `apply` it only reports. A missing file has nothing to change.
+ */
+export async function rewriteAdditionalDirectories(
+  repoDir: string,
+  from: string,
+  to: string,
+  pathEnv: Pick<PathEnv, 'homedir' | 'pathApi' | 'caseInsensitive'>,
+  apply: boolean,
+): Promise<{ file: string; changes: { before: string; after: string }[] }> {
+  const { file, text } = await readLocalSettings(repoDir);
+  if (text === undefined) return { file, changes: [] };
+  const { raw, permissions, directories } = parseSettings(text, file);
+  const changes: { before: string; after: string }[] = [];
+  const next = directories.map((entry) => {
+    const after = rewritePathPrefix(entry, from, to, pathEnv);
+    if (after === undefined) return entry;
+    changes.push({ before: entry, after });
+    return after;
+  });
+  if (apply && changes.length > 0) {
+    raw.permissions = { ...permissions, additionalDirectories: next };
+    const temp = `${file}.${process.pid}.tmp`;
+    await writeFile(temp, `${JSON.stringify(raw, null, 2)}\n`, 'utf8');
+    await rename(temp, file);
+  }
+  return { file, changes };
 }
 
 /** Reads, merges and writes the settings file. Invalid JSON leaves the file untouched. */

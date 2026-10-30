@@ -80,3 +80,28 @@ export function isPathInside(
   if (pathApi.isAbsolute(relative)) return false;
   return relative !== '..' && !relative.startsWith(`..${pathApi.sep}`);
 }
+
+/**
+ * `value` with its leading folder `from` replaced by `to`, for a folder that
+ * moved; `undefined` when `value` is not `from` or inside it (a relative
+ * value, or a folder that only starts with the same letters, such as
+ * `projects-old` for `projects`). `from` and `to` must be absolute. Case and
+ * separators compare the way the system's paths do; a value written with
+ * `/` only keeps `/` on Windows.
+ */
+export function rewritePathPrefix(
+  value: string,
+  from: string,
+  to: string,
+  pathEnv: Pick<PathEnv, 'homedir' | 'pathApi' | 'caseInsensitive'>,
+): string | undefined {
+  const { pathApi } = pathEnv;
+  const absolute = toAbsolute(value, pathEnv);
+  if (absolute === undefined) return undefined;
+  const base = pathApi.resolve(from);
+  if (!isPathInside(absolute, base, pathEnv)) return undefined;
+  // Both are resolved and `absolute` is inside `base`: the rest follows its length, in its own case.
+  const rest = absolute.slice(base.length).replace(/^[\\/]+/, '');
+  const moved = rest === '' ? pathApi.resolve(to) : pathApi.join(pathApi.resolve(to), rest);
+  return pathApi.sep === '\\' && !value.includes('\\') ? moved.replace(/\\/g, '/') : moved;
+}

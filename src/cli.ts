@@ -49,6 +49,7 @@ import {
 } from './library/index.js';
 import { PACKAGE_ROOT } from './packageRoot.js';
 import { commitProject, inspectOutputDir, loadTemplate, protectedDirs, scaffold, type ProtectedDir } from './scaffold/index.js';
+import { rewritePaths } from './relocate.js';
 import { readSpec } from './spec/index.js';
 import { getPreset, loadUsageContext, usageSet, usageShow, type ApplyResult } from './usage/index.js';
 import { validateProject } from './validate/index.js';
@@ -214,8 +215,43 @@ async function runScaffold(args: readonly string[], io: CliIO, lang: Lang): Prom
   return EXIT_OK;
 }
 
+/** `paths rewrite --from <dir> --to <dir> [--apply] [--json]`: what a moved folder changes; written only with `--apply`. */
+async function runPathsRewrite(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  const messages = pathsMessages[lang];
+  const { positionals, flags, values } = parseArgs(args, ['--apply', '--json'], lang, ['--from', '--to'], messages.usage);
+  const from = values.get('--from');
+  const to = values.get('--to');
+  if (positionals.length > 0 || from === undefined || to === undefined) throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
+  const report = await rewritePaths({ pathEnv: io.pathEnv, repoDir: io.repoDir ?? PACKAGE_ROOT, from, to, apply: flags.has('--apply') });
+  if (flags.has('--json')) {
+    io.out(JSON.stringify(report, null, 2));
+    return EXIT_OK;
+  }
+  if (report.changes.length === 0) io.out(messages.rewriteNothing(report.from));
+  else {
+    io.out(report.applied ? messages.rewriteApplied : messages.rewriteDryRun);
+    for (const file of report.files) {
+      io.out(file);
+      for (const change of report.changes.filter((item) => item.file === file)) io.out(messages.rewriteChange(change.field, change.before, change.after));
+    }
+    io.out(messages.rewriteCount(report.files.length, report.applied));
+    if (report.committed) io.out(messages.rewriteCommitted);
+  }
+  io.out(messages.rewriteHistory);
+  for (const notice of report.notices) {
+    if (notice.kind === 'targetMissing') io.err(messages.rewriteTargetMissing(notice.dir));
+    else if (notice.kind === 'libraryEnv') io.err(messages.rewriteLibraryEnv(notice.value));
+    else if (notice.kind === 'noLibrary') io.err(messages.rewriteNoLibrary(notice.dir));
+    else if (notice.kind === 'openTask') io.err(messages.rewriteOpenTask(notice.id, notice.project, notice.state));
+    else if (notice.kind === 'openImprovement') io.err(messages.rewriteOpenImprovement(notice.id, notice.status));
+    else io.err(libraryMessages[lang].warning(notice.warning));
+  }
+  return EXIT_OK;
+}
+
 /** Where things live, and whether an output folder is usable. Reports; never fails on what it finds. */
 async function runPaths(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
+  if (args[0] === 'rewrite') return runPathsRewrite(args.slice(1), io, lang);
   const messages = pathsMessages[lang];
   const { positionals, flags, values } = parseArgs(args, ['--json'], lang, ['--session'], messages.usage);
   const json = flags.has('--json');
