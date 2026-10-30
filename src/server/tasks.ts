@@ -1,5 +1,6 @@
 import type { ServerResponse } from 'node:http';
 import { z } from 'zod';
+import type { PathEnv } from '../config/index.js';
 import { BriefstackError } from '../errors.js';
 import { projectChecks, setProjectChecks } from '../tasks/checks.js';
 import type { TaskManager, TaskStreamEvent } from '../tasks/manager.js';
@@ -32,6 +33,8 @@ export interface TaskRouteOptions {
   usage?: UsageCheck | undefined;
   /** The library, the home and the repo now (Settings can move the library). */
   paths: () => Promise<{ libraryDir: string; home: string; repoDir: string }>;
+  /** The server's environment and home, so the protected folders are the server's own. */
+  pathEnv: PathEnv;
 }
 
 /**
@@ -179,7 +182,7 @@ export function taskRoutes(manager: TaskManager | undefined, options: TaskRouteO
         need();
         await readJsonBody(req, confirmBody);
         const { libraryDir, repoDir } = await options.paths();
-        sendJson(res, 200, await initProjectRepo({ libraryDir, repoDir }, slug(params)));
+        sendJson(res, 200, await initProjectRepo({ libraryDir, repoDir, pathEnv: options.pathEnv }, slug(params)));
       },
     ],
   ];

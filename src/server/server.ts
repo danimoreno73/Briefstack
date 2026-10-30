@@ -102,6 +102,7 @@ function apiRoutes(options: WebServerOptions): RouteTable {
     ...improveRoutes(options.improvements, { usage: options.usageCheck }),
     ...skillRoutes(options.skills),
     ...taskRoutes(options.tasks, {
+      pathEnv,
       ...(options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
       usage: options.usageCheck,
       paths: async () => {
