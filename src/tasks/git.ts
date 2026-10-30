@@ -211,6 +211,40 @@ export async function fileAtCommit(repoDir: string, commit: string, file: string
   return result.code === 0 ? result.stdout : undefined;
 }
 
+/**
+ * Every file in a worktree, with `/`: tracked, untracked and ignored ones
+ * alike (Claude Code reads a definition whatever git thinks of it).
+ */
+export async function allFiles(dir: string): Promise<string[]> {
+  return withSafeGit(dir, async (git) => (await git(['ls-files', '-z', '--cached', '--others'])).split('\0').filter((file) => file !== ''));
+}
+
+/** A path `git rev-parse` gives for a folder (`--git-common-dir`, say), made absolute by git. */
+async function absoluteGitPath(dir: string, args: readonly string[]): Promise<string | undefined> {
+  const result = await runGit(dir, ['rev-parse', '--path-format=absolute', ...args]);
+  return result.code === 0 && result.stdout.trim() !== '' ? result.stdout.trim() : undefined;
+}
+
+/**
+ * Whether the task's worktree still belongs to the project's repository and
+ * has the task's branch checked out. A shell command the user allowed can
+ * rewrite the worktree's `.git` file; the server's own git there (the round's
+ * commit, the checks' clean-up) must never land in another repository or
+ * branch.
+ */
+export async function isTaskWorktree(worktreeDir: string, projectDir: string, branch: string): Promise<boolean> {
+  const [own, project] = await Promise.all([absoluteGitPath(worktreeDir, ['--git-common-dir']), absoluteGitPath(projectDir, ['--git-common-dir'])]);
+  if (own === undefined || project === undefined || !(await samePath(own, project))) return false;
+  const head = await runGit(worktreeDir, ['symbolic-ref', '--quiet', 'HEAD']);
+  return head.code === 0 && head.stdout.trim() === `refs/heads/${branch}`;
+}
+
+/** A branch's last commit in a repository, or `undefined`. */
+export async function branchHead(repoDir: string, branch: string): Promise<string | undefined> {
+  const result = await runGit(repoDir, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}^{commit}`]);
+  return result.code === 0 && result.stdout.trim() !== '' ? result.stdout.trim() : undefined;
+}
+
 /** The files git tracks in a folder, with `/`. */
 export async function trackedFiles(dir: string): Promise<string[]> {
   return withSafeGit(dir, async (git) => (await git(['ls-files', '-z'])).split('\0').filter((file) => file !== ''));

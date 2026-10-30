@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { parseFrontmatter } from '../frontmatter/index.js';
@@ -13,7 +13,7 @@ import { fileAtCommit, trackedFiles } from './git.js';
  */
 
 /** Why a project definition stops a task from starting. */
-export type UnsafeReason = 'hooks' | 'mcpServers' | 'permissionMode' | 'foreignSkills' | 'unreadable';
+export type UnsafeReason = 'hooks' | 'mcpServers' | 'permissionMode' | 'foreignSkills' | 'unreadable' | 'settings';
 
 export interface UnsafeDefinition {
   file: string;
@@ -67,12 +67,17 @@ const isMemoryFile = (file: string): boolean => {
 };
 
 /**
- * Reads the project as the worktree has it at the start: its skills and
- * commands, the definitions that stop a task, agents with no usable tool,
- * and imports that point outside the worktree.
+ * Reads the project as the worktree has it: its skills and commands, the
+ * definitions that stop a task, agents with no usable tool, and imports
+ * that point outside the worktree. At the start the tracked files are all
+ * there is; before a later round `files` holds every file, ignored ones too
+ * (`allFiles`), since a shell command the user allowed may have left a
+ * definition git does not track. A `.claude/settings.json` in the worktree
+ * (hidden there at the start, so only a later command can make one) is
+ * unsafe too: the next session would load its hooks.
  */
-export async function inspectProject(worktree: string): Promise<ProjectInspection> {
-  const files = await trackedFiles(worktree);
+export async function inspectProject(worktree: string, options: { files?: readonly string[] } = {}): Promise<ProjectInspection> {
+  const files = options.files ?? (await trackedFiles(worktree));
   const skills = new Set<string>();
   const unsafe: UnsafeDefinition[] = [];
   const agentsWithoutTools: string[] = [];
@@ -138,6 +143,13 @@ export async function inspectProject(worktree: string): Promise<ProjectInspectio
     if (preload.some((name) => !skills.has(name))) unsafe.push({ file, reason: 'foreignSkills' });
     const tools = listOf(data.tools).map(toolNameOf);
     if (tools.length > 0 && !tools.some((tool) => offered.has(tool) || tool === '*')) agentsWithoutTools.push(file);
+  }
+
+  try {
+    await stat(path.join(worktree, '.claude', 'settings.json'));
+    unsafe.push({ file: '.claude/settings.json', reason: 'settings' });
+  } catch {
+    // Not there, as the worktree was made.
   }
 
   return { skills: [...skills].sort(), unsafe, agentsWithoutTools, externalImports };

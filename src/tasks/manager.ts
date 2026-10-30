@@ -10,7 +10,7 @@ import type { Effort } from '../models.js';
 import { hideAbsolutePaths, projectEvent } from '../panel/project.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { applyTask, discardTask, revertTask, type ApplyDeps } from './apply.js';
-import { commitRound, createTaskWorktree, removeTaskWorktree } from './git.js';
+import { allFiles, branchHead, commitRound, createTaskWorktree, isTaskWorktree, removeTaskWorktree } from './git.js';
 import { proposalDiff, type ProposalDiff } from './proposal.js';
 import { checkTaskPreconditions } from './preconditions.js';
 import { roundPrompt, type TaskRunner, type TaskRunnerEvent, type TaskRunnerHandle, type TaskRunnerOutcome } from './runner.js';
@@ -73,6 +73,8 @@ export interface TaskStreamEvent {
 export interface AfterRoundResult {
   checks: CheckResult[];
   validations: TaskValidation[];
+  /** The commit the validations read. */
+  head?: string;
 }
 
 export interface TaskManagerOptions {
@@ -351,7 +353,9 @@ export class TaskManager {
     const task = await this.get(id);
     let diff: ProposalDiff | null = null;
     try {
-      if (['proposal', 'failed', 'cancelled', 'interrupted', 'checking'].includes(task.state)) diff = await proposalDiff(task.projectDir, task.baseCommit, `refs/heads/${task.branch}`);
+      // A proposal shows the commit its checks ran on, the one approving applies.
+      if (task.state === 'proposal' && task.reviewed !== undefined) diff = await proposalDiff(task.projectDir, task.baseCommit, task.reviewed);
+      else if (['proposal', 'failed', 'cancelled', 'interrupted', 'checking'].includes(task.state)) diff = await proposalDiff(task.projectDir, task.baseCommit, `refs/heads/${task.branch}`);
       else if (task.applied !== undefined) diff = await proposalDiff(task.projectDir, `${task.applied.commit}^`, task.applied.commit);
     } catch {
       diff = null;
@@ -460,6 +464,7 @@ export class TaskManager {
       const inspection = await inspectProject(worktree);
       if (inspection.unsafe.length > 0) throw new BriefstackError('task.unsafeDefinitions', { project: start.slug, items: inspection.unsafe });
       l.inspection = inspection;
+      record.skills = inspection.skills;
       await this.startRound(l, undefined);
     } catch (error) {
       this.live.delete(id);
@@ -498,12 +503,20 @@ export class TaskManager {
     const { record } = l;
     const n = record.rounds.length + 1;
     const worktree = this.options.store.worktreeDir(record.id);
+    if (record.rounds.length > 0) {
+      // Earlier rounds (and shell commands the user allowed) may have added definitions: every file is read again.
+      if (!(await isTaskWorktree(worktree, record.projectDir, record.branch))) throw new BriefstackError('task.worktreeChanged', { id: record.id });
+      const now = await inspectProject(worktree, { files: await allFiles(worktree) });
+      if (now.unsafe.length > 0) throw new BriefstackError('task.unsafeChanges', { id: record.id, items: now.unsafe });
+      l.inspection = { ...now, skills: record.skills ?? l.inspection?.skills ?? now.skills };
+    }
     l.inspection ??= await inspectProject(worktree);
     const restrictions = await projectRestrictions(record.projectDir, record.baseCommit);
     record.rounds.push({ n, text: changes ?? record.description, startedAt: this.now().toISOString() });
     record.state = 'running';
     delete record.checks;
     delete record.validations;
+    delete record.reviewed;
     delete record.error;
     l.cancelling = false;
     delete l.awaitingReply;
@@ -581,9 +594,19 @@ export class TaskManager {
       await this.options.store.save(record);
       this.pushStatus(l);
       try {
-        const commit = await commitRound(this.options.store.worktreeDir(record.id), `briefstack task ${record.id}, round ${round.n}`);
+        const worktree = this.options.store.worktreeDir(record.id);
+        const own = () => isTaskWorktree(worktree, record.projectDir, record.branch);
+        if (!(await own())) throw new BriefstackError('task.worktreeChanged', { id: record.id });
+        const commit = await commitRound(worktree, `briefstack task ${record.id}, round ${round.n}`);
         if (commit !== undefined) round.commit = commit;
-        const after = (await this.options.afterRound?.(record, this.options.store.worktreeDir(record.id))) ?? { checks: [], validations: [] };
+        const head = await branchHead(record.projectDir, record.branch);
+        const after = (await this.options.afterRound?.(record, worktree)) ?? { checks: [], validations: [] };
+        // The checks and validations ran on this commit: it is what the page shows and approving applies.
+        if (!(await own())) throw new BriefstackError('task.worktreeChanged', { id: record.id });
+        if (head === undefined || (await branchHead(record.projectDir, record.branch)) !== head || (after.head !== undefined && after.head !== head)) {
+          throw new BriefstackError('task.branchChanged', { id: record.id });
+        }
+        record.reviewed = head;
         record.checks = after.checks;
         record.validations = after.validations;
         record.state = 'proposal';

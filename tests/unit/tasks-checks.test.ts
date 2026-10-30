@@ -128,7 +128,7 @@ describe('after a round', () => {
     await writeTree(worktree, { 'src/app.txt': 'two\n', '.claude/settings.json': '{}\n' });
     await commitAll(worktree, 'round 1');
 
-    const task = { project: 'garden', baseCommit: base } as TaskRecord;
+    const task = { id: 'abc123-0f0f', project: 'garden', projectDir: project, branch: 'briefstack/task-abc123-0f0f', baseCommit: base } as TaskRecord;
     const result = await afterRoundWith({ libraryDir: async () => world.library, home: world.home })(task, worktree);
     expect(result.checks).toHaveLength(1);
     expect(result.checks[0]).toMatchObject({ exitCode: 0, timedOut: false });

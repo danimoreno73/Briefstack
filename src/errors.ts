@@ -146,7 +146,10 @@ export interface ErrorParams {
   'task.projectBusy': { project: string; id: string };
   'task.creationOnFolder': { project: string; holder: string };
   'task.limit': { limit: number; active: string[] };
-  'task.unsafeDefinitions': { project: string; items: { file: string; reason: 'hooks' | 'mcpServers' | 'permissionMode' | 'foreignSkills' | 'unreadable' }[] };
+  'task.unsafeDefinitions': { project: string; items: { file: string; reason: 'hooks' | 'mcpServers' | 'permissionMode' | 'foreignSkills' | 'unreadable' | 'settings' }[] };
+  'task.unsafeChanges': { id: string; items: { file: string; reason: 'hooks' | 'mcpServers' | 'permissionMode' | 'foreignSkills' | 'unreadable' | 'settings' }[] };
+  'task.worktreeChanged': { id: string };
+  'task.branchChanged': { id: string };
   'task.invalidCheck': { command: string; problem: string };
   'task.notOnBranch': { project: string; branch: string; current: string };
   'task.dirtyFolder': { project: string; paths: string[] };
