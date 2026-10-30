@@ -194,6 +194,11 @@ describe('the chat session options', () => {
     expect(CHAT_SYSTEM_PROMPT).toMatch(/token counts or costs/);
   });
 
+  it('say in the system prompt that a task is approved, changed, discarded and reverted only on its page', () => {
+    expect(CHAT_SYSTEM_PROMPT).toMatch(/start_task only starts a task/);
+    expect(CHAT_SYSTEM_PROMPT).toMatch(/discarding and reverting it happen on the task’s page/);
+  });
+
   it('say in the system prompt to quote stepText for a creation’s step, never to infer it', () => {
     expect(CHAT_SYSTEM_PROMPT).toMatch(/quote the stepText of list_sessions or session_panel/);
     expect(CHAT_SYSTEM_PROMPT).toMatch(/Never infer the step/);
