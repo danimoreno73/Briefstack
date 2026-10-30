@@ -730,13 +730,13 @@ A task (`TaskView`) is its record (`src/tasks/types.ts`: `id`, `project`,
 | `POST /api/tasks` | `{ project, description, force? }` | `201 { id }`; the preconditions refuse with `409 task.*`; `409 usage.high` without `force` when plan usage is high |
 | `GET /api/tasks/:id` | | the task |
 | `GET /api/tasks/:id/stream` | | SSE, as a creation's: `flow`, `hook`, `runner` (the round's `events.jsonl` lines, projected), `status`, `approval`, `question`, `denied`; each item has `seq`, `ts`, `round` |
-| `POST /api/tasks/:id/answer` | `{ pendingId, answer }` | an approval takes `"once"`, `"task"` (this exact command for the rest of the task) or `"deny"`; a question takes `{ "<question>": "<label>" }` or `"cancel"` |
+| `POST /api/tasks/:id/answer` | `{ pendingId, answer }` | an approval takes `"once"`, `"task"` (this exact command for the rest of the task) or `"deny"`; one whose payload is `redacted` takes only `"deny"` (`400 creation.invalidAnswer`); a question takes `{ "<question>": "<label>" }` or `"cancel"` |
 | `POST /api/tasks/:id/reply` | `{ text }` | the free-text reply after a turn that ended with nothing asked |
 | `POST /api/tasks/:id/finish` | | ends the round: commit on the task branch, checks, validations, then `proposal` |
 | `POST /api/tasks/:id/cancel` | | the existing cancel |
-| `GET /api/tasks/:id/proposal` | | `{ task, diff }`: each changed file with hunks (secrets hidden), or the applied commit's once applied |
-| `POST /api/tasks/:id/approve` | `{ confirm: true }` | one commit on the default branch, no push; `409 task.dirtyFolder`, `task.notOnBranch`, `task.conflict`, `task.blocked`, `task.projectBusy`, `task.mergeDrivers` |
-| `POST /api/tasks/:id/changes` | `{ text }` | a new round on the same branch and worktree |
+| `GET /api/tasks/:id/proposal` | | `{ task, diff }`: each changed file with hunks (secret values masked as `[secret]`), from the base to `task.reviewed` (the commit the checks ran on), or the applied commit's once applied |
+| `POST /api/tasks/:id/approve` | `{ confirm: true }` | one commit on the default branch with the tree of `task.reviewed`, no push; `409 task.dirtyFolder`, `task.notOnBranch`, `task.conflict`, `task.blocked`, `task.projectBusy`, `task.mergeDrivers`, `task.branchChanged` |
+| `POST /api/tasks/:id/changes` | `{ text }` | a new round on the same branch and worktree; `409 task.unsafeChanges` when the copy now holds a settings file or a definition a task cannot load, `task.worktreeChanged` when its `.git` no longer points at the task |
 | `POST /api/tasks/:id/discard` | `{ confirm: true }` | the branch and the worktree are deleted |
 | `POST /api/tasks/:id/revert` | `{ confirm: true }` | one revert commit, under the approval's rules |
 | `GET /api/projects/:slug/tasks` | | `{ tasks, checks, start }`: the project's tasks, its declared checks (`{ command, confirmed }`), and whether a task can start (`{ ok: true, branch, uncommitted }` or `{ ok: false, code, params, message }`; the page shows its own text for `code` and `params`, never `message`) |

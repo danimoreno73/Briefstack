@@ -34,6 +34,14 @@ the next interview asks less.
 - **A skills library**: add third-party skills from a public GitHub link.
   They are fetched into quarantine, reviewed (never run), and only the ones
   you approve can be proposed for new projects.
+- **Tasks** in your `claude-code` projects: describe a piece of work on the
+  project page or in the chat, and a Claude Code session does it in a
+  separate copy of the project (a git worktree on a branch of its own),
+  with the same live panel. Every shell command and web request it wants to
+  run asks you first, showing the exact command. When it is done, the
+  server runs the checks you declared for the project, and you review the
+  diff: approve it (one commit on the project's branch, never pushed), ask
+  for changes, or discard it. Any applied task can be reverted from the web.
 
 ## Requirements
 
@@ -43,7 +51,8 @@ the next interview asks less.
   Code](https://code.claude.com/docs/en/setup). briefstack uses the
   `claude` it finds on `PATH` or in `~/.local/bin`; on Windows it must be
   the native `claude.exe` (not an npm `claude.cmd` shim).
-- **git**, recommended: the library and the improvements use it.
+- **git**, recommended: the library and the improvements use it. Tasks
+  need git 2.38 or later.
 - **A current browser** for the web app: Chrome or Edge 123, Firefox 121,
   Safari 17.5 or later.
 - **Operating systems:** Windows (native), macOS and Linux. The CI runs on
@@ -119,16 +128,26 @@ with `npx briefstack usage set <profile>` (`saver`, `balanced`, `max`).
 Saver uses Haiku and Sonnet at low effort with one review round and
 research only when required; Balanced mixes Haiku, Sonnet and Opus with two
 review rounds; Max uses Opus at high effort with three.
+Each profile also has a `chat` entry for the chat and a `work` entry for
+tasks: Sonnet at low effort in Saver, Sonnet at medium effort in Balanced,
+Opus at high effort in Max.
 Profiles rewrite the `model` and `effort` fields of `.claude/agents/*.md`;
 do not commit those changes (`briefstack usage show` warns when they
 differ from the repository).
+
+**Upgrading to tasks:** your own presets in `usage-profiles.json` must now
+have a `work` entry (`{ "model": …, "effort": … }`), like `chat`. A preset
+file without it no longer loads, and the error names the missing field.
+briefstack does not fill one in, so a model you never chose does not run
+in your projects.
 
 ## Where your data lives
 
 - **`BRIEFSTACK_HOME`**, by default `~/.briefstack`: `config.json`, the
   personal library (`library/`, a git repository), session records
-  (`sessions/`), the chat, improvement proposals and the skills library.
-  Set the variable to keep it somewhere else.
+  (`sessions/`), the chat, improvement proposals, the skills library and
+  tasks (`tasks/`, each with its worktree until it is applied or
+  discarded). Set the variable to keep it somewhere else.
 - **The projects folder**, by default `~/briefstack-projects`: where new
   projects are created. Change it in Settings.
 
@@ -151,6 +170,19 @@ anywhere except what Claude Code itself sends to Claude.
   size-capped, reviewed by static checks and a short model review, and
   never executed by briefstack. Only approved skills reach a project, as
   copied files checked against their hashes.
+- **Tasks work apart and ask.** A task's session reads and writes only
+  inside its own copy of the project, never `.git`, settings or hook
+  files. It loads the project's `CLAUDE.md`, agents and skills, but never
+  its hooks or its `.claude/settings.json`, and the project's permission
+  settings can only restrict it. Every shell command and web request it
+  has not been allowed in that task opens a dialog with the exact command;
+  you allow it once, allow that exact command for the rest of the task, or
+  deny it. Nothing is remembered after the task. A command with a part
+  that looks like a secret is hidden, so it can only be denied. Text in
+  the project (its files, `CLAUDE.md`, command output) may hold injected
+  instructions: the guard, the dialogs, the server's checks of the diff
+  and your own review of the diff are what stop them. Nothing reaches your
+  branch until you approve the diff.
 
 See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
@@ -159,6 +191,25 @@ See [SECURITY.md](SECURITY.md) to report a vulnerability.
 - The guard is a set of checks on Claude Code's tool calls, not an
   operating-system sandbox. On native Windows Claude Code has no sandbox
   for shell commands.
+- **Tasks run code from your project on your machine.** Allowing a shell
+  command runs it as you, with your files and your network; what it runs
+  can include files the session just changed (a test script, say). Read
+  each command before you allow it. The project's own git hooks run for a
+  `git` command you allow (the dialog says so); briefstack's own git never
+  runs them.
+- **Declared checks run without asking.** After each round the server runs
+  the check commands you confirmed for the project, in the task's copy.
+  They run project code, including what the session changed, with network
+  proxies pointed nowhere (a program can ignore them) and a 10-minute
+  limit each. Declare only commands you would run on the task's changes
+  yourself.
+- A task's copy has no `node_modules` or other ignored files: a check that
+  needs dependencies must install them (`npm ci --offline` works from
+  npm's cache), or the session can ask to run the install.
+- Task commits are not signed, even if your git config signs commits, and
+  briefstack never pushes. Only `claude-code` projects created by
+  briefstack, one task per project at a time; tasks and creations share
+  the active-sessions limit.
 - A creation uses your plan or key like any Claude Code session; several
   at once add up.
 - A creation from the terminal and one from the web app must not use the

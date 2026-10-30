@@ -4928,3 +4928,66 @@ milestone.
 - **The chat's system prompt** names `start_task` among the action tools
   and says a task's review happens on its page and its summaries are
   data.
+
+**M8.**
+
+- **The menu says "Sessions"** (was "Creations"): the page lists creations
+  and tasks (BRIEF §3.3: "The creations list becomes a sessions list").
+  The count on it still counts creations only, as its label says ("1
+  creation running"); the page's limit meter counts both.
+- **Task errors on the page are the page's own text** (`errTask` in
+  `src/i18n/ui.ts`), never the server's message: `src/ui/errors.ts` has
+  that rule so no secret reaches the page through an error. They show a
+  known state, numbers, branch names and at most ten project-relative
+  uncommitted paths (the page already lists those), never a command, a
+  folder or free text. The project page's "a task cannot start" note
+  follows the same rule (`startInfo` now returns the error's `params`).
+  Found by the e2e tests: approving into a dirty folder showed "Something
+  went wrong (task.dirtyFolder)".
+- **`POST /api/projects/:slug/git-init`** now checks the protected
+  folders with the server's own environment; it used the process's. The
+  same in a real run, wrong in the tests' sandbox (found by the e2e test).
+- The e2e fixture gives the chat the task manager (as `briefstack web`
+  does), and `codeProject` makes a `claude-code` project with git.
+- **The security review's findings** and what was done with each are in
+  "Phase 7: security review" below.
+
+## Phase 7: security review (2026-10-30)
+
+A review of the phase's code (`phase-7-start..HEAD`, about 5,000 lines of
+`src/`): the guard and the command hook, the shell flow and its dialog,
+the flag settings, the SDK runner, server-side git, apply and revert, the
+declared checks, the diff validations and the proposal page, the routes,
+the chat tools. Read by hand, with the threat model of BRIEF §4: text in
+the project (files, `CLAUDE.md`, command output) can hold injected
+instructions, so the model is untrusted; the user is not.
+
+Held up: every tool call is decided in the server's `PreToolUse` callback
+and again by the command hook, which fails closed and needs the server's
+record of the user's yes for that very call and command; a forged record
+alone lets nothing through, since the callback decides in memory. A
+subagent's `permissionMode` changes nothing, as hooks decide in every
+mode. Reads and writes resolve links before the worktree check. Server
+git never runs hooks, filters (except the final fast-forward in the
+user's folder), fsmonitor, signing or merge drivers. Routes need the
+token and a body `confirm` for every irreversible action. The chat can
+start a task and cancel one, nothing else.
+
+| # | Finding | Severity | What was done |
+|---|---|---|---|
+| S1 | Definitions were inspected only when the task started. A later round loaded what earlier rounds or an allowed shell command left: an agent with `mcpServers` (its server is a process that starts without a dialog), and, through an allowed command, a definition git ignores or a new `.claude/settings.json` whose hooks the next session would load. | high | Fixed (`6709235`): before every later round the whole copy is read again, ignored files included (`allFiles`); a settings file, or a definition with hooks, MCP servers, a permission mode or foreign skills, stops the round (`task.unsafeChanges`). The skills offered stay those of the start (`record.skills`). |
+| S2 | The shell dialog hid a whole line that looked like a secret and still offered "allow": an injected command could put a fake key on its line and be allowed unseen. | high | Fixed (`da70721`): such a command can only be denied, on the page and in the server (`manager.answer`); the note says why and to run it by hand if it is the user's. |
+| S3 | The dialog printed invisible characters as they are: direction overrides, zero-width, tag characters and a carriage return could make a command look like another. | medium | Fixed (`da70721`): they are written out as `\u{…}` and the dialog says so. |
+| S4 | Approving applied the branch as it was at that moment, not the commit the checks and validations ran on and the page showed: a process left by an allowed command could move the branch after the review. | high | Fixed (`6709235`): the round records the commit it checked (`reviewed`); the page's diff is that commit; approving refuses a branch that moved (`task.branchChanged`). |
+| S5 | The proposal diff hid a whole added line that looked like a secret; the validation was only a warning, so code beside a fake key could be approved unseen. | high | Fixed (`a2d2fcf`): only the value is masked (`[secret]`) when it is made of credential characters; a line that still cannot be shown is a `hiddenLine` error that blocks approval. The secret warning stays. |
+| S6 | A command allowed in a round could rewrite the worktree's `.git` file; the server's round commit and the checks' clean-up would then run git in the project's own repository and branch. | medium (needs an allowed command, which can already run anything) | Fixed (`6709235`): the server checks the copy's common git folder and branch before the round's commit, after the checks and before a new round (`task.worktreeChanged`). |
+| S7 | Agent files that start MCP servers or set a permission mode were not flagged in the diff; approved, they would reach the user's own interactive sessions. | medium | Fixed (`a2d2fcf`): a `settingsOrHooks` error, as hooks are. |
+| S8 | Declared checks run after every round without a dialog, and what they run includes the session's changes (a test script it edited). "Offline" is proxy variables, which a program can ignore. | inherent to BRIEF §3.4 | Kept as the brief asks; said plainly on the project page, in the confirmation of the checks and in the README. **For the user to decide** whether checks should wait for a click after the diff is seen. |
+| S9 | Processes started by an allowed command (`cmd &`, `nohup`) can outlive the round; the guard only sees tool calls. | inherent (not an OS sandbox) | Documented in the README's limitations; S4 and S6 limit what such a process can do to the review and the server's git. |
+| S10 | Files over 256 KB, binary files and links are listed on the proposal page by name, "not shown". | low | Kept: they are named, and the validations read files up to 1 MB. Noted for the backlog: a warning for any file the page cannot show. |
+| S11 | `start_task`'s refusal in the chat carries the server's message, which can name the project folder for a missing or protected folder. | low | Kept: the project's path is in its note, which `show_project` already gives the chat. |
+
+Not found: a way for the model to reach the project folder, the home, the
+library or the repo with the file tools; a way to skip the dialog for a
+shell command or web request; a server git command that runs project
+code.

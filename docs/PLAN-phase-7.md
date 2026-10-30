@@ -31,7 +31,7 @@ or 90% of the 5-hour window.
 | M5 | Declared checks and server-side validations | done (`da7669b`, `f3006a2`, `d235afd`), CI green on the three systems |
 | M6 | Proposal page, apply, revert, project page | done (`751385b`, `2a9bab6`, `ed1c08e`): `src/tasks/apply.ts`, `proposal.ts`, `src/server/tasks.ts`, `src/ui/tasks.tsx`; API in docs/api.md. CI green on the three systems (`9db02af`) |
 | M7 | Sessions list, start from the page and the chat | done (`c29bed4`, `f2e0a1d`, `a93b2ef`, `3c63954`): task sessions left out of `listSessions`; the sessions page lists open tasks with kind, project and state, and its limit counts running tasks; chat tools `list_tasks`, `show_task`, `start_task` (card with project, text, model, effort, plan, shell commands ask), `cancel_creation` takes a task id, and the chat's system prompt names them. Start from the project page was done in M6. Choices in decisions.md, "Decisiones sin Dani (fase 7)", M7 |
-| M8 | End-to-end tests, security review, README | to do |
+| M8 | End-to-end tests, security review, README | done (`81f153b` … `cb7176e` e2e and fixes they found; `da70721`, `a2d2fcf`, `6709235` security fixes; README and docs after them): `tests/e2e/tasks.spec.ts` (start from the page and the chat, shell dialog, proposal with diff and checks, approve, revert, ask for changes, discard, refusals: dirty folder, moved branch, limit, `claude-app`, git init); security review in decisions.md, "Phase 7: security review" (S1–S11: 7 fixed, 4 kept with reasons, S8 for the user to decide); README: tasks, their security, limitations, the `work` upgrade note |
 | M9 | Real checks and the real run (the user) | to do |
 
 ## 1. Design decisions taken from H0
