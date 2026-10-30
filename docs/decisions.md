@@ -4991,3 +4991,44 @@ Not found: a way for the model to reach the project folder, the home, the
 library or the repo with the file tools; a way to skip the dialog for a
 shell command or web request; a server git command that runs project
 code.
+
+## `briefstack paths rewrite` (2026-10-30)
+
+Asked by the user before moving briefstack's folders on their machine.
+After a folder moves, `paths rewrite --from <old> --to <new>` points what
+briefstack works with to the new place; it is a dry run unless `--apply`.
+
+- **What it rewrites:** `projectsDir` and `libraryDir` in `config.json`;
+  the `path` of each project note (tasks and skill installs go there, and
+  the web app and the chat may not change it, `assertProjectPathKept`),
+  written under the library's lock and committed together, one commit;
+  the `projectDir` of every task record, closed ones included, since
+  revert and the diff of an applied task use it; and the repo's
+  `permissions.additionalDirectories`, which `init` and the projects-folder
+  setting write. Only the status block of a note changes; its body keeps
+  what it says.
+- **What it leaves:** records of what happened (session summaries and
+  notes, the creation log, chat threads, guard rules of finished runs,
+  finished improvements). They describe the past and nothing reads a
+  folder from them. Session `folder.json` only matters while a terminal
+  creation runs.
+- **Matching:** a stored path is rewritten only when it is `--from` or
+  inside it, compared the way the system compares paths (any case on
+  Windows and macOS, `\` or `/` on Windows), so `projects-old` is not
+  `projects`. A value written with `/` only keeps `/`. `~` is expanded.
+- **Refusals:** the same folder or nested folders (a second run would
+  rewrite `a` to `a/b` and then `a/b/b`): move each folder on its own; a
+  `--to` that is not a folder, with `--apply`; and a `BRIEFSTACK_HOME`
+  still inside `--from`, because the config lives in the home and an
+  unmoved variable would read an empty one.
+- **Notices, not changes:** `BRIEFSTACK_LIBRARY` inside the old folder
+  (an environment variable), and open tasks or improvements, whose git
+  worktrees keep absolute links that a move breaks (`git worktree
+  repair`, or discard them first).
+- Order of writes with `--apply`: the settings file is read first, so one
+  that does not parse stops everything; then the notes and their commit,
+  the config, the tasks and the settings.
+- **Only the user runs it.** The creation guard let the main session run
+  any `briefstack paths …`, a prefix that `paths rewrite --apply` also
+  matches; `NEVER_SUBCOMMANDS` now denies it under every allowed prefix,
+  in the callback and in the command hook.

@@ -154,6 +154,15 @@ in your projects.
 `npx briefstack paths` prints every folder in use. Nothing is uploaded
 anywhere except what Claude Code itself sends to Claude.
 
+**Moving a folder:** stop `briefstack web`, move the folder, and if it was
+the briefstack home, point `BRIEFSTACK_HOME` to its new place. Then run
+`npx briefstack paths rewrite --from <old folder> --to <new folder>`: it
+lists every file and path it would change (the config, each project's
+path in its note, the tasks, the folders Claude Code may write to) and
+writes them only with `--apply`, the notes in one library commit. Run it
+once for each folder you moved. Finish or discard open tasks and
+improvements before you move anything.
+
 ## Security model, in short
 
 - **Local only.** The web server listens on 127.0.0.1. Every API call
