@@ -80,7 +80,7 @@ the system changes. The choice is stored as
 
 ## 3. Layout
 
-- **Desktop**: the rail (brand, menu with a count on Creations, cream when
+- **Desktop**: the rail (brand, menu with a count on Sessions, cream when
   one waits for the user, the theme and language switches, "Open the chat"
   with Ctrl J) beside the page: its head (`.page-head`) and its body
   (`.page`), with a main and a side column (`.cols`) where it helps.

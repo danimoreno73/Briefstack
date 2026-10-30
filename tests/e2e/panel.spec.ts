@@ -92,7 +92,7 @@ test.describe('the live panel', () => {
     // As a user does: the address with the launch token, then the creation in progress.
     const again = await context.newPage();
     await again.goto(app.url);
-    await again.getByRole('link', { name: /Creations/ }).click();
+    await again.getByRole('link', { name: /^Sessions/ }).click();
     await again.getByTestId('creations').getByRole('link', { name: 'Open' }).click();
     await expect(node(again, 'g1').getByTestId('node-pending')).toBeVisible();
     const entries = await textView(again);

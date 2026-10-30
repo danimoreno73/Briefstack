@@ -385,7 +385,7 @@ export const uiMessages = defineCatalogue({
     creationsOpen: 'See the creations',
     usageAddsUp: (running: number) =>
       `${running === 1 ? 'One creation is' : `${running} creations are`} already running. Each one uses your plan, so usage adds up.`,
-    navCreations: 'Creations',
+    navCreations: 'Sessions',
     creationsTitle: 'Sessions in progress',
     creationsEmpty: 'No creation is running.',
     creationsCount: (active: number, limit: number) => `${active} of ${limit} at the same time.`,
@@ -1323,7 +1323,7 @@ export const uiMessages = defineCatalogue({
     creationsOpen: 'Ver las creaciones',
     usageAddsUp: (running: number) =>
       `${running === 1 ? 'Ya hay una creación' : `Ya hay ${running} creaciones`} en marcha. Cada una usa tu plan, así que el consumo se suma.`,
-    navCreations: 'Creaciones',
+    navCreations: 'Sesiones',
     creationsTitle: 'Sesiones en curso',
     creationsEmpty: 'No hay ninguna creación en marcha.',
     creationsCount: (active: number, limit: number) => `${active} de ${limit} a la vez.`,

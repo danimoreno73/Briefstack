@@ -46,14 +46,14 @@ test.describe('two creations at once', () => {
     await expect(other.getByText('Who is the planner for?')).toBeVisible();
     await expect(other.getByText('Which seasons should it cover?')).toHaveCount(0);
 
-    // The Creations page lists both, each with what it waits for.
-    await page.getByRole('link', { name: /Creations/ }).click();
+    // The Sessions page lists both, each with what it waits for.
+    await page.getByRole('link', { name: /^Sessions/ }).click();
     const rows = page.getByTestId('creations').getByRole('listitem');
     await expect(rows).toHaveCount(2);
     await expect(rows.filter({ hasText: 'A garden planner' }).getByTestId('waiting')).toHaveText('your answers');
     await expect(rows.filter({ hasText: 'A recipe box' }).getByTestId('waiting')).toHaveText('your answers');
     await expect(page.getByTestId('creations-count')).toHaveText('2 of 2 at the same time.');
-    await expect(page.getByRole('link', { name: /Creations/ }).getByRole('img', { name: '2 creations running' })).toHaveText('2');
+    await expect(page.getByRole('link', { name: /^Sessions/ }).getByRole('img', { name: '2 creations running' })).toHaveText('2');
 
     // Cancelling one leaves the other as it was.
     await rows.filter({ hasText: 'A recipe box' }).getByRole('link', { name: 'Open' }).click();
@@ -96,7 +96,7 @@ test.describe('two creations finishing together', () => {
     expect(execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: app.libraryDir, encoding: 'utf8' }).trim()).toBe('');
     // Opened once both are over, so the page reads the final list instead of waiting for its next check.
     await page.goto(app.url);
-    await page.getByRole('link', { name: /Creations/ }).click();
+    await page.getByRole('link', { name: /^Sessions/ }).click();
     await expect(page.getByText('No creation is running.')).toBeVisible();
   });
 });

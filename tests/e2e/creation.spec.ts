@@ -130,7 +130,7 @@ test.describe('change at the spec', () => {
     // The flow sends it to the architect and asks again: a new request, the same screen.
     await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible();
     await expect(page.getByLabel('What should change?')).toHaveCount(0);
-    const count = page.getByRole('link', { name: /Creations/ }).getByRole('img', { name: '1 creation running' });
+    const count = page.getByRole('link', { name: /^Sessions/ }).getByRole('img', { name: '1 creation running' });
     await expect(count).toHaveText('1');
     await page.getByRole('button', { name: 'Approve' }).click();
     await expect(page.getByTestId('result')).toHaveAttribute('data-outcome', 'completed');
@@ -244,8 +244,8 @@ test.describe('closing and reopening the tab', () => {
 
     const reopened = await context.newPage();
     await reopened.goto(app.url);
-    await expect(reopened.getByRole('link', { name: /Creations/ }).getByRole('img', { name: '1 creation running' })).toHaveText('1');
-    await reopened.getByRole('link', { name: /Creations/ }).click();
+    await expect(reopened.getByRole('link', { name: /^Sessions/ }).getByRole('img', { name: '1 creation running' })).toHaveText('1');
+    await reopened.getByRole('link', { name: /^Sessions/ }).click();
     await expect(reopened.getByTestId('creations').getByTestId('waiting')).toHaveText('your answers');
     await reopened.getByTestId('creations').getByRole('link', { name: 'Open' }).click();
     // The creation in progress, not an empty form, with what was already done.
