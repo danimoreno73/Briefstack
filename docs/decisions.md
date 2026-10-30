@@ -4889,3 +4889,42 @@ milestone.
   (`#/sessions/<id>`), which the task page links.
 - The project page shows the tasks section only for `claude-code`
   projects that are not archived.
+
+**M7.**
+
+- **The sessions list.** The page keeps its creations and adds a "Tasks"
+  section with the open tasks only (running, checking, proposal, failed,
+  cancelled, interrupted: those that still hold a branch and a worktree),
+  each with its kind, project, date and state, linking to the task's
+  page. Applied, reverted and discarded tasks are listed on their
+  project's page, not here. The limit meter counts creations not finished
+  and tasks running or checking, as the server's limit does.
+- **Task sessions are not creations** in `listSessions`: a session folder
+  holding `task.json` is skipped, so the session history, the chat's
+  `list_sessions` and the folder claims never read a task as a creation.
+  A task's panel is reached from its page.
+- **Cancel** stays one chat action: `cancel_creation` takes a task id too,
+  told apart by the id's form (`TASK_ID_RE`), with its own card naming the
+  project and the text. Only a running task is cancelled; a task waiting
+  on its proposal is discarded on its page.
+- **`start_task` refuses a text with a secret** without a card, as
+  `start_creation` does: the card must show the text that would start, and
+  a redacted card would start something else. Every precondition is
+  checked before the card (`startInfo`), so a card is never shown for a
+  task that would be refused; the start runs them again.
+- **The card** shows the project, the whole text, the active profile's
+  `work` model and effort, the plan note and that shell commands ask
+  (`taskStartNotes`, shared with the project page), the active sessions
+  against the limit, how many uncommitted changes are left out, and the
+  plan-usage warning of phase 6.
+- **What the chat reads of a task.** `list_tasks` (newest 30, optionally
+  one project) and `show_task` give the state, the rounds with the
+  session's summaries (marked as data), the files of the diff with their
+  line counts (not the diff's text), the check commands with their exit
+  codes, and the validations' kind, level and file. No paths, no check
+  output (it is a command's output in the user's project, so it stays on
+  the page), the text redacted. Each result says that approving, asking
+  for changes, discarding and reverting happen only on the task's page.
+- **The chat's system prompt** names `start_task` among the action tools
+  and says a task's review happens on its page and its summaries are
+  data.

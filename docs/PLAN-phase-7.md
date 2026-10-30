@@ -12,7 +12,7 @@ section 1.**
 
 ## 0. Status
 
-Updated 2026-10-29.
+Updated 2026-10-30.
 
 M1 to M8 run unattended (the user's instruction of 2026-10-29): doubts
 are settled with the most conservative option and recorded in
@@ -30,7 +30,7 @@ or 90% of the 5-hour window.
 | M4 | Task runner (SDK and fake), shared limit, panel | done (`4e10dc7` … `8fd825e`): `src/tasks/sdkRunner.ts`, `fakeRunner.ts`, `manager.ts`, `wiring.ts`; events in the session folder with a `work` root |
 | M5 | Declared checks and server-side validations | done (`da7669b`, `f3006a2`, `d235afd`), CI green on the three systems |
 | M6 | Proposal page, apply, revert, project page | done (`751385b`, `2a9bab6`, `ed1c08e`): `src/tasks/apply.ts`, `proposal.ts`, `src/server/tasks.ts`, `src/ui/tasks.tsx`; API in docs/api.md. CI green on the three systems (`9db02af`) |
-| M7 | Sessions list, start from the page and the chat | **in progress, stopped at the usage threshold** (2026-10-29: 5-hour window at 91%). Done (`c29bed4`, `f2e0a1d`): task sessions left out of `listSessions`; the sessions page lists open tasks with kind, project and state, and its limit counts running tasks; chat tools `list_tasks`, `show_task`, `start_task` (card with project, text, model, effort, plan, shell commands ask), and `cancel_creation` takes a task id. Start from the project page was done in M6. Left: unit tests of the three chat tools and the task cancel card, M7's choices in decisions.md, CI of M6 and M7 |
+| M7 | Sessions list, start from the page and the chat | done (`c29bed4`, `f2e0a1d`, `a93b2ef`, `3c63954`): task sessions left out of `listSessions`; the sessions page lists open tasks with kind, project and state, and its limit counts running tasks; chat tools `list_tasks`, `show_task`, `start_task` (card with project, text, model, effort, plan, shell commands ask), `cancel_creation` takes a task id, and the chat's system prompt names them. Start from the project page was done in M6. Choices in decisions.md, "Decisiones sin Dani (fase 7)", M7 |
 | M8 | End-to-end tests, security review, README | to do |
 | M9 | Real checks and the real run (the user) | to do |
 
