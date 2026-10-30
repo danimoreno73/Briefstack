@@ -351,7 +351,8 @@ export const uiMessages = defineCatalogue({
     taskValidationText: (kind: string): string =>
       ({
         outsideWorktree: 'a link that leads out of the project, or a submodule',
-        settingsOrHooks: 'a change to Claude Code settings, .mcp.json or hook files',
+        settingsOrHooks: 'a change to Claude Code settings, .mcp.json or hook files, or a skill or agent with hooks, MCP servers or a permission mode',
+        hiddenLine: 'an added line looks like a secret in a way the page cannot show without showing the secret: it would be approved unseen',
         secret: 'an added line looks like a secret',
         personalPath: 'an added line holds an absolute path from this computer',
       })[kind] ?? kind,
@@ -1320,7 +1321,8 @@ export const uiMessages = defineCatalogue({
     taskValidationText: (kind: string): string =>
       ({
         outsideWorktree: 'un enlace que sale del proyecto, o un submódulo',
-        settingsOrHooks: 'un cambio en los ajustes de Claude Code, en .mcp.json o en archivos de hooks',
+        settingsOrHooks: 'un cambio en los ajustes de Claude Code, en .mcp.json o en archivos de hooks, o una skill o un agente con hooks, servidores MCP o un modo de permisos',
+        hiddenLine: 'una línea añadida parece un secreto de un modo que la página no puede mostrar sin enseñarlo: se aprobaría sin verla',
         secret: 'una línea añadida parece un secreto',
         personalPath: 'una línea añadida contiene una ruta absoluta de este ordenador',
       })[kind] ?? kind,

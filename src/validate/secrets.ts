@@ -82,6 +82,35 @@ export function findSecrets(line: string): SecretKind[] {
 /** What replaces a line that looks like a secret, on the server and in the UI. */
 export const REDACTED_LINE = '[redacted]';
 
+/** What replaces only the secret value in a line `maskSecretValues` can still show. */
+export const SECRET_MASK = '[secret]';
+
+/** A value made only of the characters credentials use: masking it hides nothing else. */
+const MASKABLE = /^[A-Za-z0-9_\-+/=.]+$/;
+
+/**
+ * The line with each secret-looking value replaced by `[secret]`, so the
+ * rest of it stays readable (a diff the user approves must show what it
+ * changes). A value holding any other character could carry code, so it is
+ * not masked; a line that still looks like a secret after masking is
+ * replaced whole, as `redactSecretLines` does.
+ */
+export function maskSecretValues(line: string): string {
+  let out = line;
+  for (const pattern of SECRET_PATTERNS) {
+    const re = new RegExp(pattern.re.source, pattern.re.flags.includes('g') ? pattern.re.flags : `${pattern.re.flags}g`);
+    out = out.replace(re, (...args: unknown[]) => {
+      const match = String(args[0]);
+      const group = typeof args[1] === 'string' ? args[1] : undefined;
+      const value = group ?? match;
+      if (pattern.accept !== undefined && !pattern.accept(value)) return match;
+      if (pattern.kind !== 'privateKey' && !MASKABLE.test(value)) return match;
+      return group === undefined ? SECRET_MASK : match.replace(group, SECRET_MASK);
+    });
+  }
+  return findSecrets(out).length > 0 ? REDACTED_LINE : out;
+}
+
 /** Replaces every line that looks like a secret; the rest of the text is untouched. */
 export function redactSecretLines(text: string): string {
   return text

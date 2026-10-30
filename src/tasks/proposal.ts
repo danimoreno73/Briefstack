@@ -1,6 +1,6 @@
 import { diffHunks, diffLines } from '../chat/diff.js';
 import type { DiffHunk } from '../chat/types.js';
-import { redactSecretLines } from '../validate/secrets.js';
+import { maskSecretValues } from '../validate/secrets.js';
 import { withSafeGit } from './git.js';
 import { rawDiff } from './validate.js';
 
@@ -57,7 +57,8 @@ export async function proposalDiff(repoDir: string, base: string, head: string):
         status,
         added: lines.filter((line) => line.op === '+').length,
         removed: lines.filter((line) => line.op === '-').length,
-        hunks: diffHunks(lines).map((hunk) => ({ ...hunk, lines: hunk.lines.map((line) => ({ ...line, text: redactSecretLines(line.text) })) })),
+        // Only the secret values are hidden, so the user sees the code they approve (a line that cannot be shown blocks the approval: validate.ts).
+        hunks: diffHunks(lines).map((hunk) => ({ ...hunk, lines: hunk.lines.map((line) => ({ ...line, text: maskSecretValues(line.text) })) })),
         shown: true,
       });
     }

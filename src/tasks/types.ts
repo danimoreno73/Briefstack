@@ -63,7 +63,7 @@ const checkResultSchema = z.object({
 export type CheckResult = z.infer<typeof checkResultSchema>;
 
 const validationSchema = z.object({
-  kind: z.enum(['outsideWorktree', 'settingsOrHooks', 'secret', 'personalPath']),
+  kind: z.enum(['outsideWorktree', 'settingsOrHooks', 'secret', 'personalPath', 'hiddenLine']),
   /** `error` blocks approval; `warning` is shown. */
   level: z.enum(['error', 'warning']),
   file: z.string(),

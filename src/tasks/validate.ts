@@ -1,6 +1,8 @@
 import path from 'node:path';
 import { systemPathEnv, type PathEnv } from '../config/paths.js';
 import { findAbsolutePaths, findSecrets } from '../validate/index.js';
+import { parseFrontmatter } from '../frontmatter/index.js';
+import { maskSecretValues, REDACTED_LINE } from '../validate/secrets.js';
 import { declaresHooks, isDefinitionFile, protectedProjectFile } from './guard.js';
 import { withSafeGit } from './git.js';
 import type { TaskValidation } from './types.js';
@@ -47,6 +49,20 @@ export async function rawDiff(dir: string, from: string, to: string): Promise<Di
   });
 }
 
+/** `.claude/agents/**.md` at any depth. */
+const isAgentFile = (file: string): boolean => /(^|\/)\.claude\/agents\/.+\.md$/i.test(file);
+
+/** An agent that starts MCP servers or sets a permission mode other than `default` or `plan` (as a task's start refuses: session.ts). */
+function agentWidens(text: string): boolean {
+  try {
+    const { data } = parseFrontmatter(text, 'agent');
+    const mode = data.permissionMode;
+    return data.mcpServers !== undefined || (mode !== undefined && mode !== 'default' && mode !== 'plan');
+  } catch {
+    return true;
+  }
+}
+
 /** Whether a link target written in a repository leads outside it. */
 function linkLeavesRepo(file: string, target: string): boolean {
   if (target === '' || path.posix.isAbsolute(target) || path.win32.isAbsolute(target) || /^[A-Za-z]:/.test(target) || target.startsWith('~')) return true;
@@ -82,23 +98,31 @@ export async function validateTaskDiff(worktree: string, base: string, head: str
       if (deleted || entry.newMode === '120000' || entry.newMode === '160000') continue;
       const text = await blob(entry.newBlob);
       if (isDefinitionFile(entry.path, pathEnv) && (text === undefined || declaresHooks(text))) add({ kind: 'settingsOrHooks', level: 'error', file: entry.path, detail: 'hooks' });
+      else if (text !== undefined && isAgentFile(entry.path) && agentWidens(text)) add({ kind: 'settingsOrHooks', level: 'error', file: entry.path, detail: 'agent' });
       if (text === undefined || text.includes('\0')) continue;
       // Only lines this task added or changed: what was there before is not the task's.
       const patch = await git(['diff', '-U0', '--no-color', '--no-ext-diff', '--no-textconv', base, head, '--', entry.path]);
       let secretSeen = false;
       let pathSeen = false;
+      let hiddenSeen = false;
       for (const line of patch.split(/\r?\n/)) {
         if (!line.startsWith('+') || line.startsWith('+++')) continue;
         const added = line.slice(1);
-        if (!secretSeen && findSecrets(added).length > 0) {
+        const secret = findSecrets(added).length > 0;
+        if (secret && !secretSeen) {
           secretSeen = true;
           add({ kind: 'secret', level: 'warning', file: entry.path });
+        }
+        // The page hides a secret's value; a line it must hide whole would be approved unseen.
+        if (secret && !hiddenSeen && maskSecretValues(added) === REDACTED_LINE) {
+          hiddenSeen = true;
+          add({ kind: 'hiddenLine', level: 'error', file: entry.path });
         }
         if (!pathSeen && findAbsolutePaths(added, pathEnv).length > 0) {
           pathSeen = true;
           add({ kind: 'personalPath', level: 'warning', file: entry.path });
         }
-        if (secretSeen && pathSeen) break;
+        if (pathSeen && hiddenSeen) break;
       }
     }
   });
