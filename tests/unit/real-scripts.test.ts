@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { isPathInside, resolveHome, type PathEnv } from '../../src/config/index.js';
@@ -25,6 +26,26 @@ import { tempDir } from '../helpers.js';
 
 // These scripts start real Claude Code sessions and are never run by the tests;
 // what can be checked without one is checked here.
+
+describe('real scripts name no folder of the machine they were written on', () => {
+  async function filesIn(dir: string): Promise<string[]> {
+    const entries = await readdir(dir, { withFileTypes: true });
+    const nested = await Promise.all(entries.map((entry) => (entry.isDirectory() ? filesIn(path.join(dir, entry.name)) : [path.join(dir, entry.name)])));
+    return nested.flat();
+  }
+
+  it('neither the user folder nor the folder that holds the repo: they use BRIEFSTACK_REAL_WORKDIR or the temp folder', async () => {
+    // Written either way round, in any case.
+    const spellings = (dir: string) => [dir, dir.replace(/\\/g, '/'), dir.replace(/\//g, '\\')].map((value) => value.toLowerCase());
+    // A drive or file-system root names no one's folder.
+    const owned = [os.homedir(), path.dirname(PACKAGE_ROOT)].filter((dir) => path.parse(dir).root !== dir);
+    const forbidden = owned.flatMap(spellings);
+    for (const file of await filesIn(path.join(PACKAGE_ROOT, 'scripts', 'real'))) {
+      const text = (await readFile(file, 'utf8')).toLowerCase();
+      for (const dir of forbidden) expect(text.includes(dir), `${path.relative(PACKAGE_ROOT, file)} names ${dir}`).toBe(false);
+    }
+  });
+});
 
 describe('check-effort: reads the effort from a Stop hook', () => {
   const signal = { signal: new AbortController().signal };
