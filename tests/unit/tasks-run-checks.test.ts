@@ -215,6 +215,117 @@ describe('running the checks from the proposal page', { timeout: 60_000 }, () =>
   });
 });
 
+describe('actions at once on a task the server has not loaded yet (I2)', { timeout: 60_000 }, () => {
+  /** A promise the test settles. */
+  const gate = () => {
+    let open: () => void = () => undefined;
+    const promise = new Promise<void>((resolve) => (open = resolve));
+    return { promise, open };
+  };
+
+  /** A task on its proposal, left by a server that stopped: the next one has not loaded it. */
+  async function recovered(): Promise<TaskView> {
+    const m = manager();
+    const task = await proposal(m, []);
+    await m.shutdown();
+    return task;
+  }
+
+  /** One of the two orders, never an applied task overwritten: applied with no checks run, or checked and still a proposal. */
+  async function expectOneOrder(m: TaskManager, id: string, approve: PromiseSettledResult<TaskView>, check: PromiseSettledResult<TaskView>, calls: string[][]): Promise<void> {
+    await settled(m, id);
+    const live = await m.get(id);
+    // The record on disk follows the one in memory once its save ends.
+    await until(async () => (await world.store.load(id))?.state === live.state, 'the record on disk');
+    if (approve.status === 'fulfilled') {
+      expect(check).toMatchObject({ status: 'rejected', reason: { code: 'task.wrongState', params: { state: 'applied' } } });
+      expect(live.state).toBe('applied');
+      expect(live.applied).toBeDefined();
+      expect(calls).toEqual([]);
+    } else {
+      expect(approve).toMatchObject({ status: 'rejected', reason: { code: 'task.wrongState' } });
+      expect(check.status).toBe('fulfilled');
+      expect(live.state).toBe('proposal');
+      expect(live.checks).toEqual([]);
+      expect(calls).toEqual([['npm test']]);
+    }
+    expect(live.state).not.toBe('failed');
+  }
+
+  it('checks asked first, approve while they read the list: approve waits, and the checks keep the task', async () => {
+    const task = await recovered();
+    const reading = gate();
+    const calls: string[][] = [];
+    const m = manager({ checks: { commands: async () => (await reading.promise, ['npm test']), run: async (_dir, commands) => (calls.push([...commands]), []) } });
+    expect(await m.recover()).toBe(0);
+    const check = m.runChecks(task.id, ['npm test']);
+    const approve = m.approve(task.id);
+    // Give approve every chance to run before the checks go on.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    reading.open();
+    const [approved, checked] = await Promise.allSettled([approve, check]);
+    await expectOneOrder(m, task.id, approved, checked, calls);
+    await m.shutdown();
+  });
+
+  it('approve asked first, checks while it works: the checks wait, and the applied task stays applied', async () => {
+    const task = await recovered();
+    const applying = gate();
+    let hold = false;
+    const calls: string[][] = [];
+    const m = new TaskManager({
+      runner: new TaskFakeRunner(),
+      store: world.store,
+      sessionsDir: world.sessions,
+      // Approving reads the locations first: held there, so the checks are asked while it works.
+      locations: async () => {
+        if (hold) await applying.promise;
+        return { libraryDir: world.library, repoDir: world.repo };
+      },
+      lang: () => 'en',
+      profile: async () => ({ name: 'saver', model: 'sonnet', effort: 'low' }),
+      maxActive: () => 2,
+      pollMs: 10,
+      checks: { commands: async () => ['npm test'], run: async (_dir, commands) => (calls.push([...commands]), await new Promise((resolve) => setTimeout(resolve, 300)), []) },
+    });
+    hold = true;
+    const approve = m.approve(task.id);
+    const check = m.runChecks(task.id, ['npm test']);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    applying.open();
+    const [approved, checked] = await Promise.allSettled([approve, check]);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await expectOneOrder(m, task.id, approved, checked, calls);
+    await m.shutdown();
+  });
+
+  it('discard and a new round asked meanwhile wait too, and find the checks running', async () => {
+    const task = await recovered();
+    const reading = gate();
+    const finishing = gate();
+    const calls: string[][] = [];
+    const m = manager({ checks: { commands: async () => (await reading.promise, ['npm test']), run: async (_dir, commands) => (calls.push([...commands]), await finishing.promise, []) } });
+    const check = m.runChecks(task.id, ['npm test']);
+    const discard = m.discard(task.id);
+    const round = m.newRound(task.id, 'More.');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    reading.open();
+    const [checked, discarded, again] = await Promise.allSettled([check, discard, round]);
+    expect(checked.status).toBe('fulfilled');
+    expect(discarded).toMatchObject({ status: 'rejected', reason: { code: 'task.wrongState', params: { state: 'checking' } } });
+    expect(again).toMatchObject({ status: 'rejected', reason: { code: 'task.wrongState', params: { state: 'checking' } } });
+    finishing.open();
+    await settled(m, task.id);
+    expect(await m.get(task.id)).toMatchObject({ state: 'proposal', checks: [] });
+    // The record on disk follows the one in memory once its save ends.
+    await until(async () => (await world.store.load(task.id))?.state === 'proposal', 'the record on disk');
+    expect(calls).toEqual([['npm test']]);
+    // The worktree is still there for the user's next step.
+    await expect(stat(world.store.worktreeDir(task.id))).resolves.toBeDefined();
+    await m.shutdown();
+  });
+});
+
 describe('after a server stop during the checks', { timeout: 60_000 }, () => {
   it('goes back to the proposal without results, removes what they left, and does not run them again', async () => {
     const m = manager();

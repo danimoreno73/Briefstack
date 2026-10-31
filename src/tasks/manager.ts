@@ -131,8 +131,6 @@ interface Live {
   pollTimer?: NodeJS.Timeout | undefined;
   pollChain: Promise<void>;
   writeChain: Promise<void>;
-  /** Actions on one task run one at a time. */
-  acting: Promise<unknown>;
   /** Settles once the last round's end was recorded. */
   roundEnded: Promise<void>;
   /** Settles once the checks the user last asked for were recorded. */
@@ -148,6 +146,8 @@ const MAX_DESCRIPTION = 20_000;
 
 export class TaskManager {
   private readonly live = new Map<string, Live>();
+  /** Per task id, the end of the actions queued on it (`act`). */
+  private readonly acting = new Map<string, Promise<void>>();
   private readonly options: TaskManagerOptions;
   private readonly now: () => Date;
   private readonly pathEnv: PathEnv;
@@ -331,18 +331,28 @@ export class TaskManager {
 
   /**
    * Runs `action` on a task while no other action runs on it (M6: approve,
-   * ask for changes, discard, revert). Exposed for the proposal actions.
+   * ask for changes, discard, revert, run the checks). The lock is the
+   * task's id, taken before its record is read, so it holds also for a task
+   * the server has not loaded (after `recover()`, I2). Each action reads the
+   * record when its turn comes: what the one before left.
    */
   async act<T>(id: string, action: (record: TaskRecord) => Promise<T>): Promise<T> {
-    const l = this.live.get(id);
     const run = async (): Promise<T> => {
-      const record = l?.record ?? (await this.options.store.load(id));
+      const record = this.live.get(id)?.record ?? (await this.options.store.load(id));
       if (record === undefined) throw new BriefstackError('task.notFound', { id });
       return action(record);
     };
-    if (l === undefined) return run();
-    const next = l.acting.then(run, run);
-    l.acting = next.catch(() => undefined);
+    const previous = this.acting.get(id) ?? Promise.resolve();
+    const next = previous.then(run);
+    const tail = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.acting.set(id, tail);
+    // The last one out leaves no entry behind.
+    void tail.then(() => {
+      if (this.acting.get(id) === tail) this.acting.delete(id);
+    });
     return next;
   }
 
@@ -558,7 +568,6 @@ export class TaskManager {
       consumed: 0,
       pollChain: Promise.resolve(),
       writeChain: Promise.resolve(),
-      acting: Promise.resolve(),
       roundEnded: Promise.resolve(),
       checksDone: Promise.resolve(),
     };
