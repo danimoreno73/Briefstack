@@ -36,7 +36,9 @@ and apply/revert pattern of self-improvement.
    registered in the library.
 8. Defaults accepted by the user: the task works in a git worktree outside
    the project folder; it starts from the project page or the chat; the
-   server runs the project's declared checks before showing the diff;
+   server runs the project's declared checks (since 2026-10-31, by the
+   user's decision on S8: only when the user asks on the proposal page,
+   after seeing the diff; see §3.4);
    approve, ask for changes, discard; `claude-app` projects are out; if the
    default branch moved and the change no longer applies, approval is
    refused.
@@ -102,15 +104,23 @@ and apply/revert pattern of self-improvement.
   example its test and build commands). The user adds, edits and removes
   them on the project page; each one is confirmed when it is set. The
   server never runs a command the user did not set.
-- When the session ends, the **server** (not the model) runs the declared
-  checks in the worktree, with a timeout, and stores their exit codes and
-  redacted output.
+- The **server** (not the model) runs the declared checks in the worktree,
+  with a timeout, and stores their exit codes and redacted output. It runs
+  them **only when the user asks on the proposal page, after seeing the
+  diff** (a button and a confirmation that names the exact commands), on
+  the commit the page shows, and as often as the user asks while the task
+  waits there; never by itself when a round ends. Approving does not
+  require them. *Changed on 2026-10-31 by the user's decision (S8 of the
+  security review, decisions.md): the checks run code the session just
+  changed, and before this they ran without a dialog, before the user saw
+  the diff.*
 - Server-side validations of the diff: changes only inside the worktree; no
   change to `.claude/settings*.json` or hooks; the secret and personal-path
   check as a warning on the page.
 - **Proposal page:** the diff per file, the session's closing summary (as
-  data), the check results, the validations, a link to the panel, and the
-  actions **approve**, **ask for changes** (text; a new round on the same
+  data), the check results (or that they have not run, with the button to
+  run them), the validations, a link to the panel, and the actions
+  **approve**, **ask for changes** (text; a new round on the same
   branch and worktree) and **discard** (deletes the branch and the worktree).
 
 ### 3.5 Applying and reverting
@@ -134,7 +144,8 @@ and apply/revert pattern of self-improvement.
 - Read tools: list tasks, show a task (state, diff summary, check results).
 - Action tool, with a card: `start_task(project, description)`.
 - Cancelling a running task uses the existing cancel action.
-- **Approve, ask for changes, discard and revert are not chat tools.** They
+- **Approve, ask for changes, discard and revert are not chat tools**, nor
+  is running the declared checks (2026-10-31, S8). They
   happen only on the proposal page, where the diff and the checks are
   visible. The chat links to it.
 

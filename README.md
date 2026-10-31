@@ -38,10 +38,11 @@ the next interview asks less.
   project page or in the chat, and a Claude Code session does it in a
   separate copy of the project (a git worktree on a branch of its own),
   with the same live panel. Every shell command and web request it wants to
-  run asks you first, showing the exact command. When it is done, the
-  server runs the checks you declared for the project, and you review the
-  diff: approve it (one commit on the project's branch, never pushed), ask
-  for changes, or discard it. Any applied task can be reverted from the web.
+  run asks you first, showing the exact command. When it is done, you
+  review the diff and, if you want, press "Run the checks" to run the
+  checks you declared for the project on it; then approve it (one commit on
+  the project's branch, never pushed), ask for changes, or discard it. Any
+  applied task can be reverted from the web.
 
 ## Requirements
 
@@ -206,12 +207,15 @@ See [SECURITY.md](SECURITY.md) to report a vulnerability.
   each command before you allow it. The project's own git hooks run for a
   `git` command you allow (the dialog says so); briefstack's own git never
   runs them.
-- **Declared checks run without asking.** After each round the server runs
-  the check commands you confirmed for the project, in the task's copy.
-  They run project code, including what the session changed, with network
-  proxies pointed nowhere (a program can ignore them) and a 10-minute
-  limit each. Declare only commands you would run on the task's changes
-  yourself.
+- **Declared checks run only when you ask.** Nothing runs them when a
+  round ends. On the task's page, after reading the diff, you press "Run
+  the checks" and confirm a dialog that names the exact commands; the
+  server then runs the commands you confirmed for the project, in the
+  task's copy, on the change the page shows. They run project code,
+  including what the session changed, as you, with network proxies pointed
+  nowhere (a program can ignore them, so no network is not guaranteed) and
+  a 10-minute limit each. You can approve without running them. Declare
+  and run only commands you would run on the task's changes yourself.
 - A task's copy has no `node_modules` or other ignored files: a check that
   needs dependencies must install them (`npm ci --offline` works from
   npm's cache), or the session can ask to run the install.

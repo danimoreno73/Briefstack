@@ -4952,6 +4952,10 @@ milestone.
 - **The security review's findings** and what was done with each are in
   "Phase 7: security review" below.
 
+**M8b (S8, 2026-10-31).** The user decided that the declared checks wait
+for a click on the proposal page; the choices made without the user in
+that work are in "Phase 7: S8, the checks wait for a click" below.
+
 ## Phase 7: security review (2026-10-30)
 
 A review of the phase's code (`phase-7-start..HEAD`, about 5,000 lines of
@@ -4982,7 +4986,7 @@ start a task and cancel one, nothing else.
 | S5 | The proposal diff hid a whole added line that looked like a secret; the validation was only a warning, so code beside a fake key could be approved unseen. | high | Fixed (`a2d2fcf`): only the value is masked (`[secret]`) when it is made of credential characters; a line that still cannot be shown is a `hiddenLine` error that blocks approval. The secret warning stays. |
 | S6 | A command allowed in a round could rewrite the worktree's `.git` file; the server's round commit and the checks' clean-up would then run git in the project's own repository and branch. | medium (needs an allowed command, which can already run anything) | Fixed (`6709235`): the server checks the copy's common git folder and branch before the round's commit, after the checks and before a new round (`task.worktreeChanged`). |
 | S7 | Agent files that start MCP servers or set a permission mode were not flagged in the diff; approved, they would reach the user's own interactive sessions. | medium | Fixed (`a2d2fcf`): a `settingsOrHooks` error, as hooks are. |
-| S8 | Declared checks run after every round without a dialog, and what they run includes the session's changes (a test script it edited). "Offline" is proxy variables, which a program can ignore. | inherent to BRIEF §3.4 | Kept as the brief asks; said plainly on the project page, in the confirmation of the checks and in the README. **For the user to decide** whether checks should wait for a click after the diff is seen. |
+| S8 | Declared checks run after every round without a dialog, and what they run includes the session's changes (a test script it edited). "Offline" is proxy variables, which a program can ignore. | inherent to BRIEF §3.4 | **Fixed** (`82e00b2`, `f053232`, `bb062d1`), by the user's decision of 2026-10-31: the checks no longer run when a round ends; they run only when the user presses a button on the proposal page after seeing the diff, and confirms the exact commands. "Offline" stays proxy variables, which the confirmation says. See "Phase 7: S8, the checks wait for a click" below. |
 | S9 | Processes started by an allowed command (`cmd &`, `nohup`) can outlive the round; the guard only sees tool calls. | inherent (not an OS sandbox) | Documented in the README's limitations; S4 and S6 limit what such a process can do to the review and the server's git. |
 | S10 | Files over 256 KB, binary files and links are listed on the proposal page by name, "not shown". | low | Kept: they are named, and the validations read files up to 1 MB. Noted for the backlog: a warning for any file the page cannot show. |
 | S11 | `start_task`'s refusal in the chat carries the server's message, which can name the project folder for a missing or protected folder. | low | Kept: the project's path is in its note, which `show_project` already gives the chat. |
@@ -4991,6 +4995,67 @@ Not found: a way for the model to reach the project folder, the home, the
 library or the repo with the file tools; a way to skip the dialog for a
 shell command or web request; a server git command that runs project
 code.
+
+## Phase 7: S8, the checks wait for a click (2026-10-31)
+
+**The user's decision (2026-10-31), option 2 of S8:** the declared checks
+no longer run by themselves when a round ends; they run only when the
+user presses "Run the checks" on the proposal page, after seeing the
+diff. There is no setting to run them by themselves. The reasons: those
+commands run the code the session (not trusted) has just changed, and
+before this they ran without a dialog and before the user had seen the
+diff. BRIEF §3.4 is changed to say so.
+
+What was done (`82e00b2`, `f053232`, `bb062d1`):
+
+- **A round's end** commits the round and runs the validations of the
+  diff, which run no project code, and records `reviewed`; the task
+  reaches `proposal` with no `checks` (absent = not run). The checks of
+  S4 and S6 at the round's end are unchanged.
+- **`POST /api/tasks/:id/checks`** with `{"confirm": true}`, from
+  `proposal` with `reviewed` only (`409 task.wrongState` otherwise;
+  `409 task.noChecks` when the project has no confirmed check; `409
+  task.limit` at the shared limit). The task is `checking` while they run,
+  which counts against the limit as before, and goes back to `proposal`
+  with the results, which replace the earlier ones. Before they run and
+  after: the worktree must still be the task's (`task.worktreeChanged`)
+  and the branch and the worktree's `HEAD` still on `reviewed`
+  (`task.branchChanged`); either refusal fails the task, as at a round's
+  end. The worktree is put back to `reviewed` before they run (nothing a
+  process left after the round is checked) and after (nothing they leave
+  reaches a later round).
+- **The page** says "Not run" (approving is still allowed: it is the
+  user's choice), and the button opens a confirmation that names the
+  exact commands and says, in plain words, that they run the code the
+  task changed on the user's computer and that no network is not
+  guaranteed. The diff stays on the page while they run.
+- **The chat** gains no tool: running the checks is on the page only, as
+  approving is (BRIEF §3.6). `show_task` gives `checks: { ran: false }`
+  or `{ ran: true, failed, results }`.
+
+Choices made without the user, the most conservative each:
+
+- **A server stopped during these checks** leaves the task on its
+  proposal without results, and nothing runs them again. At the next
+  start the worktree is put back to `reviewed` (what a check was writing
+  is removed) if it is still the task's and its branch is still there;
+  otherwise the task fails with `task.worktreeChanged` or
+  `task.branchChanged`, as a run would. A task left `checking` without
+  `reviewed` (a round's end cut short) is `interrupted`, as before. The
+  states are the same; only `checking` now has two causes, told apart by
+  `reviewed`.
+- **The shared limit** is checked before the checks start, as for a new
+  round: at the limit they are refused (`task.limit`), not queued.
+- **When a run fails** (moved branch, a copy that is no longer the task's),
+  `reviewed`, `checks` and `validations` are dropped, as for a round's end
+  that fails: the task can be discarded or sent back for a new round.
+- **Shutting the server down** waits for checks that run, as it waited
+  for those of a round's end; a hard stop is the recovery above.
+- **The confirmation shows the commands as the user set them**, as the
+  project page and the results already do: they are the user's own
+  commands, confirmed by hash, and the dialog must show exactly what runs.
+- **Text:** "branch changed after its checks ran" now says "after the
+  server checked it", since a branch can move before any check runs.
 
 ## `briefstack paths rewrite` (2026-10-30)
 

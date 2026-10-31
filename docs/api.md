@@ -710,19 +710,25 @@ is dropped. `409 skills.noUpdate` when none waits.
 
 Tasks in existing `claude-code` projects (BRIEF-phase-7). Without a task
 manager every route answers `503 task.unavailable`. Approve, ask for
-changes, discard and revert exist only here, for the proposal page; the
-chat has no tool for them. Routes that change the project or what runs
+changes, discard, revert and running the declared checks exist only here,
+for the proposal page; the chat has no tool for them. Routes that change the project or what runs
 take `{"confirm": true}` in the body, which the page sends only after its
 confirmation; without it they answer `400 web.invalidBody`.
 
 A task (`TaskView`) is its record (`src/tasks/types.ts`: `id`, `project`,
 `description`, `state`, `profile`, `model`, `effort`, `baseBranch`,
-`baseCommit`, `branch`, `rounds[]`, `checks?`, `validations?`, `applied?`,
-`reverted?`, `error?`) plus what the server knows live: `pending?` (an
+`baseCommit`, `branch`, `rounds[]`, `checks?`, `validations?`, `reviewed?`,
+`applied?`, `reverted?`, `error?`) plus what the server knows live: `pending?` (an
 `approval` with the command as shown, or a `question`), `awaitingReply?`,
 `cancelling?`, `uncommitted?` (paths left out at the start), `warnings?`,
 `allowedForTask?`. States: `running`, `checking`, `proposal`, `applied`,
-`reverted`, `discarded`, `failed`, `cancelled`, `interrupted`.
+`reverted`, `discarded`, `failed`, `cancelled`, `interrupted`. `checking`
+is the round's end (commit and validations; `reviewed` absent) or the
+declared checks the user asked for (`reviewed` set). `checks` absent means
+the declared checks have not run: they run only from
+`POST /api/tasks/:id/checks`, never by themselves (decisions.md, S8). A
+server stopped while they run leaves the task on `proposal` without
+`checks` at its next start.
 
 | Route | Body | Answer |
 |---|---|---|
@@ -732,9 +738,10 @@ A task (`TaskView`) is its record (`src/tasks/types.ts`: `id`, `project`,
 | `GET /api/tasks/:id/stream` | | SSE, as a creation's: `flow`, `hook`, `runner` (the round's `events.jsonl` lines, projected), `status`, `approval`, `question`, `denied`; each item has `seq`, `ts`, `round` |
 | `POST /api/tasks/:id/answer` | `{ pendingId, answer }` | an approval takes `"once"`, `"task"` (this exact command for the rest of the task) or `"deny"`; one whose payload is `redacted` takes only `"deny"` (`400 creation.invalidAnswer`); a question takes `{ "<question>": "<label>" }` or `"cancel"` |
 | `POST /api/tasks/:id/reply` | `{ text }` | the free-text reply after a turn that ended with nothing asked |
-| `POST /api/tasks/:id/finish` | | ends the round: commit on the task branch, checks, validations, then `proposal` |
+| `POST /api/tasks/:id/finish` | | ends the round: commit on the task branch, validations, then `proposal`; no declared check runs |
 | `POST /api/tasks/:id/cancel` | | the existing cancel |
-| `GET /api/tasks/:id/proposal` | | `{ task, diff }`: each changed file with hunks (secret values masked as `[secret]`), from the base to `task.reviewed` (the commit the checks ran on), or the applied commit's once applied |
+| `GET /api/tasks/:id/proposal` | | `{ task, diff, checkCommands? }`: each changed file with hunks (secret values masked as `[secret]`), from the base to `task.reviewed` (the commit the server checked, which the checks run on), or the applied commit's once applied; `checkCommands`, for a proposal (or one whose checks run), the project's confirmed checks, which the page's confirmation names |
+| `POST /api/tasks/:id/checks` | `{ confirm: true }` | `202` and the task, `checking`: the project's confirmed checks run in the worktree on `task.reviewed`, then the task is `proposal` again with `checks` (which replace earlier ones). Only from `proposal`: `409 task.wrongState`; `409 task.noChecks` without confirmed checks; `409 task.limit` at the shared limit. A worktree that is no longer the task's or a branch moved off `reviewed`, before or after they run, fails the task (`task.worktreeChanged`, `task.branchChanged`) |
 | `POST /api/tasks/:id/approve` | `{ confirm: true }` | one commit on the default branch with the tree of `task.reviewed`, no push; `409 task.dirtyFolder`, `task.notOnBranch`, `task.conflict`, `task.blocked`, `task.projectBusy`, `task.mergeDrivers`, `task.branchChanged` |
 | `POST /api/tasks/:id/changes` | `{ text }` | a new round on the same branch and worktree; `409 task.unsafeChanges` when the copy now holds a settings file or a definition a task cannot load, `task.worktreeChanged` when its `.git` no longer points at the task |
 | `POST /api/tasks/:id/discard` | `{ confirm: true }` | the branch and the worktree are deleted |
