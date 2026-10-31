@@ -8,6 +8,7 @@ import { formatError } from '../i18n/errors.js';
 import type { Lang } from '../i18n/index.js';
 import type { Effort } from '../models.js';
 import { hideAbsolutePaths, projectEvent } from '../panel/project.js';
+import { settlesWithin } from '../timeLimit.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { applyTask, discardTask, revertTask, type ApplyDeps } from './apply.js';
 import type { TaskChecks } from './checks.js';
@@ -101,6 +102,8 @@ export interface TaskManagerOptions {
   pollMs?: number;
   /** A dialog not answered for this long is a deny. Default `TASK_DIALOG_TIMEOUT_MS`. */
   dialogTimeoutMs?: number;
+  /** How long `shutdown()` waits for checks it ended to settle. Default 15 s, as creations. */
+  shutdownTimeoutMs?: number;
 }
 
 interface Subscriber {
@@ -133,8 +136,10 @@ interface Live {
   writeChain: Promise<void>;
   /** Settles once the last round's end was recorded. */
   roundEnded: Promise<void>;
-  /** Settles once the checks the user last asked for were recorded. */
+  /** Settles once the checks the user last asked for were recorded (or abandoned by a server stop). */
   checksDone: Promise<void>;
+  /** Aborts the checks running now: a server stop ends their process tree. */
+  checksAbort?: AbortController | undefined;
 }
 
 const questionAnswerSchema = z.record(z.string(), z.string().trim().min(1));
@@ -315,16 +320,24 @@ export class TaskManager {
     return next;
   }
 
-  /** Stops every round; what was running is interrupted. */
+  /**
+   * Stops every round (what was running is interrupted) and ends the checks
+   * running now: their process tree is killed and nothing is recorded, so
+   * the task is left `checking`, as after an abrupt stop, and the next
+   * start's `recover()` puts it back on its proposal without results (M2).
+   * The wait for the checks is bounded by `shutdownTimeoutMs`.
+   */
   async shutdown(): Promise<void> {
+    const limit = this.options.shutdownTimeoutMs ?? 15_000;
     await Promise.all(
       [...this.live.values()].map(async (l) => {
+        l.checksAbort?.abort();
         if (l.handle !== undefined && l.record.state === 'running') {
           this.settleAll(l);
           await l.handle.stop().catch(() => undefined);
         }
         await l.roundEnded;
-        await l.checksDone;
+        await settlesWithin(l.checksDone, limit);
       }),
     );
   }
@@ -704,6 +717,16 @@ export class TaskManager {
    */
   private async checkNow(l: Live, reviewed: string, commands: readonly string[]): Promise<void> {
     const { record } = l;
+    const abort = new AbortController();
+    l.checksAbort = abort;
+    try {
+      await this.checkWith(l, record, reviewed, commands, abort.signal);
+    } finally {
+      if (l.checksAbort === abort) l.checksAbort = undefined;
+    }
+  }
+
+  private async checkWith(l: Live, record: TaskRecord, reviewed: string, commands: readonly string[], signal: AbortSignal): Promise<void> {
     const worktree = this.options.store.worktreeDir(record.id);
     const own = async () => {
       if (!(await isTaskWorktree(worktree, record.projectDir, record.branch))) throw new BriefstackError('task.worktreeChanged', { id: record.id });
@@ -716,7 +739,9 @@ export class TaskManager {
       await onReviewed();
       // Only the reviewed commit's files: nothing a process left since the round ended.
       await restoreToHead(worktree);
-      const results = (await this.options.checks?.run(worktree, commands)) ?? [];
+      const results = (await this.options.checks?.run(worktree, commands, signal)) ?? [];
+      // A server stop ended them: nothing is recorded, the next start's `recover()` cleans up and puts the task back on its proposal.
+      if (signal.aborted) return;
       // The checks ran project code: the server's git cleans up only a worktree that is still the task's.
       await own();
       await restoreToHead(worktree);
@@ -724,6 +749,7 @@ export class TaskManager {
       record.checks = results;
       record.state = 'proposal';
     } catch (error) {
+      if (signal.aborted) return;
       record.state = 'failed';
       delete record.reviewed;
       delete record.checks;

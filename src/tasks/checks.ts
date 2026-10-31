@@ -176,9 +176,11 @@ export interface RunChecksOptions {
   timeoutMs?: number;
   env?: NodeJS.ProcessEnv;
   now?: () => number;
+  /** Aborted (a server stop): the running command's process tree is ended and no other command starts. */
+  signal?: AbortSignal;
 }
 
-function runOne(cwd: string, command: string, env: NodeJS.ProcessEnv, timeoutMs: number): Promise<{ exitCode: number | null; timedOut: boolean; output: string }> {
+function runOne(cwd: string, command: string, env: NodeJS.ProcessEnv, timeoutMs: number, signal?: AbortSignal): Promise<{ exitCode: number | null; timedOut: boolean; output: string }> {
   return new Promise((resolve) => {
     // A fixed shell: cmd on Windows (npm is a .cmd there), sh elsewhere, in its own group so the whole tree can be ended.
     const child =
@@ -194,18 +196,27 @@ function runOne(cwd: string, command: string, env: NodeJS.ProcessEnv, timeoutMs:
     child.stdout?.on('data', keep);
     child.stderr?.on('data', keep);
     child.stdin?.end();
-    const timer = setTimeout(() => {
-      timedOut = true;
+    const end = () => {
       if (child.pid !== undefined) void killProcessTree(child.pid).catch(() => child.kill());
       else child.kill();
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      end();
     }, timeoutMs);
-    child.on('error', (error) => {
+    signal?.addEventListener('abort', end, { once: true });
+    if (signal?.aborted === true) end();
+    const done = () => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', end);
+    };
+    child.on('error', (error) => {
+      done();
       resolve({ exitCode: null, timedOut, output: `${output}\n${error.message}` });
     });
     child.on('close', (code) => {
-      clearTimeout(timer);
-      resolve({ exitCode: timedOut ? null : code, timedOut, output });
+      done();
+      resolve({ exitCode: timedOut || signal?.aborted === true ? null : code, timedOut, output });
     });
   });
 }
@@ -214,7 +225,8 @@ function runOne(cwd: string, command: string, env: NodeJS.ProcessEnv, timeoutMs:
 export interface TaskChecks {
   /** The confirmed commands of the task's project, in order; none when its note is missing. */
   commands(task: { project: string }): Promise<string[]>;
-  run(worktree: string, commands: readonly string[]): Promise<CheckResult[]>;
+  /** `signal` aborted (a server stop): the running command's process tree is ended, and what ran is not a result. */
+  run(worktree: string, commands: readonly string[], signal?: AbortSignal): Promise<CheckResult[]>;
 }
 
 /** The task manager's checks: the library's note and the home's confirmations, read each time. */
@@ -224,7 +236,7 @@ export function taskChecksWith(deps: { libraryDir: () => Promise<string>; home: 
       const declared = await projectChecks({ libraryDir: await deps.libraryDir(), home: deps.home, slug: task.project }).catch(() => []);
       return declared.filter((check) => check.confirmed).map((check) => check.command);
     },
-    run: (worktree, commands) => runChecks(worktree, commands, deps.options),
+    run: (worktree, commands, signal) => runChecks(worktree, commands, { ...deps.options, ...(signal === undefined ? {} : { signal }) }),
   };
 }
 
@@ -234,8 +246,9 @@ export async function runChecks(worktree: string, commands: readonly string[], o
   const now = options.now ?? Date.now;
   const results: CheckResult[] = [];
   for (const command of commands) {
+    if (options.signal?.aborted === true) break;
     const started = now();
-    const run = await runOne(worktree, command, env, options.timeoutMs ?? CHECK_TIMEOUT_MS);
+    const run = await runOne(worktree, command, env, options.timeoutMs ?? CHECK_TIMEOUT_MS, options.signal);
     results.push({ command, exitCode: run.exitCode, timedOut: run.timedOut, output: cleanOutput(run.output, worktree), durationMs: Math.max(0, Math.round(now() - started)) });
   }
   return results;

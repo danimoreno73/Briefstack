@@ -326,6 +326,67 @@ describe('actions at once on a task the server has not loaded yet (I2)', { timeo
   });
 });
 
+describe('a server stop while the checks run (M2)', { timeout: 60_000 }, () => {
+  /** Writes its pid where the clean-up keeps it, then runs for a minute. */
+  const LONG = nodeCommand("require('fs').mkdirSync('node_modules',{recursive:true});require('fs').writeFileSync('node_modules/pid.txt',String(process.pid));setTimeout(()=>{},60000)");
+  const alive = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  it('kills the running command, records nothing, and the next start puts the task back on its proposal', async () => {
+    const m = manager();
+    const task = await proposal(m, [LONG]);
+    const worktree = world.store.worktreeDir(task.id);
+    await m.runChecks(task.id, [LONG]);
+    const pidFile = path.join(worktree, 'node_modules', 'pid.txt');
+    await until(async () => (await readFile(pidFile, 'utf8').catch(() => '')) !== '', 'the command to start');
+    const pid = Number(await readFile(pidFile, 'utf8'));
+    expect(alive(pid)).toBe(true);
+
+    const before = Date.now();
+    await m.shutdown();
+    // Not the command's minute: the stop ended it.
+    expect(Date.now() - before).toBeLessThan(20_000);
+    await until(() => !alive(pid), 'the command to end');
+    // Left as an abrupt stop leaves it.
+    expect((await world.store.load(task.id))?.state).toBe('checking');
+
+    const fresh = manager();
+    expect(await fresh.recover()).toBe(1);
+    const back = await fresh.get(task.id);
+    expect(back).toMatchObject({ state: 'proposal', reviewed: task.reviewed });
+    expect(back.checks).toBeUndefined();
+    await fresh.shutdown();
+  });
+
+  it('does not wait past its limit for checks that do not end', async () => {
+    const stuck: TaskChecks = { commands: async () => [MARK], run: () => new Promise(() => undefined) };
+    const m = new TaskManager({
+      runner: new TaskFakeRunner(),
+      store: world.store,
+      sessionsDir: world.sessions,
+      locations: async () => ({ libraryDir: world.library, repoDir: world.repo }),
+      lang: () => 'en',
+      profile: async () => ({ name: 'saver', model: 'sonnet', effort: 'low' }),
+      maxActive: () => 2,
+      pollMs: 10,
+      checks: stuck,
+      shutdownTimeoutMs: 200,
+    });
+    const task = await proposal(m, []);
+    await m.runChecks(task.id, [MARK]);
+    const before = Date.now();
+    await m.shutdown();
+    expect(Date.now() - before).toBeLessThan(5_000);
+    expect((await world.store.load(task.id))?.state).toBe('checking');
+  });
+});
+
 describe('after a server stop during the checks', { timeout: 60_000 }, () => {
   it('goes back to the proposal without results, removes what they left, and does not run them again', async () => {
     const m = manager();

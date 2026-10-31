@@ -108,7 +108,7 @@ describe('only the user\'s request runs the declared checks', { timeout: 60_000 
     const runChecks = await where(/\brunChecks\(/);
     expect(Object.keys(runChecks).sort()).toEqual(['server/tasks.ts', 'tasks/checks.ts', 'tasks/manager.ts']);
     expect(runChecks['tasks/checks.ts']).toEqual([
-      'run: (worktree, commands) => runChecks(worktree, commands, deps.options),',
+      'run: (worktree, commands, signal) => runChecks(worktree, commands, { ...deps.options, ...(signal === undefined ? {} : { signal }) }),',
       'export async function runChecks(worktree: string, commands: readonly string[], options: RunChecksOptions = {}): Promise<CheckResult[]> {',
     ]);
     // The manager's method is defined once; the only caller is the route of the proposal page.
@@ -121,7 +121,8 @@ describe('only the user\'s request runs the declared checks', { timeout: 60_000 
     const runs = manager.flatMap((line, i) => (/checks\??\.run\(/.test(line) ? [i] : []));
     expect(runs).toHaveLength(1);
     const method = manager.slice(0, runs[0]).findLast((line) => /^ {2}(private |async |public )*\w+\(/.test(line));
-    expect(method?.trim()).toMatch(/^private async checkNow\(/);
+    expect(method?.trim()).toMatch(/^private async checkWith\(/);
+    expect(manager.filter((line) => /this\.checkWith\(/.test(line))).toHaveLength(1);
     expect(manager.filter((line) => /this\.checkNow\(/.test(line))).toHaveLength(1);
     expect(await where(/\btaskChecksWith\(/)).toEqual({
       'tasks/checks.ts': ['export function taskChecksWith(deps: { libraryDir: () => Promise<string>; home: string; options?: RunChecksOptions }): TaskChecks {'],
