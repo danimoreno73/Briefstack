@@ -17,7 +17,8 @@ import type { CheckResult } from './types.js';
 /**
  * Declared checks (BRIEF-phase-7 §3.4): the commands a project's note lists
  * in a fenced block, one per line, which the server runs in a task's
- * worktree after each round:
+ * worktree when the user asks on the proposal page, after reading the diff
+ * (decisions.md, S8):
  *
  *     ## Checks
  *

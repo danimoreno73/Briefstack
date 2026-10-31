@@ -73,6 +73,8 @@ describe('running the checks from the proposal page', { timeout: 60_000 }, () =>
   it('runs the confirmed checks on the reviewed commit, cleans up after them, and a new run replaces the results', async () => {
     const m = manager();
     const task = await proposal(m);
+    // The round's end ran none: not run until the user asks.
+    expect(task.checks).toBeUndefined();
     expect((await m.proposal(task.id)).checkCommands).toEqual([READ]);
     const worktree = world.store.worktreeDir(task.id);
 

@@ -98,7 +98,7 @@ export async function applyTask(task: TaskRecord, deps: ApplyDeps): Promise<Task
   if (blocking.length > 0) throw new BriefstackError('task.blocked', { id: task.id, files: blocking.map((item) => item.file) });
   const branchHead = await assertFolderReady(task, deps.store);
   const taskHead = (await runGit(task.projectDir, ['rev-parse', '--verify', `refs/heads/${task.branch}^{commit}`])).stdout.trim();
-  // What lands is the commit the checks and validations ran on and the page showed; a branch moved since is refused.
+  // What lands is the commit the validations (and any checks the user ran) read and the page showed; a branch moved since is refused.
   if (task.reviewed !== undefined && taskHead !== task.reviewed) throw new BriefstackError('task.branchChanged', { id: task.id });
   if (taskHead === '' || taskHead === task.baseCommit) throw new BriefstackError('task.noChanges', { id: task.id });
   const rounds = task.rounds.length;

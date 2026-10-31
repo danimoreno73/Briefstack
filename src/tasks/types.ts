@@ -97,9 +97,10 @@ export const taskRecordSchema = z.object({
   rounds: z.array(roundSchema),
   /** The project's own skills when the task started: the only ones a round is offered, whatever later rounds add. */
   skills: z.array(z.string()).optional(),
+  /** The declared checks' results, absent until the user runs them from the proposal page (decisions.md, S8). */
   checks: z.array(checkResultSchema).optional(),
   validations: z.array(validationSchema).optional(),
-  /** The branch's commit the checks and validations ran on: the one the page shows and approving applies. */
+  /** The branch's commit the validations read at the round's end: the one the page shows, the checks run on and approving applies. */
   reviewed: z.string().optional(),
   applied: z.object({ commit: z.string(), at: z.string() }).optional(),
   reverted: z.object({ commit: z.string(), at: z.string() }).optional(),

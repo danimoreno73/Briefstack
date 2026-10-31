@@ -147,9 +147,38 @@ describe('task tools of the chat', { timeout: 60_000 }, () => {
       state: 'proposal',
       rounds: [{ n: 1, outcome: 'completed', summary: 'Wrote CHANGES.md (round 1).' }],
       diff: { files: [{ path: 'CHANGES.md', status: 'added', added: 1, removed: 0 }] },
-      checks: [],
+      checks: { ran: false },
       validations: [],
     });
+    // Once the user ran them on the page: how many failed, each exit code, no output.
+    await manager.shutdown();
+    manager = new TaskManager({
+      runner,
+      store: tasks.store,
+      sessionsDir: tasks.sessions,
+      locations: async () => ({ libraryDir: tasks.library, repoDir: tasks.repo }),
+      lang: () => 'en',
+      profile: async () => ({ name: 'balanced', model: 'sonnet', effort: 'medium' }),
+      maxActive: () => 2,
+      checks: {
+        commands: async () => ['npm test', 'npm run lint'],
+        run: async (_dir, commands) => commands.map((command, i) => ({ command, exitCode: i === 0 ? 0 : 2, timedOut: false, output: 'secret output', durationMs: 5 })),
+      },
+    });
+    await manager.runChecks(first.id);
+    await stateIs(first.id, 'proposal');
+    const checked = await read('show_task', { taskId: first.id });
+    expect(checked.data).toMatchObject({
+      checks: {
+        ran: true,
+        failed: 1,
+        results: [
+          { command: 'npm test', exitCode: 0, timedOut: false },
+          { command: 'npm run lint', exitCode: 2, timedOut: false },
+        ],
+      },
+    });
+    expect(resultText(checked)).not.toContain('secret output');
     const text = resultText(shown);
     expect(text).toContain("task's page");
     expect(text).not.toContain(tasks.dir.replaceAll('\\', '\\\\'));

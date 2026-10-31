@@ -18,7 +18,7 @@ export interface WebTaskOptions {
   runner?: TaskRunner | undefined;
   /** The creations side of the shared limit and of the folder rule. */
   creations?: TaskManagerOptions['creations'];
-  /** What runs after each round (M5: the declared checks and the validations). */
+  /** What runs after each round: the validations of the diff (the declared checks wait for the user). */
   afterRound?: (task: TaskRecord, worktree: string) => Promise<AfterRoundResult>;
 }
 
@@ -42,7 +42,7 @@ export async function createWebTasks(options: WebTaskOptions): Promise<TaskManag
   const { paths } = await read();
   const runner = options.runner ?? new TaskSdkRunner({ pathEnv, lang: options.lang });
   const libraryDir = async () => (await read()).paths.libraryDir;
-  const afterRound = options.afterRound ?? afterRoundWith({ libraryDir, home: paths.home });
+  const afterRound = options.afterRound ?? afterRoundWith();
   return new TaskManager({
     runner,
     store: new TaskStore(tasksRoot(paths.home)),

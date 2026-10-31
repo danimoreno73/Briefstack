@@ -115,12 +115,14 @@ describe('running checks', () => {
 });
 
 describe('after a round', () => {
-  it('runs only the confirmed checks, puts the worktree back to its commit, and validates the diff', async () => {
+  it('runs no check, not even a confirmed one, and validates the diff', async () => {
     const project = await world.project('garden', { 'src/app.txt': 'one\n' });
     await world.initLibrary();
-    await setProjectChecks({ libraryDir: world.library, home: world.home, slug: 'garden', commands: [nodeCommand("require('fs').writeFileSync('left-by-check.txt','x')")] });
+    // Markers in an ignored folder, which no clean-up removes: they would stay if a check ran.
+    const confirmed = nodeCommand("require('fs').mkdirSync('node_modules',{recursive:true});require('fs').writeFileSync('node_modules/left-by-check.txt','x')");
+    await setProjectChecks({ libraryDir: world.library, home: world.home, slug: 'garden', commands: [confirmed] });
     const note = path.join(world.library, 'projects', 'garden.md');
-    await writeFile(note, writeChecks(await readFile(note, 'utf8'), [nodeCommand("require('fs').writeFileSync('left-by-check.txt','x')"), nodeCommand("require('fs').writeFileSync('unconfirmed.txt','x')")]), 'utf8');
+    await writeFile(note, writeChecks(await readFile(note, 'utf8'), [confirmed, nodeCommand("require('fs').mkdirSync('node_modules',{recursive:true});require('fs').writeFileSync('node_modules/unconfirmed.txt','x')")]), 'utf8');
 
     const base = (await gitIn(project, 'rev-parse', 'HEAD')).trim();
     const worktree = path.join(world.home, 'tasks', 'abc123-0f0f', 'work');
@@ -129,11 +131,12 @@ describe('after a round', () => {
     await commitAll(worktree, 'round 1');
 
     const task = { id: 'abc123-0f0f', project: 'garden', projectDir: project, branch: 'briefstack/task-abc123-0f0f', baseCommit: base } as TaskRecord;
-    const result = await afterRoundWith({ libraryDir: async () => world.library, home: world.home })(task, worktree);
-    expect(result.checks).toHaveLength(1);
-    expect(result.checks[0]).toMatchObject({ exitCode: 0, timedOut: false });
-    await expect(stat(path.join(worktree, 'left-by-check.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
-    await expect(stat(path.join(worktree, 'unconfirmed.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
+    const result = await afterRoundWith()(task, worktree);
+    expect(result).not.toHaveProperty('checks');
+    expect(result.head).toBe((await gitIn(worktree, 'rev-parse', 'HEAD')).trim());
+    // The confirmed check would have left this file: it never ran.
+    await expect(stat(path.join(worktree, 'node_modules', 'left-by-check.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(stat(path.join(worktree, 'node_modules', 'unconfirmed.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
     expect(result.validations).toEqual([{ kind: 'settingsOrHooks', level: 'error', file: '.claude/settings.json' }]);
   }, 30_000);
 });

@@ -18,16 +18,16 @@ import { roundPrompt, type TaskRunner, type TaskRunnerEvent, type TaskRunnerHand
 import { inspectProject, projectRestrictions, type ProjectInspection } from './session.js';
 import { TaskApprovals, TASK_DIALOG_TIMEOUT_MS, type ApprovalRequest, type CommandFeature, type ShellAnswer } from './shell.js';
 import { newTaskId, type TaskStore } from './store.js';
-import { branchOf, isActiveTask, type CheckResult, type TaskRecord, type TaskState, type TaskValidation } from './types.js';
+import { branchOf, isActiveTask, type TaskRecord, type TaskState, type TaskValidation } from './types.js';
 import path from 'node:path';
 
 /**
  * Tasks in existing projects (BRIEF-phase-7): their start, their rounds and
  * what the user is asked during them. Each round is one runner session in
  * the task's worktree; when it ends, the server commits its changes on the
- * task's branch and runs what comes after a round (`afterRound`: the
- * declared checks and the diff's validations), and the task waits on its
- * proposal page.
+ * task's branch and runs what comes after a round (`afterRound`: the diff's
+ * validations), and the task waits on its proposal page. The declared
+ * checks run only from there, when the user asks (`runChecks`).
  */
 
 export type TaskPendingKind = 'approval' | 'question';
@@ -71,8 +71,8 @@ export interface TaskStreamEvent {
   data: unknown;
 }
 
+/** What comes after a round's commit: nothing that runs project code (the declared checks wait for `runChecks`). */
 export interface AfterRoundResult {
-  checks: CheckResult[];
   validations: TaskValidation[];
   /** The commit the validations read. */
   head?: string;
@@ -91,7 +91,7 @@ export interface TaskManagerOptions {
   creations?: { activeIds(): readonly string[]; folderHolder(dir: string): string | undefined | Promise<string | undefined> };
   /** The shared limit (config `maxActiveCreations`). Default 2. */
   maxActive?: () => number | Promise<number>;
-  /** Runs after each round that ended: the declared checks and the validations (M5). Without it, none. */
+  /** Runs after each round that ended: the validations of the diff (M5). Without it, none. */
   afterRound?: (task: TaskRecord, worktree: string) => Promise<AfterRoundResult>;
   /** The project's confirmed checks, run only by `runChecks`, when the user asks on the proposal page. Without it, none. */
   checks?: TaskChecks;
@@ -664,14 +664,13 @@ export class TaskManager {
         const commit = await commitRound(worktree, `briefstack task ${record.id}, round ${round.n}`);
         if (commit !== undefined) round.commit = commit;
         const head = await branchHead(record.projectDir, record.branch);
-        const after = (await this.options.afterRound?.(record, worktree)) ?? { checks: [], validations: [] };
-        // The checks and validations ran on this commit: it is what the page shows and approving applies.
+        const after = (await this.options.afterRound?.(record, worktree)) ?? { validations: [] };
+        // The validations ran on this commit: it is what the page shows, the checks run on and approving applies.
         if (!(await own())) throw new BriefstackError('task.worktreeChanged', { id: record.id });
         if (head === undefined || (await branchHead(record.projectDir, record.branch)) !== head || (after.head !== undefined && after.head !== head)) {
           throw new BriefstackError('task.branchChanged', { id: record.id });
         }
         record.reviewed = head;
-        record.checks = after.checks;
         record.validations = after.validations;
         record.state = 'proposal';
       } catch (error) {

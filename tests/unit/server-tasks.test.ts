@@ -81,7 +81,7 @@ async function start(withTasks = true): Promise<void> {
       lang: () => 'en',
       profile: async () => ({ name: 'saver', model: 'sonnet', effort: 'low' }),
       pollMs: 10,
-      afterRound: afterRoundWith({ libraryDir: async () => world.library, home: world.home }),
+      afterRound: afterRoundWith(),
       checks: taskChecksWith({ libraryDir: async () => world.library, home: world.home }),
     });
   }
@@ -115,7 +115,8 @@ describe('task API', { timeout: 60_000 }, () => {
     await until(async () => (await send(`/api/tasks/${id}`)).json.state === 'proposal', 'the proposal');
 
     const proposal = await send(`/api/tasks/${id}/proposal`);
-    expect(proposal.json).toMatchObject({ task: { state: 'proposal', checks: [], validations: [] }, diff: { files: [{ path: 'CHANGES.md', status: 'added' }] } });
+    expect(proposal.json).toMatchObject({ task: { state: 'proposal', validations: [] }, diff: { files: [{ path: 'CHANGES.md', status: 'added' }] }, checkCommands: [] });
+    expect((proposal.json.task as Record<string, unknown>).checks).toBeUndefined();
 
     // Approving needs the page's confirmation in the body.
     expect((await send(`/api/tasks/${id}/approve`, { method: 'POST', body: {} })).status).toBe(400);

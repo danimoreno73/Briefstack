@@ -2,16 +2,17 @@ import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { updateConfig } from '../../src/config/index.js';
+import { setProjectChecks } from '../../src/tasks/checks.js';
 import { testGit } from '../improveWorld.js';
 import { SESSION_DONE, clickNav, codeProject, expect, recordProject, test, type App } from './fixtures.js';
 
 // Tasks in existing projects (BRIEF-phase-7 §5) over the fake task runner,
-// with the real wiring: declared checks, validations, apply and revert on a
-// temp git repository.
+// with the real wiring: declared checks (run from the proposal page only),
+// validations, apply and revert on a temp git repository.
 
 /**
- * A round's end runs git several times and then the checks; on a busy
- * Windows runner that alone can pass the default 5 s.
+ * A round's end runs git several times, and the checks take a while too; on
+ * a busy Windows runner that alone can pass the default 5 s.
  */
 const CHECKED = { timeout: 30_000 };
 
@@ -104,9 +105,25 @@ test.describe('started from the project page', () => {
     await expect(page.getByTestId('task-summary')).toContainText('Added CHANGES.md.');
     await expect(page.getByTestId('task-diff')).toContainText('CHANGES.md');
     await expect(page.getByTestId('task-diff-CHANGES.md')).toContainText('A changelog.');
+    // The checks wait for the user: not run until the button and its confirmation, which names them.
     const checks = page.getByTestId('task-check-results');
-    await expect(checks.locator('[data-ok="yes"]')).toHaveText('passed');
+    await expect(checks.getByTestId('task-checks-not-run')).toContainText('You can approve without them.');
+    await expect(checks.locator('[data-ok]')).toHaveCount(0);
+    await checks.getByTestId('task-run-checks').click();
+    const runDialog = page.getByRole('dialog');
+    await expect(runDialog).toContainText(`${nodeCheck('process.exit(0)')} · ${nodeCheck('process.exit(3)')}`);
+    await expect(runDialog).toContainText('They run the code this task changed, on your computer');
+    await expect(runDialog).toContainText('no network is not guaranteed');
+    // Cancelled: nothing runs.
+    await runDialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(checks.getByTestId('task-checks-not-run')).toBeVisible();
+    expect((await app.tasks.get(id)).checks).toBeUndefined();
+    await checks.getByTestId('task-run-checks').click();
+    await confirmDialog(page, 'Run the checks');
+    await expect(checks.locator('[data-ok="yes"]')).toHaveText('passed', CHECKED);
     await expect(checks.locator('[data-ok="no"]')).toHaveText('failed (exit code 3)');
+    await expect(state(page)).toHaveText('Waiting for review');
+    await expect(checks.getByTestId('task-run-checks')).toHaveText('Run the checks again');
     await expect(page.getByTestId('task-validations')).toContainText('Nothing found.');
 
     // Approve: one commit on main in the project folder, named after the task.
@@ -202,6 +219,35 @@ test.describe('asking for changes and discarding', () => {
     await expect(stat(path.join(app.home, 'tasks', id, 'work'))).rejects.toMatchObject({ code: 'ENOENT' });
     expect(await log(project, 1)).toEqual(['Prepare the project with briefstack']);
     await expect(page.getByTestId('task-approve')).toHaveCount(0);
+  });
+});
+
+test.describe('approving without the checks', () => {
+  test('the page says they did not run, and approving applies the change without running them', async ({ page, app }) => {
+    const project = await codeProject(app, 'shed', 'Tool shed');
+    await setProjectChecks({ libraryDir: app.libraryDir, home: app.home, slug: 'shed', commands: [nodeCheck('process.exit(0)')] });
+    const id = await startTask(page, app, 'shed', 'Add a changelog.');
+    await finishRound(page);
+    const checks = page.getByTestId('task-check-results');
+    await expect(checks.getByTestId('task-checks-not-run')).toContainText('Not run.');
+    await expect(checks.getByTestId('task-run-checks')).toHaveText('Run the checks');
+
+    await page.getByTestId('task-approve').click();
+    await confirmDialog(page, 'Approve');
+    await expect(state(page)).toHaveText('Applied', CHECKED);
+    expect(await log(project, 1)).toEqual(['Add a changelog.']);
+    expect((await app.tasks.get(id)).checks).toBeUndefined();
+    // An applied task offers no checks to run.
+    await expect(page.getByTestId('task-run-checks')).toHaveCount(0);
+  });
+
+  test('a project without confirmed checks has no button', async ({ page, app }) => {
+    await codeProject(app, 'shed', 'Tool shed');
+    await startTask(page, app, 'shed', 'Add a changelog.');
+    await finishRound(page);
+    await expect(page.getByTestId('task-checks-not-run')).toContainText('The project has no confirmed checks.');
+    await expect(page.getByTestId('task-run-checks')).toHaveCount(0);
+    await expect(page.getByTestId('task-approve')).toBeEnabled();
   });
 });
 
