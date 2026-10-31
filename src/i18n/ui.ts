@@ -90,7 +90,8 @@ export const uiMessages = defineCatalogue({
         'task.mergeDrivers': 'The project configures git merge drivers, which would run while the change is applied. Tasks cannot be applied there.',
         'task.unsafeChanges': `The task’s copy now has ${p.items} file(s) a task session cannot load safely (hooks, MCP servers, a permission mode, skills from elsewhere, or a settings file), so no new round starts. Discard the task.`,
         'task.worktreeChanged': 'The task’s copy no longer points at the project’s repository and the task’s branch, so the server does not touch it. Discard the task.',
-        'task.branchChanged': 'The task’s branch changed after its checks ran, so it is not the change shown here. Ask for changes to check it again, or discard the task.',
+        'task.branchChanged': 'The task’s branch changed after the server checked it, so it is not the change shown here. Ask for changes to check it again, or discard the task.',
+        'task.noChecks': 'The project has no confirmed checks. Set them on the project page first.',
       })[code],
     errSecret: (lines: readonly number[]) =>
       `The note looks like it contains a secret (line ${lines.join(', ')}). Remove it and save again. Nothing was saved.`,
@@ -1064,7 +1065,8 @@ export const uiMessages = defineCatalogue({
         'task.mergeDrivers': 'El proyecto configura merge drivers de git, que se ejecutarían al aplicar el cambio. Ahí no se pueden aplicar tareas.',
         'task.unsafeChanges': `La copia de la tarea tiene ahora ${p.items} archivo(s) que una sesión de tarea no puede cargar con seguridad (hooks, servidores MCP, un modo de permisos, skills de fuera o un archivo de ajustes), así que no empieza otra ronda. Descarta la tarea.`,
         'task.worktreeChanged': 'La copia de la tarea ya no apunta al repositorio del proyecto ni a la rama de la tarea, así que el servidor no la toca. Descarta la tarea.',
-        'task.branchChanged': 'La rama de la tarea cambió después de sus comprobaciones, así que no es el cambio que se muestra aquí. Pide cambios para comprobarla de nuevo, o descarta la tarea.',
+        'task.branchChanged': 'La rama de la tarea cambió después de que el servidor la comprobara, así que no es el cambio que se muestra aquí. Pide cambios para comprobarla de nuevo, o descarta la tarea.',
+        'task.noChecks': 'El proyecto no tiene comprobaciones confirmadas. Defínelas antes en la página del proyecto.',
       })[code],
     errSecret: (lines: readonly number[]) =>
       `La nota parece contener un secreto (línea ${lines.join(', ')}). Quítalo y guarda otra vez. No se ha guardado nada.`,

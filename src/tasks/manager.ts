@@ -10,7 +10,8 @@ import type { Effort } from '../models.js';
 import { hideAbsolutePaths, projectEvent } from '../panel/project.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { applyTask, discardTask, revertTask, type ApplyDeps } from './apply.js';
-import { allFiles, branchHead, commitRound, createTaskWorktree, isTaskWorktree, removeTaskWorktree } from './git.js';
+import type { TaskChecks } from './checks.js';
+import { allFiles, branchHead, commitRound, createTaskWorktree, headOf, isTaskWorktree, removeTaskWorktree, restoreToHead } from './git.js';
 import { proposalDiff, type ProposalDiff } from './proposal.js';
 import { checkTaskPreconditions } from './preconditions.js';
 import { roundPrompt, type TaskRunner, type TaskRunnerEvent, type TaskRunnerHandle, type TaskRunnerOutcome } from './runner.js';
@@ -92,6 +93,8 @@ export interface TaskManagerOptions {
   maxActive?: () => number | Promise<number>;
   /** Runs after each round that ended: the declared checks and the validations (M5). Without it, none. */
   afterRound?: (task: TaskRecord, worktree: string) => Promise<AfterRoundResult>;
+  /** The project's confirmed checks, run only by `runChecks`, when the user asks on the proposal page. Without it, none. */
+  checks?: TaskChecks;
   pathEnv?: PathEnv;
   now?: () => Date;
   /** How often `events.jsonl` is read. Default 300 ms. */
@@ -132,6 +135,8 @@ interface Live {
   acting: Promise<unknown>;
   /** Settles once the last round's end was recorded. */
   roundEnded: Promise<void>;
+  /** Settles once the checks the user last asked for were recorded. */
+  checksDone: Promise<void>;
 }
 
 const questionAnswerSchema = z.record(z.string(), z.string().trim().min(1));
@@ -269,12 +274,18 @@ export class TaskManager {
   /**
    * After a server start: tasks the last server left running are
    * interrupted (their worktree stays; the user can ask for a new round or
-   * discard them).
+   * discard them). A task whose checks the user asked for were cut short
+   * goes back to its proposal without results; nothing runs them again.
    */
   async recover(): Promise<number> {
     let count = 0;
     for (const record of await this.options.store.list()) {
       if (!isActiveTask(record.state) || this.live.has(record.id)) continue;
+      if (record.state === 'checking' && record.reviewed !== undefined) {
+        await this.options.store.save(await this.backToProposal(record));
+        count += 1;
+        continue;
+      }
       const round = record.rounds.at(-1);
       if (round !== undefined && round.finishedAt === undefined) {
         round.finishedAt = this.now().toISOString();
@@ -286,6 +297,24 @@ export class TaskManager {
     return count;
   }
 
+  /** A proposal whose checks were cut short, as it was before them: what they left is removed, in a worktree still the task's on the reviewed commit. */
+  private async backToProposal(record: TaskRecord): Promise<TaskRecord> {
+    const next: TaskRecord = { ...record, state: 'proposal', updatedAt: this.now().toISOString() };
+    delete next.checks;
+    const worktree = this.options.store.worktreeDir(record.id);
+    try {
+      if (!(await isTaskWorktree(worktree, record.projectDir, record.branch))) throw new BriefstackError('task.worktreeChanged', { id: record.id });
+      await restoreToHead(worktree);
+      if ((await branchHead(record.projectDir, record.branch)) !== record.reviewed) throw new BriefstackError('task.branchChanged', { id: record.id });
+    } catch (error) {
+      next.state = 'failed';
+      delete next.reviewed;
+      delete next.validations;
+      next.error = this.clean(isBriefstackError(error) ? formatError(error, await this.options.lang()) : error instanceof Error ? error.message : String(error));
+    }
+    return next;
+  }
+
   /** Stops every round; what was running is interrupted. */
   async shutdown(): Promise<void> {
     await Promise.all(
@@ -295,6 +324,7 @@ export class TaskManager {
           await l.handle.stop().catch(() => undefined);
         }
         await l.roundEnded;
+        await l.checksDone;
       }),
     );
   }
@@ -329,6 +359,33 @@ export class TaskManager {
     });
   }
 
+  /**
+   * Runs the project's confirmed checks on the commit the user reviewed,
+   * only when the user asks on the proposal page after seeing the diff
+   * (decisions.md, S8): they run code the session changed. The task is
+   * `checking` meanwhile, which counts against the shared limit, and back on
+   * its proposal with the results when they end. Returns once they started.
+   */
+  runChecks(id: string): Promise<TaskView> {
+    return this.act(id, async (record) => {
+      if (record.state !== 'proposal' || record.reviewed === undefined) throw new BriefstackError('task.wrongState', { id, state: record.state });
+      const commands = (await this.options.checks?.commands(record)) ?? [];
+      if (commands.length === 0) throw new BriefstackError('task.noChecks', { id, project: record.project });
+      const l = this.live.get(id) ?? this.adopt(record);
+      const limit = await this.limit();
+      const active = [...this.activeIds(), ...(this.options.creations?.activeIds() ?? [])];
+      if (active.length >= limit) throw new BriefstackError('task.limit', { limit, active });
+      l.record.state = 'checking';
+      delete l.record.checks;
+      delete l.record.error;
+      l.record.updatedAt = this.now().toISOString();
+      await this.options.store.save(l.record);
+      this.pushStatus(l);
+      l.checksDone = this.checkNow(l, l.record.reviewed as string, commands).catch(() => undefined);
+      return this.view(l);
+    });
+  }
+
   /** Approve on the proposal page: one commit on the default branch (BRIEF §3.5). */
   approve(id: string): Promise<TaskView> {
     return this.act(id, async (record) => this.update(await applyTask(record, await this.applyDeps())));
@@ -348,19 +405,25 @@ export class TaskManager {
     });
   }
 
-  /** What the proposal page shows: the task and its diff (the applied commit's, once applied). */
-  async proposal(id: string): Promise<{ task: TaskView; diff: ProposalDiff | null }> {
+  /**
+   * What the proposal page shows: the task and its diff (the applied
+   * commit's, once applied), and for a proposal the project's confirmed
+   * checks, which run only when the user asks there.
+   */
+  async proposal(id: string): Promise<{ task: TaskView; diff: ProposalDiff | null; checkCommands?: string[] }> {
     const task = await this.get(id);
     let diff: ProposalDiff | null = null;
+    const reviewing = (task.state === 'proposal' || task.state === 'checking') && task.reviewed !== undefined;
     try {
-      // A proposal shows the commit its checks ran on, the one approving applies.
-      if (task.state === 'proposal' && task.reviewed !== undefined) diff = await proposalDiff(task.projectDir, task.baseCommit, task.reviewed);
+      // A proposal shows the commit the server checked, the one the checks run on and approving applies.
+      if (reviewing && task.reviewed !== undefined) diff = await proposalDiff(task.projectDir, task.baseCommit, task.reviewed);
       else if (['proposal', 'failed', 'cancelled', 'interrupted', 'checking'].includes(task.state)) diff = await proposalDiff(task.projectDir, task.baseCommit, `refs/heads/${task.branch}`);
       else if (task.applied !== undefined) diff = await proposalDiff(task.projectDir, `${task.applied.commit}^`, task.applied.commit);
     } catch {
       diff = null;
     }
-    return { task, diff };
+    if (!reviewing) return { task, diff };
+    return { task, diff, checkCommands: (await this.options.checks?.commands(task).catch(() => [])) ?? [] };
   }
 
   /**
@@ -493,6 +556,7 @@ export class TaskManager {
       writeChain: Promise.resolve(),
       acting: Promise.resolve(),
       roundEnded: Promise.resolve(),
+      checksDone: Promise.resolve(),
     };
     l.approvals = new TaskApprovals(path.join(this.options.store.taskDir(record.id), 'approvals'), (request) => this.ask(l, request));
     this.live.set(record.id, l);
@@ -614,6 +678,45 @@ export class TaskManager {
         record.state = 'failed';
         record.error = this.clean(isBriefstackError(error) ? formatError(error, await this.options.lang()) : error instanceof Error ? error.message : String(error));
       }
+    }
+    record.updatedAt = this.now().toISOString();
+    await this.options.store.save(record);
+    this.pushStatus(l);
+  }
+
+  /**
+   * The checks the user asked for, in the worktree on the reviewed commit:
+   * before and after, the worktree must still be the task's and the branch
+   * still on that commit (S4, S6); the worktree is put back to it before
+   * they run and after.
+   */
+  private async checkNow(l: Live, reviewed: string, commands: readonly string[]): Promise<void> {
+    const { record } = l;
+    const worktree = this.options.store.worktreeDir(record.id);
+    const own = async () => {
+      if (!(await isTaskWorktree(worktree, record.projectDir, record.branch))) throw new BriefstackError('task.worktreeChanged', { id: record.id });
+    };
+    const onReviewed = async () => {
+      if ((await branchHead(record.projectDir, record.branch)) !== reviewed || (await headOf(worktree)) !== reviewed) throw new BriefstackError('task.branchChanged', { id: record.id });
+    };
+    try {
+      await own();
+      await onReviewed();
+      // Only the reviewed commit's files: nothing a process left since the round ended.
+      await restoreToHead(worktree);
+      const results = (await this.options.checks?.run(worktree, commands)) ?? [];
+      // The checks ran project code: the server's git cleans up only a worktree that is still the task's.
+      await own();
+      await restoreToHead(worktree);
+      await onReviewed();
+      record.checks = results;
+      record.state = 'proposal';
+    } catch (error) {
+      record.state = 'failed';
+      delete record.reviewed;
+      delete record.checks;
+      delete record.validations;
+      record.error = this.clean(isBriefstackError(error) ? formatError(error, await this.options.lang()) : error instanceof Error ? error.message : String(error));
     }
     record.updatedAt = this.now().toISOString();
     await this.options.store.save(record);

@@ -153,6 +153,7 @@ export interface ErrorParams {
   'task.unsafeChanges': { id: string; items: { file: string; reason: 'hooks' | 'mcpServers' | 'permissionMode' | 'foreignSkills' | 'unreadable' | 'settings' }[] };
   'task.worktreeChanged': { id: string };
   'task.branchChanged': { id: string };
+  'task.noChecks': { id: string; project: string };
   'task.invalidCheck': { command: string; problem: string };
   'task.notOnBranch': { project: string; branch: string; current: string };
   'task.dirtyFolder': { project: string; paths: string[] };

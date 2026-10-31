@@ -12,7 +12,9 @@ export const TASK_ID_RE = /^[a-z0-9]{6,12}-[a-f0-9]{4}$/;
 
 /**
  * - `running`: a round's session is working (or waiting for the user).
- * - `checking`: the session ended; the server runs the declared checks.
+ * - `checking`: the session ended and the server commits and validates the
+ *   round; or, from a proposal (`reviewed` set), the declared checks the
+ *   user asked for run.
  * - `proposal`: the change waits on the proposal page.
  * - `applied`: one commit on the default branch; the worktree is gone.
  * - `reverted`: the applied commit was reverted.

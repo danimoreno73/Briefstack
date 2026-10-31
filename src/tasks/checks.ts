@@ -209,6 +209,24 @@ function runOne(cwd: string, command: string, env: NodeJS.ProcessEnv, timeoutMs:
   });
 }
 
+/** A project's confirmed checks and how they run, for the task manager. */
+export interface TaskChecks {
+  /** The confirmed commands of the task's project, in order; none when its note is missing. */
+  commands(task: { project: string }): Promise<string[]>;
+  run(worktree: string, commands: readonly string[]): Promise<CheckResult[]>;
+}
+
+/** The task manager's checks: the library's note and the home's confirmations, read each time. */
+export function taskChecksWith(deps: { libraryDir: () => Promise<string>; home: string; options?: RunChecksOptions }): TaskChecks {
+  return {
+    commands: async (task) => {
+      const declared = await projectChecks({ libraryDir: await deps.libraryDir(), home: deps.home, slug: task.project }).catch(() => []);
+      return declared.filter((check) => check.confirmed).map((check) => check.command);
+    },
+    run: (worktree, commands) => runChecks(worktree, commands, deps.options),
+  };
+}
+
 /** Runs the commands one after the other in the worktree, each with its timeout, and keeps every result. */
 export async function runChecks(worktree: string, commands: readonly string[], options: RunChecksOptions = {}): Promise<CheckResult[]> {
   const env = options.env ?? checkEnv(process.env);

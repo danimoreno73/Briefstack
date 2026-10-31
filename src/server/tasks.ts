@@ -38,9 +38,9 @@ export interface TaskRouteOptions {
 }
 
 /**
- * Task routes (docs/api.md, "Tasks"). Approve, ask for changes, discard and
- * revert are here only, for the proposal page; the chat has no tool for
- * them (BRIEF-phase-7 §3.6). Without a manager every task route answers 503
+ * Task routes (docs/api.md, "Tasks"). Approve, ask for changes, discard,
+ * revert and running the checks are here only, for the proposal page; the
+ * chat has no tool for them (BRIEF-phase-7 §3.6). Without a manager every task route answers 503
  * `task.unavailable`.
  */
 export function taskRoutes(manager: TaskManager | undefined, options: TaskRouteOptions): RouteTable {
@@ -130,6 +130,14 @@ export function taskRoutes(manager: TaskManager | undefined, options: TaskRouteO
       async (req, res, params) => {
         await readJsonBody(req, confirmBody);
         sendJson(res, 200, await need().approve(id(params)));
+      },
+    ],
+    [
+      'POST /api/tasks/:id/checks',
+      async (req, res, params) => {
+        // The declared checks run code the session changed: only from the proposal page, after the user saw the diff (S8).
+        await readJsonBody(req, confirmBody);
+        sendJson(res, 202, await need().runChecks(id(params)));
       },
     ],
     [

@@ -175,6 +175,7 @@ describe('error catalogue', () => {
     'task.unsafeChanges': { id: 'abc123-0f0f', items: [{ file: '.claude/settings.json', reason: 'settings' }] },
     'task.worktreeChanged': { id: 'abc123-0f0f' },
     'task.branchChanged': { id: 'abc123-0f0f' },
+    'task.noChecks': { id: 'abc123-0f0f', project: 'garden' },
     'creation.noSpec': { id: 'c1' },
     'creation.claudeNotFound': {},
     'creation.slashCommandMissing': { command: 'new-project' },

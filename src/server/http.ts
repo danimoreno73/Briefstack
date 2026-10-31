@@ -91,6 +91,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'task.unsafeChanges': 409,
   'task.worktreeChanged': 409,
   'task.branchChanged': 409,
+  'task.noChecks': 409,
   'creation.wrongPending': 409,
   'creation.noSpec': 404,
   'skills.unavailable': 503,

@@ -7,6 +7,7 @@ import { startWebServer, TOKEN_HEADER, type WebServer } from '../../src/server/i
 import { TaskFakeRunner } from '../../src/tasks/fakeRunner.js';
 import { TaskManager } from '../../src/tasks/manager.js';
 import { afterRoundWith } from '../../src/tasks/afterRound.js';
+import { taskChecksWith } from '../../src/tasks/checks.js';
 import { useHermeticGit, writeTree } from '../helpers.js';
 import { gitIn, taskWorld, type TaskWorld } from '../taskWorld.js';
 
@@ -81,6 +82,7 @@ async function start(withTasks = true): Promise<void> {
       profile: async () => ({ name: 'saver', model: 'sonnet', effort: 'low' }),
       pollMs: 10,
       afterRound: afterRoundWith({ libraryDir: async () => world.library, home: world.home }),
+      checks: taskChecksWith({ libraryDir: async () => world.library, home: world.home }),
     });
   }
   server = await startWebServer({ port: 0, uiDir: path.join(world.dir, 'ui'), token: TOKEN, lang: 'en', pathEnv, repoDir: world.repo, ...(manager === undefined ? {} : { tasks: manager }) });
@@ -154,6 +156,33 @@ describe('task API', { timeout: 60_000 }, () => {
     const discarded = await send(`/api/tasks/${id}/discard`, { method: 'POST', body: { confirm: true } });
     expect(discarded.json).toMatchObject({ state: 'discarded' });
     expect((await gitIn(project, 'branch', '--list', 'briefstack/*')).trim()).toBe('');
+  });
+
+  it('runs the confirmed checks only when asked with the confirmation, from the proposal', async () => {
+    await world.project('garden');
+    await world.initLibrary();
+    await start();
+    const id = (await send('/api/tasks', { method: 'POST', body: { project: 'garden', description: 'Add a changelog.' } })).json.id as string;
+    expect((await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { confirm: true } })).json).toMatchObject({ code: 'task.wrongState' });
+    await until(async () => (await send(`/api/tasks/${id}`)).json.pending !== undefined, 'the dialog');
+    const pending = (await send(`/api/tasks/${id}`)).json.pending as { id: string };
+    await send(`/api/tasks/${id}/answer`, { method: 'POST', body: { pendingId: pending.id, answer: 'once' } });
+    await until(async () => (await send(`/api/tasks/${id}`)).json.awaitingReply !== undefined, 'the turn');
+    await send(`/api/tasks/${id}/finish`, { method: 'POST' });
+    await until(async () => (await send(`/api/tasks/${id}`)).json.state === 'proposal', 'the proposal');
+    expect((await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { confirm: true } })).json).toMatchObject({ code: 'task.noChecks' });
+    expect((await send(`/api/tasks/${id}/proposal`)).json.checkCommands).toEqual([]);
+
+    const command = 'node -e "process.exit(4)"';
+    await send('/api/projects/garden/checks', { method: 'PUT', body: { commands: [command], confirm: true } });
+    expect((await send(`/api/tasks/${id}/proposal`)).json.checkCommands).toEqual([command]);
+    expect((await send(`/api/tasks/${id}/checks`, { method: 'POST', body: {} })).status).toBe(400);
+    expect((await send(`/api/tasks/${id}/checks`, { method: 'POST' })).status).toBe(415);
+    expect((await send(`/api/tasks/${id}`)).json.state).toBe('proposal');
+    const started = await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { confirm: true } });
+    expect(started).toMatchObject({ status: 202, json: { state: 'checking' } });
+    await until(async () => (await send(`/api/tasks/${id}`)).json.state === 'proposal', 'the checks');
+    expect((await send(`/api/tasks/${id}`)).json.checks).toMatchObject([{ command, exitCode: 4 }]);
   });
 
   it('refuses a claude-app project with its reason, sets confirmed checks, and offers git init only to a folder outside git', async () => {
