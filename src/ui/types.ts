@@ -398,6 +398,8 @@ export interface TaskViewUi {
   rounds: { n: number; text: string; startedAt: string; finishedAt?: string; sessionId?: string; outcome?: string; commit?: string; summary?: string; error?: string }[];
   checks?: { command: string; exitCode: number | null; timedOut: boolean; output: string; durationMs: number }[];
   validations?: { kind: string; level: 'error' | 'warning'; file: string; detail?: string }[];
+  /** The commit the server checked at the round's end: the one the page shows and the checks run on. */
+  reviewed?: string;
   applied?: { commit: string; at: string };
   reverted?: { commit: string; at: string };
   error?: string;
@@ -414,6 +416,8 @@ export interface TaskViewUi {
 export interface TaskProposalUi {
   task: TaskViewUi;
   diff: { files: { path: string; status: string; added: number; removed: number; hunks: DiffHunkView[]; shown: boolean }[]; more: number } | null;
+  /** For a proposal: the project's confirmed checks, which run only when the user asks on this page. */
+  checkCommands?: string[];
 }
 
 export interface ProjectTasksUi {

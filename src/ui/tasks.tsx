@@ -352,7 +352,7 @@ function RoundControls({ task, onDone }: { task: TaskViewUi; onDone(): void }) {
   return (
     <section class="card" aria-live="polite" data-testid="task-round">
       {action.error !== undefined && <ErrorNote error={action.error} />}
-      {task.state === 'checking' && <p data-testid="task-checking">{t.taskChecking}</p>}
+      {task.state === 'checking' && <p data-testid="task-finishing">{t.taskFinishing}</p>}
       {task.state === 'running' && turn === undefined && task.pending === undefined && <p data-testid="task-working">{task.cancelling === true ? t.taskCancelling : t.taskWorking}</p>}
       {task.state === 'running' && turn !== undefined && (
         <div class="stack-2" data-testid="task-turn-ended">
@@ -470,7 +470,73 @@ function ProposalActions({ task, onDone }: { task: TaskViewUi; onDone(): void })
   );
 }
 
-function ProposalBody({ data }: { data: TaskProposalUi }) {
+/**
+ * The declared checks of a proposal: they run only when the user presses
+ * the button after reading the diff, and confirms the exact commands
+ * (decisions.md, S8). Approving does not wait for them.
+ */
+function CheckResults({ data, onDone }: { data: TaskProposalUi; onDone(): void }) {
+  const { t } = useApp();
+  const send = useSend();
+  const action = useAction();
+  const [confirm, setConfirm] = useState(false);
+  const { task } = data;
+  const commands = data.checkCommands;
+  const reviewing = task.reviewed !== undefined && (task.state === 'proposal' || task.state === 'checking');
+  if (!reviewing && task.checks === undefined) return null;
+  return (
+    <section class="card" aria-labelledby="checks-title" data-testid="task-check-results">
+      <h2 class="t-2" id="checks-title">
+        {t.taskChecksResults}
+      </h2>
+      {action.error !== undefined && <ErrorNote error={action.error} />}
+      {task.state === 'checking' ? (
+        <p aria-live="polite" data-testid="task-checking">
+          {t.taskChecking}
+        </p>
+      ) : task.checks === undefined ? (
+        <Note tone="warn" testId="task-checks-not-run">
+          {commands !== undefined && commands.length === 0 ? t.taskChecksNoneConfirmed : t.taskChecksNotRun}
+        </Note>
+      ) : task.checks.length === 0 ? (
+        <p class="muted">{t.taskNoChecks}</p>
+      ) : (
+        task.checks.map((check) => (
+          <details key={check.command} class="stack-2" open={check.exitCode !== 0}>
+            <summary>
+              <code>{check.command}</code> — <span data-ok={check.exitCode === 0 ? 'yes' : 'no'}>{t.taskCheckResult(check.exitCode, check.timedOut)}</span>{' '}
+              <span class="faint">{formatDuration(check.durationMs)}</span>
+            </summary>
+            {check.output !== '' && <pre class="request request-clip">{check.output}</pre>}
+          </details>
+        ))
+      )}
+      {task.state === 'proposal' && commands !== undefined && commands.length > 0 && (
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" disabled={action.busy} onClick={() => setConfirm(true)} data-testid="task-run-checks">
+            {task.checks === undefined ? t.taskChecksRun : t.taskChecksRunAgain}
+          </button>
+        </div>
+      )}
+      {confirm && commands !== undefined && (
+        <ConfirmModal
+          title={t.taskChecksRunTitle}
+          body={t.taskChecksRunBody(commands.join(' · '))}
+          confirmLabel={t.taskChecksRun}
+          cancelLabel={t.cancel}
+          tone="danger"
+          onConfirm={() => {
+            setConfirm(false);
+            void action.run(() => send('POST', `/api/tasks/${task.id}/checks`, { confirm: true })).then(onDone);
+          }}
+          onCancel={() => setConfirm(false)}
+        />
+      )}
+    </section>
+  );
+}
+
+function ProposalBody({ data, onDone }: { data: TaskProposalUi; onDone(): void }) {
   const { t } = useApp();
   const { task, diff } = data;
   const round = task.rounds.at(-1);
@@ -485,26 +551,7 @@ function ProposalBody({ data }: { data: TaskProposalUi }) {
           <pre class="request request-clip">{round.summary}</pre>
         </section>
       )}
-      {task.checks !== undefined && (
-        <section class="card" aria-labelledby="checks-title" data-testid="task-check-results">
-          <h2 class="t-2" id="checks-title">
-            {t.taskChecksResults}
-          </h2>
-          {task.checks.length === 0 ? (
-            <p class="muted">{t.taskNoChecks}</p>
-          ) : (
-            task.checks.map((check) => (
-              <details key={check.command} class="stack-2" open={check.exitCode !== 0}>
-                <summary>
-                  <code>{check.command}</code> — <span data-ok={check.exitCode === 0 ? 'yes' : 'no'}>{t.taskCheckResult(check.exitCode, check.timedOut)}</span>{' '}
-                  <span class="faint">{formatDuration(check.durationMs)}</span>
-                </summary>
-                {check.output !== '' && <pre class="request request-clip">{check.output}</pre>}
-              </details>
-            ))
-          )}
-        </section>
-      )}
+      <CheckResults data={data} onDone={onDone} />
       {task.validations !== undefined && (
         <section class="card" aria-labelledby="validations-title" data-testid="task-validations">
           <h2 class="t-2" id="validations-title">
@@ -558,6 +605,7 @@ export function TaskPage({ id }: { id: string }) {
       {(data) => {
         const view = data.task;
         const round = view.rounds.at(-1);
+        const checksRunning = view.state === 'checking' && view.reviewed !== undefined;
         return (
           <>
             <header class="page-head">
@@ -600,9 +648,10 @@ export function TaskPage({ id }: { id: string }) {
               {view.reverted !== undefined && <Note tone="plain" testId="task-reverted">{t.taskReverted(shortSha(view.reverted.commit), formatWhen(view.reverted.at, lang))}</Note>}
               <ApprovalDialog task={view} onDone={loaded.reload} />
               <QuestionDialog task={view} onDone={loaded.reload} />
-              {LIVE.has(view.state) && <RoundControls task={view} onDone={loaded.reload} />}
+              {/* While the checks the user asked for run, the page keeps the diff they run on. */}
+              {LIVE.has(view.state) && !checksRunning && <RoundControls task={view} onDone={loaded.reload} />}
               <ProposalActions task={view} onDone={loaded.reload} />
-              {!LIVE.has(view.state) && <ProposalBody data={data} />}
+              {(!LIVE.has(view.state) || checksRunning) && <ProposalBody data={data} onDone={loaded.reload} />}
             </div>
           </>
         );
