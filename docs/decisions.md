@@ -4956,6 +4956,26 @@ milestone.
 for a click on the proposal page; the choices made without the user in
 that work are in "Phase 7: S8, the checks wait for a click" below.
 
+**M8b, fixes from its review (2026-10-31).** Choices made without the
+user, the most conservative each (the fixes themselves are in "Phase 7:
+S8, the checks wait for a click"):
+
+- **I1:** a list of other length, order or text is refused the same way
+  (`task.checksChanged`); a project with no confirmed check still answers
+  `task.noChecks` first. A body without `commands` is `400`.
+- **I1, the page:** after `task.checksChanged` it shows the error and
+  opens the confirmation again only once it has the new list, never with
+  the old one.
+- **M2:** the 15-second limit applies to the wait for checks only; the
+  wait for a round that is ending is as before. A check ended by a stop
+  records no result, not even a partial one.
+- **M6:** the project page's "Save these checks?" dialog lists its
+  commands one per line too (it had the same `' · '` join), for the same
+  reason. The decision record above quotes the old dialog text as it was.
+- **Not done (optional in the review):** disabling the checks button
+  while another proposal action runs; the server's lock already makes
+  them wait for each other.
+
 ## Phase 7: security review (2026-10-30)
 
 A review of the phase's code (`phase-7-start..HEAD`, about 5,000 lines of
@@ -5056,6 +5076,53 @@ Choices made without the user, the most conservative each:
   commands, confirmed by hash, and the dialog must show exactly what runs.
 - **Text:** "branch changed after its checks ran" now says "after the
   server checked it", since a branch can move before any check runs.
+
+**Fixes from the review of that work (2026-10-31).** The user accepted the
+edits of BRIEF §2.8 and §3.6 as made, and asked that a server stop kill
+the running checks (M2). Each finding was first reproduced; the tests
+named below fail without the fix.
+
+- **I1, the confirmation names what runs (`59a8458`).** The dialog showed
+  the list read when the page loaded, and the request carried only
+  `{"confirm": true}`: the server ran whatever the confirmed list was by
+  then (another tab, or the file rewritten). `POST /api/tasks/:id/checks`
+  now takes `{ commands, confirm: true }`, the list the dialog showed;
+  when the project's confirmed checks are no longer exactly that list
+  (order included), it answers `409 task.checksChanged`, runs nothing and
+  the task stays on `proposal`. The page then loads the list again and
+  shows its confirmation again with the list as it is now. The list
+  itself, not hashes: the page already holds it, the server compares it
+  with what it would run, and a hash would add nothing the user sees.
+- **I2, one action at a time per task, also before the server loads it
+  (`5743803`).** `act()` queued actions only on a task already in memory;
+  after a server start, approve and "run the checks" on the same task
+  could both pass, and the checks then saved their stale record (failed,
+  once the worktree was gone) over the applied one. Discard and a new
+  round had the same flaw (the reproduction showed git failing on the
+  removed worktree). The lock is now the task's id, taken before the
+  record is read, and each action reads the record its turn finds. No
+  change to the states or to what each action does.
+- **M2, a server stop kills the running checks (`17f4074`).** `shutdown()`
+  waited without a limit (up to 10 minutes per command). It now aborts
+  them: the command's process tree is ended (`killProcessTree`, as the
+  timeout does), no other command starts, nothing is recorded, and the
+  wait is bounded (15 s, the creations' limit). The task is left
+  `checking`, as an abrupt stop leaves it, and the next start's
+  `recover()` puts it back on its proposal without results.
+- **M1, the invariant shown by behaviour (`05903e5`).** Every chat tool
+  (read tools called, action tools proposed and performed) and every
+  task route but the proposal page's run with a spy in place of the
+  checks: none calls it. Only the task routes and the chat's tools hold
+  the task manager (`server.ts` passes it to `taskRoutes` only), so other
+  routes cannot reach the checks. `checks.ts` no longer exports
+  `runChecks`, which spawns, nor unused constants; a test pins its runtime
+  exports and who imports what from it, aliases included.
+- **M6, texts (`0e6021c`).** The confirmations list the commands one per
+  line; the run dialog says a program can ignore the proxies "and still
+  reach the network" (it said "no network is not guaranteed"), in both
+  languages; `show_task`'s description and the chat's system prompt say
+  what `ran: false` means while checking, and that running the checks is
+  on the task's page only.
 
 ## `briefstack paths rewrite` (2026-10-30)
 
