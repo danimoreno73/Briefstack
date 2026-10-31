@@ -150,6 +150,8 @@ describe('task tools of the chat', { timeout: 60_000 }, () => {
       checks: { ran: false },
       validations: [],
     });
+    // The model is told what `ran: false` means while the task is checking: still at work, not "will not run".
+    expect(findChatTool('show_task')?.description).toMatch(/while the state is `checking`, `ran: false` means the server is still at work/);
     // Once the user ran them on the page: how many failed, each exit code, no output.
     await manager.shutdown();
     manager = new TaskManager({

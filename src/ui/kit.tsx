@@ -144,13 +144,15 @@ export interface ModalProps {
   onCancel(): void;
   /** `danger` (the default) for what stops, destroys or undoes something; `normal` for the rest, like approving. */
   tone?: 'danger' | 'normal';
+  /** Exact values the body introduces (commands, say), one per line, as code. */
+  items?: readonly string[];
 }
 
 /**
  * A modal confirmation. Focus starts on the button that backs out; Escape
  * backs out too.
  */
-export function ConfirmModal({ title, body, confirmLabel, cancelLabel, onConfirm, onCancel, tone = 'danger' }: ModalProps) {
+export function ConfirmModal({ title, body, confirmLabel, cancelLabel, onConfirm, onCancel, tone = 'danger', items }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const keep = useRef<HTMLButtonElement>(null);
   // Before the browser paints, so the dialog never shows with focus still behind it.
@@ -173,6 +175,15 @@ export function ConfirmModal({ title, body, confirmLabel, cancelLabel, onConfirm
         {title}
       </h2>
       <p class="t-small muted">{body}</p>
+      {items !== undefined && items.length > 0 && (
+        <ul class="plain-list" data-testid="confirm-items">
+          {items.map((item, i) => (
+            <li key={`${i}-${item}`}>
+              <code>{item}</code>
+            </li>
+          ))}
+        </ul>
+      )}
       <div class="btn-row">
         <button ref={keep} type="button" class="btn btn-secondary" onClick={onCancel}>
           {cancelLabel}

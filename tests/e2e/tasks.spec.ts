@@ -111,9 +111,10 @@ test.describe('started from the project page', () => {
     await expect(checks.locator('[data-ok]')).toHaveCount(0);
     await checks.getByTestId('task-run-checks').click();
     const runDialog = page.getByRole('dialog');
-    await expect(runDialog).toContainText(`${nodeCheck('process.exit(0)')} · ${nodeCheck('process.exit(3)')}`);
+    // The exact commands, one per line, in order.
+    await expect(runDialog.getByTestId('confirm-items').locator('li')).toHaveText([nodeCheck('process.exit(0)'), nodeCheck('process.exit(3)')]);
     await expect(runDialog).toContainText('They run the code this task changed, on your computer');
-    await expect(runDialog).toContainText('no network is not guaranteed');
+    await expect(runDialog).toContainText('a program can ignore them and still reach the network');
     // Cancelled: nothing runs.
     await runDialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(checks.getByTestId('task-checks-not-run')).toBeVisible();

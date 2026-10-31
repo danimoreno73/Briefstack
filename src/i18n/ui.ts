@@ -303,10 +303,10 @@ export const uiMessages = defineCatalogue({
     taskChecksLabel: 'One command per line',
     taskChecksSave: 'Save the checks',
     taskChecksConfirmTitle: 'Save these checks?',
-    taskChecksConfirmBody: (list: string) =>
-      list === ''
+    taskChecksConfirmBody: (count: number) =>
+      count === 0
         ? 'No command will run.'
-        : `They run project code on this computer, in the task's copy, each time you press "Run the checks" on a task's page, including code the task's session changed: ${list}`,
+        : 'They run project code on this computer, in the task\'s copy, each time you press "Run the checks" on a task\'s page, including code the task\'s session changed:',
     taskChecksNone: 'No checks.',
     taskCheckUnconfirmed: 'not confirmed: it never runs until you save it here',
     taskListEmpty: 'No tasks yet.',
@@ -361,8 +361,8 @@ export const uiMessages = defineCatalogue({
     taskChecksRun: 'Run the checks',
     taskChecksRunAgain: 'Run the checks again',
     taskChecksRunTitle: 'Run the checks on this change?',
-    taskChecksRunBody: (list: string) =>
-      `They run the code this task changed, on your computer, as you, in the task's copy: ${list}. Network proxies point nowhere, but a program can ignore them, so no network is not guaranteed. Each one stops after 10 minutes.`,
+    taskChecksRunBody:
+      "They run the code this task changed, on your computer, as you, in the task's copy. Network proxies point nowhere, but a program can ignore them and still reach the network. Each one stops after 10 minutes. The commands, in order:",
     taskValidations: 'Server checks of the diff',
     taskValidationText: (kind: string): string =>
       ({
@@ -1289,10 +1289,10 @@ export const uiMessages = defineCatalogue({
     taskChecksLabel: 'Un comando por línea',
     taskChecksSave: 'Guardar las comprobaciones',
     taskChecksConfirmTitle: '¿Guardar estas comprobaciones?',
-    taskChecksConfirmBody: (list: string) =>
-      list === ''
+    taskChecksConfirmBody: (count: number) =>
+      count === 0
         ? 'No se ejecutará ningún comando.'
-        : `Ejecutan código del proyecto en este ordenador, en la copia de la tarea, cada vez que pulses «Ejecutar las comprobaciones» en la página de una tarea, incluido el código que cambió la sesión de la tarea: ${list}`,
+        : 'Ejecutan código del proyecto en este ordenador, en la copia de la tarea, cada vez que pulses «Ejecutar las comprobaciones» en la página de una tarea, incluido el código que cambió la sesión de la tarea:',
     taskChecksNone: 'Sin comprobaciones.',
     taskCheckUnconfirmed: 'sin confirmar: no se ejecuta hasta que la guardes aquí',
     taskListEmpty: 'Aún no hay tareas.',
@@ -1347,8 +1347,8 @@ export const uiMessages = defineCatalogue({
     taskChecksRun: 'Ejecutar las comprobaciones',
     taskChecksRunAgain: 'Volver a ejecutar las comprobaciones',
     taskChecksRunTitle: '¿Ejecutar las comprobaciones sobre este cambio?',
-    taskChecksRunBody: (list: string) =>
-      `Ejecutan el código que cambió esta tarea, en tu equipo, como tú, en la copia de la tarea: ${list}. Los proxies de red apuntan a ninguna parte, pero un programa puede ignorarlos, así que no está garantizado que no haya red. Cada una se detiene a los 10 minutos.`,
+    taskChecksRunBody:
+      'Ejecutan el código que cambió esta tarea, en tu equipo, como tú, en la copia de la tarea. Los proxies de red apuntan a ninguna parte, pero un programa puede ignorarlos y llegar igualmente a la red. Cada una se detiene a los 10 minutos. Los comandos, en orden:',
     taskValidations: 'Comprobaciones del diff en el servidor',
     taskValidationText: (kind: string): string =>
       ({

@@ -194,9 +194,9 @@ describe('the chat session options', () => {
     expect(CHAT_SYSTEM_PROMPT).toMatch(/token counts or costs/);
   });
 
-  it('say in the system prompt that a task is approved, changed, discarded and reverted only on its page', () => {
+  it('say in the system prompt that a task is approved, changed, discarded, reverted and checked only on its page', () => {
     expect(CHAT_SYSTEM_PROMPT).toMatch(/start_task only starts a task/);
-    expect(CHAT_SYSTEM_PROMPT).toMatch(/discarding and reverting it happen on the task’s page/);
+    expect(CHAT_SYSTEM_PROMPT).toMatch(/discarding, reverting it and running its declared checks happen on the task’s page/);
   });
 
   it('say in the system prompt to quote stepText for a creation’s step, never to infer it', () => {

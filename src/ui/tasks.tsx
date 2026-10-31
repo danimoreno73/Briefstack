@@ -195,7 +195,8 @@ export function ProjectTasks({ slug }: { slug: string }) {
             {confirmChecks !== undefined && (
               <ConfirmModal
                 title={t.taskChecksConfirmTitle}
-                body={t.taskChecksConfirmBody(confirmChecks.join(' · '))}
+                body={t.taskChecksConfirmBody(confirmChecks.length)}
+                items={confirmChecks}
                 confirmLabel={t.taskChecksSave}
                 cancelLabel={t.cancel}
                 tone="normal"
@@ -529,7 +530,8 @@ function CheckResults({ data, onDone }: { data: TaskProposalUi; onDone(): void }
       {confirm !== undefined && (
         <ConfirmModal
           title={t.taskChecksRunTitle}
-          body={t.taskChecksRunBody(confirm.join(' · '))}
+          body={t.taskChecksRunBody}
+          items={confirm}
           confirmLabel={t.taskChecksRun}
           cancelLabel={t.cancel}
           tone="danger"
