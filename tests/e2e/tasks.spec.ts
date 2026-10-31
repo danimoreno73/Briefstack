@@ -241,6 +241,28 @@ test.describe('approving without the checks', () => {
     await expect(page.getByTestId('task-run-checks')).toHaveCount(0);
   });
 
+  test('when the checks change while the confirmation is open, nothing runs and it shows the new list', async ({ page, app }) => {
+    await codeProject(app, 'shed', 'Tool shed');
+    const first = nodeCheck('process.exit(0)');
+    const second = nodeCheck('process.exit(7)');
+    await setProjectChecks({ libraryDir: app.libraryDir, home: app.home, slug: 'shed', commands: [first] });
+    const id = await startTask(page, app, 'shed', 'Add a changelog.');
+    await finishRound(page);
+    const checks = page.getByTestId('task-check-results');
+    await checks.getByTestId('task-run-checks').click();
+    await expect(page.getByRole('dialog')).toContainText(first);
+    // Another tab sets other checks before the user confirms.
+    await setProjectChecks({ libraryDir: app.libraryDir, home: app.home, slug: 'shed', commands: [second] });
+    await confirmDialog(page, 'Run the checks');
+    await expect(checks).toContainText('so none ran', CHECKED);
+    const again = page.getByRole('dialog');
+    await expect(again).toContainText(second, CHECKED);
+    await expect(again).not.toContainText(first);
+    expect((await app.tasks.get(id)).checks).toBeUndefined();
+    await confirmDialog(page, 'Run the checks');
+    await expect(checks.locator('[data-ok="no"]')).toHaveText('failed (exit code 7)', CHECKED);
+  });
+
   test('a project without confirmed checks has no button', async ({ page, app }) => {
     await codeProject(app, 'shed', 'Tool shed');
     await startTask(page, app, 'shed', 'Add a changelog.');

@@ -82,7 +82,7 @@ describe('only the user\'s request runs the declared checks', { timeout: 60_000 
     expect(calls).toEqual([]);
 
     // The one path that does.
-    await fresh.runChecks(third.id);
+    await fresh.runChecks(third.id, ['npm test']);
     await until(async () => (await fresh.get(third.id)).state === 'proposal', 'the checks');
     expect(calls).toEqual(['npm test']);
     await fresh.shutdown();
@@ -112,8 +112,8 @@ describe('only the user\'s request runs the declared checks', { timeout: 60_000 
       'export async function runChecks(worktree: string, commands: readonly string[], options: RunChecksOptions = {}): Promise<CheckResult[]> {',
     ]);
     // The manager's method is defined once; the only caller is the route of the proposal page.
-    expect(runChecks['tasks/manager.ts']).toEqual(['runChecks(id: string): Promise<TaskView> {']);
-    expect(runChecks['server/tasks.ts']).toEqual(['sendJson(res, 202, await need().runChecks(id(params)));']);
+    expect(runChecks['tasks/manager.ts']).toEqual(['runChecks(id: string, shown: readonly string[]): Promise<TaskView> {']);
+    expect(runChecks['server/tasks.ts']).toEqual(['sendJson(res, 202, await need().runChecks(id(params), commands));']);
     expect(await where(/'POST \/api\/tasks\/:id\/checks'/)).toEqual({ 'server/tasks.ts': ["'POST /api/tasks/:id/checks',"] });
 
     // The manager's checks run in one place, `checkNow`, which only `runChecks` starts.

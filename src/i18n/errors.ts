@@ -305,6 +305,7 @@ const errors = defineCatalogue<ErrorMessages>({
     'task.worktreeChanged': (p) => `Task ${p.id}'s copy of the project no longer points at the project's repository and the task's branch, so the server does not touch it. Discard the task.`,
     'task.branchChanged': (p) => `Task ${p.id}'s branch changed after the server checked it, so it is not the change shown. Ask for changes to check it again, or discard the task.`,
     'task.noChecks': (p) => `Project "${p.project}" has no confirmed checks. Set them on the project page first.`,
+    'task.checksChanged': (p) => `Project "${p.project}"'s confirmed checks changed after the confirmation showed them, so none ran. Look at the list again and confirm it.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -507,6 +508,7 @@ const errors = defineCatalogue<ErrorMessages>({
     'task.worktreeChanged': (p) => `La copia del proyecto de la tarea ${p.id} ya no apunta al repositorio del proyecto ni a la rama de la tarea, así que el servidor no la toca. Descarta la tarea.`,
     'task.branchChanged': (p) => `La rama de la tarea ${p.id} cambió después de que el servidor la comprobara, así que no es el cambio que se muestra. Pide cambios para comprobarla de nuevo, o descarta la tarea.`,
     'task.noChecks': (p) => `El proyecto "${p.project}" no tiene comprobaciones confirmadas. Defínelas antes en la página del proyecto.`,
+    'task.checksChanged': (p) => `Las comprobaciones confirmadas del proyecto "${p.project}" cambiaron después de que la confirmación las mostrara, así que no se ejecutó ninguna. Revisa la lista otra vez y confírmala.`,
   },
 });
 

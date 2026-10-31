@@ -365,12 +365,16 @@ export class TaskManager {
    * (decisions.md, S8): they run code the session changed. The task is
    * `checking` meanwhile, which counts against the shared limit, and back on
    * its proposal with the results when they end. Returns once they started.
+   * `shown` is the list the page's confirmation named: when the confirmed
+   * checks are no longer exactly that list (order included), nothing runs
+   * (`task.checksChanged`), so the user never runs commands they did not see.
    */
-  runChecks(id: string): Promise<TaskView> {
+  runChecks(id: string, shown: readonly string[]): Promise<TaskView> {
     return this.act(id, async (record) => {
       if (record.state !== 'proposal' || record.reviewed === undefined) throw new BriefstackError('task.wrongState', { id, state: record.state });
       const commands = (await this.options.checks?.commands(record)) ?? [];
       if (commands.length === 0) throw new BriefstackError('task.noChecks', { id, project: record.project });
+      if (commands.length !== shown.length || commands.some((command, i) => command !== shown[i])) throw new BriefstackError('task.checksChanged', { id, project: record.project });
       const l = this.live.get(id) ?? this.adopt(record);
       const limit = await this.limit();
       const active = [...this.activeIds(), ...(this.options.creations?.activeIds() ?? [])];

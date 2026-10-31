@@ -2,7 +2,7 @@ import type { ServerResponse } from 'node:http';
 import { z } from 'zod';
 import type { PathEnv } from '../config/index.js';
 import { BriefstackError } from '../errors.js';
-import { projectChecks, setProjectChecks } from '../tasks/checks.js';
+import { MAX_CHECK_LENGTH, MAX_CHECKS, projectChecks, setProjectChecks } from '../tasks/checks.js';
 import type { TaskManager, TaskStreamEvent } from '../tasks/manager.js';
 import { initProjectRepo } from '../tasks/preconditions.js';
 import type { UsageCheck } from '../usage/warning.js';
@@ -17,6 +17,8 @@ const textBody = z.strictObject({ text: z.string().trim().min(1).max(MAX_REPLY_C
 /** Actions the page confirms first say so in the body: a request without it changes nothing. */
 const confirmBody = z.strictObject({ confirm: z.literal(true) });
 const checksBody = z.strictObject({ commands: z.array(z.string()).max(50), confirm: z.literal(true) });
+/** Running the checks names the exact list the confirmation showed: the server refuses when it is no longer that list (I1). */
+const runChecksBody = z.strictObject({ commands: z.array(z.string().max(MAX_CHECK_LENGTH)).max(MAX_CHECKS), confirm: z.literal(true) });
 
 export function formatTaskSse(event: TaskStreamEvent): string {
   return `id: ${event.seq}\nevent: ${event.kind}\ndata: ${JSON.stringify(event)}\n\n`;
@@ -136,8 +138,8 @@ export function taskRoutes(manager: TaskManager | undefined, options: TaskRouteO
       'POST /api/tasks/:id/checks',
       async (req, res, params) => {
         // The declared checks run code the session changed: only from the proposal page, after the user saw the diff (S8).
-        await readJsonBody(req, confirmBody);
-        sendJson(res, 202, await need().runChecks(id(params)));
+        const { commands } = await readJsonBody(req, runChecksBody);
+        sendJson(res, 202, await need().runChecks(id(params), commands));
       },
     ],
     [

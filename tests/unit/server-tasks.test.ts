@@ -164,23 +164,33 @@ describe('task API', { timeout: 60_000 }, () => {
     await world.initLibrary();
     await start();
     const id = (await send('/api/tasks', { method: 'POST', body: { project: 'garden', description: 'Add a changelog.' } })).json.id as string;
-    expect((await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { confirm: true } })).json).toMatchObject({ code: 'task.wrongState' });
+    expect((await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { commands: [], confirm: true } })).json).toMatchObject({ code: 'task.wrongState' });
     await until(async () => (await send(`/api/tasks/${id}`)).json.pending !== undefined, 'the dialog');
     const pending = (await send(`/api/tasks/${id}`)).json.pending as { id: string };
     await send(`/api/tasks/${id}/answer`, { method: 'POST', body: { pendingId: pending.id, answer: 'once' } });
     await until(async () => (await send(`/api/tasks/${id}`)).json.awaitingReply !== undefined, 'the turn');
     await send(`/api/tasks/${id}/finish`, { method: 'POST' });
     await until(async () => (await send(`/api/tasks/${id}`)).json.state === 'proposal', 'the proposal');
-    expect((await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { confirm: true } })).json).toMatchObject({ code: 'task.noChecks' });
+    expect((await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { commands: [], confirm: true } })).json).toMatchObject({ code: 'task.noChecks' });
     expect((await send(`/api/tasks/${id}/proposal`)).json.checkCommands).toEqual([]);
 
     const command = 'node -e "process.exit(4)"';
+    const other = 'node -e "process.exit(5)"';
     await send('/api/projects/garden/checks', { method: 'PUT', body: { commands: [command], confirm: true } });
     expect((await send(`/api/tasks/${id}/proposal`)).json.checkCommands).toEqual([command]);
     expect((await send(`/api/tasks/${id}/checks`, { method: 'POST', body: {} })).status).toBe(400);
     expect((await send(`/api/tasks/${id}/checks`, { method: 'POST' })).status).toBe(415);
-    expect((await send(`/api/tasks/${id}`)).json.state).toBe('proposal');
-    const started = await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { confirm: true } });
+    // The confirmation must name the list it showed (I1): without it, nothing runs.
+    expect((await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { confirm: true } })).status).toBe(400);
+    expect((await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { commands: [command] } })).status).toBe(400);
+    // A list other than the confirmed one: 409, and the task stays on its proposal with nothing run.
+    for (const shown of [[other], [command, other], [], [`${command} `]]) {
+      expect(await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { commands: shown, confirm: true } })).toMatchObject({ status: 409, json: { code: 'task.checksChanged' } });
+    }
+    const unchanged = (await send(`/api/tasks/${id}`)).json;
+    expect(unchanged.state).toBe('proposal');
+    expect(unchanged.checks).toBeUndefined();
+    const started = await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { commands: [command], confirm: true } });
     expect(started).toMatchObject({ status: 202, json: { state: 'checking' } });
     await until(async () => (await send(`/api/tasks/${id}`)).json.state === 'proposal', 'the checks');
     expect((await send(`/api/tasks/${id}`)).json.checks).toMatchObject([{ command, exitCode: 4 }]);

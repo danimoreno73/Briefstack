@@ -78,7 +78,7 @@ describe('running the checks from the proposal page', { timeout: 60_000 }, () =>
     expect((await m.proposal(task.id)).checkCommands).toEqual([READ]);
     const worktree = world.store.worktreeDir(task.id);
 
-    const started = await m.runChecks(task.id);
+    const started = await m.runChecks(task.id, [READ]);
     expect(started.state).toBe('checking');
     expect(m.activeIds()).toEqual([task.id]);
     await settled(m, task.id);
@@ -91,7 +91,7 @@ describe('running the checks from the proposal page', { timeout: 60_000 }, () =>
     expect(m.activeIds()).toEqual([]);
 
     await setProjectChecks({ libraryDir: world.library, home: world.home, slug: 'garden', commands: [MARK] });
-    await m.runChecks(task.id);
+    await m.runChecks(task.id, [MARK]);
     await settled(m, task.id);
     const again = await m.get(task.id);
     expect(again.state).toBe('proposal');
@@ -103,22 +103,22 @@ describe('running the checks from the proposal page', { timeout: 60_000 }, () =>
   it('refuses from any state but a proposal, and without confirmed checks', async () => {
     const m = manager({ script: () => ({ steps: [{ kind: 'write', file: 'CHANGES.md', content: 'x\n' }, { kind: 'end', summary: 'x' }] }) });
     const task = await proposal(m, []);
-    await expect(m.runChecks(task.id)).rejects.toMatchObject({ code: 'task.noChecks', params: { project: 'garden' } });
+    await expect(m.runChecks(task.id, [])).rejects.toMatchObject({ code: 'task.noChecks', params: { project: 'garden' } });
     // A check in the note that the user never confirmed does not count.
     const note = path.join(world.library, 'projects', 'garden.md');
     await writeFile(note, `${await readFile(note, 'utf8')}\n## Checks\n\n\`\`\`briefstack-checks\n${MARK}\n\`\`\`\n`, 'utf8');
-    await expect(m.runChecks(task.id)).rejects.toMatchObject({ code: 'task.noChecks' });
+    await expect(m.runChecks(task.id, [MARK])).rejects.toMatchObject({ code: 'task.noChecks' });
     expect((await m.proposal(task.id)).checkCommands).toEqual([]);
 
     await setProjectChecks({ libraryDir: world.library, home: world.home, slug: 'garden', commands: [MARK] });
     await m.newRound(task.id, 'More.');
-    await expect(m.runChecks(task.id)).rejects.toMatchObject({ code: 'task.wrongState', params: { state: 'running' } });
+    await expect(m.runChecks(task.id, [MARK])).rejects.toMatchObject({ code: 'task.wrongState', params: { state: 'running' } });
     await until(async () => (await m.get(task.id)).awaitingReply !== undefined, 'the turn to end');
     m.finishRound(task.id);
     await until(async () => (await m.get(task.id)).state === 'proposal', 'the proposal');
     await m.discard(task.id);
-    await expect(m.runChecks(task.id)).rejects.toMatchObject({ code: 'task.wrongState', params: { state: 'discarded' } });
-    await expect(m.runChecks('abcdef-0000')).rejects.toMatchObject({ code: 'task.notFound' });
+    await expect(m.runChecks(task.id, [MARK])).rejects.toMatchObject({ code: 'task.wrongState', params: { state: 'discarded' } });
+    await expect(m.runChecks('abcdef-0000', [MARK])).rejects.toMatchObject({ code: 'task.notFound' });
     await m.shutdown();
   });
 
@@ -129,10 +129,10 @@ describe('running the checks from the proposal page', { timeout: 60_000 }, () =>
     const task = await proposal(m, []);
     // A creation holds the only place.
     creations = ['creation-1'];
-    await expect(m.runChecks(task.id)).rejects.toMatchObject({ code: 'task.limit' });
+    await expect(m.runChecks(task.id, [MARK])).rejects.toMatchObject({ code: 'task.limit' });
     creations = [];
-    expect((await m.runChecks(task.id)).state).toBe('checking');
-    await expect(m.runChecks(task.id)).rejects.toMatchObject({ code: 'task.wrongState', params: { state: 'checking' } });
+    expect((await m.runChecks(task.id, [MARK])).state).toBe('checking');
+    await expect(m.runChecks(task.id, [MARK])).rejects.toMatchObject({ code: 'task.wrongState', params: { state: 'checking' } });
     await expect(m.approve(task.id)).rejects.toMatchObject({ code: 'task.wrongState' });
     await expect(m.discard(task.id)).rejects.toMatchObject({ code: 'task.wrongState' });
     await expect(m.newRound(task.id, 'More.')).rejects.toMatchObject({ code: 'task.wrongState' });
@@ -145,13 +145,45 @@ describe('running the checks from the proposal page', { timeout: 60_000 }, () =>
     await m.shutdown();
   });
 
+  it('runs nothing when the confirmed checks are no longer the list the confirmation showed (I1)', async () => {
+    let confirmed = ['npm test', 'npm run lint'];
+    const calls: string[][] = [];
+    const spy: TaskChecks = { commands: async () => [...confirmed], run: async (_dir, commands) => (calls.push([...commands]), []) };
+    const m = manager({ checks: spy });
+    const task = await proposal(m, []);
+    // The page opened its confirmation with this list.
+    const shown = (await m.proposal(task.id)).checkCommands ?? [];
+    expect(shown).toEqual(['npm test', 'npm run lint']);
+    // The list changed before the user confirmed (another tab, or the file rewritten): one more, one less, another order, one changed.
+    for (const next of [
+      ['npm test', 'npm run lint', 'node evil.js'],
+      ['npm test'],
+      ['npm run lint', 'npm test'],
+      ['npm test', 'npm run lint -- --fix'],
+    ]) {
+      confirmed = next;
+      await expect(m.runChecks(task.id, shown)).rejects.toMatchObject({ code: 'task.checksChanged', params: { project: 'garden' } });
+      expect((await m.get(task.id)).state).toBe('proposal');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(calls).toEqual([]);
+    expect(m.activeIds()).toEqual([]);
+
+    // Shown again as it is now and confirmed: it runs that list.
+    const now = (await m.proposal(task.id)).checkCommands ?? [];
+    await m.runChecks(task.id, now);
+    await settled(m, task.id);
+    expect(calls).toEqual([confirmed]);
+    await m.shutdown();
+  });
+
   it('fails without running anything when the branch moved after the review', async () => {
     const m = manager();
     const task = await proposal(m, [MARK]);
     const worktree = world.store.worktreeDir(task.id);
     await writeTree(worktree, { 'late.txt': 'added after the review\n' });
     await commitAll(worktree, 'late');
-    await m.runChecks(task.id);
+    await m.runChecks(task.id, [MARK]);
     await settled(m, task.id);
     const failed = await m.get(task.id);
     expect(failed.state).toBe('failed');
@@ -170,7 +202,7 @@ describe('running the checks from the proposal page', { timeout: 60_000 }, () =>
     const before = await readFile(path.join(worktree, '.git'), 'utf8');
     await rm(path.join(worktree, '.git'), { force: true });
     await writeFile(path.join(worktree, '.git'), `gitdir: ${path.join(task.projectDir, '.git')}\n`, 'utf8');
-    await m.runChecks(task.id);
+    await m.runChecks(task.id, [MARK]);
     await settled(m, task.id);
     const failed = await m.get(task.id);
     expect(failed.state).toBe('failed');
@@ -207,7 +239,7 @@ describe('after a server stop during the checks', { timeout: 60_000 }, () => {
     expect(calls).toEqual([]);
     expect((await fresh.proposal(task.id)).diff?.files.map((file) => file.path)).toEqual(['CHANGES.md']);
     // The user can still run them, and approve.
-    await fresh.runChecks(task.id);
+    await fresh.runChecks(task.id, [MARK]);
     await settled(fresh, task.id);
     expect(calls).toEqual([[MARK]]);
     expect((await fresh.approve(task.id)).state).toBe('applied');

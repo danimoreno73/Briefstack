@@ -165,7 +165,7 @@ describe('task tools of the chat', { timeout: 60_000 }, () => {
         run: async (_dir, commands) => commands.map((command, i) => ({ command, exitCode: i === 0 ? 0 : 2, timedOut: false, output: 'secret output', durationMs: 5 })),
       },
     });
-    await manager.runChecks(first.id);
+    await manager.runChecks(first.id, ['npm test', 'npm run lint']);
     await stateIs(first.id, 'proposal');
     const checked = await read('show_task', { taskId: first.id });
     expect(checked.data).toMatchObject({

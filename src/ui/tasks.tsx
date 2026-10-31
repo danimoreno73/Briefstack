@@ -479,9 +479,17 @@ function CheckResults({ data, onDone }: { data: TaskProposalUi; onDone(): void }
   const { t } = useApp();
   const send = useSend();
   const action = useAction();
-  const [confirm, setConfirm] = useState(false);
+  /** The list the open confirmation shows: exactly what the request names. */
+  const [confirm, setConfirm] = useState<string[] | undefined>(undefined);
+  const [reopen, setReopen] = useState(false);
   const { task } = data;
   const commands = data.checkCommands;
+  // The checks changed after the confirmation showed them: once the page has the list as it is now, it is shown again.
+  useEffect(() => {
+    if (!reopen) return;
+    setReopen(false);
+    if (data.task.state === 'proposal' && data.checkCommands !== undefined && data.checkCommands.length > 0) setConfirm([...data.checkCommands]);
+  }, [data]);
   const reviewing = task.reviewed !== undefined && (task.state === 'proposal' || task.state === 'checking');
   if (!reviewing && task.checks === undefined) return null;
   return (
@@ -513,23 +521,33 @@ function CheckResults({ data, onDone }: { data: TaskProposalUi; onDone(): void }
       )}
       {task.state === 'proposal' && commands !== undefined && commands.length > 0 && (
         <div class="btn-row">
-          <button type="button" class="btn btn-secondary" disabled={action.busy} onClick={() => setConfirm(true)} data-testid="task-run-checks">
+          <button type="button" class="btn btn-secondary" disabled={action.busy} onClick={() => setConfirm([...commands])} data-testid="task-run-checks">
             {task.checks === undefined ? t.taskChecksRun : t.taskChecksRunAgain}
           </button>
         </div>
       )}
-      {confirm && commands !== undefined && (
+      {confirm !== undefined && (
         <ConfirmModal
           title={t.taskChecksRunTitle}
-          body={t.taskChecksRunBody(commands.join(' · '))}
+          body={t.taskChecksRunBody(confirm.join(' · '))}
           confirmLabel={t.taskChecksRun}
           cancelLabel={t.cancel}
           tone="danger"
           onConfirm={() => {
-            setConfirm(false);
-            void action.run(() => send('POST', `/api/tasks/${task.id}/checks`, { confirm: true })).then(onDone);
+            const shown = confirm;
+            setConfirm(undefined);
+            void action
+              .run(async () => {
+                try {
+                  await send('POST', `/api/tasks/${task.id}/checks`, { commands: shown, confirm: true });
+                } catch (failure) {
+                  if (failure instanceof ApiError && failure.code === 'task.checksChanged') setReopen(true);
+                  throw failure;
+                }
+              })
+              .then(onDone);
           }}
-          onCancel={() => setConfirm(false)}
+          onCancel={() => setConfirm(undefined)}
         />
       )}
     </section>
