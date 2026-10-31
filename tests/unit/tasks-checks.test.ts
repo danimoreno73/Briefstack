@@ -1,8 +1,8 @@
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { afterRoundWith } from '../../src/tasks/afterRound.js';
-import { checkCommandProblem, checkEnv, cleanOutput, projectChecks, readChecks, runChecks, setProjectChecks, writeChecks } from '../../src/tasks/checks.js';
+import { checkCommandProblem, checkEnv, cleanOutput, projectChecks, readChecks, setProjectChecks, taskChecksWith, writeChecks } from '../../src/tasks/checks.js';
 import { createTaskWorktree } from '../../src/tasks/git.js';
 import type { TaskRecord } from '../../src/tasks/types.js';
 import { useHermeticGit, writeTree } from '../helpers.js';
@@ -82,11 +82,9 @@ describe('running checks', () => {
   it('runs each command in the folder, keeps exit codes and output, and stops one that runs too long', async () => {
     const folder = path.join(world.dir, 'work');
     await writeTree(folder, { 'a.txt': 'a\n' });
-    const results = await runChecks(
-      folder,
-      [nodeCommand("console.log(require('fs').readFileSync('a.txt','utf8').trim())"), nodeCommand('process.exit(3)'), nodeCommand('setTimeout(()=>{},60000)')],
-      { timeoutMs: 1500 },
-    );
+    // The one way to run them: the manager's checks.
+    const checks = taskChecksWith({ libraryDir: async () => world.library, home: world.home, options: { timeoutMs: 1500 } });
+    const results = await checks.run(folder, [nodeCommand("console.log(require('fs').readFileSync('a.txt','utf8').trim())"), nodeCommand('process.exit(3)'), nodeCommand('setTimeout(()=>{},60000)')]);
     expect(results.map((result) => [result.exitCode, result.timedOut])).toEqual([
       [0, false],
       [3, false],
@@ -115,15 +113,12 @@ describe('running checks', () => {
 });
 
 describe('after a round', () => {
-  it('runs no check, not even a confirmed one, and validates the diff', async () => {
+  // That a round's end runs no check, with the project's checks wired in, is
+  // shown with the manager (tasks-run-checks.test.ts, tasks-checks-invariant.test.ts):
+  // `afterRoundWith` has no way to run one.
+  it('validates the diff on the round\'s commit', async () => {
     const project = await world.project('garden', { 'src/app.txt': 'one\n' });
     await world.initLibrary();
-    // Markers in an ignored folder, which no clean-up removes: they would stay if a check ran.
-    const confirmed = nodeCommand("require('fs').mkdirSync('node_modules',{recursive:true});require('fs').writeFileSync('node_modules/left-by-check.txt','x')");
-    await setProjectChecks({ libraryDir: world.library, home: world.home, slug: 'garden', commands: [confirmed] });
-    const note = path.join(world.library, 'projects', 'garden.md');
-    await writeFile(note, writeChecks(await readFile(note, 'utf8'), [confirmed, nodeCommand("require('fs').mkdirSync('node_modules',{recursive:true});require('fs').writeFileSync('node_modules/unconfirmed.txt','x')")]), 'utf8');
-
     const base = (await gitIn(project, 'rev-parse', 'HEAD')).trim();
     const worktree = path.join(world.home, 'tasks', 'abc123-0f0f', 'work');
     await createTaskWorktree(project, worktree, 'briefstack/task-abc123-0f0f', base);
@@ -134,9 +129,6 @@ describe('after a round', () => {
     const result = await afterRoundWith()(task, worktree);
     expect(result).not.toHaveProperty('checks');
     expect(result.head).toBe((await gitIn(worktree, 'rev-parse', 'HEAD')).trim());
-    // The confirmed check would have left this file: it never ran.
-    await expect(stat(path.join(worktree, 'node_modules', 'left-by-check.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
-    await expect(stat(path.join(worktree, 'node_modules', 'unconfirmed.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
     expect(result.validations).toEqual([{ kind: 'settingsOrHooks', level: 'error', file: '.claude/settings.json' }]);
   }, 30_000);
 });

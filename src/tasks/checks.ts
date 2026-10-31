@@ -34,12 +34,16 @@ import type { CheckResult } from './types.js';
  * never runs until the user confirms it.
  */
 
-export const CHECKS_FENCE = 'briefstack-checks';
-export const CHECKS_HEADING = '## Checks';
+// What this module exports is kept to what the rest uses: nothing that runs
+// a command is exported but `taskChecksWith`, which only the server's wiring
+// calls (tests/unit/tasks-checks-invariant.test.ts holds this).
+
+const CHECKS_FENCE = 'briefstack-checks';
+const CHECKS_HEADING = '## Checks';
 export const MAX_CHECKS = 10;
 export const MAX_CHECK_LENGTH = 500;
 /** Each check gets this long before its process tree is ended. */
-export const CHECK_TIMEOUT_MS = 10 * 60_000;
+const CHECK_TIMEOUT_MS = 10 * 60_000;
 /** The output kept of each check: its end, redacted. */
 const MAX_OUTPUT_CHARS = 16 * 1024;
 
@@ -88,7 +92,7 @@ interface Confirmations {
   confirmed: { hash: string; at: string }[];
 }
 
-export const checksFile = (home: string, slug: string): string => path.join(home, 'checks', `${slug}.json`);
+const checksFile = (home: string, slug: string): string => path.join(home, 'checks', `${slug}.json`);
 
 async function readConfirmations(home: string, slug: string): Promise<Confirmations> {
   try {
@@ -240,8 +244,8 @@ export function taskChecksWith(deps: { libraryDir: () => Promise<string>; home: 
   };
 }
 
-/** Runs the commands one after the other in the worktree, each with its timeout, and keeps every result. */
-export async function runChecks(worktree: string, commands: readonly string[], options: RunChecksOptions = {}): Promise<CheckResult[]> {
+/** Runs the commands one after the other in the worktree, each with its timeout, and keeps every result. Only through `taskChecksWith`. */
+async function runChecks(worktree: string, commands: readonly string[], options: RunChecksOptions = {}): Promise<CheckResult[]> {
   const env = options.env ?? checkEnv(process.env);
   const now = options.now ?? Date.now;
   const results: CheckResult[] = [];

@@ -100,6 +100,21 @@ describe('running the checks from the proposal page', { timeout: 60_000 }, () =>
     await m.shutdown();
   });
 
+  it('a round\'s end runs none of the confirmed checks, with the real checks wired in', async () => {
+    const m = manager();
+    // MARK, confirmed, would leave a file in an ignored folder that no clean-up removes.
+    const task = await proposal(m, [MARK]);
+    const worktree = world.store.worktreeDir(task.id);
+    expect(task.checks).toBeUndefined();
+    expect(await ran(worktree)).toBe(false);
+    await m.newRound(task.id, 'More.');
+    await until(async () => (await m.get(task.id)).awaitingReply !== undefined, 'the turn to end');
+    m.finishRound(task.id);
+    await until(async () => (await m.get(task.id)).state === 'proposal', 'the second proposal');
+    expect(await ran(worktree)).toBe(false);
+    await m.shutdown();
+  });
+
   it('refuses from any state but a proposal, and without confirmed checks', async () => {
     const m = manager({ script: () => ({ steps: [{ kind: 'write', file: 'CHANGES.md', content: 'x\n' }, { kind: 'end', summary: 'x' }] }) });
     const task = await proposal(m, []);
