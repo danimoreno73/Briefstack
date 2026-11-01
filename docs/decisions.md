@@ -5170,7 +5170,8 @@ first; the tests named below fail without the fix.
   request after the stop began, and the narrow window, holding the save
   and stopping in the middle, for the checks, a new round and a new task;
   a mutation that drops the two late reads fails the three narrow-window
-  tests) and the route test in `server-tasks.test.ts`.
+  tests) and the route test in `server-tasks.test.ts`. The page has its
+  own text for it (`bb37b3d`), as for every task error.
 - **R2, saved before shown (`f7c6144` the checks, `9369030` a round).**
   The end of the checks and the end of a round run outside `act()`, and
   set the new state in memory before saving it. An approve in that window
