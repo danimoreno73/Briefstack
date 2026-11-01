@@ -329,3 +329,135 @@ when a decision is needed, so the user does not have to watch a screen.
   a new shell command from the phone is off unless the user turns it on;
   an unanswered request times out to the safe choice.
 - Order: after phase 7 and Codex.
+
+## 7. Open items from phase 7
+
+Left open when phase 7 closed (2026-11-01). Each item names its source:
+the review of a step in the user's working notes (outside the repo), by
+step and finding, or a record in this repo. None is planned. The phase's
+plan is [PLAN-phase-7.md](PLAN-phase-7.md); its decisions are in
+[decisions.md](decisions.md), "Phase 7".
+
+### Code
+
+- **The saves of one task are not ordered.** When a round's session
+  starts, its session id is saved without waiting
+  (`void this.options.store.save(record)` in `startRound`,
+  `src/tasks/manager.ts`), and `TaskStore.save` (`src/tasks/store.ts`)
+  does not queue writes per task, so that save can land after the round's
+  end and leave `running` on disk. Queue the saves per task, or wait for
+  that one. It is the cause of the intermittent macOS test below. Review of
+  step 07, M4; review of step 10, I1.
+- **The stop is read too early before a record changes.** `startRound`
+  clears `reviewed`, `validations` and `checks` and saves `running`
+  before the late read of `stopping`, and between the first read and that
+  change there are several awaits (`limit`, `checks.commands`,
+  `inspectProject`, `projectRestrictions`). A new round refused in that
+  window loses the reviewed proposal (the task comes back `interrupted`
+  and needs another round); checks refused there leave the task
+  `checking` until the next start. Read the flag again just before the
+  record changes. Review of step 07, M2.
+- **A session that is stopping can still ask.** During the task manager's
+  `shutdown()`, between settling the pending requests and `handle.stop()`,
+  `request()` looks only at `cancelling` and the state, so a new tool call
+  opens a dialog; `answer()` is not refused either. Deny in `request()`
+  while stopping, with a test. Review of step 07, M5.
+- **"Saved before shown" holds for the state, not for the round.**
+  `onRoundDone` sets the round's `finishedAt`, `outcome`, `summary`,
+  `error` and `commit` on the record in memory before the save, and
+  `next = { ...record }` shares `rounds`: the view and the stream can show
+  the finished round while the disk is behind. Actions are not affected
+  (they refuse `running` and `checking`), but the comment above the save
+  says more than that. Copy the round too, or narrow the comment. Review
+  of step 07, M3.
+- **Cancelling the checks from the proposal page.** Running checks end only
+  with a server stop (or their 10-minute timeout per command). Review of
+  step 05, M2.
+- **The checks button while another proposal action runs** is not
+  disabled; the server's lock per task already makes the actions wait for
+  each other. Optional in the review of step 05, I2; left out in
+  decisions.md, "Decisiones sin Dani (fase 7)", M8b.
+- **Files the proposal page cannot show** (over 256 KB, binary files,
+  links) are listed by name only; a warning for any of them was proposed.
+  decisions.md, "Phase 7: security review", S10.
+- **Two equal date headings in a project's note** when a task is applied
+  and reverted on the same day: `appendDated` (`src/library/notes.ts`)
+  puts today's heading before every addition. Review of step 08, M9; seen
+  again in the real run of step 11.
+- **Applying unattended "with checks green"** (§6) clashes with S8: the
+  declared checks run only after a click on the proposal page. That idea
+  needs the user's decision when it is planned. Review of step 05, the
+  report's open question.
+
+### Tests
+
+- **Intermittent on macOS:** `tests/unit/tasks-manager.test.ts`,
+  "TaskManager: after a server stop › marks tasks the last server left
+  running as interrupted", failed once in CI (run 41315930066, on
+  `666fa66`, a commit that changed only documentation; the runs after it
+  were green): it read `running` where `interrupted` was expected. A race
+  between the test and the unordered save above, which the test does not
+  wait for. Review of step 07, M4; review of step 10, I1.
+- **The R2 tests** (`tests/unit/tasks-run-checks.test.ts`, "… is on disk
+  before an action can see it (R2)"): after the fix the `fulfilled`
+  branch of `expectOneOrder` is never reached, so approving is not pinned
+  as refused; pin `task.wrongState` with `checking`. Their 10 repetitions
+  add nothing, the result being deterministic. Review of step 07, M6.
+- **The I1 and I2 tests:** the route test of I1
+  (`tests/unit/server-tasks.test.ts`) infers that nothing ran from the
+  task's state, not from a spy; the first I2 test forces the order but its
+  `expectOneOrder` accepts either outcome; the I2 tests use a new manager
+  rather than `recover()` (the same today). Review of step 06, R5.
+- **The reach of the checks invariant**
+  (`tests/unit/tasks-checks-invariant.test.ts`): four read tools
+  (`list_suggestions`, `list_proposals`, `show_proposal`, `list_skills`)
+  and four action tools (`cancel_creation`, `prepare_improvement`,
+  `add_skill`, `add_skill_to_project`) are refused before doing their work,
+  since the test has no improvements or skills; give it fakes of both. Its
+  pattern for importers misses `import X, { Y } from`, double quotes and
+  `import()` with a template. `src/tasks/checks.ts` still exports pure
+  helpers that only tests use. Review of step 06, R4.
+- **Intermittent on Windows CI:** besides the Usage tests of §4, e2e tests
+  of the skills pages timed out at 30 seconds while setting up the `app`
+  fixture. **Locally, once:** `tests/unit/library-lock.test.ts` failed; and
+  a passing test logs the warning `BRIEFSTACK_LIBRARY_LOCK … EPERM` (the
+  lock could not be removed after a change). The phase's open warnings in
+  the user's working notes; the failing tests are not named there.
+
+### Real checks (`scripts/real/`)
+
+- **Layer 6 of the task guard** (it refuses a `Skill` call for a skill
+  that is not the project's) is shown by unit tests only: in real
+  sessions Claude Code refuses those calls first, through the SDK `skills`
+  option (check 5 in decisions.md, "Phase 7: M9 real checks"). Showing it
+  in real needs a skill Claude Code lets the model call while the task's
+  layers keep it out. Review of step 08, I2; review of step 10, M3.
+- **The real sessions of M9 ran on Windows only** (Windows 11, Claude Code
+  2.1.316); macOS and Linux are covered by CI over the fake runners.
+  decisions.md, "Phase 7: M9 real checks".
+- **`settings.local.json` in checks 3 and 4 has no control:** the control
+  session loads `settingSources: ['project']`, which does not read the
+  local file, so for it only the hiding in the worktree is shown. Review of
+  step 08, M2.
+- **Check 4 has no control** that the broad allow rules work without the
+  task's layers. By H0, allow rules are not used in SDK sessions, so such a
+  control may not be possible; the script should say so. Review of step
+  08, M3.
+- **`startWeb(…, runner?)`** in `scripts/real/tasks-common.ts` takes a
+  runner that no script passes (it served rehearsals outside the repo).
+  Review of step 08, M4.
+- **The structural test of the real scripts**
+  (`tests/unit/real-scripts.test.ts`) skips `tasks-common.ts`; holding it
+  to the same rules would be stricter. Review of step 08, M5.
+- **Waits without a limit:** `controlSession` awaits the context reading
+  with no deadline (`scripts/real/tasks-common.ts`), and so does the
+  `beforeFinish` of check 5 (`scripts/real/check-task-skills.ts`); a
+  missing answer hangs the script instead of failing it (it can never pass
+  by it). Race them with a deadline that fails. Review of step 10, M4.
+- **(c) of check 5 counts any skill that is not the project's, by name,**
+  not only bundled ones (source `built-in`) as its step asked. The result
+  of the run is the same (the 13 were all `built-in`); require the source
+  if it runs again. Review of step 11, M1.
+- **The `design` observation of check 5** has no line in the skills docs,
+  which mention `doctor` only; it rests on the control's init listing it
+  too. Review of step 11, M2.
