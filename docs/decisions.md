@@ -5079,6 +5079,38 @@ the run:
   not relaxed: if `doctor` is missing from the control's context, (c)
   fails and the run on the user's project waits.
 
+**M9, check 5 with (c) corrected (2026-11-01, the user's step 11).** The
+user's adviser, on the user's delegation, corrected (c) from the step 10
+evidence (the control's context held 14 skills, `design` and `doctor` not
+among them) before anything was run: the old (c) asked for something the
+docs rule out, not for what the task's layers do. Fixed before the run:
+
+- **(a) and (b) do not change** (strict, as in step 10).
+- **(c), positive control:** the control session (no task layers) has in
+  its model's context **at least one bundled skill that is not the
+  project's** (the model can invoke it, as above: in context means not
+  `disable-model-invocation`), and the task session's context has **none**.
+  No control reading, or no such skill in it, fails. Choice made without
+  the user: "not the project's" is by name (not `sample-skill` or
+  `late-skill`); the source label is printed, not required, so a label
+  change cannot turn a real result into a failure.
+- **The init listing** (`design`, `doctor`) is an observation only when
+  (a), (b) and (c) pass, each name is in the task session's
+  `slash_commands`, and **the control's init lists it too** (Claude Code's
+  standard init, not something the task adds). Sources, saved by the step:
+  the skills docs (code.claude.com/docs/en/skills, read 2026-11-01), a
+  `disable-model-invocation` skill: "Description not in context"; "The
+  `/doctor` setup checkup stays typable when `disableBundledSkills` is on";
+  `sdk.d.ts` on `disableBundledSkills`: "built-in slash commands stay
+  typable but are hidden from the model". The docs do not mention `design`.
+- **Counted but not included:** `getContextUsage()` names only the included
+  skills (`skillFrontmatter`) and gives a count for the rest; the script
+  prints the count and any field beyond the typed ones. Which skill a count
+  stands for is an inference. The step 10 result below said "the second
+  skill Claude Code counts is `late-skill`" as a fact; it is corrected to
+  an inference there.
+- **Anything ambiguous fails; the criterion is not widened further.**
+
 ## Phase 7: security review (2026-10-30)
 
 A review of the phase's code (`phase-7-start..HEAD`, about 5,000 lines of
@@ -5335,9 +5367,9 @@ window and 42% of the week before and after).** Exit 1; the verdict
 fixed before the run (step 10 in "Decisiones sin Dani (fase 7)"):
 
 - **(a) passes:** the task session's context holds only `sample-skill`
-  (1 of 2 included, 28 tokens). The second skill Claude Code counts is
-  `late-skill`, picked up live after the script wrote it: counted, not
-  included.
+  (1 of 2 included, 28 tokens). The reading names only the included
+  skill; that the second one counted is `late-skill`, written live by the
+  script, is an inference (likely, not measured; corrected in step 11).
 - **(b) passes, all three calls refused and none ran, each by Claude Code
   before the hooks** (no `tool.pre` or `tool.denied` line for them, so the
   task guard never saw them): (i) `doctor`, "cannot be used with Skill
