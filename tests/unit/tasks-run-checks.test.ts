@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setProjectChecks, taskChecksWith, type TaskChecks } from '../../src/tasks/checks.js';
 import { TaskFakeRunner, type TaskFakeScript } from '../../src/tasks/fakeRunner.js';
 import { TaskManager, type TaskView } from '../../src/tasks/manager.js';
+import type { TaskRecord } from '../../src/tasks/types.js';
 import { useHermeticGit, writeTree } from '../helpers.js';
 import { commitAll, gitIn, taskWorld, type TaskWorld } from '../taskWorld.js';
 
@@ -337,6 +338,64 @@ describe('actions at once on a task the server has not loaded yet (I2)', { timeo
     expect(calls).toEqual([['npm test']]);
     // The worktree is still there for the user's next step.
     await expect(stat(world.store.worktreeDir(task.id))).resolves.toBeDefined();
+    await m.shutdown();
+  });
+});
+
+describe('the end of the checks and of a round is on disk before an action can see it (R2)', { timeout: 60_000 }, () => {
+  /** A promise the test settles. */
+  const gate = () => {
+    let open: () => void = () => undefined;
+    const promise = new Promise<void>((resolve) => (open = resolve));
+    return { promise, open };
+  };
+
+  /** Holds the first save `matches` picks until `release()`: `reached` once it is held, `saved` once it is on disk. */
+  function holdSave(matches: (record: TaskRecord) => boolean): { reached: Promise<void>; release: () => void; saved: Promise<void> } {
+    const reached = gate();
+    const release = gate();
+    const saved = gate();
+    const save = world.store.save.bind(world.store);
+    let held = false;
+    world.store.save = async (record: TaskRecord) => {
+      if (held || !matches(record)) return save(record);
+      held = true;
+      reached.open();
+      await release.promise;
+      await save(record);
+      saved.open();
+    };
+    return { reached: reached.promise, release: release.open, saved: saved.promise };
+  }
+
+  /** The task in memory and on disk agree, and an applied task is never a proposal on disk: approve came first and applied it, or it was refused. */
+  async function expectOneOrder(id: string, live: TaskView, approved: PromiseSettledResult<TaskView>, before: Partial<TaskView>): Promise<void> {
+    const disk = await world.store.load(id);
+    expect(disk?.state).toBe(live.state);
+    if (approved.status === 'fulfilled') {
+      expect(live.state).toBe('applied');
+      expect(disk?.applied).toEqual(live.applied);
+    } else {
+      expect(approved).toMatchObject({ status: 'rejected', reason: { code: 'task.wrongState', params: { state: 'checking' } } });
+      expect(live).toMatchObject({ state: 'proposal', ...before });
+      expect(disk).toMatchObject({ state: 'proposal', ...before });
+    }
+  }
+
+  it('approve asked while the end of the checks is being saved', async () => {
+    const calls: string[][] = [];
+    const m = manager({ checks: { commands: async () => ['npm test'], run: async (_dir, commands) => (calls.push([...commands]), []) } });
+    const task = await proposal(m, []);
+    const held = holdSave((record) => record.id === task.id && record.state === 'proposal' && record.checks !== undefined);
+    await m.runChecks(task.id, ['npm test']);
+    await held.reached;
+    // Approve runs to its end while that save is held: the order is forced, not left to timing.
+    const [approved] = await Promise.allSettled([m.approve(task.id)]);
+    held.release();
+    await held.saved;
+    await settled(m, task.id);
+    await expectOneOrder(task.id, await m.get(task.id), approved, { checks: [] });
+    expect(calls).toEqual([['npm test']]);
     await m.shutdown();
   });
 });

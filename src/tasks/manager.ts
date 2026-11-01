@@ -746,6 +746,7 @@ export class TaskManager {
     const onReviewed = async () => {
       if ((await branchHead(record.projectDir, record.branch)) !== reviewed || (await headOf(worktree)) !== reviewed) throw new BriefstackError('task.branchChanged', { id: record.id });
     };
+    let next: TaskRecord;
     try {
       await own();
       await onReviewed();
@@ -758,18 +759,19 @@ export class TaskManager {
       await own();
       await restoreToHead(worktree);
       await onReviewed();
-      record.checks = results;
-      record.state = 'proposal';
+      next = { ...record, checks: results, state: 'proposal' };
     } catch (error) {
       if (signal.aborted) return;
-      record.state = 'failed';
-      delete record.reviewed;
-      delete record.checks;
-      delete record.validations;
-      record.error = this.clean(isBriefstackError(error) ? formatError(error, await this.options.lang()) : error instanceof Error ? error.message : String(error));
+      next = { ...record, state: 'failed', error: this.clean(isBriefstackError(error) ? formatError(error, await this.options.lang()) : error instanceof Error ? error.message : String(error)) };
+      delete next.reviewed;
+      delete next.checks;
+      delete next.validations;
     }
-    record.updatedAt = this.now().toISOString();
-    await this.options.store.save(record);
+    next.updatedAt = this.now().toISOString();
+    // Saved before the task shows it (R2): this runs outside `act()`, and while the task is `checking` every action refuses it,
+    // so an action that sees the new state finds it on disk too, and its own save comes after this one.
+    await this.options.store.save(next);
+    l.record = next;
     this.pushStatus(l);
   }
 
