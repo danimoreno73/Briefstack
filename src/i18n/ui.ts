@@ -93,6 +93,7 @@ export const uiMessages = defineCatalogue({
         'task.branchChanged': 'The task’s branch changed after the server checked it, so it is not the change shown here. Ask for changes to check it again, or discard the task.',
         'task.noChecks': 'The project has no confirmed checks. Set them on the project page first.',
         'task.checksChanged': 'The project’s checks changed after the confirmation showed them, so none ran. Here is the list as it is now: confirm it again if you want them to run.',
+        'task.stopping': 'briefstack is stopping, so nothing new starts. Start it again to go on.',
       })[code],
     errSecret: (lines: readonly number[]) =>
       `The note looks like it contains a secret (line ${lines.join(', ')}). Remove it and save again. Nothing was saved.`,
@@ -1079,6 +1080,7 @@ export const uiMessages = defineCatalogue({
         'task.branchChanged': 'La rama de la tarea cambió después de que el servidor la comprobara, así que no es el cambio que se muestra aquí. Pide cambios para comprobarla de nuevo, o descarta la tarea.',
         'task.noChecks': 'El proyecto no tiene comprobaciones confirmadas. Defínelas antes en la página del proyecto.',
         'task.checksChanged': 'Las comprobaciones del proyecto cambiaron después de que la confirmación las mostrara, así que no se ejecutó ninguna. Esta es la lista tal como está ahora: confírmala otra vez si quieres que se ejecuten.',
+        'task.stopping': 'briefstack se está parando, así que no empieza nada nuevo. Arráncalo otra vez para seguir.',
       })[code],
     errSecret: (lines: readonly number[]) =>
       `La nota parece contener un secreto (línea ${lines.join(', ')}). Quítalo y guarda otra vez. No se ha guardado nada.`,

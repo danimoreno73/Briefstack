@@ -144,6 +144,9 @@ describe('describeError', () => {
     expect(describeError(new ApiError(400, 'task.invalidCheck', { command: FAKE_KEY, problem: 'x' }), t)).not.toContain(FAKE_KEY);
     expect(describeError(new ApiError(409, 'task.folderMissing', { project: 'p', dir: '/home/u/p' }), t)).not.toContain('/home/u');
     expect(describeError(new ApiError(409, 'task.somethingNew', {}), t)).toBe('Something went wrong (task.somethingNew).');
+    // A server that is stopping (R1).
+    expect(describeError(new ApiError(503, 'task.stopping', {}), t)).toBe('briefstack is stopping, so nothing new starts. Start it again to go on.');
+    expect(describeError(new ApiError(503, 'task.stopping', {}), uiMessages.es)).toContain('se está parando');
   });
 });
 
