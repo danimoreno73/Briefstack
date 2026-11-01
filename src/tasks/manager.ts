@@ -157,6 +157,8 @@ export class TaskManager {
   private readonly now: () => Date;
   private readonly pathEnv: PathEnv;
   private starting: Promise<unknown> = Promise.resolve();
+  /** Set when `shutdown()` begins: from then on nothing new starts (R1). */
+  private stopping = false;
 
   constructor(options: TaskManagerOptions) {
     this.options = options;
@@ -199,6 +201,7 @@ export class TaskManager {
    * task per project" rule cannot be passed twice at once.
    */
   start(project: string, description: string): Promise<TaskView> {
+    if (this.stopping) return Promise.reject(new BriefstackError('task.stopping', {}));
     const text = description.trim();
     const run = this.starting.then(() => this.startNow(project, text));
     this.starting = run.catch(() => undefined);
@@ -325,9 +328,12 @@ export class TaskManager {
    * running now: their process tree is killed and nothing is recorded, so
    * the task is left `checking`, as after an abrupt stop, and the next
    * start's `recover()` puts it back on its proposal without results (M2).
-   * The wait for the checks is bounded by `shutdownTimeoutMs`.
+   * The wait for the checks is bounded by `shutdownTimeoutMs`. From its
+   * first line on, no task, round or checks start (R1): this stop ends only
+   * what it finds, and the server answers requests until it closes.
    */
   async shutdown(): Promise<void> {
+    this.stopping = true;
     const limit = this.options.shutdownTimeoutMs ?? 15_000;
     await Promise.all(
       [...this.live.values()].map(async (l) => {
@@ -372,6 +378,7 @@ export class TaskManager {
   /** Starts another round on the same worktree and branch (ask for changes, M6). */
   async newRound(id: string, changes: string): Promise<TaskView> {
     return this.act(id, async (record) => {
+      this.refuseWhileStopping();
       if (!['proposal', 'failed', 'cancelled', 'interrupted'].includes(record.state)) throw new BriefstackError('task.wrongState', { id, state: record.state });
       const l = this.live.get(id) ?? this.adopt(record);
       const limit = await this.limit();
@@ -394,6 +401,7 @@ export class TaskManager {
    */
   runChecks(id: string, shown: readonly string[]): Promise<TaskView> {
     return this.act(id, async (record) => {
+      this.refuseWhileStopping();
       if (record.state !== 'proposal' || record.reviewed === undefined) throw new BriefstackError('task.wrongState', { id, state: record.state });
       const commands = (await this.options.checks?.commands(record)) ?? [];
       if (commands.length === 0) throw new BriefstackError('task.noChecks', { id, project: record.project });
@@ -408,6 +416,7 @@ export class TaskManager {
       l.record.updatedAt = this.now().toISOString();
       await this.options.store.save(l.record);
       this.pushStatus(l);
+      // Throws `task.stopping`, starting nothing, when a stop began during the save: left `checking`, as an abrupt stop leaves it.
       l.checksDone = this.checkNow(l, l.record.reviewed as string, commands).catch(() => undefined);
       return this.view(l);
     });
@@ -503,6 +512,7 @@ export class TaskManager {
   // ---- start and rounds ------------------------------------------------------------------------
 
   private async startNow(project: string, description: string): Promise<TaskView> {
+    this.refuseWhileStopping();
     if (description === '' || description.length > MAX_DESCRIPTION) throw new BriefstackError('web.invalidBody', { issues: [`description: 1 to ${MAX_DESCRIPTION} characters`] });
     const { libraryDir, repoDir } = await this.options.locations();
     const limit = await this.limit();
@@ -615,6 +625,9 @@ export class TaskManager {
     record.updatedAt = this.now().toISOString();
     await this.options.store.save(record);
     const lang = await this.options.lang();
+    // Read with no await before the session starts: a stop that began while the round was prepared found no session to end, so none starts.
+    // The record stays as an abrupt stop leaves it (the next start's `recover()` marks the round interrupted); a new task is removed by `startNow`.
+    this.refuseWhileStopping();
     const handle = this.options.runner.start({
       taskId: record.id,
       project: record.project,
@@ -715,15 +728,14 @@ export class TaskManager {
    * still on that commit (S4, S6); the worktree is put back to it before
    * they run and after.
    */
-  private async checkNow(l: Live, reviewed: string, commands: readonly string[]): Promise<void> {
-    const { record } = l;
+  private checkNow(l: Live, reviewed: string, commands: readonly string[]): Promise<void> {
+    // Read where the controller is set, with no await between: a stop that began before found none to abort, so nothing starts (R1).
+    this.refuseWhileStopping();
     const abort = new AbortController();
     l.checksAbort = abort;
-    try {
-      await this.checkWith(l, record, reviewed, commands, abort.signal);
-    } finally {
+    return this.checkWith(l, l.record, reviewed, commands, abort.signal).finally(() => {
       if (l.checksAbort === abort) l.checksAbort = undefined;
-    }
+    });
   }
 
   private async checkWith(l: Live, record: TaskRecord, reviewed: string, commands: readonly string[], signal: AbortSignal): Promise<void> {
@@ -909,6 +921,11 @@ export class TaskManager {
   }
 
   // ---- helpers ---------------------------------------------------------------------------------
+
+  /** Nothing new starts once a server stop began (R1): no task, no round, no checks. */
+  private refuseWhileStopping(): void {
+    if (this.stopping) throw new BriefstackError('task.stopping', {});
+  }
 
   private find(id: string): Live {
     const l = this.live.get(id);

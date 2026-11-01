@@ -38,7 +38,7 @@ text use those. The security rejections above send `{ "code" }` only.
 | 409 | `creation.limit`, `creation.noReply`, `library.busy`, `creation.noPending`, `creation.wrongPending`, `library.dirtyTree`, `library.revertConflict` |
 | 413 | `web.bodyTooLarge` |
 | 415 | `web.unsupportedMediaType` |
-| 503 | `creation.unavailable` (the server was started without a creation manager; `briefstack web` always has one) |
+| 503 | `creation.unavailable` (the server was started without a creation manager; `briefstack web` always has one), `task.stopping` (the server is stopping: no task, round or checks start; see the task routes) |
 
 ## Routes
 
@@ -714,6 +714,17 @@ changes, discard, revert and running the declared checks exist only here,
 for the proposal page; the chat has no tool for them. Routes that change the project or what runs
 take `{"confirm": true}` in the body, which the page sends only after its
 confirmation; without it they answer `400 web.invalidBody`.
+
+Once the server begins to stop (Ctrl+C or a crash), the routes still answer
+until it closes, but nothing new starts: starting a task
+(`POST /api/tasks`), a new round (`POST /api/tasks/:id/changes`) and
+running the checks (`POST /api/tasks/:id/checks`) answer
+`503 task.stopping` and run nothing. A request that was already past its own
+checks when the stop began is refused the same way just before its session
+or its first command would start: a new task is removed, and an existing
+one is left as an abrupt stop leaves it, which the next start's recovery
+puts back (a round as interrupted, checks back on the proposal without
+results).
 
 A task (`TaskView`) is its record (`src/tasks/types.ts`: `id`, `project`,
 `description`, `state`, `profile`, `model`, `effort`, `baseBranch`,

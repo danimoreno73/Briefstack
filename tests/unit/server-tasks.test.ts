@@ -196,6 +196,33 @@ describe('task API', { timeout: 60_000 }, () => {
     expect((await send(`/api/tasks/${id}`)).json.checks).toMatchObject([{ command, exitCode: 4 }]);
   });
 
+  it('answers 503 task.stopping to new work while the server stops, and runs nothing (R1)', async () => {
+    await world.project('garden');
+    await world.project('orchard');
+    await world.initLibrary();
+    await start();
+    const id = (await send('/api/tasks', { method: 'POST', body: { project: 'garden', description: 'Add a changelog.' } })).json.id as string;
+    await until(async () => (await send(`/api/tasks/${id}`)).json.pending !== undefined, 'the dialog');
+    const pending = (await send(`/api/tasks/${id}`)).json.pending as { id: string };
+    await send(`/api/tasks/${id}/answer`, { method: 'POST', body: { pendingId: pending.id, answer: 'once' } });
+    await until(async () => (await send(`/api/tasks/${id}`)).json.awaitingReply !== undefined, 'the turn');
+    await send(`/api/tasks/${id}/finish`, { method: 'POST' });
+    await until(async () => (await send(`/api/tasks/${id}`)).json.state === 'proposal', 'the proposal');
+    const command = 'node -e "process.exit(4)"';
+    await send('/api/projects/garden/checks', { method: 'PUT', body: { commands: [command], confirm: true } });
+
+    // The stop has begun; the routes still answer until the server closes.
+    await manager?.shutdown();
+    const stopping = { status: 503, json: { code: 'task.stopping' } };
+    expect(await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { commands: [command], confirm: true } })).toMatchObject(stopping);
+    expect(await send(`/api/tasks/${id}/changes`, { method: 'POST', body: { text: 'Also a date.' } })).toMatchObject(stopping);
+    expect(await send('/api/tasks', { method: 'POST', body: { project: 'orchard', description: 'Add a readme.' } })).toMatchObject(stopping);
+    const task = (await send(`/api/tasks/${id}`)).json;
+    expect(task).toMatchObject({ state: 'proposal', rounds: [{ n: 1 }] });
+    expect(task.checks).toBeUndefined();
+    expect((await send('/api/tasks')).json.tasks).toHaveLength(1);
+  });
+
   it('refuses a claude-app project with its reason, sets confirmed checks, and offers git init only to a folder outside git', async () => {
     await world.project('app', {}, { target: 'claude-app' });
     const plain = await world.project('plain');

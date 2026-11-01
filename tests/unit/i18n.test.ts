@@ -177,6 +177,7 @@ describe('error catalogue', () => {
     'task.branchChanged': { id: 'abc123-0f0f' },
     'task.noChecks': { id: 'abc123-0f0f', project: 'garden' },
     'task.checksChanged': { id: 'abc123-0f0f', project: 'garden' },
+    'task.stopping': {},
     'creation.noSpec': { id: 'c1' },
     'creation.claudeNotFound': {},
     'creation.slashCommandMissing': { command: 'new-project' },
