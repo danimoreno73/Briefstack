@@ -5329,6 +5329,35 @@ week).** Exit 1; the verdict fixed before the run:
 By the user's instructions a failed (b) is a stop: nothing fixed, the
 real run on the user's project not done.
 
+**Check 5, third run (2026-11-01, `40b8f1c`, verdict in `c20ffab`, CI
+green on the three systems at `c20ffab`; plan usage 9% of the 5-hour
+window and 42% of the week before and after).** Exit 1; the verdict
+fixed before the run (step 10 in "Decisiones sin Dani (fase 7)"):
+
+- **(a) passes:** the task session's context holds only `sample-skill`
+  (1 of 2 included, 28 tokens). The second skill Claude Code counts is
+  `late-skill`, picked up live after the script wrote it: counted, not
+  included.
+- **(b) passes, all three calls refused and none ran, each by Claude Code
+  before the hooks** (no `tool.pre` or `tool.denied` line for them, so the
+  task guard never saw them): (i) `doctor`, "cannot be used with Skill
+  tool due to disable-model-invocation"; (ii) `claude-api`, "Unknown
+  skill: claude-api"; (iii) `late-skill`, "is not in this session's
+  skills allowlist". The guard's layer 6 is still shown by unit tests
+  only: the SDK `skills` option refuses first.
+- **(c) fails as fixed, and as the docs foretold:** the control session
+  (no task layers) has 14 skills in its context, `claude-api`,
+  `simplify` and 11 other built-in ones among them, but **not `design` or
+  `doctor`**, which its init lists. So those two are not in the model's
+  context with or without the task's layers; the criterion asked for them
+  and was not relaxed. The control does show that without the layers
+  other skills reach the model, which the task's layers remove.
+- **The init listing** (`design`, `doctor`, both in `slash_commands`)
+  stays a failure, since (c) failed.
+
+Stage 1 of the step did not pass, so the real run on the user's project was not done.
+No retry (not an infrastructure failure); nothing in the product changed.
+
 ## `briefstack paths rewrite` (2026-10-30)
 
 Asked by the user before moving briefstack's folders on their machine.
