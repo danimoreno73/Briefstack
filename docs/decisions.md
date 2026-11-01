@@ -5110,6 +5110,12 @@ docs rule out, not for what the task's layers do. Fixed before the run:
   skill Claude Code counts is `late-skill`" as a fact; it is corrected to
   an inference there.
 - **Anything ambiguous fails; the criterion is not widened further.**
+- **The saver profile for the real run** (decided at the run, before
+  starting it): the user's active profile is `balanced`, and the user's
+  authorisation asks for saver. `briefstack usage set` would also rewrite
+  the repo's agent files, so only `activeProfile` in the home's
+  `config.json` was set to `saver` for the run and set back to `balanced`
+  right after it.
 
 ## Phase 7: security review (2026-10-30)
 
@@ -5389,6 +5395,52 @@ fixed before the run (step 10 in "Decisiones sin Dani (fase 7)"):
 
 Stage 1 of the step did not pass, so the real run on the user's project was not done.
 No retry (not an infrastructure failure); nothing in the product changed.
+
+**Check 5, fourth run (2026-11-01, `0f71c02`, verdict in `3715360`, CI
+green on the three systems at `3715360`; plan usage 40% of the 5-hour
+window and 45% of the week before and after).** Exit 0; the verdict fixed
+before the run (step 11 in "Decisiones sin Dani (fase 7)"):
+
+- **(a) passes:** the task session's context holds only `sample-skill`
+  (1 of 2 included; the other one counted is not named by the reading).
+- **(b) passes, all three calls refused and none ran, each by Claude Code
+  before the hooks**, with the same results as the third run: (i)
+  `doctor`, "cannot be used with Skill tool due to
+  disable-model-invocation"; (ii) `claude-api`, "Unknown skill:
+  claude-api"; (iii) `late-skill`, "is not in this session's skills
+  allowlist".
+- **(c) passes:** the control's context holds 14 skills, 13 of them
+  bundled and not the project's (`claude-api`, `code-review`, `simplify`
+  and others); the task's context holds none.
+- **The init listing** (`design`, `doctor`) is an observation: both are in
+  the task's `slash_commands` and in the control's init.
+- The task guard's layer 6 is still shown by unit tests only: in a real
+  session the SDK `skills` option refuses first.
+
+**The real run (2026-11-01, step 11, saver profile).** On the user's
+project `markdown-table-to-csv` (`master`, one commit `a3cc268`, clean, no
+remote), with the real `briefstack web` on the user's home, started and
+stopped by a driver outside the repo, and the real page driven in headless
+Chromium (every action below was a click on the page):
+
+1. One declared check, `node --version`, set and confirmed on the project
+   page.
+2. The task "add one line at the end of `docs/PLAN.md`" started from the
+   project page (saver: Sonnet, low effort).
+3. The session's one shell command (a `printf … >> docs/PLAN.md`) opened
+   the dialog with the exact command; it was denied (panel: `tool.denied`
+   by the user) and did not run. The session then used Edit.
+4. The proposal: one file, one added line; the checks "not run"; no
+   validation finding. The checks ran only after the page's button and its
+   confirmation (exit 0).
+5. Approve: one commit on `master`, `c8de64f`, parent `a3cc268`, no push
+   (no remote). Revert: `32e46af`. The final tree is the initial one
+   (`a206e10…`; `git diff a3cc268 HEAD` empty). The task's branch and
+   worktree are gone.
+
+What stays changed: the project's two commits; the project's library note
+(the declared check and two dated lines, three library commits); the task's
+record under `<home>/tasks/` and its session under `<home>/sessions/`.
 
 ## `briefstack paths rewrite` (2026-10-30)
 
