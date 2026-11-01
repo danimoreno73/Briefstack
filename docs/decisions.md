@@ -5119,7 +5119,26 @@ fixed before it, in `3715360`):
   authorisation asks for saver. `briefstack usage set` would also rewrite
   the repo's agent files, so only `activeProfile` in the home's
   `config.json` was set to `saver` for the run and set back to `balanced`
-  right after it. No copy of the file before and after was kept.
+  right after it. No copy of the file before and after was kept. The user
+  accepted this change on 2026-11-01 (see "Phase 7: M9 accepted, phase
+  closed").
+
+**Closing the phase (2026-11-01, the user's step 12).** Documentation only.
+Choices made without the user, the most conservative each:
+
+- **The open items** go to a new last section of IDEAS.md, §7, not after
+  §4: §5 and §6 are cited by number elsewhere, and renumbering them would
+  break those references.
+- **The S8 shutdown line** keeps its past tense ("waited"), now marked as
+  changed, rather than going back to "waits": the line is superseded, and
+  the note says what was changed.
+- **What the reviews said about the step reports** (a diffstat, CI blocks
+  quoted as extracts, outputs not saved, a plan reading run in the same
+  command as check 5) is about the user's notes outside the repo; nothing
+  of it is in the repo to correct, and it is not product backlog.
+- **The two commits of the real run** in `markdown-table-to-csv` stay as
+  they are: the tree is the initial one, and removing them would rewrite
+  the project's local history, which only the user decides.
 
 ## Phase 7: security review (2026-10-30)
 
@@ -5446,6 +5465,27 @@ Chromium (every action below was a click on the page):
 What stays changed: the project's two commits; the project's library note
 (the declared check and two dated lines, three library commits); the task's
 record under `<home>/tasks/` and its session under `<home>/sessions/`.
+
+## Phase 7: M9 accepted, phase closed (2026-11-01)
+
+**The user's decision (2026-11-01):** M9 is accepted, that is the five real
+checks (1 to 4 in the first run, 5 in its fourth run) and the real run on
+the user's project `markdown-table-to-csv` (apply `c8de64f`, revert
+`32e46af`, the final tree the initial one, no push), as recorded in "Phase
+7: M9 real checks" above. The user also accepted the temporary change of
+`activeProfile` in the home's `config.json` (saver for the real run, then
+back to `balanced`), recorded after the run in "Decisiones sin Dani (fase
+7)". The user asked to close phase 7 with the tag `phase-7-done`.
+
+- The real checks and the real run were done without the user, on their
+  authorisation of 2026-11-01, on Windows only.
+- The task guard's layer 6 (refusing a `Skill` call for a skill that is
+  not the project's) stays shown by unit tests only: in real sessions
+  Claude Code refuses those calls first.
+- What the reviews of the phase's steps left open is in IDEAS.md, §7
+  "Open items from phase 7".
+- The tag goes on the commit that records this decision, once its CI is
+  green on Linux, Windows and macOS.
 
 ## `briefstack paths rewrite` (2026-10-30)
 

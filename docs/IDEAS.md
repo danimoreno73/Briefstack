@@ -21,7 +21,9 @@ decides so; each needs its own plan and approval.
 
 ## 2. Working inside projects from briefstack
 
-**Brief in phase 7.**
+**Done in phase 7** ([BRIEF-phase-7.md](BRIEF-phase-7.md),
+[PLAN-phase-7.md](PLAN-phase-7.md)): tasks in existing projects. What
+stays open is in §7, "Open items from phase 7".
 
 Today briefstack only creates projects; the work on them happens in Claude
 Code or the app. To consider: whether the global chat should be able to
