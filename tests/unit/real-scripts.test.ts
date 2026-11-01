@@ -546,7 +546,9 @@ describe('every real script closes what it started, whatever happens', () => {
 
   it('is used by every script that starts a session, a manager or a sandbox', async () => {
     const dir = path.join(PACKAGE_ROOT, 'scripts', 'real');
-    const scripts = (await readdir(dir)).filter((name) => name.endsWith('.ts') && name !== 'common.ts');
+    // The shared helpers start nothing on their own: each check that uses them is held to these rules.
+    const helpers = ['common.ts', 'tasks-common.ts'];
+    const scripts = (await readdir(dir)).filter((name) => name.endsWith('.ts') && !helpers.includes(name));
     expect(scripts.length).toBeGreaterThan(5);
     for (const name of scripts) {
       const source = await readFile(path.join(dir, name), 'utf8');
