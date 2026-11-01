@@ -21,21 +21,30 @@
 //       (iii) `late-skill`, a second project skill the script writes into
 //             the task's worktree once the session has started: it is the
 //             project's, but not on the task's list.
-// The verdict, fixed before the run (step 10):
+// The verdict, fixed before the run (step 10 for (a) and (b), step 11 for (c)
+// and the init rule; decisions.md):
 //   (a) the task session's context holds only the task's skill;
 //   (b) each of the three calls is refused by some layer and does not run;
 //       the layer is recorded (the task guard, Claude Code before the hooks,
 //       or another), from the call's result and the panel's lines. A call
 //       that runs, a call with no result, or no call at all, fails;
-//   (c) control: a session WITHOUT the task's layers (a plain SDK session
-//       in the project folder, no `skills` option, bundled skills on) has
-//       `design` and `doctor` in its context. A control that cannot be read
-//       fails.
+//   (c) positive control: a session WITHOUT the task's layers (a plain SDK
+//       session in the project folder, no `skills` option, bundled skills
+//       on) has in its model's context at least one bundled skill that is
+//       not the project's (the model can invoke it: the docs say a skill
+//       whose description is in context is not `disable-model-invocation`),
+//       and the task session's context has none. A control that cannot be
+//       read, or holds no such skill, fails.
 // Skills the task's init message lists beyond the project's are an
-// OBSERVATION, not a failure, only when (a), (b) and (c) pass and each one
-// is a built-in command (in `slash_commands`): sdk.d.ts documents that with
-// bundled skills off, "built-in slash commands stay typable but are hidden
-// from the model". Anything else, or anything that cannot be read, fails.
+// OBSERVATION, not a failure, only when (a), (b) and (c) pass, each one is in
+// the task's `slash_commands`, and the control's init lists it too (so it is
+// Claude Code's standard init, not something the task adds). The docs: a
+// `disable-model-invocation` skill's "Description not in context"; "The
+// `/doctor` setup checkup stays typable when `disableBundledSkills` is on";
+// sdk.d.ts: "built-in slash commands stay typable but are hidden from the
+// model". Anything else, or anything that cannot be read, fails.
+// `getContextUsage()` names only the included skills; for the others it gives
+// a count. Which skill a count stands for is an inference, not a measure.
 // Saver profile, the real `briefstack web` in a temp home (tasks-common.ts).
 // Run:  npx tsx scripts/real/check-task-skills.ts --yes
 
@@ -76,6 +85,21 @@ const describe = (context: ContextSkills | null | string | undefined): string =>
   typeof context === 'object' && context !== null
     ? `${context.includedSkills} of ${context.totalSkills} included, ${context.tokens} tokens: ${context.skillFrontmatter.map((skill) => `${skill.name} (${skill.source}, ${skill.tokens})`).join(', ') || 'none'}`
     : String(context ?? 'no reading');
+/** A skill that is not the project's (the project's are SKILL and, once written, LATE). */
+const foreign = (name: string): boolean => name !== SKILL && name !== LATE;
+const KNOWN_FIELDS = new Set(['totalSkills', 'includedSkills', 'tokens', 'skillFrontmatter']);
+/** What the reading says about the skills it counts but does not include: a count, and any field beyond the typed ones. */
+function unnamed(label: string, context: ContextSkills | null | string | undefined): void {
+  if (typeof context !== 'object' || context === null) return;
+  const left = context.totalSkills - context.includedSkills;
+  const others = Object.entries(context).filter(([key]) => !KNOWN_FIELDS.has(key));
+  if (left > 0) {
+    console.log(
+      `${label} context: ${left} skill(s) counted but not included; the reading names only the included ones (skillFrontmatter), so which skill that is is an inference, not a measure`,
+    );
+  }
+  if (others.length > 0) console.log(`${label} context, other fields of the reading: ${JSON.stringify(Object.fromEntries(others)).slice(0, 600)}`);
+}
 
 interface Attempt {
   label: string;
@@ -131,19 +155,17 @@ try {
     [`.claude/skills/${SKILL}/SKILL.md`]: `---\nname: ${SKILL}\ndescription: Gives the project's marker word. Use when asked to run ${SKILL}.\n---\n\nThe project's marker word is ${word}.\n`,
   });
 
-  // (c) Control: without the task's layers, the model's context holds other skills, design and doctor among them.
+  // (c) Control: without the task's layers, the model's context holds bundled skills that are not the project's.
   const control = await controlSession(check, box, executable, { cwd: project.dir, tools: ['Skill'], allowTools: [], prompt: 'Reply with the single word OK. Use no tool.', maxTurns: 1 });
   const controlInit = [...(control.init?.skills ?? [])].sort();
   const controlContext = names(control.contextSkills);
   console.log(`Control session: Claude Code ${control.init?.claudeCodeVersion ?? '?'}`);
   console.log(`Control init skills (${controlInit.length}): ${controlInit.join(', ') || 'none'}`);
   console.log(`Control context skills: ${describe(control.contextSkills)}`);
+  unnamed('Control', control.contextSkills);
   ok = report('control: the project skill is listed without the task layers', controlInit.includes(SKILL), '') && ok;
   ok = report('control: other skills (not the project\'s) are listed without the task layers', controlInit.some((name) => name !== SKILL), '') && ok;
-  const wanted = ['design', FOREIGN, SKILL];
-  const missing = controlContext === undefined ? wanted : wanted.filter((name) => !controlContext.includes(name));
-  const c = controlContext !== undefined && missing.length === 0;
-  ok = report('(c) control: design and doctor ARE in the model\'s context without the task layers', c, controlContext === undefined ? describe(control.contextSkills) : `missing: ${missing.join(', ') || 'none'}`) && ok;
+  const controlForeign = (controlContext ?? []).filter(foreign);
 
   // (ii) The bundled skill to try: one the model can invoke without the layers, i.e. in the control's context.
   const invocable = INVOCABLE.find((name) => controlContext?.includes(name) === true);
@@ -192,12 +214,23 @@ try {
   console.log(`Task init skills: ${(init?.skills ?? []).join(', ') || 'none'}`);
   console.log(`Task init slash_commands (${init?.slashCommands.length ?? 0}): ${(init?.slashCommands ?? []).join(', ') || 'none'}`);
   console.log(`Task context skills: ${describe(taskContext)}`);
+  unnamed('Task', taskContext);
   ok = report('the task session sent its init message', init !== undefined, sessionId ?? 'no session id') && ok;
   ok = report(`the script wrote ${LATE} into the worktree after the session started`, lateWritten.startsWith('written'), lateWritten) && ok;
 
   // (a) The model's context holds only the task's skill.
   const a = contextNames !== undefined && JSON.stringify(contextNames) === JSON.stringify([SKILL]);
   ok = report('(a) the task session\'s context holds only the project skill', a, contextNames?.join(', ') ?? describe(taskContext)) && ok;
+
+  // (c) Positive control: the control's context holds at least one foreign skill, the task's none.
+  const taskForeign = contextNames?.filter(foreign);
+  const c = controlContext !== undefined && controlForeign.length >= 1 && taskForeign !== undefined && taskForeign.length === 0;
+  ok =
+    report(
+      '(c) control: without the task layers the model\'s context holds bundled skills that are not the project\'s; with them, none',
+      c,
+      `control: ${controlContext === undefined ? describe(control.contextSkills) : `${controlForeign.length} foreign (${controlForeign.join(', ') || 'none'})`}; task: ${taskForeign === undefined ? describe(taskContext) : `${taskForeign.length} foreign (${taskForeign.join(', ') || 'none'})`}`,
+    ) && ok;
 
   const skillCalls = tap.calls.filter((call) => call.sessionId === sessionId && call.name === 'Skill');
   const events = await sessionEvents(box, sessionId);
@@ -220,22 +253,23 @@ try {
   if (attempts.some((one) => one.ran) || lateSeen) console.log('SECURITY FAILURE: a skill that is not on the task\'s list ran.');
   ok = b && ok;
 
-  // The init listing: an observation only when (a), (b) and (c) hold and the docs back it.
+  // The init listing: an observation only when (a), (b) and (c) hold, each name is a slash command of the
+  // task session, and the control's init lists it too (Claude Code's standard init, not the task's doing).
   const extra = (init?.skills ?? []).filter((name) => name !== SKILL);
   if (extra.length === 0) {
     report('the task init lists only the project skill', true, '');
   } else {
     const commands = new Set((init?.slashCommands ?? []).map((name) => name.replace(/^\//, '')));
-    const backed = a && b && c && extra.every((name) => commands.has(name));
+    const backed = a && b && c && extra.every((name) => commands.has(name) && controlInit.includes(name));
     ok =
       report(
-        'the task init lists more than the project skill: an observation only if (a), (b), (c) hold and each is a built-in command',
+        'the task init lists more than the project skill: an observation only if (a), (b), (c) hold, each is in slash_commands and the control\'s init lists it too',
         backed,
-        `${extra.join(', ')}; in slash_commands: ${extra.map((name) => `${name} ${commands.has(name) ? 'yes' : 'NO'}`).join(', ')}`,
+        `${extra.join(', ')}; in slash_commands: ${extra.map((name) => `${name} ${commands.has(name) ? 'yes' : 'NO'}`).join(', ')}; in the control's init: ${extra.map((name) => `${name} ${controlInit.includes(name) ? 'yes' : 'NO'}`).join(', ')}`,
       ) && ok;
     if (backed) {
       console.log(
-        `OBSERVATION: the init lists ${extra.join(', ')}, built-in commands kept typable; the model's context does not hold them. sdk.d.ts, disableBundledSkills: "bundled skills and workflows are removed entirely; built-in slash commands stay typable but are hidden from the model".`,
+        `OBSERVATION: the init lists ${extra.join(', ')}, as the control's init does; the model's context does not hold them ((a)). Docs (code.claude.com/docs/en/skills): a disable-model-invocation skill: "Description not in context"; "The /doctor setup checkup stays typable when disableBundledSkills is on". sdk.d.ts, disableBundledSkills: "built-in slash commands stay typable but are hidden from the model".`,
       );
     }
   }
