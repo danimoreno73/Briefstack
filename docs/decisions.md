@@ -4976,6 +4976,25 @@ S8, the checks wait for a click"):
   while another proposal action runs; the server's lock already makes
   them wait for each other.
 
+**M8b, fixes from the second review (2026-11-01).** Choices made without
+the user, the most conservative each (the fixes are in "Phase 7: S8, the
+checks wait for a click", R1 and R2):
+
+- **R1, the code:** a new `task.stopping`, `503` as the other "not
+  available now" answers, in both languages; not `task.unavailable`, which
+  says the server has no task manager at all.
+- **R1, what is refused:** what starts project code or a session: a task,
+  a new round, the checks. Approve, discard and revert are server git
+  only and are not refused; the stop does not wait for them either, as
+  before.
+- **R1, the narrow window:** a request refused after it saved its task
+  does not save again during the stop; the task is left as an abrupt stop
+  leaves it, and the next start's recovery puts it back, as M2 already
+  does for checks cut short.
+- **R2:** if that final save fails, the task stays `checking` (or
+  `running`) in memory until the next start, whose recovery reads the
+  disk; before, memory moved on and the disk did not.
+
 ## Phase 7: security review (2026-10-30)
 
 A review of the phase's code (`phase-7-start..HEAD`, about 5,000 lines of
@@ -5069,8 +5088,10 @@ Choices made without the user, the most conservative each:
 - **When a run fails** (moved branch, a copy that is no longer the task's),
   `reviewed`, `checks` and `validations` are dropped, as for a round's end
   that fails: the task can be discarded or sent back for a new round.
-- **Shutting the server down** waits for checks that run, as it waited
+- **Shutting the server down** waited for checks that run, as it waited
   for those of a round's end; a hard stop is the recovery above.
+  *Superseded by M2 below: a stop now ends the checks it finds, and by R1:
+  none start once it begins.*
 - **The confirmation shows the commands as the user set them**, as the
   project page and the results already do: they are the user's own
   commands, confirmed by hash, and the dialog must show exactly what runs.
@@ -5101,14 +5122,20 @@ named below fail without the fix.
   round had the same flaw (the reproduction showed git failing on the
   removed worktree). The lock is now the task's id, taken before the
   record is read, and each action reads the record its turn finds. No
-  change to the states or to what each action does.
+  change to the states or to what each action does. *The lock holds the
+  actions only: the end of the checks and of a round run outside it, and
+  until R2 below they showed their new state before saving it, so an
+  action could still be overwritten on disk in that window.*
 - **M2, a server stop kills the running checks (`17f4074`).** `shutdown()`
   waited without a limit (up to 10 minutes per command). It now aborts
   them: the command's process tree is ended (`killProcessTree`, as the
   timeout does), no other command starts, nothing is recorded, and the
   wait is bounded (15 s, the creations' limit). The task is left
   `checking`, as an abrupt stop leaves it, and the next start's
-  `recover()` puts it back on its proposal without results.
+  `recover()` puts it back on its proposal without results. *It ends only
+  the checks running when the stop begins: until R1 below, checks asked
+  while the server was stopping (its routes answer until it closes) could
+  still start, and outlive it.*
 - **M1, the invariant shown by behaviour (`05903e5`).** Every chat tool
   (read tools called, action tools proposed and performed) and every
   task route but the proposal page's run with a spy in place of the
@@ -5123,6 +5150,41 @@ named below fail without the fix.
   languages; `show_task`'s description and the chat's system prompt say
   what `ran: false` means while checking, and that running the checks is
   on the task's page only.
+
+**Fixes from the review of those fixes (2026-11-01).** Each was reproduced
+first; the tests named below fail without the fix.
+
+- **R1, a stop refuses new work (`31e7506`).** `briefstack web` stops the
+  managers first and closes the server last, so the routes answer during
+  the stop, and `shutdown()` ended only the checks it found: checks (or a
+  round, or a task) asked in that window started after it and could
+  outlive the server. `TaskManager` now sets a `stopping` flag on the
+  first line of `shutdown()`; from then on `start`, `newRound` and
+  `runChecks` answer `503 task.stopping`. The flag is read again where
+  the work would start, with no `await` between: where the checks get
+  their abort controller, and just before a round's session starts. So a
+  request that was saving its task when the stop began starts nothing;
+  that task is left as an abrupt stop leaves it (`checking`, or a round
+  not finished), which the next start's `recover()` puts back, and a new
+  task is removed. Tests: `tests/unit/tasks-stopping.test.ts` (the
+  request after the stop began, and the narrow window, holding the save
+  and stopping in the middle, for the checks, a new round and a new task;
+  a mutation that drops the two late reads fails the three narrow-window
+  tests) and the route test in `server-tasks.test.ts`.
+- **R2, saved before shown (`f7c6144` the checks, `9369030` a round).**
+  The end of the checks and the end of a round run outside `act()`, and
+  set the new state in memory before saving it. An approve in that window
+  read the new `proposal`, applied, saved `applied`, and then the older
+  save wrote `proposal` over it. Both now build the final record apart,
+  save it, and only then show it (`l.record = next`). Chosen over running
+  them inside `act()` because it is a reordering only, and it holds by
+  itself: while a task is `running` or `checking` every action refuses it,
+  so an action that sees the new state finds it on disk, and its own save
+  comes after. The round's pattern predates step 06. Tests in
+  `tasks-run-checks.test.ts` ("… is on disk before an action can see it
+  (R2)") hold that save, run approve to its end meanwhile, then let the
+  save go: memory and disk agree, and an applied task is never a proposal
+  on disk.
 
 ## `briefstack paths rewrite` (2026-10-30)
 
