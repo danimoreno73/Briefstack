@@ -5041,6 +5041,44 @@ them, the most conservative each:
   `controlSession` helper, so the hooks check would too if run again; it
   is a read).
 
+**M9, check 5 with the verdict redefined (2026-11-01, the user's step
+10).** The user's adviser, on the user's delegation, redefined (b) from
+the step 09 evidence before anything was run: a `Skill` call to a skill
+that is not the project's must be refused by **some** layer and not run;
+the layer is recorded, not required. (a) and (c) stay as they were.
+Choices made without the user, the most conservative each, fixed before
+the run:
+
+- **The control's defect:** `controlSession` now awaits the context
+  reading inside its loop, before it leaves it (leaving closes the
+  query). The SDK reads control answers in its own loop
+  (`Query.readMessages`), so the answer comes while the loop waits.
+- **Three calls, each must be refused and not run:** (i) `doctor`;
+  (ii) a bundled skill the model can invoke without the task's layers,
+  the first of `claude-api` (it only reads) and `simplify` that the
+  control's context holds; (iii) `late-skill`, a second project skill the
+  script writes into the task's worktree once the session's init message
+  came, so it is not on the task's list. A call with no result, or no call
+  at all, fails (nothing measured); for (iii), its marker word coming back
+  anywhere fails too.
+- **"Can invoke" without running it:** being in the control's context.
+  The skills docs (code.claude.com/docs/en/skills, read 2026-11-01): with
+  `disable-model-invocation: true`, "Description not in context", and the
+  field "removes the skill from Claude's context entirely"; a default skill
+  has its "Description always in context".
+- **The layer:** the task guard when the result has its text or the panel
+  has a `tool.denied` line by the guard for that call; Claude Code before
+  the hooks when the error came back and the panel has no `tool.pre` line
+  for it; another layer otherwise.
+- **(a) stays exact:** the task's context must hold `sample-skill` only. If
+  Claude Code picks up `late-skill` live (the same docs: it "watches skill
+  directories for file changes") and it reaches the context, (a) fails.
+- **(c) may not be satisfiable for `doctor`:** by the docs above, a
+  `disable-model-invocation` skill is never in the model's context, and
+  Claude Code named `doctor` as one in step 09. (c) is kept as written,
+  not relaxed: if `doctor` is missing from the control's context, (c)
+  fails and the run on the user's project waits.
+
 ## Phase 7: security review (2026-10-30)
 
 A review of the phase's code (`phase-7-start..HEAD`, about 5,000 lines of
