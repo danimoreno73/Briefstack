@@ -398,6 +398,13 @@ plan is [PLAN-phase-7.md](PLAN-phase-7.md); its decisions are in
   were green): it read `running` where `interrupted` was expected. A race
   between the test and the unordered save above, which the test does not
   wait for. Review of step 07, M4; review of step 10, I1.
+- **Intermittent locally on Windows:** `tests/unit/tasks-manager.test.ts`,
+  "TaskManager: shell commands and questions › asks questions, and a write
+  outside the worktree is denied by the guard", failed once (2026-11-01):
+  the session's `events.jsonl` held `tool.pre` for the write but not yet
+  the guard's `tool.denied` line when the test read it. The test reads the
+  file without waiting for that line. Seen in the gates of step 12 (a
+  commit that changed only documentation); the next run passed.
 - **The R2 tests** (`tests/unit/tasks-run-checks.test.ts`, "… is on disk
   before an action can see it (R2)"): after the fix the `fulfilled`
   branch of `expectOneOrder` is never reached, so approving is not pinned
