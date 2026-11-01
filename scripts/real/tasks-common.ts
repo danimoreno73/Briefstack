@@ -88,6 +88,8 @@ export interface Tap {
   calls: ToolCall[];
   /** Tool results that came back as errors, by tool call id. */
   errors: Map<string, string>;
+  /** Every tool result, error or not, by tool call id (its text cut short). */
+  results: Map<string, { error: boolean; text: string }>;
   /**
    * With `contextUsage`, the session's `getContextUsage()` asked once its
    * first turn ended, by session id: its `skills` part, `null` when the
@@ -97,7 +99,7 @@ export interface Tap {
 }
 
 export function newTap(options: { contextUsage?: boolean } = {}): Tap {
-  return { inits: [], calls: [], errors: new Map(), ...(options.contextUsage === true ? { contextUsage: new Map() } : {}) };
+  return { inits: [], calls: [], errors: new Map(), results: new Map(), ...(options.contextUsage === true ? { contextUsage: new Map() } : {}) };
 }
 
 const textOf = (content: unknown): string =>
@@ -137,7 +139,10 @@ function observe(tap: Tap, message: SDKMessage): void {
   }
   if (message.type === 'user' && Array.isArray(message.message.content)) {
     for (const block of message.message.content) {
-      if (typeof block === 'object' && block.type === 'tool_result' && block.is_error === true) tap.errors.set(block.tool_use_id, textOf(block.content).slice(0, 300));
+      if (typeof block !== 'object' || block.type !== 'tool_result') continue;
+      const error = block.is_error === true;
+      tap.results.set(block.tool_use_id, { error, text: textOf(block.content).slice(0, 2000) });
+      if (error) tap.errors.set(block.tool_use_id, textOf(block.content).slice(0, 300));
     }
   }
 }
@@ -441,21 +446,42 @@ export async function waitState(web: Web, id: string, states: readonly string[],
   }
 }
 
-/** The `type` of every line of a session's `events.jsonl` (the panel's source). */
-export async function sessionEventTypes(box: Sandbox, sessionId: string | undefined): Promise<string[]> {
+/** A line of a session's `events.jsonl` (the panel's source), the fields the checks read. */
+export interface EventSeen {
+  type: string;
+  tool?: string;
+  toolUseId?: string;
+  /** On `tool.denied`: `guard` or `user`. */
+  by?: string;
+  reason?: string;
+}
+
+/** Every line of a session's `events.jsonl`; a line that does not parse is `{ type: '?' }`. */
+export async function sessionEvents(box: Sandbox, sessionId: string | undefined): Promise<EventSeen[]> {
   if (sessionId === undefined) return [];
   const text = await readFile(path.join(box.sessions, sessionId, 'events.jsonl'), 'utf8').catch(() => '');
+  const str = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
   return text
     .split(/\r?\n/)
     .filter((line) => line.trim() !== '')
     .map((line) => {
       try {
-        const event = JSON.parse(line) as { type?: unknown; tool?: unknown };
-        return `${String(event.type)}${typeof event.tool === 'string' ? `:${event.tool}` : ''}`;
+        const event = JSON.parse(line) as Record<string, unknown>;
+        const seen: EventSeen = { type: String(event.type) };
+        for (const key of ['tool', 'toolUseId', 'by', 'reason'] as const) {
+          const value = str(event[key]);
+          if (value !== undefined) seen[key] = value;
+        }
+        return seen;
       } catch {
-        return '?';
+        return { type: '?' };
       }
     });
+}
+
+/** The `type` of every line of a session's `events.jsonl`, with the tool after a colon. */
+export async function sessionEventTypes(box: Sandbox, sessionId: string | undefined): Promise<string[]> {
+  return (await sessionEvents(box, sessionId)).map((event) => `${event.type}${event.tool === undefined ? '' : `:${event.tool}`}`);
 }
 
 /** Discards a task that is not to be applied (its branch and worktree go). */
@@ -509,16 +535,15 @@ export async function controlSession(
   };
   const q = check.query(tappedQuery(tap)({ prompt: oneShot(params.prompt), options }), tracked);
   let text = '';
-  let sessionId: string | undefined;
+  let contextSkills: ContextSkills | null | string = 'no context reading (the turn did not end)';
   for await (const message of q) {
     if (message.type === 'result') {
       text = 'result' in message && typeof message.result === 'string' ? message.result : '';
-      sessionId = message.session_id;
+      // The tap asked the context reading as the result went through. Leaving the loop closes the query, so its answer is awaited here first.
+      contextSkills = (await tap.contextUsage?.get(message.session_id)) ?? 'no context reading was asked';
       break;
     }
   }
-  // The context reading was asked when the result went through the tap: its answer comes before the session closes.
-  const contextSkills = (sessionId === undefined ? undefined : await tap.contextUsage?.get(sessionId)) ?? 'no context reading (the turn did not end)';
   q.close();
   await tracked.killTree();
   return { init: tap.inits[0], calls: tap.calls, text, contextSkills };
