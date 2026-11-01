@@ -398,6 +398,25 @@ describe('the end of the checks and of a round is on disk before an action can s
     expect(calls).toEqual([['npm test']]);
     await m.shutdown();
   });
+
+  it('approve asked while the end of a round is being saved', async () => {
+    const m = manager();
+    await world.project('garden');
+    await world.initLibrary();
+    const task = await m.start('garden', 'Add a changelog.');
+    await until(async () => (await m.get(task.id)).awaitingReply !== undefined, 'the turn to end');
+    const held = holdSave((record) => record.id === task.id && record.state === 'proposal' && record.reviewed !== undefined);
+    m.finishRound(task.id);
+    await held.reached;
+    const [approved] = await Promise.allSettled([m.approve(task.id)]);
+    held.release();
+    await held.saved;
+    await settled(m, task.id);
+    const live = await m.get(task.id);
+    await expectOneOrder(task.id, live, approved, { reviewed: live.reviewed });
+    expect(live.reviewed).toBeDefined();
+    await m.shutdown();
+  });
 });
 
 describe('a server stop while the checks run (M2)', { timeout: 60_000 }, () => {

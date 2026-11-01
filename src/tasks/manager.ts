@@ -681,14 +681,14 @@ export class TaskManager {
     const round = record.rounds.at(-1);
     if (round === undefined) return;
     round.finishedAt = this.now().toISOString();
+    let next: TaskRecord;
     if (l.cancelling || outcome.kind === 'stopped') {
       round.outcome = l.cancelling ? 'cancelled' : 'interrupted';
-      record.state = l.cancelling ? 'cancelled' : 'interrupted';
+      next = { ...record, state: l.cancelling ? 'cancelled' : 'interrupted' };
     } else if (outcome.kind === 'failed') {
       round.outcome = 'failed';
       round.error = this.clean(outcome.error);
-      record.state = 'failed';
-      record.error = round.error;
+      next = { ...record, state: 'failed', error: round.error };
     } else {
       round.outcome = 'completed';
       if (outcome.summary !== undefined) round.summary = redactSecretLines(outcome.summary).slice(0, 4000);
@@ -709,16 +709,16 @@ export class TaskManager {
         if (head === undefined || (await branchHead(record.projectDir, record.branch)) !== head || (after.head !== undefined && after.head !== head)) {
           throw new BriefstackError('task.branchChanged', { id: record.id });
         }
-        record.reviewed = head;
-        record.validations = after.validations;
-        record.state = 'proposal';
+        next = { ...record, reviewed: head, validations: after.validations, state: 'proposal' };
       } catch (error) {
-        record.state = 'failed';
-        record.error = this.clean(isBriefstackError(error) ? formatError(error, await this.options.lang()) : error instanceof Error ? error.message : String(error));
+        next = { ...record, state: 'failed', error: this.clean(isBriefstackError(error) ? formatError(error, await this.options.lang()) : error instanceof Error ? error.message : String(error)) };
       }
     }
-    record.updatedAt = this.now().toISOString();
-    await this.options.store.save(record);
+    next.updatedAt = this.now().toISOString();
+    // Saved before the task shows it (R2): while it is `running` or `checking` every action refuses it, so an action that
+    // sees the round's end finds it on disk too, and its own save comes after this one.
+    await this.options.store.save(next);
+    l.record = next;
     this.pushStatus(l);
   }
 
