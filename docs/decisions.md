@@ -4995,6 +4995,31 @@ checks wait for a click", R1 and R2):
   `running`) in memory until the next start, whose recovery reads the
   disk; before, memory moved on and the disk did not.
 
+**M9, the real checks run without the user (2026-11-01).** The user
+authorised, for this run only, real sessions with their login and one
+real task on one of their projects (decisions recorded in "Phase 7: M9
+real checks"). Choices made without the user, the most conservative each:
+
+- **How the checks drive a task:** the real `briefstack web` in the
+  script's own process (`main(['web'])`), the real task runner, the HTTP
+  API the page uses. The only addition is a read-only tap on the SDK's
+  `query()`, to read the init message's skills and the tool calls; the
+  runner's options are not changed.
+- **Positive controls:** a second shell command allowed once (its marker
+  must be in the round's commit); control sessions without the task's
+  layers (a plain SDK session in the sample project with its settings)
+  for hooks and skills, which must show the hooks running and other
+  skills listed; the hook script run by hand once.
+- **The allow-all project** holds allow rules only (`Bash`, `Bash(*)`,
+  `PowerShell`, `PowerShell(*)`); no permission mode is written in it.
+- **The structural test of the real scripts** skips `tasks-common.ts`, a
+  helper module like `common.ts`; every check that uses it is held to the
+  rules.
+- **The stop:** check 5 failed (skills that are not the project's are
+  listed), which the user's instructions name as a security failure:
+  nothing was fixed, and the real run on the user's project was not
+  done.
+
 ## Phase 7: security review (2026-10-30)
 
 A review of the phase's code (`phase-7-start..HEAD`, about 5,000 lines of
@@ -5186,6 +5211,34 @@ first; the tests named below fail without the fix.
   (R2)") hold that save, run approve to its end meanwhile, then let the
   save go: memory and disk agree, and an applied task is never a proposal
   on disk.
+
+## Phase 7: M9 real checks (2026-11-01, Claude Code 2.1.316, Windows 11)
+
+Run without the user, by their authorisation of 2026-11-01, each check
+once, saver profile (`work`: sonnet, low), temp homes and sample
+projects (`scripts/real/check-task-*.ts`, commit `25a5b74`, CI green on
+the three systems). Plan usage 27% of the 5-hour window and 35% of the
+week before; 31% and 36% after.
+
+| Check | Result | Positive control |
+|---|---|---|
+| 1. A task end to end (`check-task-flow.ts`) | pass, exit 0 | the session read and edited README.md; the checks did not run by themselves, then ran once from the proposal action (a check that passes only on the task's tree); one commit on `main` with the reviewed tree, then a revert to the base tree; note lines |
+| 2. A shell command denied (`check-task-shell.ts`) | pass, exit 0 | the dialog showed the exact command; denied, it did not run; a second command allowed once ran (its marker in the round's commit); 2 calls, 2 dialogs |
+| 3. Project hooks (`check-task-hooks.ts`) | pass, exit 0 | a control session without the task layers fired the six project hooks; the task (Glob, Read, Edit) fired none, up to the server's stop |
+| 4. Settings that allow every shell command (`check-task-allow-all.ts`) | pass, exit 0 | as 2, with both settings files hidden in the worktree |
+| 5. The task session's skills (`check-task-skills.ts`) | **FAIL, exit 1** | a control session lists 19 skills; the task session used `sample-skill` |
+
+**The finding (check 5).** The init message of the task's session listed
+`design`, `doctor` and `sample-skill`; it should list `sample-skill`
+only. So the layers of "Phase 7: skills that are not the project's"
+(the SDK `skills` option, `disableBundledSkills`,
+`CLAUDE_CODE_DISABLE_BUNDLED_SKILLS`) do not keep these two out of the
+listing in Claude Code 2.1.316. The other 16 extra skills of the control
+session were gone. The guard's refusal of a `Skill` call for any skill
+that is not the project's (layer 6) was not exercised in this run (the
+session only called `sample-skill`); it is covered by unit tests only.
+Not fixed here, by the user's instruction; the real run on the user's
+project was not done. Output kept outside the repo.
 
 ## `briefstack paths rewrite` (2026-10-30)
 
