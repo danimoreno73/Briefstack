@@ -61,6 +61,16 @@ export interface SessionInit {
   agents: string[];
   model: string;
   permissionMode: string;
+  slashCommands: string[];
+  claudeCodeVersion: string;
+}
+
+/** The skills part of `getContextUsage()`: what the model's context holds (sdk.d.ts, `SDKControlGetContextUsageResponse`). */
+export interface ContextSkills {
+  totalSkills: number;
+  includedSkills: number;
+  tokens: number;
+  skillFrontmatter: { name: string; source: string; tokens: number }[];
 }
 
 export interface ToolCall {
@@ -78,10 +88,16 @@ export interface Tap {
   calls: ToolCall[];
   /** Tool results that came back as errors, by tool call id. */
   errors: Map<string, string>;
+  /**
+   * With `contextUsage`, the session's `getContextUsage()` asked once its
+   * first turn ended, by session id: its `skills` part, `null` when the
+   * answer has none, or the error's text. Without it, nothing is asked.
+   */
+  contextUsage?: Map<string, Promise<ContextSkills | null | string>>;
 }
 
-export function newTap(): Tap {
-  return { inits: [], calls: [], errors: new Map() };
+export function newTap(options: { contextUsage?: boolean } = {}): Tap {
+  return { inits: [], calls: [], errors: new Map(), ...(options.contextUsage === true ? { contextUsage: new Map() } : {}) };
 }
 
 const textOf = (content: unknown): string =>
@@ -89,7 +105,16 @@ const textOf = (content: unknown): string =>
 
 function observe(tap: Tap, message: SDKMessage): void {
   if (message.type === 'system' && message.subtype === 'init') {
-    const init = message as unknown as { session_id: string; skills?: unknown[]; tools?: unknown[]; agents?: unknown[]; model?: unknown; permissionMode?: unknown };
+    const init = message as unknown as {
+      session_id: string;
+      skills?: unknown[];
+      tools?: unknown[];
+      agents?: unknown[];
+      model?: unknown;
+      permissionMode?: unknown;
+      slash_commands?: unknown[];
+      claude_code_version?: unknown;
+    };
     tap.inits.push({
       sessionId: init.session_id,
       skills: (init.skills ?? []).map(String),
@@ -97,6 +122,8 @@ function observe(tap: Tap, message: SDKMessage): void {
       agents: (init.agents ?? []).map(String),
       model: String(init.model ?? ''),
       permissionMode: String(init.permissionMode ?? ''),
+      slashCommands: (init.slash_commands ?? []).map(String),
+      claudeCodeVersion: String(init.claude_code_version ?? ''),
     });
     return;
   }
@@ -124,7 +151,20 @@ export function tappedQuery(tap: Tap): QueryFn {
         if (prop === 'next') {
           return async (...args: [] | [unknown]) => {
             const step = await target.next(...(args as []));
-            if (step.done !== true) observe(tap, step.value);
+            if (step.done !== true) {
+              observe(tap, step.value);
+              // Once the first turn ended, the session's context holds its skill listing: ask what it holds (a read).
+              const usage = tap.contextUsage;
+              if (usage !== undefined && step.value.type === 'result' && !usage.has(step.value.session_id)) {
+                usage.set(
+                  step.value.session_id,
+                  target.getContextUsage().then(
+                    (answer) => ((answer as { skills?: ContextSkills }).skills ?? null),
+                    (error: unknown) => `getContextUsage failed: ${error instanceof Error ? error.message : String(error)}`,
+                  ),
+                );
+              }
+            }
             return step;
           };
         }
@@ -352,6 +392,8 @@ export async function driveRound(
   id: string,
   decide: (payload: { text: string; tool: string; kind: string }) => 'once' | 'task' | 'deny',
   timeoutMs = 12 * 60_000,
+  /** Runs once the turn ended and before the round is finished, while the session is still open. */
+  beforeFinish?: () => Promise<void>,
 ): Promise<{ task: TaskSeen; approvals: ApprovalSeen[]; finished: string[] }> {
   const approvals: ApprovalSeen[] = [];
   const finished: string[] = [];
@@ -380,6 +422,7 @@ export async function driveRound(
     } else if (pending === undefined && task.awaitingReply !== undefined && task.state === 'running' && !finished.includes(task.awaitingReply.at)) {
       finished.push(task.awaitingReply.at);
       console.log(`   turn ended: ${JSON.stringify(task.awaitingReply.lastMessage.slice(0, 300))} -> finish`);
+      await beforeFinish?.();
       const sent = await web.call('POST', `/api/tasks/${id}/finish`);
       if (sent.status !== 200) throw new Error(`finish: ${sent.status} ${sent.body.slice(0, 300)}`);
     }
@@ -442,10 +485,10 @@ export async function controlSession(
   box: Sandbox,
   executable: string,
   params: { cwd: string; tools: string[]; allowTools: string[]; prompt: string; maxTurns?: number },
-): Promise<{ init: SessionInit | undefined; calls: ToolCall[]; text: string }> {
+): Promise<{ init: SessionInit | undefined; calls: ToolCall[]; text: string; contextSkills: ContextSkills | null | string }> {
   const work = (await loadUsageProfiles({ baseFile: baseProfilesFile() })).presets.saver?.work;
   if (work === undefined) throw new Error('The saver profile has no work entry.');
-  const tap = newTap();
+  const tap = newTap({ contextUsage: true });
   const tracked = spawnTracked();
   const options: Options = {
     cwd: params.cwd,
@@ -466,15 +509,19 @@ export async function controlSession(
   };
   const q = check.query(tappedQuery(tap)({ prompt: oneShot(params.prompt), options }), tracked);
   let text = '';
+  let sessionId: string | undefined;
   for await (const message of q) {
     if (message.type === 'result') {
       text = 'result' in message && typeof message.result === 'string' ? message.result : '';
+      sessionId = message.session_id;
       break;
     }
   }
+  // The context reading was asked when the result went through the tap: its answer comes before the session closes.
+  const contextSkills = (sessionId === undefined ? undefined : await tap.contextUsage?.get(sessionId)) ?? 'no context reading (the turn did not end)';
   q.close();
   await tracked.killTree();
-  return { init: tap.inits[0], calls: tap.calls, text };
+  return { init: tap.inits[0], calls: tap.calls, text, contextSkills };
 }
 
 /** A path with forward slashes, for commands that run under cmd and sh alike. */
