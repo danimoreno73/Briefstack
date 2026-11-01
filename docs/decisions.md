@@ -5267,6 +5267,30 @@ unit tests only. Not fixed, by the user's instruction; the real run on
 the user's project was not done. Output kept outside the repo. Measured
 again in step 09 of the user's notes: see below.
 
+**Check 5 measured again (2026-11-01, `2bbd9ef`, CI green on the three
+systems at `fe9a845`; plan usage 70% of the 5-hour window and 40% of the
+week).** Exit 1; the verdict fixed before the run:
+
+- **(a) passes:** the model's context in the task session holds only
+  `sample-skill` (`getContextUsage()`: 1 of 1 included, 28 tokens,
+  source `projectSettings`). The init still lists `design` and `doctor`,
+  both among its 39 `slash_commands`.
+- **(b) fails as fixed:** asked to call `Skill` with `doctor`, the
+  session did, and **Claude Code itself** refused it before any hook ran
+  ("Skill doctor cannot be used with Skill tool due to
+  disable-model-invocation"); the panel has one `tool.pre:Skill` (the
+  `sample-skill` call) and no line for this one, so the task guard never
+  saw it. The call did not run, but the criterion asked for the guard's
+  refusal, and the guard's layer 6 is still not shown in a real session
+  (a skill Claude Code lets the model call would be needed for that).
+- **(c) not shown, a defect of the script:** the control session's
+  context reading failed ("Query closed before response received"):
+  `controlSession` leaves its `for await` loop with `break`, which closes
+  the query before the answer arrives. Not a finding about briefstack.
+
+By the user's instructions a failed (b) is a stop: nothing fixed, the
+real run on the user's project not done.
+
 ## `briefstack paths rewrite` (2026-10-30)
 
 Asked by the user before moving briefstack's folders on their machine.
