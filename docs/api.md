@@ -715,8 +715,12 @@ for the proposal page; the chat has no tool for them. Routes that change the pro
 take `{"confirm": true}` in the body, which the page sends only after its
 confirmation; without it they answer `400 web.invalidBody`.
 
-Once the server begins to stop (Ctrl+C or a crash), the routes still answer
-until it closes, but nothing new starts: starting a task
+Once the task manager begins to stop, the routes still answer until the
+server closes, but nothing new starts. On Ctrl+C or a crash, `briefstack
+web` stops the improvements and the chat first (the chat waits up to 15 s)
+and the task manager after them; in those seconds the task routes still
+accept work, which the task manager's stop then ends or aborts as it finds
+it. From the task manager's stop on, starting a task
 (`POST /api/tasks`), a new round (`POST /api/tasks/:id/changes`) and
 running the checks (`POST /api/tasks/:id/checks`) answer
 `503 task.stopping` and run nothing. A request that was already past its own

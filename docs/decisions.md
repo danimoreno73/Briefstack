@@ -5110,12 +5110,16 @@ docs rule out, not for what the task's layers do. Fixed before the run:
   skill Claude Code counts is `late-skill`" as a fact; it is corrected to
   an inference there.
 - **Anything ambiguous fails; the criterion is not widened further.**
+
+Recorded after the run (in `0f012a1`; it was not part of the criterion
+fixed before it, in `3715360`):
+
 - **The saver profile for the real run** (decided at the run, before
   starting it): the user's active profile is `balanced`, and the user's
   authorisation asks for saver. `briefstack usage set` would also rewrite
   the repo's agent files, so only `activeProfile` in the home's
   `config.json` was set to `saver` for the run and set back to `balanced`
-  right after it.
+  right after it. No copy of the file before and after was kept.
 
 ## Phase 7: security review (2026-10-30)
 
@@ -5213,7 +5217,8 @@ Choices made without the user, the most conservative each:
 - **Shutting the server down** waited for checks that run, as it waited
   for those of a round's end; a hard stop is the recovery above.
   *Superseded by M2 below: a stop now ends the checks it finds, and by R1:
-  none start once it begins.*
+  none start once it begins. (Until step 07 of the user's notes this line
+  said "waits"; its verb was put in the past when this note was added.)*
 - **The confirmation shows the commands as the user set them**, as the
   project page and the results already do: they are the user's own
   commands, confirmed by hash, and the dialog must show exactly what runs.
