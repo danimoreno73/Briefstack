@@ -5015,10 +5015,31 @@ real checks"). Choices made without the user, the most conservative each:
 - **The structural test of the real scripts** skips `tasks-common.ts`, a
   helper module like `common.ts`; every check that uses it is held to the
   rules.
-- **The stop:** check 5 failed (skills that are not the project's are
-  listed), which the user's instructions name as a security failure:
-  nothing was fixed, and the real run on the user's project was not
-  done.
+- **The stop:** check 5 failed (the init message lists skills that are
+  not the project's), which the user's instructions name as a security
+  failure: nothing was fixed, and the real run on the user's project was
+  not done. Whether those skills reach the model was not measured then.
+
+**M9, check 5 measured again (2026-11-01, the user's step 09).** The
+verdict was fixed before the run, as the user asked; choices made without
+them, the most conservative each:
+
+- **What "the model sees" means:** the `skills` part of
+  `getContextUsage()` (the skills whose listing is in the model's
+  context), asked through the tap once the session's first turn ended and
+  before the round is finished, so the session is still open. A reading
+  that fails or has no `skills` part fails the check.
+- **The guard's refusal:** shown by the guard's own text in the `Skill`
+  call's result (the callback's or the command hook's); a refusal by
+  Claude Code itself does not count. The panel's `tool.denied` line is
+  printed as support only.
+- **The init listing** beyond the project's skill is an observation, not
+  a failure, only when the three conditions hold and every extra name is
+  among the init's `slash_commands` (the built-in commands the SDK says
+  stay typable but hidden from the model); otherwise it fails.
+- **The control session** now also reads its context (the same
+  `controlSession` helper, so the hooks check would too if run again; it
+  is a read).
 
 ## Phase 7: security review (2026-10-30)
 
@@ -5228,17 +5249,23 @@ week before; 31% and 36% after.
 | 4. Settings that allow every shell command (`check-task-allow-all.ts`) | pass, exit 0 | as 2, with both settings files hidden in the worktree |
 | 5. The task session's skills (`check-task-skills.ts`) | **FAIL, exit 1** | a control session lists 19 skills; the task session used `sample-skill` |
 
-**The finding (check 5).** The init message of the task's session listed
-`design`, `doctor` and `sample-skill`; it should list `sample-skill`
-only. So the layers of "Phase 7: skills that are not the project's"
-(the SDK `skills` option, `disableBundledSkills`,
-`CLAUDE_CODE_DISABLE_BUNDLED_SKILLS`) do not keep these two out of the
-listing in Claude Code 2.1.316. The other 16 extra skills of the control
-session were gone. The guard's refusal of a `Skill` call for any skill
-that is not the project's (layer 6) was not exercised in this run (the
-session only called `sample-skill`); it is covered by unit tests only.
-Not fixed here, by the user's instruction; the real run on the user's
-project was not done. Output kept outside the repo.
+**The finding (check 5), as measured.** The init message of the task's
+session listed `design`, `doctor` and `sample-skill`; the check expected
+`sample-skill` only. That is all the run showed: the init's `skills`
+field is not documented (sdk.d.ts, `SDKSystemMessage`), and **whether
+these two reached the model was not checked**. With the layers of
+"Phase 7: skills that are not the project's" on (the SDK `skills`
+option, `disableBundledSkills`, `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS`,
+the built-in `plugin-authoring` plugin off), the other 16 skills the
+control session listed were gone from the init. The SDK documents that
+with bundled skills off "built-in slash commands stay typable but are
+hidden from the model" (sdk.d.ts, `disableBundledSkills`), which may be
+what the two are; this run did not tell. The guard's refusal of a
+`Skill` call for any skill that is not the project's (layer 6) was not
+exercised (the session only called `sample-skill`); it is covered by
+unit tests only. Not fixed, by the user's instruction; the real run on
+the user's project was not done. Output kept outside the repo. Measured
+again in step 09 of the user's notes: see below.
 
 ## `briefstack paths rewrite` (2026-10-30)
 
