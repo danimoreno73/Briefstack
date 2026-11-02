@@ -410,13 +410,16 @@ export class TaskManager {
       const limit = await this.limit();
       const active = [...this.activeIds(), ...(this.options.creations?.activeIds() ?? [])];
       if (active.length >= limit) throw new BriefstackError('task.limit', { limit, active });
+      // Read again with no await before the record changes: a stop that began while the request waited refuses it with
+      // nothing changed, so the task stays on its proposal (review of step 07, M2).
+      this.refuseWhileStopping();
       l.record.state = 'checking';
       delete l.record.checks;
       delete l.record.error;
       l.record.updatedAt = this.now().toISOString();
       await this.options.store.save(l.record);
       this.pushStatus(l);
-      // Throws `task.stopping`, starting nothing, when a stop began during the save: left `checking`, as an abrupt stop leaves it.
+      // Throws `task.stopping`, starting nothing, when a stop began during that save: left `checking`, as an abrupt stop leaves it.
       l.checksDone = this.checkNow(l, l.record.reviewed as string, commands).catch(() => undefined);
       return this.view(l);
     });
@@ -603,15 +606,21 @@ export class TaskManager {
     const { record } = l;
     const n = record.rounds.length + 1;
     const worktree = this.options.store.worktreeDir(record.id);
+    let inspection = l.inspection;
     if (record.rounds.length > 0) {
       // Earlier rounds (and shell commands the user allowed) may have added definitions: every file is read again.
       if (!(await isTaskWorktree(worktree, record.projectDir, record.branch))) throw new BriefstackError('task.worktreeChanged', { id: record.id });
       const now = await inspectProject(worktree, { files: await allFiles(worktree) });
       if (now.unsafe.length > 0) throw new BriefstackError('task.unsafeChanges', { id: record.id, items: now.unsafe });
-      l.inspection = { ...now, skills: record.skills ?? l.inspection?.skills ?? now.skills };
+      inspection = { ...now, skills: record.skills ?? l.inspection?.skills ?? now.skills };
     }
-    l.inspection ??= await inspectProject(worktree);
+    inspection ??= await inspectProject(worktree);
     const restrictions = await projectRestrictions(record.projectDir, record.baseCommit);
+    const lang = await this.options.lang();
+    // Read again with no await before the record changes: a stop that began while the round was prepared refuses it with
+    // nothing changed, so a reviewed proposal is kept (review of step 07, M2).
+    this.refuseWhileStopping();
+    l.inspection = inspection;
     record.rounds.push({ n, text: changes ?? record.description, startedAt: this.now().toISOString() });
     record.state = 'running';
     delete record.checks;
@@ -624,8 +633,7 @@ export class TaskManager {
     l.consumed = 0;
     record.updatedAt = this.now().toISOString();
     await this.options.store.save(record);
-    const lang = await this.options.lang();
-    // Read with no await before the session starts: a stop that began while the round was prepared found no session to end, so none starts.
+    // Read with no await before the session starts: a stop that began during that save found no session to end, so none starts.
     // The record stays as an abrupt stop leaves it (the next start's `recover()` marks the round interrupted); a new task is removed by `startNow`.
     this.refuseWhileStopping();
     const handle = this.options.runner.start({

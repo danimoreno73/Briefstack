@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskChecks } from '../../src/tasks/checks.js';
 import { TaskFakeRunner } from '../../src/tasks/fakeRunner.js';
 import { TaskManager, type TaskView } from '../../src/tasks/manager.js';
@@ -12,12 +12,34 @@ import { taskWorld, type TaskWorld } from '../taskWorld.js';
 
 useHermeticGit();
 
+/** Where a request waits before it changes a task's record; `before` lets a test hold it there. */
+type WaitPoint = 'limit' | 'commands' | 'inspectProject' | 'projectRestrictions';
+const hooks = vi.hoisted(() => ({ before: undefined as undefined | ((point: WaitPoint) => Promise<void>) }));
+
+vi.mock('../../src/tasks/session.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../src/tasks/session.js')>();
+  return {
+    ...original,
+    inspectProject: async (...args: Parameters<typeof original.inspectProject>) => {
+      await hooks.before?.('inspectProject');
+      return original.inspectProject(...args);
+    },
+    projectRestrictions: async (...args: Parameters<typeof original.projectRestrictions>) => {
+      await hooks.before?.('projectRestrictions');
+      return original.projectRestrictions(...args);
+    },
+  };
+});
+
 let world: TaskWorld;
 
 beforeEach(async () => {
   world = await taskWorld('tasks-stopping');
 });
-afterEach(() => world.cleanup());
+afterEach(async () => {
+  hooks.before = undefined;
+  await world.cleanup();
+});
 
 const until = async (check: () => boolean | Promise<boolean>, what = 'condition'): Promise<void> => {
   for (let i = 0; i < 1500; i += 1) {
@@ -44,7 +66,13 @@ interface Setup {
 function setup(): Setup {
   const runner = new TaskFakeRunner();
   const calls: string[][] = [];
-  const checks: TaskChecks = { commands: async () => ['npm test'], run: async (_dir, commands) => (calls.push([...commands]), []) };
+  const checks: TaskChecks = {
+    commands: async () => {
+      await hooks.before?.('commands');
+      return ['npm test'];
+    },
+    run: async (_dir, commands) => (calls.push([...commands]), []),
+  };
   const m = new TaskManager({
     runner,
     store: world.store,
@@ -52,7 +80,10 @@ function setup(): Setup {
     locations: async () => ({ libraryDir: world.library, repoDir: world.repo }),
     lang: () => 'en',
     profile: async () => ({ name: 'saver', model: 'sonnet', effort: 'low' }),
-    maxActive: () => 2,
+    maxActive: async () => {
+      await hooks.before?.('limit');
+      return 2;
+    },
     pollMs: 10,
     checks,
   });
@@ -172,4 +203,50 @@ describe('a server stop refuses new work on tasks (R1)', { timeout: 60_000 }, ()
     expect(runner.started.length).toBe(sessions);
     expect((await world.store.list()).map((record) => record.id)).toEqual([first.id]);
   });
+});
+
+/** Holds the request at `point` once, until `release()`; `reached` opens when it waits there. */
+function holdAt(point: WaitPoint): { reached: Promise<void>; release: () => void } {
+  const reached = gate();
+  const release = gate();
+  let held = false;
+  hooks.before = async (at) => {
+    if (held || at !== point) return;
+    held = true;
+    reached.open();
+    await release.promise;
+  };
+  return { reached: reached.promise, release: release.open };
+}
+
+// The stop is read again just before a request changes the record (review of step 07, M2): a request that was waiting
+// when the stop began is refused with nothing changed, so the reviewed proposal is kept, on disk and in memory.
+describe('a stop that begins while a request waits changes nothing on the task', { timeout: 60_000 }, () => {
+  async function stopWhileWaiting(point: WaitPoint, ask: (m: TaskManager, id: string) => Promise<unknown>): Promise<void> {
+    const { m, runner, calls } = setup();
+    const task = await proposal(m);
+    const before = await world.store.load(task.id);
+    expect(before).toMatchObject({ state: 'proposal', reviewed: task.reviewed, validations: [] });
+    const sessions = runner.started.length;
+    const held = holdAt(point);
+    const request = ask(m, task.id);
+    await held.reached;
+    const stop = m.shutdown();
+    held.release();
+    const [result] = await Promise.allSettled([request]);
+    await stop;
+    expect(result).toMatchObject(stopping);
+    expect(await world.store.load(task.id)).toEqual(before);
+    expect(await m.get(task.id)).toMatchObject({ state: 'proposal', reviewed: task.reviewed, validations: [], rounds: before?.rounds });
+    expect(m.activeIds()).toEqual([]);
+    expect(runner.started.length).toBe(sessions);
+    expect(calls).toEqual([]);
+  }
+
+  for (const point of ['limit', 'inspectProject', 'projectRestrictions'] as const) {
+    it(`a new round waiting on ${point}`, () => stopWhileWaiting(point, (m, id) => m.newRound(id, 'More.')));
+  }
+  for (const point of ['commands', 'limit'] as const) {
+    it(`checks waiting on ${point}`, () => stopWhileWaiting(point, (m, id) => m.runChecks(id, ['npm test'])));
+  }
 });
