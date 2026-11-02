@@ -5,13 +5,14 @@ each one.
 
 ## Current state
 
-Phase 7 is in progress (tag `phase-7-start`): tasks in existing projects.
-Scope and requirements: @docs/BRIEF-phase-7.md — read it before planning.
-The plan, with its Status, is `docs/PLAN-phase-7.md`; H0 is in
-`docs/decisions.md`, "Phase 7". No code of the phase is written before the
-user approves H0 and the plan.
+Phase 7 is done (tag `phase-7-done`): tasks in existing projects. Its
+brief, `docs/BRIEF-phase-7.md`, and its plan, with the Status,
+`docs/PLAN-phase-7.md`, stay in `docs/` until they join the earlier ones
+in `docs/history/`; its decisions are in `docs/decisions.md`, "Phase 7".
+Open them only when needed.
 
-`v1.0.0` is published. The living backlog is `docs/IDEAS.md`. The briefs
+`v1.0.0` is published. The living backlog is `docs/IDEAS.md`; what phase 7
+left open is in its §7. The briefs
 and plans of phases 1–6, the UI pass and the release are in
 `docs/history/` (tags `phase-1-done` … `phase-6-done`, `ui-done`,
 `v1.0.0`); open them only when needed. Backlogs 1 and 2 are done (tags
