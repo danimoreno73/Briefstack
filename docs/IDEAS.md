@@ -334,11 +334,21 @@ when a decision is needed, so the user does not have to watch a screen.
 
 ## 7. Open items from phase 7
 
-Left open when phase 7 closed (2026-11-01). Each item names its source:
-the review of a step in the user's working notes (outside the repo), by
-step and finding, or a record in this repo. None is planned. The phase's
+Left open when phase 7 closed (2026-11-01). None is planned. The phase's
 plan is [PLAN-phase-7.md](PLAN-phase-7.md); its decisions are in
 [decisions.md](decisions.md), "Phase 7".
+
+Each item ends with its source, in one of three forms:
+
+- **"Review of step NN, X"**: finding X of the review of step NN of the
+  phase (once, X is an open question of that step's report). The reviews are in the user's working notes, which stay outside
+  the repo and are not published, so no file is named or linked; the item
+  says what the finding found.
+- **A record in this repo**, by document and heading, for example
+  decisions.md, "Phase 7: security review", S10.
+- **Something seen while the phase was being closed**, by the step that
+  saw it (for example "seen in the gates of step 12"), or the open
+  warnings in the user's working notes.
 
 ### Code
 
@@ -470,3 +480,21 @@ plan is [PLAN-phase-7.md](PLAN-phase-7.md); its decisions are in
 - **The `design` observation of check 5** has no line in the skills docs,
   which mention `doctor` only; it rests on the control's init listing it
   too. Review of step 11, M2.
+
+### Not listed here
+
+- **Findings already closed:** fixed in a later step of the phase,
+  accepted by the user, or checked and found true. Their records are in
+  decisions.md, "Phase 7" and "Decisiones sin Dani (fase 7)".
+- **Findings about the step reports** (outputs not saved, CI quoted as
+  extracts, a diffstat, gates not run on a commit's exact tree): they are
+  about the user's working notes, not about briefstack, and past evidence
+  cannot be redone.
+- **The user's own working setup** outside the repo (the notes and tools
+  that drive each step, empty folders left on the user's machine after the
+  move of 2026-10-30): not part of briefstack.
+- **The other option of the review of step 07, M1:** setting the stop flag
+  when `briefstack web` begins to stop, before the improvements and the
+  chat. The finding was fixed in [api.md](api.md) instead, and the current
+  order is safe: the task manager's stop ends or aborts the work the task
+  routes accepted in those seconds.
