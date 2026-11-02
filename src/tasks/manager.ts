@@ -687,23 +687,25 @@ export class TaskManager {
     delete l.handle;
     delete l.awaitingReply;
     const { record } = l;
-    const round = record.rounds.at(-1);
-    if (round === undefined) return;
-    round.finishedAt = this.now().toISOString();
+    const last = record.rounds.at(-1);
+    if (last === undefined) return;
+    // The round's end is set on a copy of the round and of the record: the task in memory changes only once it is on disk.
+    const round = { ...last, finishedAt: this.now().toISOString() };
+    const rounds = [...record.rounds.slice(0, -1), round];
     let next: TaskRecord;
     if (l.cancelling || outcome.kind === 'stopped') {
       round.outcome = l.cancelling ? 'cancelled' : 'interrupted';
-      next = { ...record, state: l.cancelling ? 'cancelled' : 'interrupted' };
+      next = { ...record, rounds, state: l.cancelling ? 'cancelled' : 'interrupted' };
     } else if (outcome.kind === 'failed') {
       round.outcome = 'failed';
       round.error = this.clean(outcome.error);
-      next = { ...record, state: 'failed', error: round.error };
+      next = { ...record, rounds, state: 'failed', error: round.error };
     } else {
       round.outcome = 'completed';
       if (outcome.summary !== undefined) round.summary = redactSecretLines(outcome.summary).slice(0, 4000);
-      record.state = 'checking';
-      record.updatedAt = this.now().toISOString();
-      await this.options.store.save(record);
+      const checking: TaskRecord = structuredClone({ ...record, rounds, state: 'checking', updatedAt: this.now().toISOString() });
+      await this.options.store.save(checking);
+      l.record = checking;
       this.pushStatus(l);
       try {
         const worktree = this.options.store.worktreeDir(record.id);
@@ -712,20 +714,22 @@ export class TaskManager {
         const commit = await commitRound(worktree, `briefstack task ${record.id}, round ${round.n}`);
         if (commit !== undefined) round.commit = commit;
         const head = await branchHead(record.projectDir, record.branch);
-        const after = (await this.options.afterRound?.(record, worktree)) ?? { validations: [] };
+        const after = (await this.options.afterRound?.(checking, worktree)) ?? { validations: [] };
         // The validations ran on this commit: it is what the page shows, the checks run on and approving applies.
         if (!(await own())) throw new BriefstackError('task.worktreeChanged', { id: record.id });
         if (head === undefined || (await branchHead(record.projectDir, record.branch)) !== head || (after.head !== undefined && after.head !== head)) {
           throw new BriefstackError('task.branchChanged', { id: record.id });
         }
-        next = { ...record, reviewed: head, validations: after.validations, state: 'proposal' };
+        next = { ...checking, rounds, reviewed: head, validations: after.validations, state: 'proposal' };
       } catch (error) {
-        next = { ...record, state: 'failed', error: this.clean(isBriefstackError(error) ? formatError(error, await this.options.lang()) : error instanceof Error ? error.message : String(error)) };
+        next = { ...checking, rounds, state: 'failed', error: this.clean(isBriefstackError(error) ? formatError(error, await this.options.lang()) : error instanceof Error ? error.message : String(error)) };
       }
     }
     next.updatedAt = this.now().toISOString();
-    // Saved before the task shows it (R2): while it is `running` or `checking` every action refuses it, so an action that
-    // sees the round's end finds it on disk too, and its own save comes after this one.
+    // Saved before the task shows it (R2): the round's end and the new state are set on copies, so the view and the stream
+    // show them only once they are on disk. While the task is `running` or `checking` every action refuses it, so an action
+    // that sees the round's end finds it on disk too; its own save is asked after this one, and the saves of a task reach
+    // the disk in the order they were asked.
     await this.options.store.save(next);
     l.record = next;
     this.pushStatus(l);

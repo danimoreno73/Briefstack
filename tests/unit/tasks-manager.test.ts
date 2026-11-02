@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { TaskFakeRunner, type TaskFakeScript } from '../../src/tasks/fakeRunner.js';
 import { TaskManager, type TaskStreamEvent, type TaskView } from '../../src/tasks/manager.js';
 import { TASK_MARKER_FILE } from '../../src/tasks/runner.js';
+import type { TaskRecord } from '../../src/tasks/types.js';
 import { useHermeticGit } from '../helpers.js';
 import { gitIn, taskWorld, type TaskWorld } from '../taskWorld.js';
 
@@ -260,6 +261,85 @@ describe('TaskManager: shell commands and questions', () => {
     const task = await m.start('garden', 'Fail.');
     await stateIs(m, task.id, 'failed');
     expect((await m.get(task.id)).error).toBe('claude was not found at [outside allowed folders]');
+  });
+});
+
+describe('TaskManager: the end of a round is shown once it is on disk', () => {
+  /** A promise the test settles. */
+  const gate = () => {
+    let open: () => void = () => undefined;
+    const promise = new Promise<void>((resolve) => (open = resolve));
+    return { promise, open };
+  };
+
+  /** Holds the first save `matches` picks until `release()`; `reached` opens when it is held. */
+  function holdSave(matches: (record: TaskRecord) => boolean): { reached: Promise<void>; release: () => void } {
+    const reached = gate();
+    const release = gate();
+    const save = world.store.save.bind(world.store);
+    let held = false;
+    world.store.save = async (record: TaskRecord) => {
+      if (!held && matches(record)) {
+        held = true;
+        reached.open();
+        await release.promise;
+      }
+      return save(record);
+    };
+    return { reached: reached.promise, release: release.open };
+  }
+
+  const states = (seen: TaskStreamEvent[]) => seen.filter((event) => event.kind === 'status').map((event) => (event.data as { state: string }).state);
+
+  it('a cancelled round: neither the task nor its stream show the end before its save', async () => {
+    await world.project('garden');
+    const m = manager(() => ({ steps: [{ kind: 'shell', command: 'ls' }, { kind: 'end', summary: 'x' }] }));
+    const task = await m.start('garden', 'List.');
+    await until(async () => (await m.get(task.id)).pending !== undefined, 'the dialog');
+    const seen: TaskStreamEvent[] = [];
+    m.subscribe(task.id, 0, (event) => seen.push(event));
+    const held = holdSave((record) => record.id === task.id && record.rounds.at(-1)?.finishedAt !== undefined);
+    m.cancel(task.id);
+    await held.reached;
+    const shown = await m.get(task.id);
+    expect(shown.state).toBe('running');
+    expect(shown.rounds.at(-1)?.finishedAt).toBeUndefined();
+    expect(shown.rounds.at(-1)?.outcome).toBeUndefined();
+    expect(states(seen)).not.toContain('cancelled');
+    held.release();
+    await stateIs(m, task.id, 'cancelled');
+    expect((await m.get(task.id)).rounds.at(-1)).toMatchObject({ outcome: 'cancelled', finishedAt: expect.any(String) });
+    expect(await world.store.load(task.id)).toMatchObject({ state: 'cancelled', rounds: [{ outcome: 'cancelled' }] });
+  });
+
+  it('a completed round: its end, then its commit, are shown only once each is on disk', async () => {
+    await world.project('garden');
+    const m = manager();
+    const task = await m.start('garden', 'Add a changelog.');
+    await until(async () => (await m.get(task.id)).awaitingReply !== undefined, 'the turn to end');
+    const seen: TaskStreamEvent[] = [];
+    m.subscribe(task.id, 0, (event) => seen.push(event));
+    const checking = holdSave((record) => record.id === task.id && record.state === 'checking');
+    m.finishRound(task.id);
+    await checking.reached;
+    let shown = await m.get(task.id);
+    expect(shown.state).toBe('running');
+    expect(shown.rounds.at(-1)).not.toHaveProperty('finishedAt');
+    expect(shown.rounds.at(-1)).not.toHaveProperty('summary');
+    expect(states(seen)).not.toContain('checking');
+
+    const proposal = holdSave((record) => record.id === task.id && record.state === 'proposal');
+    checking.release();
+    await proposal.reached;
+    shown = await m.get(task.id);
+    expect(shown.state).toBe('checking');
+    expect(shown.rounds.at(-1)).toMatchObject({ outcome: 'completed', summary: 'Wrote CHANGES.md (round 1).' });
+    expect(shown.rounds.at(-1)).not.toHaveProperty('commit');
+    expect(shown.reviewed).toBeUndefined();
+    expect(states(seen)).not.toContain('proposal');
+    proposal.release();
+    await stateIs(m, task.id, 'proposal');
+    expect((await m.get(task.id)).rounds.at(-1)?.commit).toMatch(/^[0-9a-f]{40}$/);
   });
 });
 
