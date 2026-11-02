@@ -247,25 +247,25 @@ describe('actions at once on a task the server has not loaded yet (I2)', { timeo
     return task;
   }
 
-  /** One of the two orders, never an applied task overwritten: applied with no checks run, or checked and still a proposal. */
-  async function expectOneOrder(m: TaskManager, id: string, approve: PromiseSettledResult<TaskView>, check: PromiseSettledResult<TaskView>, calls: string[][]): Promise<void> {
+  /** The order the test forced, and never an applied task overwritten: applied with no checks run, or checked and still a proposal. */
+  async function expectOrder(first: 'approve' | 'checks', m: TaskManager, id: string, approve: PromiseSettledResult<TaskView>, check: PromiseSettledResult<TaskView>, calls: string[][]): Promise<void> {
     await settled(m, id);
     const live = await m.get(id);
     // The record on disk follows the one in memory once its save ends.
     await until(async () => (await world.store.load(id))?.state === live.state, 'the record on disk');
-    if (approve.status === 'fulfilled') {
+    if (first === 'approve') {
+      expect(approve.status).toBe('fulfilled');
       expect(check).toMatchObject({ status: 'rejected', reason: { code: 'task.wrongState', params: { state: 'applied' } } });
       expect(live.state).toBe('applied');
       expect(live.applied).toBeDefined();
       expect(calls).toEqual([]);
     } else {
-      expect(approve).toMatchObject({ status: 'rejected', reason: { code: 'task.wrongState' } });
+      expect(approve).toMatchObject({ status: 'rejected', reason: { code: 'task.wrongState', params: { state: 'checking' } } });
       expect(check.status).toBe('fulfilled');
       expect(live.state).toBe('proposal');
       expect(live.checks).toEqual([]);
       expect(calls).toEqual([['npm test']]);
     }
-    expect(live.state).not.toBe('failed');
   }
 
   it('checks asked first, approve while they read the list: approve waits, and the checks keep the task', async () => {
@@ -280,7 +280,7 @@ describe('actions at once on a task the server has not loaded yet (I2)', { timeo
     await new Promise((resolve) => setTimeout(resolve, 300));
     reading.open();
     const [approved, checked] = await Promise.allSettled([approve, check]);
-    await expectOneOrder(m, task.id, approved, checked, calls);
+    await expectOrder('checks', m, task.id, approved, checked, calls);
     await m.shutdown();
   });
 
@@ -304,6 +304,7 @@ describe('actions at once on a task the server has not loaded yet (I2)', { timeo
       pollMs: 10,
       checks: { commands: async () => ['npm test'], run: async (_dir, commands) => (calls.push([...commands]), await new Promise((resolve) => setTimeout(resolve, 300)), []) },
     });
+    expect(await m.recover()).toBe(0);
     hold = true;
     const approve = m.approve(task.id);
     const check = m.runChecks(task.id, ['npm test']);
@@ -311,7 +312,7 @@ describe('actions at once on a task the server has not loaded yet (I2)', { timeo
     applying.open();
     const [approved, checked] = await Promise.allSettled([approve, check]);
     await new Promise((resolve) => setTimeout(resolve, 500));
-    await expectOneOrder(m, task.id, approved, checked, calls);
+    await expectOrder('approve', m, task.id, approved, checked, calls);
     await m.shutdown();
   });
 
@@ -321,6 +322,7 @@ describe('actions at once on a task the server has not loaded yet (I2)', { timeo
     const finishing = gate();
     const calls: string[][] = [];
     const m = manager({ checks: { commands: async () => (await reading.promise, ['npm test']), run: async (_dir, commands) => (calls.push([...commands]), await finishing.promise, []) } });
+    expect(await m.recover()).toBe(0);
     const check = m.runChecks(task.id, ['npm test']);
     const discard = m.discard(task.id);
     const round = m.newRound(task.id, 'More.');
@@ -368,18 +370,13 @@ describe('the end of the checks and of a round is on disk before an action can s
     return { reached: reached.promise, release: release.open, saved: saved.promise };
   }
 
-  /** The task in memory and on disk agree, and an applied task is never a proposal on disk: approve came first and applied it, or it was refused. */
-  async function expectOneOrder(id: string, live: TaskView, approved: PromiseSettledResult<TaskView>, before: Partial<TaskView>): Promise<void> {
+  /** Approve, asked while the task was still `checking` in memory, was refused; the task in memory and on disk is the proposal the held save wrote. */
+  async function expectRefused(id: string, live: TaskView, approved: PromiseSettledResult<TaskView>, before: Partial<TaskView>): Promise<void> {
+    expect(approved).toMatchObject({ status: 'rejected', reason: { code: 'task.wrongState', params: { state: 'checking' } } });
     const disk = await world.store.load(id);
-    expect(disk?.state).toBe(live.state);
-    if (approved.status === 'fulfilled') {
-      expect(live.state).toBe('applied');
-      expect(disk?.applied).toEqual(live.applied);
-    } else {
-      expect(approved).toMatchObject({ status: 'rejected', reason: { code: 'task.wrongState', params: { state: 'checking' } } });
-      expect(live).toMatchObject({ state: 'proposal', ...before });
-      expect(disk).toMatchObject({ state: 'proposal', ...before });
-    }
+    expect(live).toMatchObject({ state: 'proposal', ...before });
+    expect(disk).toMatchObject({ state: 'proposal', ...before });
+    expect(disk?.applied).toBeUndefined();
   }
 
   it('approve asked while the end of the checks is being saved', async () => {
@@ -394,7 +391,7 @@ describe('the end of the checks and of a round is on disk before an action can s
     held.release();
     await held.saved;
     await settled(m, task.id);
-    await expectOneOrder(task.id, await m.get(task.id), approved, { checks: [] });
+    await expectRefused(task.id, await m.get(task.id), approved, { checks: [] });
     expect(calls).toEqual([['npm test']]);
     await m.shutdown();
   });
@@ -413,7 +410,7 @@ describe('the end of the checks and of a round is on disk before an action can s
     await held.saved;
     await settled(m, task.id);
     const live = await m.get(task.id);
-    await expectOneOrder(task.id, live, approved, { reviewed: live.reviewed });
+    await expectRefused(task.id, live, approved, { reviewed: live.reviewed });
     expect(live.reviewed).toBeDefined();
     await m.shutdown();
   });

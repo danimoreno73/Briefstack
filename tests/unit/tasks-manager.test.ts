@@ -239,8 +239,10 @@ describe('TaskManager: shell commands and questions', () => {
     m.answer(task.id, pending.id, { 'Which file?': 'A' });
     await until(async () => (await m.get(task.id)).awaitingReply !== undefined);
     const session = (await m.get(task.id)).rounds[0]?.sessionId as string;
-    const lines = await readFile(path.join(world.sessions, session, 'events.jsonl'), 'utf8');
-    expect(lines).toContain('"by":"guard"');
+    // The guard's denial line is written in the background: the turn can end before it is on disk.
+    const events = path.join(world.sessions, session, 'events.jsonl');
+    await until(async () => (await readFile(events, 'utf8')).includes('"type":"tool.denied"'), 'the denial in the events');
+    expect(await readFile(events, 'utf8')).toContain('"by":"guard"');
     await expect(stat(path.join(world.dir, 'projects', 'garden', 'x.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 

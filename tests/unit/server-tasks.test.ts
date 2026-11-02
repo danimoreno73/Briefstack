@@ -19,6 +19,8 @@ let world: TaskWorld;
 let server: WebServer | undefined;
 let manager: TaskManager | undefined;
 let pathEnv: PathEnv;
+/** Every list of commands the checks were asked to run (a spy on the real checks). */
+let checkRuns: string[][];
 
 function send(urlPath: string, options: { method?: string; body?: unknown } = {}): Promise<{ status: number; json: Record<string, unknown> }> {
   const port = server?.port ?? 0;
@@ -61,6 +63,7 @@ beforeEach(async () => {
   world = await taskWorld('server-tasks');
   await writeTree(path.join(world.dir, 'ui'), { 'index.html': '<html><head><!-- importmap --></head></html>' });
   pathEnv = { env: { BRIEFSTACK_HOME: world.home, BRIEFSTACK_LIBRARY: world.library }, homedir: path.join(world.dir, 'user'), pathApi: path, caseInsensitive: process.platform !== 'linux' };
+  checkRuns = [];
 });
 
 afterEach(async () => {
@@ -73,6 +76,7 @@ afterEach(async () => {
 
 async function start(withTasks = true): Promise<void> {
   if (withTasks) {
+    const checks = taskChecksWith({ libraryDir: async () => world.library, home: world.home });
     manager = new TaskManager({
       runner: new TaskFakeRunner({ script: () => ({ steps: [{ kind: 'shell', command: 'npm test' }, { kind: 'write', file: 'CHANGES.md', content: 'Done.\n' }, { kind: 'end', summary: 'Wrote CHANGES.md.' }] }) }),
       store: world.store,
@@ -82,7 +86,10 @@ async function start(withTasks = true): Promise<void> {
       profile: async () => ({ name: 'saver', model: 'sonnet', effort: 'low' }),
       pollMs: 10,
       afterRound: afterRoundWith(),
-      checks: taskChecksWith({ libraryDir: async () => world.library, home: world.home }),
+      checks: {
+        commands: (task) => checks.commands(task),
+        run: (dir, commands, signal) => (checkRuns.push([...commands]), checks.run(dir, commands, signal)),
+      },
     });
   }
   server = await startWebServer({ port: 0, uiDir: path.join(world.dir, 'ui'), token: TOKEN, lang: 'en', pathEnv, repoDir: world.repo, ...(manager === undefined ? {} : { tasks: manager }) });
@@ -190,10 +197,12 @@ describe('task API', { timeout: 60_000 }, () => {
     const unchanged = (await send(`/api/tasks/${id}`)).json;
     expect(unchanged.state).toBe('proposal');
     expect(unchanged.checks).toBeUndefined();
+    expect(checkRuns).toEqual([]);
     const started = await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { commands: [command], confirm: true } });
     expect(started).toMatchObject({ status: 202, json: { state: 'checking' } });
     await until(async () => (await send(`/api/tasks/${id}`)).json.state === 'proposal', 'the checks');
     expect((await send(`/api/tasks/${id}`)).json.checks).toMatchObject([{ command, exitCode: 4 }]);
+    expect(checkRuns).toEqual([[command]]);
   });
 
   it('answers 503 task.stopping to new work while the server stops, and runs nothing (R1)', async () => {
