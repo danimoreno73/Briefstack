@@ -498,6 +498,7 @@ function CheckResults({ data, onDone, shared }: { data: TaskProposalUi; onDone()
   const action = useAction(shared);
   /** The list the open confirmation shows: exactly what the request names. */
   const [confirm, setConfirm] = useState<string[] | undefined>(undefined);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [reopen, setReopen] = useState(false);
   const { task } = data;
   const commands = data.checkCommands;
@@ -516,9 +517,17 @@ function CheckResults({ data, onDone, shared }: { data: TaskProposalUi; onDone()
       </h2>
       {action.error !== undefined && <ErrorNote error={action.error} />}
       {task.state === 'checking' ? (
-        <p aria-live="polite" data-testid="task-checking">
-          {t.taskChecking}
-        </p>
+        <>
+          <p aria-live="polite" data-testid="task-checking">
+            {t.taskChecking}
+          </p>
+          {/* Only the checks: the task goes back to its proposal without results. */}
+          <div class="btn-row">
+            <button type="button" class="btn btn-ghost btn-sm" disabled={action.busy} onClick={() => setConfirmCancel(true)} data-testid="task-cancel-checks">
+              {t.taskChecksCancel}
+            </button>
+          </div>
+        </>
       ) : task.checks === undefined ? (
         <Note tone="warn" testId="task-checks-not-run">
           {commands !== undefined && commands.length === 0 ? t.taskChecksNoneConfirmed : t.taskChecksNotRun}
@@ -566,6 +575,20 @@ function CheckResults({ data, onDone, shared }: { data: TaskProposalUi; onDone()
               .then(onDone);
           }}
           onCancel={() => setConfirm(undefined)}
+        />
+      )}
+      {confirmCancel && task.state === 'checking' && (
+        <ConfirmModal
+          title={t.taskChecksCancelTitle}
+          body={t.taskChecksCancelBody}
+          confirmLabel={t.taskChecksCancel}
+          cancelLabel={t.taskChecksKeepRunning}
+          tone="danger"
+          onConfirm={() => {
+            setConfirmCancel(false);
+            void action.run(() => send('POST', `/api/tasks/${task.id}/checks/cancel`, { confirm: true })).then(onDone);
+          }}
+          onCancel={() => setConfirmCancel(false)}
         />
       )}
     </section>

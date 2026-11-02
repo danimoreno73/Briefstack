@@ -155,6 +155,7 @@ export interface ErrorParams {
   'task.branchChanged': { id: string };
   'task.noChecks': { id: string; project: string };
   'task.checksChanged': { id: string; project: string };
+  'task.checksNotRunning': { id: string };
   'task.stopping': Record<string, never>;
   'task.invalidCheck': { command: string; problem: string };
   'task.notOnBranch': { project: string; branch: string; current: string };

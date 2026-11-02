@@ -361,6 +361,10 @@ export const uiMessages = defineCatalogue({
     taskChecksNoneConfirmed: 'The project has no confirmed checks. You can set them on the project page.',
     taskChecksRun: 'Run the checks',
     taskChecksRunAgain: 'Run the checks again',
+    taskChecksCancel: 'Cancel the checks',
+    taskChecksCancelTitle: 'Cancel the checks?',
+    taskChecksCancelBody: 'The running command and everything it started are ended, and no other check starts. Nothing they did is kept: the change goes back to waiting for review, without check results. You can run them again.',
+    taskChecksKeepRunning: 'Keep them running',
     taskChecksRunTitle: 'Run the checks on this change?',
     taskChecksRunBody:
       "They run the code this task changed, on your computer, as you, in the task's copy. Network proxies point nowhere, but a program can ignore them and still reach the network. Each one stops after 10 minutes. The commands, in order:",
@@ -1350,6 +1354,10 @@ export const uiMessages = defineCatalogue({
     taskChecksNoneConfirmed: 'El proyecto no tiene comprobaciones confirmadas. Puedes definirlas en la página del proyecto.',
     taskChecksRun: 'Ejecutar las comprobaciones',
     taskChecksRunAgain: 'Volver a ejecutar las comprobaciones',
+    taskChecksCancel: 'Cancelar las comprobaciones',
+    taskChecksCancelTitle: '¿Cancelar las comprobaciones?',
+    taskChecksCancelBody: 'Se termina el comando en curso y todo lo que haya arrancado, y no empieza ninguna otra comprobación. No se guarda nada de lo que hicieron: el cambio vuelve a esperar revisión, sin resultados de comprobaciones. Puedes volver a ejecutarlas.',
+    taskChecksKeepRunning: 'Dejar que sigan',
     taskChecksRunTitle: '¿Ejecutar las comprobaciones sobre este cambio?',
     taskChecksRunBody:
       'Ejecutan el código que cambió esta tarea, en tu equipo, como tú, en la copia de la tarea. Los proxies de red apuntan a ninguna parte, pero un programa puede ignorarlos y llegar igualmente a la red. Cada una se detiene a los 10 minutos. Los comandos, en orden:',

@@ -314,6 +314,35 @@ test.describe('approving without the checks', () => {
     await expect(state(page)).toHaveText('Applied', CHECKED);
   });
 
+  test('running checks can be cancelled after a confirmation: the change waits for review again, without results', async ({ page, app }) => {
+    await codeProject(app, 'shed', 'Tool shed');
+    const long = nodeCheck('setTimeout(()=>{},60000)');
+    await setProjectChecks({ libraryDir: app.libraryDir, home: app.home, slug: 'shed', commands: [long] });
+    const id = await startTask(page, app, 'shed', 'Add a changelog.');
+    await finishRound(page);
+    const checks = page.getByTestId('task-check-results');
+    // Only while they run.
+    await expect(checks.getByTestId('task-cancel-checks')).toHaveCount(0);
+    await checks.getByTestId('task-run-checks').click();
+    await confirmDialog(page, 'Run the checks');
+    await expect(checks.getByTestId('task-checking')).toBeVisible(CHECKED);
+
+    // Kept running: nothing changes.
+    await checks.getByTestId('task-cancel-checks').click();
+    await expect(page.getByRole('dialog')).toContainText('Nothing they did is kept');
+    await confirmDialog(page, 'Keep them running');
+    expect((await app.tasks.get(id)).state).toBe('checking');
+
+    await checks.getByTestId('task-cancel-checks').click();
+    await confirmDialog(page, 'Cancel the checks');
+    await expect(state(page)).toHaveText('Waiting for review', CHECKED);
+    await expect(checks.getByTestId('task-checks-not-run')).toBeVisible();
+    await expect(checks.getByTestId('task-cancel-checks')).toHaveCount(0);
+    await expect(checks.getByTestId('task-run-checks')).toHaveText('Run the checks');
+    expect((await app.tasks.get(id)).checks).toBeUndefined();
+    await expect(page.getByTestId('task-approve')).toBeEnabled();
+  });
+
   test('a project without confirmed checks has no button', async ({ page, app }) => {
     await codeProject(app, 'shed', 'Tool shed');
     await startTask(page, app, 'shed', 'Add a changelog.');

@@ -242,6 +242,7 @@ describe('no task route but the proposal page\'s runs them', { timeout: 60_000 }
       await hit('POST /api/tasks/:id/answer', `/api/tasks/${id}/answer`, { pendingId: 'p1', answer: 'once' });
       await hit('POST /api/tasks/:id/reply', `/api/tasks/${id}/reply`, { text: 'Run the checks.' });
       await hit('POST /api/tasks/:id/cancel', `/api/tasks/${id}/cancel`);
+      await hit('POST /api/tasks/:id/checks/cancel', `/api/tasks/${id}/checks/cancel`, { confirm: true });
       await hit('GET /api/tasks/:id/proposal', `/api/tasks/${id}/proposal`);
       await hit('GET /api/projects/:slug/tasks', '/api/projects/garden/tasks');
       await hit('PUT /api/projects/:slug/checks', '/api/projects/garden/checks', { commands: ['npm test'], confirm: true });

@@ -41,7 +41,7 @@ export interface TaskRouteOptions {
 
 /**
  * Task routes (docs/api.md, "Tasks"). Approve, ask for changes, discard,
- * revert and running the checks are here only, for the proposal page; the
+ * revert, running the checks and cancelling them are here only, for the proposal page; the
  * chat has no tool for them (BRIEF-phase-7 §3.6). Without a manager every task route answers 503
  * `task.unavailable`.
  */
@@ -140,6 +140,14 @@ export function taskRoutes(manager: TaskManager | undefined, options: TaskRouteO
         // The declared checks run code the session changed: only from the proposal page, after the user saw the diff (S8).
         const { commands } = await readJsonBody(req, runChecksBody);
         sendJson(res, 202, await need().runChecks(id(params), commands));
+      },
+    ],
+    [
+      'POST /api/tasks/:id/checks/cancel',
+      async (req, res, params) => {
+        // Only the running checks; the page confirms first, so the body says so.
+        await readJsonBody(req, confirmBody);
+        sendJson(res, 200, await need().cancelChecks(id(params)));
       },
     ],
     [

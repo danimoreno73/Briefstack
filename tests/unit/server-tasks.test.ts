@@ -205,6 +205,33 @@ describe('task API', { timeout: 60_000 }, () => {
     expect(checkRuns).toEqual([[command]]);
   });
 
+  it('cancels the running checks only with the confirmation, and refuses when none run', async () => {
+    await world.project('garden');
+    await world.initLibrary();
+    await start();
+    const id = (await send('/api/tasks', { method: 'POST', body: { project: 'garden', description: 'Add a changelog.' } })).json.id as string;
+    await until(async () => (await send(`/api/tasks/${id}`)).json.pending !== undefined, 'the dialog');
+    const pending = (await send(`/api/tasks/${id}`)).json.pending as { id: string };
+    await send(`/api/tasks/${id}/answer`, { method: 'POST', body: { pendingId: pending.id, answer: 'once' } });
+    await until(async () => (await send(`/api/tasks/${id}`)).json.awaitingReply !== undefined, 'the turn');
+    // A running round is not the checks.
+    expect(await send(`/api/tasks/${id}/checks/cancel`, { method: 'POST', body: { confirm: true } })).toMatchObject({ status: 409, json: { code: 'task.checksNotRunning' } });
+    await send(`/api/tasks/${id}/finish`, { method: 'POST' });
+    await until(async () => (await send(`/api/tasks/${id}`)).json.state === 'proposal', 'the proposal');
+    const long = 'node -e "setTimeout(()=>{},60000)"';
+    await send('/api/projects/garden/checks', { method: 'PUT', body: { commands: [long], confirm: true } });
+    expect(await send(`/api/tasks/${id}/checks/cancel`, { method: 'POST', body: { confirm: true } })).toMatchObject({ status: 409, json: { code: 'task.checksNotRunning' } });
+
+    expect((await send(`/api/tasks/${id}/checks`, { method: 'POST', body: { commands: [long], confirm: true } })).status).toBe(202);
+    // Without the confirmation in the body, nothing is cancelled.
+    expect((await send(`/api/tasks/${id}/checks/cancel`, { method: 'POST', body: {} })).status).toBe(400);
+    expect((await send(`/api/tasks/${id}`)).json.state).toBe('checking');
+    const cancelled = await send(`/api/tasks/${id}/checks/cancel`, { method: 'POST', body: { confirm: true } });
+    expect(cancelled).toMatchObject({ status: 200, json: { state: 'proposal' } });
+    expect(cancelled.json.checks).toBeUndefined();
+    expect(checkRuns).toEqual([[long]]);
+  });
+
   it('answers 503 task.stopping to new work while the server stops, and runs nothing (R1)', async () => {
     await world.project('garden');
     await world.project('orchard');

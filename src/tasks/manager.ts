@@ -426,6 +426,34 @@ export class TaskManager {
     });
   }
 
+  /**
+   * Cancels the checks the user asked for, from the proposal page: as a
+   * server stop does, the running command's process tree is ended and no
+   * other command starts; nothing they did is kept (no results, partial or
+   * not), and the task is back on its proposal without checks, as the next
+   * start's `recover()` puts it after a stop. Only the checks: a round is
+   * cancelled with `cancel()`. When they ended before the cancel reached
+   * them, the task is left as they left it. The wait for them is bounded as
+   * a stop's is; past it the task goes back all the same, as after a restart.
+   */
+  cancelChecks(id: string): Promise<TaskView> {
+    return this.act(id, async (record) => {
+      this.refuseWhileStopping();
+      const l = this.live.get(id);
+      const abort = l?.checksAbort;
+      if (l === undefined || abort === undefined || record.state !== 'checking' || record.reviewed === undefined) throw new BriefstackError('task.checksNotRunning', { id });
+      abort.abort();
+      await settlesWithin(l.checksDone, this.options.shutdownTimeoutMs ?? 15_000);
+      // A stop that began meanwhile leaves the task as it leaves every task it ends: `recover()` puts it back.
+      if (this.stopping || l.record.state !== 'checking') return this.view(l);
+      const next = await this.backToProposal(l.record);
+      await this.options.store.save(next);
+      l.record = next;
+      this.pushStatus(l);
+      return this.view(l);
+    });
+  }
+
   /** Approve on the proposal page: one commit on the default branch (BRIEF §3.5). */
   approve(id: string): Promise<TaskView> {
     return this.act(id, async (record) => this.update(await applyTask(record, await this.applyDeps())));
