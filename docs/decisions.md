@@ -5136,9 +5136,46 @@ Choices made without the user, the most conservative each:
   quoted as extracts, outputs not saved, a plan reading run in the same
   command as check 5) is about the user's notes outside the repo; nothing
   of it is in the repo to correct, and it is not product backlog.
-- **The two commits of the real run** in `markdown-table-to-csv` stay as
-  they are: the tree is the initial one, and removing them would rewrite
-  the project's local history, which only the user decides.
+- **The two commits of the real run** in `markdown-table-to-csv` were
+  left as they were, and whether to remove them was left to the user:
+  removing them would rewrite the project's local history. The user
+  decided on 2026-11-02 that they stay ("Phase 7: M9 accepted, phase
+  closed").
+- **The saver-profile line of the step 11 record** moves out of "Fixed
+  before the run" into a paragraph "Recorded after the run", which names
+  the commit of each: the criterion fixed before the run did not hold it.
+- **`docs/api.md`, the stop of the task routes** (review of step 07, M1):
+  the paragraph is rewritten to the order in `src/cli.ts` (the
+  improvements and the chat stop first, the chat for up to 15 s, and the
+  task routes still accept work in those seconds); the code is not
+  changed.
+- **`CLAUDE.md` was not touched:** the step did not ask for it, and the
+  close of phase 6 did not touch it either. The user decided on
+  2026-11-02 that it is updated ("Phase 7: M9 accepted, phase closed").
+- **The new intermittent test** seen in the step's gates goes to IDEAS.md
+  §7: it was measured, with the output kept.
+- **The sources in IDEAS.md §7** name a review by step and finding
+  ("Review of step NN, X"), not by file: the reviews are in the user's
+  working notes, which stay outside the repo.
+
+**Documentation clean-up after the close (2026-11-02, the user's step
+13).** Documentation only. Choices made without the user, the most
+conservative each:
+
+- **The user's three decisions** go to "Phase 7: M9 accepted, phase
+  closed", next to the acceptance, rather than here: they are the user's,
+  not choices made without the user.
+- **`CLAUDE.md`** names the phase 7 brief and plan in plain text, without
+  the `@` import that loaded the brief in every session; neither moves to
+  `docs/history/`, which is done with a release.
+- **The tag** is recorded as created, on `5b8036a`, in "Phase 7: M9
+  accepted, phase closed": `git rev-parse phase-7-done` gives that commit.
+- **The other option of the review of step 07, M1** (setting the stop
+  flag when `briefstack web` begins to stop, before the improvements and
+  the chat) is not added to IDEAS.md §7: the finding was fixed in
+  `docs/api.md`, and the current order is safe, since the task manager's
+  stop ends or aborts what it finds. IDEAS.md §7 says so under "Not listed
+  here".
 
 ## Phase 7: security review (2026-10-30)
 
@@ -5485,7 +5522,18 @@ back to `balanced`), recorded after the run in "Decisiones sin Dani (fase
 - What the reviews of the phase's steps left open is in IDEAS.md, §7
   "Open items from phase 7".
 - The tag goes on the commit that records this decision, once its CI is
-  green on Linux, Windows and macOS.
+  green on Linux, Windows and macOS. The user created it on 2026-11-02, on
+  `5b8036a`.
+
+**The user's decisions after the close (2026-11-02):**
+
+- The two commits of the real run in `markdown-table-to-csv` (apply
+  `c8de64f`, revert `32e46af`) stay: they are M9's history and the tree
+  is the initial one. No reset.
+- `CLAUDE.md` is updated: it said phase 7 was in progress.
+- The task guard's layer 6 is accepted with unit tests only: in real
+  sessions Claude Code refuses those calls first, and the two layers are
+  each covered.
 
 ## `briefstack paths rewrite` (2026-10-30)
 
