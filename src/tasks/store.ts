@@ -28,6 +28,9 @@ async function retrying<T>(action: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Per record file, the end of the last write asked for it. */
+const writing = new Map<string, Promise<void>>();
+
 export function newTaskId(now: Date = new Date()): string {
   return `${now.getTime().toString(36)}-${randomBytes(2).toString('hex')}`;
 }
@@ -54,13 +57,23 @@ export class TaskStore {
     return path.join(this.taskDir(id), 'task.json');
   }
 
-  /** Writes the whole record aside, then renames it over the old one. */
+  /**
+   * Saves the record as it is now. The saves of one task reach the disk one
+   * at a time, in the order they were asked, so the last one asked is the one
+   * that stays (a save nobody waits for cannot land after a later one).
+   */
   async save(record: TaskRecord): Promise<void> {
     const parsed = taskRecordSchema.parse(record);
-    await mkdir(this.taskDir(parsed.id), { recursive: true });
-    const target = this.recordFile(parsed.id);
+    const text = `${JSON.stringify(parsed, null, 2)}\n`;
+    await this.queued(parsed.id, () => this.write(parsed.id, text));
+  }
+
+  /** One record's text on disk: written aside, then renamed over the old one. */
+  protected async write(id: string, text: string): Promise<void> {
+    await mkdir(this.taskDir(id), { recursive: true });
+    const target = this.recordFile(id);
     const temp = `${target}.${process.pid}.${randomBytes(3).toString('hex')}.tmp`;
-    await writeFile(temp, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
+    await writeFile(temp, text, 'utf8');
     await retrying(() => rename(temp, target));
   }
 
@@ -75,9 +88,26 @@ export class TaskStore {
     }
   }
 
-  /** Removes a task's folder: only for a task that never started (its start failed). */
+  /** Removes a task's folder: only for a task that never started (its start failed). After the saves asked before it. */
   async remove(id: string): Promise<void> {
-    await rm(this.taskDir(id), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    const dir = this.taskDir(id);
+    await this.queued(id, () => rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
+  }
+
+  /** Runs `action` after every write asked before on the same task's record (by its file, so two stores on one folder share it). */
+  private queued(id: string, action: () => Promise<void>): Promise<void> {
+    const key = path.resolve(this.recordFile(id));
+    const next = (writing.get(key) ?? Promise.resolve()).then(action);
+    const tail = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    writing.set(key, tail);
+    // The last one out leaves no entry behind.
+    void tail.then(() => {
+      if (writing.get(key) === tail) writing.delete(key);
+    });
+    return next;
   }
 
   /** Every task, newest first. Folders without a readable record are skipped. */

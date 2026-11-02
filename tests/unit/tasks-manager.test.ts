@@ -268,6 +268,9 @@ describe('TaskManager: after a server stop', () => {
     await world.project('garden');
     const m = manager(() => ({ steps: [{ kind: 'wait', ms: 10_000 }] }));
     const task = await m.start('garden', 'Wait.');
+    // The round's session id is saved in the background once the session opens. The task shows it as that save is asked,
+    // and the saves of one task reach the disk in order, so the next server's save comes after it.
+    await until(async () => (await m.get(task.id)).rounds[0]?.sessionId !== undefined, 'the session id');
     const fresh = manager();
     expect(await fresh.recover()).toBe(1);
     expect(await fresh.get(task.id)).toMatchObject({ state: 'interrupted', rounds: [{ outcome: 'interrupted' }] });
