@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskChecks } from '../../src/tasks/checks.js';
 import { TaskFakeRunner } from '../../src/tasks/fakeRunner.js';
 import { TaskManager, type TaskView } from '../../src/tasks/manager.js';
+import type { TaskRunner, TaskRunnerHandle, TaskRunnerOutcome, TaskRunnerStartOptions } from '../../src/tasks/runner.js';
 import type { TaskRecord } from '../../src/tasks/types.js';
 import { useHermeticGit } from '../helpers.js';
 import { taskWorld, type TaskWorld } from '../taskWorld.js';
@@ -249,4 +250,76 @@ describe('a stop that begins while a request waits changes nothing on the task',
   for (const point of ['commands', 'limit'] as const) {
     it(`checks waiting on ${point}`, () => stopWhileWaiting(point, (m, id) => m.runChecks(id, ['npm test'])));
   }
+});
+
+/** A runner whose session the test drives: it asks when the test says, and its stop ends only when the test lets it. */
+class HeldRunner implements TaskRunner {
+  options: TaskRunnerStartOptions | undefined;
+  /** Opens when the server asks the session to stop. */
+  readonly stopAsked = gate();
+  /** The test opens it to let the session end. */
+  readonly letStop = gate();
+
+  start(options: TaskRunnerStartOptions): TaskRunnerHandle {
+    this.options = options;
+    let end: (outcome: TaskRunnerOutcome) => void = () => undefined;
+    const done = new Promise<TaskRunnerOutcome>((resolve) => (end = resolve));
+    return {
+      sessionId: new Promise<string>(() => undefined),
+      requestCancel: () => undefined,
+      sendMessage: () => undefined,
+      finish: () => end({ kind: 'ended' }),
+      stop: async () => {
+        this.stopAsked.open();
+        await this.letStop.promise;
+        end({ kind: 'stopped' });
+      },
+      done,
+    };
+  }
+}
+
+// While a server stop ends a session, the session can no longer ask (review of step 07, M5): the pending requests were
+// settled, and what it asks after that is answered at once, never shown, and nothing can be answered.
+describe('a session that is stopping cannot ask', { timeout: 60_000 }, () => {
+  it('denies its commands, cancels its questions, and answers refuse until it ends', async () => {
+    await world.project('garden');
+    const runner = new HeldRunner();
+    const m = new TaskManager({
+      runner,
+      store: world.store,
+      sessionsDir: world.sessions,
+      locations: async () => ({ libraryDir: world.library, repoDir: world.repo }),
+      lang: () => 'en',
+      profile: async () => ({ name: 'saver', model: 'sonnet', effort: 'low' }),
+      maxActive: () => 2,
+      pollMs: 10,
+    });
+    const task = await m.start('garden', 'Ask.');
+    const session = runner.options as TaskRunnerStartOptions;
+    const question = { questions: [{ question: 'Which file?', header: 'File', options: [{ label: 'A', description: '' }], multiSelect: false }] };
+    // Before the stop, the session asks as usual.
+    const asked = session.io.askQuestions(question);
+    const pending = (await m.get(task.id)).pending;
+    expect(pending).toMatchObject({ kind: 'question' });
+
+    const stop = m.shutdown();
+    await runner.stopAsked.promise;
+    // What was pending is cancelled by the stop.
+    expect(await asked).toEqual({ decision: 'cancel' });
+    // The session is still running and asks again: nothing is shown, the answer comes at once.
+    expect(m.stateOf(task.id)).toBe('running');
+    const lateQuestion = session.io.askQuestions(question);
+    const lateCommand = session.approvals.decide('toolu_late_1', { kind: 'shell', tool: 'Bash', key: 'npm test' });
+    expect((await m.get(task.id)).pending).toBeUndefined();
+    expect(() => m.answer(task.id, 'p2', 'once')).toThrow(expect.objectContaining({ code: 'task.stopping' }));
+    expect(() => m.answer(task.id, 'p3', { 'Which file?': 'A' })).toThrow(expect.objectContaining({ code: 'task.stopping' }));
+    expect(await lateQuestion).toEqual({ decision: 'cancel' });
+    expect(await lateCommand).toBe('deny');
+    expect((await m.get(task.id)).pending).toBeUndefined();
+
+    runner.letStop.open();
+    await stop;
+    expect(await world.store.load(task.id)).toMatchObject({ state: 'interrupted', rounds: [{ outcome: 'interrupted' }] });
+  });
 });

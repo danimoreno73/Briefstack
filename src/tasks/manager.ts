@@ -208,9 +208,10 @@ export class TaskManager {
     return run;
   }
 
-  /** Answers the pending request `pendingId`. */
+  /** Answers the pending request `pendingId`. Once a server stop began, nothing is answered: the stop settled every request. */
   answer(id: string, pendingId: string, answer: unknown): TaskView {
     const l = this.find(id);
+    this.refuseWhileStopping();
     const head = l.queue[0];
     if (head === undefined || l.record.state !== 'running') throw new BriefstackError('creation.noPending', { id });
     if (head.pending.id !== pendingId) throw new BriefstackError('creation.wrongPending', { pendingId, expected: head.pending.id });
@@ -800,7 +801,8 @@ export class TaskManager {
   }
 
   private request<T>(l: Live, pending: TaskPending): Promise<T> {
-    if (l.cancelling || l.record.state !== 'running') return Promise.resolve((pending.kind === 'approval' ? 'deny' : { decision: 'cancel' }) as T);
+    // A session a server stop is ending asks nothing more (review of step 07, M5): its requests were settled, and new ones are not shown.
+    if (this.stopping || l.cancelling || l.record.state !== 'running') return Promise.resolve((pending.kind === 'approval' ? 'deny' : { decision: 'cancel' }) as T);
     l.nextPending += 1;
     const item = { ...pending, id: `p${l.nextPending}` } as TaskPending;
     delete l.awaitingReply;
