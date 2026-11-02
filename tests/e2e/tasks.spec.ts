@@ -42,6 +42,24 @@ async function finishRound(page: Page): Promise<void> {
   await expect(state(page)).toHaveText('Waiting for review', CHECKED);
 }
 
+/** Holds the page's next request to `url` until `release()`; `reached` settles once it is held. */
+async function holdRequests(page: Page, url: string): Promise<{ reached: Promise<void>; release(): void }> {
+  let release: () => void = () => undefined;
+  const open = new Promise<void>((resolve) => (release = resolve));
+  let reach: () => void = () => undefined;
+  const reached = new Promise<void>((resolve) => (reach = resolve));
+  await page.route(
+    url,
+    async (route) => {
+      reach();
+      await open;
+      await route.continue();
+    },
+    { times: 1 },
+  );
+  return { reached, release };
+}
+
 /** Starts a task through the manager, as the page's form does, and opens its page. */
 async function startTask(page: Page, app: App, project: string, text: string): Promise<string> {
   const task = await app.tasks.start(project, text);
@@ -262,6 +280,38 @@ test.describe('approving without the checks', () => {
     expect((await app.tasks.get(id)).checks).toBeUndefined();
     await confirmDialog(page, 'Run the checks');
     await expect(checks.locator('[data-ok="no"]')).toHaveText('failed (exit code 7)', CHECKED);
+  });
+
+  test('while one proposal action is on its way, the others wait disabled, as the server makes them wait', async ({ page, app }) => {
+    await codeProject(app, 'shed', 'Tool shed');
+    await setProjectChecks({ libraryDir: app.libraryDir, home: app.home, slug: 'shed', commands: [nodeCheck('process.exit(0)')] });
+    await startTask(page, app, 'shed', 'Add a changelog.');
+    await finishRound(page);
+    const checks = page.getByTestId('task-check-results');
+    await page.getByTestId('task-changes').fill('One more thing.');
+
+    // The checks' request is held in the browser: approving, discarding and a new round wait.
+    const held = await holdRequests(page, '**/api/tasks/*/checks');
+    await checks.getByTestId('task-run-checks').click();
+    await confirmDialog(page, 'Run the checks');
+    await held.reached;
+    await expect(page.getByTestId('task-approve')).toBeDisabled();
+    await expect(page.getByTestId('task-discard')).toBeDisabled();
+    await expect(page.getByTestId('task-changes-send')).toBeDisabled();
+    held.release();
+    await expect(checks.locator('[data-ok="yes"]')).toHaveText('passed', CHECKED);
+    await expect(page.getByTestId('task-approve')).toBeEnabled();
+
+    // The approval's request is held: the checks and the other actions wait.
+    const approving = await holdRequests(page, '**/api/tasks/*/approve');
+    await page.getByTestId('task-approve').click();
+    await confirmDialog(page, 'Approve');
+    await approving.reached;
+    await expect(checks.getByTestId('task-run-checks')).toBeDisabled();
+    await expect(page.getByTestId('task-discard')).toBeDisabled();
+    await expect(page.getByTestId('task-changes-send')).toBeDisabled();
+    approving.release();
+    await expect(state(page)).toHaveText('Applied', CHECKED);
   });
 
   test('a project without confirmed checks has no button', async ({ page, app }) => {

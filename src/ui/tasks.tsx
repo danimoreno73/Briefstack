@@ -25,15 +25,30 @@ function usePoll(reload: () => void, active: boolean, ms = 1000): void {
   }, [reload, active, ms]);
 }
 
-/** Runs one request at a time with its error kept for the page. */
-function useAction(): { busy: boolean; error: unknown; run(action: () => Promise<unknown>): Promise<boolean> } {
+/** How many actions of one group are on their way; shared by the parts of a page that act on the same task. */
+interface SharedBusy {
+  busy: boolean;
+  add(delta: 1 | -1): void;
+}
+
+function useSharedBusy(): SharedBusy {
+  const [count, setCount] = useState(0);
+  return { busy: count > 0, add: (delta) => setCount((current) => current + delta) };
+}
+
+/**
+ * Runs one request at a time with its error kept for the page. With
+ * `shared`, it is also busy while another action of the group runs.
+ */
+function useAction(shared?: SharedBusy): { busy: boolean; error: unknown; run(action: () => Promise<unknown>): Promise<boolean> } {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
   return {
-    busy,
+    busy: busy || shared?.busy === true,
     error,
     async run(action) {
       setBusy(true);
+      shared?.add(1);
       setError(undefined);
       try {
         await action();
@@ -43,6 +58,7 @@ function useAction(): { busy: boolean; error: unknown; run(action: () => Promise
         return false;
       } finally {
         setBusy(false);
+        shared?.add(-1);
       }
     },
   };
@@ -398,10 +414,10 @@ function RoundControls({ task, onDone }: { task: TaskViewUi; onDone(): void }) {
   );
 }
 
-function ProposalActions({ task, onDone }: { task: TaskViewUi; onDone(): void }) {
+function ProposalActions({ task, onDone, shared }: { task: TaskViewUi; onDone(): void; shared: SharedBusy }) {
   const { t } = useApp();
   const send = useSend();
-  const action = useAction();
+  const action = useAction(shared);
   const [confirm, setConfirm] = useState<'approve' | 'discard' | 'revert' | undefined>(undefined);
   const [changes, setChanges] = useState('');
   const canApprove = task.state === 'proposal' && !(task.validations ?? []).some((item) => item.level === 'error');
@@ -476,10 +492,10 @@ function ProposalActions({ task, onDone }: { task: TaskViewUi; onDone(): void })
  * the button after reading the diff, and confirms the exact commands
  * (decisions.md, S8). Approving does not wait for them.
  */
-function CheckResults({ data, onDone }: { data: TaskProposalUi; onDone(): void }) {
+function CheckResults({ data, onDone, shared }: { data: TaskProposalUi; onDone(): void; shared: SharedBusy }) {
   const { t } = useApp();
   const send = useSend();
-  const action = useAction();
+  const action = useAction(shared);
   /** The list the open confirmation shows: exactly what the request names. */
   const [confirm, setConfirm] = useState<string[] | undefined>(undefined);
   const [reopen, setReopen] = useState(false);
@@ -556,7 +572,7 @@ function CheckResults({ data, onDone }: { data: TaskProposalUi; onDone(): void }
   );
 }
 
-function ProposalBody({ data, onDone }: { data: TaskProposalUi; onDone(): void }) {
+function ProposalBody({ data, onDone, shared }: { data: TaskProposalUi; onDone(): void; shared: SharedBusy }) {
   const { t } = useApp();
   const { task, diff } = data;
   const round = task.rounds.at(-1);
@@ -571,7 +587,7 @@ function ProposalBody({ data, onDone }: { data: TaskProposalUi; onDone(): void }
           <pre class="request request-clip">{round.summary}</pre>
         </section>
       )}
-      <CheckResults data={data} onDone={onDone} />
+      <CheckResults data={data} onDone={onDone} shared={shared} />
       {task.validations !== undefined && (
         <section class="card" aria-labelledby="validations-title" data-testid="task-validations">
           <h2 class="t-2" id="validations-title">
@@ -617,6 +633,8 @@ function ProposalBody({ data, onDone }: { data: TaskProposalUi; onDone(): void }
 export function TaskPage({ id }: { id: string }) {
   const { t, lang } = useApp();
   const loaded = useLoad<TaskProposalUi>(`/api/tasks/${encodeURIComponent(id)}/proposal`);
+  // The proposal's actions (approve, discard, changes, revert, the checks) wait for each other on the server: the page shows it.
+  const proposalBusy = useSharedBusy();
   const task = loaded.data?.task;
   useDocumentTitle(task?.description.split(/\r?\n/, 1)[0] ?? t.taskTitle);
   usePoll(loaded.reload, task !== undefined && LIVE.has(task.state));
@@ -670,8 +688,8 @@ export function TaskPage({ id }: { id: string }) {
               <QuestionDialog task={view} onDone={loaded.reload} />
               {/* While the checks the user asked for run, the page keeps the diff they run on. */}
               {LIVE.has(view.state) && !checksRunning && <RoundControls task={view} onDone={loaded.reload} />}
-              <ProposalActions task={view} onDone={loaded.reload} />
-              {(!LIVE.has(view.state) || checksRunning) && <ProposalBody data={data} onDone={loaded.reload} />}
+              <ProposalActions task={view} onDone={loaded.reload} shared={proposalBusy} />
+              {(!LIVE.has(view.state) || checksRunning) && <ProposalBody data={data} onDone={loaded.reload} shared={proposalBusy} />}
             </div>
           </>
         );
