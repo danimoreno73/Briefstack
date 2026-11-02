@@ -352,7 +352,9 @@ Each item ends with its source, in one of three forms:
 
 ### Code
 
-- **The saves of one task are not ordered.** When a round's session
+- **Done in the cleanup of phase 7** (step 14, commit `8ab1a6e`: the
+  saves of one task are queued in `TaskStore`).
+  **The saves of one task are not ordered.** When a round's session
   starts, its session id is saved without waiting
   (`void this.options.store.save(record)` in `startRound`,
   `src/tasks/manager.ts`), and `TaskStore.save` (`src/tasks/store.ts`)
@@ -360,7 +362,10 @@ Each item ends with its source, in one of three forms:
   end and leave `running` on disk. Queue the saves per task, or wait for
   that one. It is the cause of the intermittent macOS test below. Review of
   step 07, M4; review of step 10, I1.
-- **The stop is read too early before a record changes.** `startRound`
+- **Done in the cleanup of phase 7** (step 14, commit `8a55729`; a stop
+  that begins during the record's own save still leaves the task as an
+  abrupt stop does, which `recover()` puts back).
+  **The stop is read too early before a record changes.** `startRound`
   clears `reviewed`, `validations` and `checks` and saves `running`
   before the late read of `stopping`, and between the first read and that
   change there are several awaits (`limit`, `checks.commands`,
@@ -369,12 +374,16 @@ Each item ends with its source, in one of three forms:
   and needs another round); checks refused there leave the task
   `checking` until the next start. Read the flag again just before the
   record changes. Review of step 07, M2.
-- **A session that is stopping can still ask.** During the task manager's
+- **Done in the cleanup of phase 7** (step 14, commit `84d1732`; `answer()`
+  answers `task.stopping`).
+  **A session that is stopping can still ask.** During the task manager's
   `shutdown()`, between settling the pending requests and `handle.stop()`,
   `request()` looks only at `cancelling` and the state, so a new tool call
   opens a dialog; `answer()` is not refused either. Deny in `request()`
   while stopping, with a test. Review of step 07, M5.
-- **"Saved before shown" holds for the state, not for the round.**
+- **Done in the cleanup of phase 7** (step 14, commit `a2315a8`: the
+  round and the record are copied, the `checking` step too).
+  **"Saved before shown" holds for the state, not for the round.**
   `onRoundDone` sets the round's `finishedAt`, `outcome`, `summary`,
   `error` and `commit` on the record in memory before the save, and
   `next = { ...record }` shares `rounds`: the view and the stream can show
@@ -403,26 +412,36 @@ Each item ends with its source, in one of three forms:
 
 ### Tests
 
-- **Intermittent on macOS:** `tests/unit/tasks-manager.test.ts`,
+- **Done in the cleanup of phase 7** (step 14, commit `8ab1a6e`: the
+  ordered saves, and the test waits for the session id's save to be asked).
+  **Intermittent on macOS:** `tests/unit/tasks-manager.test.ts`,
   "TaskManager: after a server stop › marks tasks the last server left
   running as interrupted", failed once in CI (run 41315930066, on
   `666fa66`, a commit that changed only documentation; the runs after it
   were green): it read `running` where `interrupted` was expected. A race
   between the test and the unordered save above, which the test does not
   wait for. Review of step 07, M4; review of step 10, I1.
-- **Intermittent locally on Windows:** `tests/unit/tasks-manager.test.ts`,
+- **Done in the cleanup of phase 7** (step 14, commit `0e43e2e`: the test
+  polls for the line, with a deadline).
+  **Intermittent locally on Windows:** `tests/unit/tasks-manager.test.ts`,
   "TaskManager: shell commands and questions › asks questions, and a write
   outside the worktree is denied by the guard", failed once (2026-11-01):
   the session's `events.jsonl` held `tool.pre` for the write but not yet
   the guard's `tool.denied` line when the test read it. The test reads the
   file without waiting for that line. Seen in the gates of step 12 (a
   commit that changed only documentation); the next run passed.
-- **The R2 tests** (`tests/unit/tasks-run-checks.test.ts`, "… is on disk
+- **Done in the cleanup of phase 7** (step 14, commit `0e43e2e`: approving
+  is pinned as `task.wrongState` with `checking`; the 10 repetitions were
+  runs of a step's report, not part of the tests, so nothing was removed).
+  **The R2 tests** (`tests/unit/tasks-run-checks.test.ts`, "… is on disk
   before an action can see it (R2)"): after the fix the `fulfilled`
   branch of `expectOneOrder` is never reached, so approving is not pinned
   as refused; pin `task.wrongState` with `checking`. Their 10 repetitions
   add nothing, the result being deterministic. Review of step 07, M6.
-- **The I1 and I2 tests:** the route test of I1
+- **Done in the cleanup of phase 7** (step 14, commit `0e43e2e`: a spy on
+  the checks' runs; each I2 test pins the order it forces; all three call
+  `recover()`).
+  **The I1 and I2 tests:** the route test of I1
   (`tests/unit/server-tasks.test.ts`) infers that nothing ran from the
   task's state, not from a spy; the first I2 test forces the order but its
   `expectOneOrder` accepts either outcome; the I2 tests use a new manager

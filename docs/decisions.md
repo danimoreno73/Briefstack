@@ -5177,6 +5177,58 @@ conservative each:
   stop ends or aborts what it finds. IDEAS.md §7 says so under "Not listed
   here".
 
+**Cleanup of phase 7, step 14 (2026-11-02): the order of a task's saves,
+the stop, and the race tests.** The first of three steps on IDEAS.md §7,
+asked by the user before Codex, with the fake runners only. Done:
+
+- **The saves of one task reach the disk in order** (`8ab1a6e`):
+  `TaskStore.save` queues the writes of a task's record, so the session
+  id's save at a round's start, which nothing waits for, can no longer
+  land after the round's end. The record is read when `save` is called;
+  the file format is unchanged. This was the cause of the intermittent
+  macOS test, which now waits for that save to be asked.
+- **The stop is read again just before a record changes** (`8a55729`): a
+  new round or checks that were waiting (the limit, the checks' list, the
+  project's inspection and restrictions) when a stop began are refused with
+  nothing changed.
+- **A session that is stopping can no longer ask** (`84d1732`): while the
+  task manager stops, `request()` denies a command or web request and
+  cancels a question without showing them, and `answer()` answers
+  `task.stopping`.
+- **The end of a round is shown once it is on disk** (`a2315a8`):
+  `onRoundDone` sets it on copies of the round and the record.
+- **Race tests** (`0e43e2e`): the guard test polls for its line; the R2,
+  I1 and I2 tests pin what they mean (IDEAS.md §7, "Tests").
+
+Choices made without the user, the most conservative each:
+
+- **The queue is per record file and shared by every store in the
+  process**, not per `TaskStore` object: tests and `recover()` can open a
+  second store on the same folder. `remove()` waits in the same queue, so
+  a save asked before it cannot bring the folder back.
+- **A stop that begins during the record's own save** (between the
+  change and the session or the first command) is still left as an abrupt
+  stop leaves it, which `recover()` puts back: the step asked for the read
+  just before the change, and undoing the change would need another save
+  while the server stops.
+- **The language is read before the change too**, so nothing is awaited
+  between the last read of the stop and the change of the record.
+- **`answer()` refuses with `task.stopping`** (503), the code the other
+  task routes give during a stop, rather than `creation.noPending`.
+  `reply()` is left as it was: the step did not name it, and a reply
+  reaches only the session the stop is ending.
+- **The `checking` step of a completed round is a copy too**: the record
+  in memory became `checking` before its save, as the round did. The
+  validations get that copy.
+- **The 10 repetitions of the R2 tests** named by the review were the runs
+  of the step 07 report, not part of the tests: nothing was removed.
+- **Both forced I2 orders are pinned**, not only the first, since the
+  helper is shared; all three I2 tests call `recover()`.
+- **The test changes of the race tests are one commit**: they are one
+  point of the step.
+- **`docs/api.md`** (`b2b200d`) says that answering a dialog is refused
+  during a stop and that a waiting request leaves the task as it was.
+
 ## Phase 7: security review (2026-10-30)
 
 A review of the phase's code (`phase-7-start..HEAD`, about 5,000 lines of
