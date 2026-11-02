@@ -741,7 +741,12 @@ A task (`TaskView`) is its record (`src/tasks/types.ts`: `id`, `project`,
 `applied?`, `reverted?`, `error?`) plus what the server knows live: `pending?` (an
 `approval` with the command as shown, or a `question`), `awaitingReply?`,
 `cancelling?`, `uncommitted?` (paths left out at the start), `warnings?`,
-`allowedForTask?`. States: `running`, `checking`, `proposal`, `applied`,
+`allowedForTask?`. Each validation is `{ kind, level, file, detail? }`;
+`level: "error"` stops the approval (`outsideWorktree`, `settingsOrHooks`,
+`hiddenLine`), `"warning"` is shown (`secret`, `personalPath`, and
+`notShown` for a file the page lists by name only: `detail` `large`, over
+256 KB, `binary` or `link`; decisions.md, S10). Errors and warnings are
+capped at 50 each. States: `running`, `checking`, `proposal`, `applied`,
 `reverted`, `discarded`, `failed`, `cancelled`, `interrupted`. `checking`
 is the round's end (commit and validations; `reviewed` absent) or the
 declared checks the user asked for (`reviewed` set). `checks` absent means

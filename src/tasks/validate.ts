@@ -17,19 +17,28 @@ import type { TaskValidation } from './types.js';
  *   `.mcp.json` or a hook file, or a skill, command or agent that would
  *   declare hooks;
  * - `secret` and `personalPath` (warnings): added lines that look like a
- *   secret or hold an absolute path from this machine.
+ *   secret or hold an absolute path from this machine;
+ * - `notShown` (warning, decisions.md S10): a file the proposal page lists
+ *   by name only, being over `SHOWN_MAX_BYTES` (`large`), binary
+ *   (`binary`) or a link that stays in the project (`link`).
  *
  * Errors stop the approval; warnings are shown on the proposal page.
  */
 
 const MAX_FINDINGS = 50;
 const MAX_SCANNED_FILE_BYTES = 1024 * 1024;
+/** The largest file the proposal page shows; a larger one is listed by name only (proposal.ts). */
+export const SHOWN_MAX_BYTES = 256 * 1024;
+
+const LINK_MODE = '120000';
+const SUBMODULE_MODE = '160000';
 
 export interface DiffEntry {
   path: string;
   status: string;
   oldMode: string;
   newMode: string;
+  oldBlob: string;
   newBlob: string;
 }
 
@@ -43,7 +52,7 @@ export async function rawDiff(dir: string, from: string, to: string): Promise<Di
       const meta = /^:(\d{6}) (\d{6}) ([0-9a-f]+) ([0-9a-f]+) ([A-Z])/.exec(parts[i] ?? '');
       const file = parts[i + 1];
       if (meta === null || file === undefined) continue;
-      entries.push({ path: file, status: meta[5] ?? 'M', oldMode: meta[1] ?? '', newMode: meta[2] ?? '', newBlob: meta[4] ?? '' });
+      entries.push({ path: file, status: meta[5] ?? 'M', oldMode: meta[1] ?? '', newMode: meta[2] ?? '', oldBlob: meta[3] ?? '', newBlob: meta[4] ?? '' });
     }
     return entries;
   });
@@ -72,8 +81,12 @@ function linkLeavesRepo(file: string, target: string): boolean {
 
 export async function validateTaskDiff(worktree: string, base: string, head: string, pathEnv: PathEnv = systemPathEnv()): Promise<TaskValidation[]> {
   const found: TaskValidation[] = [];
+  // Errors and warnings are capped apart, so many warnings never push out an error that stops the approval.
+  const counts = { error: 0, warning: 0 };
   const add = (item: TaskValidation) => {
-    if (found.length < MAX_FINDINGS) found.push(item);
+    if (counts[item.level] >= MAX_FINDINGS) return;
+    counts[item.level] += 1;
+    found.push(item);
   };
   const entries = await rawDiff(worktree, base, head);
   await withSafeGit(worktree, async (git, run) => {
@@ -83,19 +96,38 @@ export async function validateTaskDiff(worktree: string, base: string, head: str
       if (!Number.isFinite(size) || size > MAX_SCANNED_FILE_BYTES) return undefined;
       return git(['cat-file', 'blob', sha]);
     };
+    /** Why the proposal page cannot show one side of a file, as proposal.ts decides it. */
+    const unshown = async (sha: string): Promise<'large' | 'binary' | undefined> => {
+      if (/^0+$/.test(sha)) return undefined;
+      const size = await run(['cat-file', '-s', sha]);
+      if (size.code !== 0) return undefined;
+      if (Number(size.stdout.trim()) > SHOWN_MAX_BYTES) return 'large';
+      return (await git(['cat-file', 'blob', sha])).includes('\0') ? 'binary' : undefined;
+    };
     for (const entry of entries) {
       const deleted = entry.status === 'D';
-      if (entry.newMode === '160000' || entry.oldMode === '160000') add({ kind: 'outsideWorktree', level: 'error', file: entry.path, detail: 'submodule' });
-      if (entry.newMode === '120000' && !deleted) {
+      const submodule = entry.newMode === SUBMODULE_MODE || entry.oldMode === SUBMODULE_MODE;
+      const link = entry.newMode === LINK_MODE || entry.oldMode === LINK_MODE;
+      if (submodule) add({ kind: 'outsideWorktree', level: 'error', file: entry.path, detail: 'submodule' });
+      let leaves = false;
+      if (entry.newMode === LINK_MODE && !deleted) {
         const target = (await blob(entry.newBlob)) ?? '';
-        if (linkLeavesRepo(entry.path, target)) add({ kind: 'outsideWorktree', level: 'error', file: entry.path, detail: 'link' });
+        leaves = linkLeavesRepo(entry.path, target);
+        if (leaves) add({ kind: 'outsideWorktree', level: 'error', file: entry.path, detail: 'link' });
+      }
+      // S10: the page lists this file by name only. A submodule or a link that leads out is already refused.
+      if (link && !submodule && !leaves) add({ kind: 'notShown', level: 'warning', file: entry.path, detail: 'link' });
+      else if (!link && !submodule) {
+        const sides = [entry.status === 'A' ? undefined : await unshown(entry.oldBlob), deleted ? undefined : await unshown(entry.newBlob)];
+        const reason = sides.includes('large') ? 'large' : sides.includes('binary') ? 'binary' : undefined;
+        if (reason !== undefined) add({ kind: 'notShown', level: 'warning', file: entry.path, detail: reason });
       }
       const protectedReason = protectedProjectFile(entry.path, pathEnv);
       if (protectedReason !== undefined) {
         add({ kind: 'settingsOrHooks', level: 'error', file: entry.path });
         continue;
       }
-      if (deleted || entry.newMode === '120000' || entry.newMode === '160000') continue;
+      if (deleted || entry.newMode === LINK_MODE || entry.newMode === SUBMODULE_MODE) continue;
       const text = await blob(entry.newBlob);
       if (isDefinitionFile(entry.path, pathEnv) && (text === undefined || declaresHooks(text))) add({ kind: 'settingsOrHooks', level: 'error', file: entry.path, detail: 'hooks' });
       else if (text !== undefined && isAgentFile(entry.path) && agentWidens(text)) add({ kind: 'settingsOrHooks', level: 'error', file: entry.path, detail: 'agent' });

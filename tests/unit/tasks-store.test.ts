@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { newTaskId, TaskStore } from '../../src/tasks/store.js';
 import { branchOf, type TaskRecord, type TaskState } from '../../src/tasks/types.js';
@@ -93,6 +94,23 @@ describe('TaskStore: the saves of one task', () => {
     await expect(store.save({ ...record(id, 'running'), state: 'nope' as TaskState })).rejects.toThrow();
     await store.save(record(id, 'proposal'));
     expect((await store.load(id))?.state).toBe('proposal');
+  });
+
+  it('read back records saved before the S10 warning, and records that have it', async () => {
+    const store = new TaskStore(dir);
+    const old = newTaskId(new Date('2026-11-01T10:00:00Z'));
+    const validations = [
+      { kind: 'secret', level: 'warning', file: 'a.ts' },
+      { kind: 'outsideWorktree', level: 'error', file: 'up', detail: 'link' },
+    ];
+    // Written as an earlier version wrote it, not through `save`.
+    await mkdir(store.taskDir(old), { recursive: true });
+    await writeFile(store.recordFile(old), `${JSON.stringify({ ...record(old, 'proposal'), validations }, null, 2)}\n`, 'utf8');
+    expect((await store.load(old))?.validations).toEqual(validations);
+
+    const id = newTaskId(new Date('2026-11-02T10:00:00Z'));
+    await store.save({ ...record(id, 'proposal'), validations: [{ kind: 'notShown', level: 'warning', file: 'big.bin', detail: 'binary' }] });
+    expect((await store.load(id))?.validations).toEqual([{ kind: 'notShown', level: 'warning', file: 'big.bin', detail: 'binary' }]);
   });
 
   it('do not hold back the saves of another task', async () => {

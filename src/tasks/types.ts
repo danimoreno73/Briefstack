@@ -65,7 +65,8 @@ const checkResultSchema = z.object({
 export type CheckResult = z.infer<typeof checkResultSchema>;
 
 const validationSchema = z.object({
-  kind: z.enum(['outsideWorktree', 'settingsOrHooks', 'secret', 'personalPath', 'hiddenLine']),
+  /** `notShown` (S10) was added after phase 7: records saved before it read as they did. */
+  kind: z.enum(['outsideWorktree', 'settingsOrHooks', 'secret', 'personalPath', 'hiddenLine', 'notShown']),
   /** `error` blocks approval; `warning` is shown. */
   level: z.enum(['error', 'warning']),
   file: z.string(),

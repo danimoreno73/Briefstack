@@ -274,6 +274,36 @@ test.describe('approving without the checks', () => {
   });
 });
 
+test.describe('files the page cannot show', () => {
+  test.use({
+    appOptions: {
+      taskScript: () => ({
+        steps: [
+          { kind: 'write', file: 'big.txt', content: `${'x'.repeat(1023)}\n`.repeat(257) },
+          { kind: 'write', file: 'data.bin', content: 'a\0b' },
+          { kind: 'write', file: 'CHANGES.md', content: 'Done.\n' },
+          { kind: 'end', summary: 'Wrote three files.' },
+        ],
+      }),
+    },
+  });
+
+  test('each is listed by name with a warning that does not stop the approval (S10)', async ({ page, app }) => {
+    await codeProject(app, 'shed', 'Tool shed');
+    await startTask(page, app, 'shed', 'Add a changelog.');
+    await finishRound(page);
+    const validations = page.getByTestId('task-validations');
+    await expect(validations.locator('li[data-level="warning"]')).toHaveText([
+      "big.txt: this page cannot show it (over 256 KB), so approving applies a change you have not read here; look at it on the task's branch first",
+      "data.bin: this page cannot show it (binary), so approving applies a change you have not read here; look at it on the task's branch first",
+    ]);
+    await expect(validations.locator('li[data-level="error"]')).toHaveCount(0);
+    await expect(page.getByTestId('task-diff')).toContainText('big.txt — Binary, a link, or too large: not shown.');
+    await expect(page.getByTestId('task-diff-CHANGES.md')).toContainText('Done.');
+    await expect(page.getByTestId('task-approve')).toBeEnabled();
+  });
+});
+
 test.describe('approval refused', () => {
   test('a dirty folder and a moved branch that conflicts: the reason on the page, nothing changed', async ({ page, app }) => {
     const project = await codeProject(app, 'shed', 'Tool shed');

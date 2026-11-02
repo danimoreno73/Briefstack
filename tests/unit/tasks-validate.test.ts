@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { proposalDiff } from '../../src/tasks/proposal.js';
 import { validateTaskDiff } from '../../src/tasks/validate.js';
 import { tempDir, useHermeticGit, writeTree } from '../helpers.js';
 import { commitAll, gitIn } from '../taskWorld.js';
@@ -36,6 +37,12 @@ async function run(cwd: string, args: string[], input: string): Promise<string> 
   });
 }
 
+/**
+ * Exactly `count` KB of text in lines of 1 KB. Short lines: the secret and
+ * path scans take time that grows with the square of a line's length.
+ */
+const kilobytes = (char: string, count: number): string => `${char.repeat(1023)}\n`.repeat(count);
+
 const commitIndex = async (message: string) => {
   await gitIn(repo, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '--quiet', '--no-verify', '-m', message);
   return (await gitIn(repo, 'rev-parse', 'HEAD')).trim();
@@ -68,7 +75,7 @@ describe('validateTaskDiff', () => {
     await addLink('rooted', '/etc/passwd');
     const head = await commitIndex('links');
     const found = await validateTaskDiff(repo, base, head);
-    expect(found.map((item) => [item.file, item.kind, item.detail]).sort()).toEqual([
+    expect(found.filter((item) => item.level === 'error').map((item) => [item.file, item.kind, item.detail]).sort()).toEqual([
       ['rooted', 'outsideWorktree', 'link'],
       ['up', 'outsideWorktree', 'link'],
     ]);
@@ -87,5 +94,54 @@ describe('validateTaskDiff', () => {
     expect(found).toContainEqual({ kind: 'personalPath', level: 'warning', file: 'docs/where.md' });
     expect(found.find((item) => item.file === 'notes.md')).toBeUndefined();
     expect(found.every((item) => item.level === 'warning')).toBe(true);
+  });
+
+  it('warns about each file the proposal page cannot show: over 256 KB, binary, a link (S10)', async () => {
+    await writeTree(repo, {
+      'big.txt': `${kilobytes('x', 256)}!`,
+      'edge.txt': kilobytes('y', 256),
+      'bin/data.bin': 'a\0b',
+      'notes.md': 'Plain text.\n',
+    });
+    await gitIn(repo, 'add', '-A');
+    await addLink('inside', 'src/app.ts');
+    await addLink('up', '../../etc/passwd');
+    const head = await commitIndex('unshown');
+    const found = await validateTaskDiff(repo, base, head);
+    expect(found.filter((item) => item.kind === 'notShown').map((item) => [item.file, item.level, item.detail]).sort()).toEqual([
+      ['big.txt', 'warning', 'large'],
+      ['bin/data.bin', 'warning', 'binary'],
+      ['inside', 'warning', 'link'],
+    ]);
+    // A link that leads out is refused, which says more than the warning.
+    expect(found.filter((item) => item.file === 'up')).toEqual([{ kind: 'outsideWorktree', level: 'error', file: 'up', detail: 'link' }]);
+    // The same files the page lists by name only.
+    const diff = await proposalDiff(repo, base, head);
+    expect(diff.files.filter((file) => !file.shown).map((file) => file.path).sort()).toEqual(['big.txt', 'bin/data.bin', 'inside', 'up']);
+  });
+
+  it('warns about a file that becomes too large or binary, or that was and is deleted', async () => {
+    await writeTree(repo, { 'old.bin': '\0old', 'grows.txt': 'small\n' });
+    const start = await commitAll(repo, 'start 2');
+    await writeTree(repo, { 'grows.txt': kilobytes('z', 300) });
+    await gitIn(repo, 'rm', '--quiet', 'old.bin');
+    const head = await commitAll(repo, 'change');
+    const found = await validateTaskDiff(repo, start, head);
+    expect(found.map((item) => [item.file, item.kind, item.detail]).sort()).toEqual([
+      ['grows.txt', 'notShown', 'large'],
+      ['old.bin', 'notShown', 'binary'],
+    ]);
+  });
+
+  it('keeps every error when many files only warn', async () => {
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 60; i += 1) files[`a/${String(i).padStart(2, '0')}.bin`] = `\0${i}`;
+    await writeTree(repo, files);
+    await gitIn(repo, 'add', '-A');
+    await addLink('zz-up', '../outside');
+    const head = await commitIndex('many');
+    const found = await validateTaskDiff(repo, base, head);
+    expect(found).toContainEqual({ kind: 'outsideWorktree', level: 'error', file: 'zz-up', detail: 'link' });
+    expect(found.filter((item) => item.level === 'warning')).toHaveLength(50);
   });
 });

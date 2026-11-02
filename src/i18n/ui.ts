@@ -365,14 +365,16 @@ export const uiMessages = defineCatalogue({
     taskChecksRunBody:
       "They run the code this task changed, on your computer, as you, in the task's copy. Network proxies point nowhere, but a program can ignore them and still reach the network. Each one stops after 10 minutes. The commands, in order:",
     taskValidations: 'Server checks of the diff',
-    taskValidationText: (kind: string): string =>
-      ({
-        outsideWorktree: 'a link that leads out of the project, or a submodule',
-        settingsOrHooks: 'a change to Claude Code settings, .mcp.json or hook files, or a skill or agent with hooks, MCP servers or a permission mode',
-        hiddenLine: 'an added line looks like a secret in a way the page cannot show without showing the secret: it would be approved unseen',
-        secret: 'an added line looks like a secret',
-        personalPath: 'an added line holds an absolute path from this computer',
-      })[kind] ?? kind,
+    taskValidationText: (kind: string, detail?: string): string =>
+      kind === 'notShown'
+        ? `this page cannot show it (${detail === 'large' ? 'over 256 KB' : detail === 'binary' ? 'binary' : detail === 'link' ? 'a link' : 'not text'}), so approving applies a change you have not read here; look at it on the task's branch first`
+        : (({
+            outsideWorktree: 'a link that leads out of the project, or a submodule',
+            settingsOrHooks: 'a change to Claude Code settings, .mcp.json or hook files, or a skill or agent with hooks, MCP servers or a permission mode',
+            hiddenLine: 'an added line looks like a secret in a way the page cannot show without showing the secret: it would be approved unseen',
+            secret: 'an added line looks like a secret',
+            personalPath: 'an added line holds an absolute path from this computer',
+          } as Record<string, string>)[kind] ?? kind),
     taskValidationsNone: 'Nothing found.',
     taskDiffTitle: 'Changes',
     taskDiffMore: (n: number) => `${n} more changed file(s) are not listed.`,
@@ -1352,14 +1354,16 @@ export const uiMessages = defineCatalogue({
     taskChecksRunBody:
       'Ejecutan el código que cambió esta tarea, en tu equipo, como tú, en la copia de la tarea. Los proxies de red apuntan a ninguna parte, pero un programa puede ignorarlos y llegar igualmente a la red. Cada una se detiene a los 10 minutos. Los comandos, en orden:',
     taskValidations: 'Comprobaciones del diff en el servidor',
-    taskValidationText: (kind: string): string =>
-      ({
-        outsideWorktree: 'un enlace que sale del proyecto, o un submódulo',
-        settingsOrHooks: 'un cambio en los ajustes de Claude Code, en .mcp.json o en archivos de hooks, o una skill o un agente con hooks, servidores MCP o un modo de permisos',
-        hiddenLine: 'una línea añadida parece un secreto de un modo que la página no puede mostrar sin enseñarlo: se aprobaría sin verla',
-        secret: 'una línea añadida parece un secreto',
-        personalPath: 'una línea añadida contiene una ruta absoluta de este ordenador',
-      })[kind] ?? kind,
+    taskValidationText: (kind: string, detail?: string): string =>
+      kind === 'notShown'
+        ? `esta página no puede mostrarlo (${detail === 'large' ? 'más de 256 KB' : detail === 'binary' ? 'binario' : detail === 'link' ? 'un enlace' : 'no es texto'}), así que al aprobar aplicas un cambio que no has leído aquí; míralo antes en la rama de la tarea`
+        : (({
+            outsideWorktree: 'un enlace que sale del proyecto, o un submódulo',
+            settingsOrHooks: 'un cambio en los ajustes de Claude Code, en .mcp.json o en archivos de hooks, o una skill o un agente con hooks, servidores MCP o un modo de permisos',
+            hiddenLine: 'una línea añadida parece un secreto de un modo que la página no puede mostrar sin enseñarlo: se aprobaría sin verla',
+            secret: 'una línea añadida parece un secreto',
+            personalPath: 'una línea añadida contiene una ruta absoluta de este ordenador',
+          } as Record<string, string>)[kind] ?? kind),
     taskValidationsNone: 'Nada que señalar.',
     taskDiffTitle: 'Cambios',
     taskDiffMore: (n: number) => `${n} archivo(s) cambiado(s) más no se listan.`,

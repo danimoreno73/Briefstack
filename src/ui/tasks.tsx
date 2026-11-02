@@ -584,7 +584,7 @@ function ProposalBody({ data, onDone }: { data: TaskProposalUi; onDone(): void }
               {task.validations.map((item) => (
                 <li key={`${item.kind}-${item.file}`} data-level={item.level}>
                   <Note tone={item.level === 'error' ? 'danger' : 'warn'}>
-                    <code>{item.file}</code>: {t.taskValidationText(item.kind)}
+                    <code>{item.file}</code>: {t.taskValidationText(item.kind, item.detail)}
                   </Note>
                 </li>
               ))}

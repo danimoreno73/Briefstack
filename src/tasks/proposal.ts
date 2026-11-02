@@ -2,7 +2,7 @@ import { diffHunks, diffLines } from '../chat/diff.js';
 import type { DiffHunk } from '../chat/types.js';
 import { maskSecretValues } from '../validate/secrets.js';
 import { withSafeGit } from './git.js';
-import { rawDiff } from './validate.js';
+import { rawDiff, SHOWN_MAX_BYTES } from './validate.js';
 
 /**
  * The proposal page's diff (BRIEF-phase-7 §3.4): each changed file from the
@@ -27,7 +27,8 @@ export interface ProposalDiff {
 }
 
 const MAX_FILES = 200;
-const MAX_FILE_BYTES = 256 * 1024;
+/** The same limit the `notShown` warning reads (validate.ts, S10). */
+const MAX_FILE_BYTES = SHOWN_MAX_BYTES;
 
 const statusOf = (letter: string): ProposalFileDiff['status'] => (letter === 'A' ? 'added' : letter === 'M' ? 'modified' : letter === 'D' ? 'deleted' : 'other');
 
