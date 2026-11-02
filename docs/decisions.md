@@ -5229,6 +5229,71 @@ Choices made without the user, the most conservative each:
 - **`docs/api.md`** (`b2b200d`) says that answering a dialog is refused
   during a stop and that a waiting request leaves the task as it was.
 
+**Cleanup of phase 7, step 15 (2026-11-02): small features of the
+proposal page.** The second of three steps on IDEAS.md §7, with the fake
+runners only. Done:
+
+- **One date heading for a task applied and reverted on one day**
+  (`aa90a18`): the task's line goes under today's heading when the
+  project note's last heading is already it.
+- **A warning for each file the proposal page cannot show** (`43ea994`,
+  S10): `notShown`, with `detail` `large` (over 256 KB), `binary` or
+  `link`; it does not stop the approval. Errors and warnings are now
+  capped apart, 50 each.
+- **The proposal's actions wait disabled while another one is on its
+  way** (`cce7fdd`): approving, discarding, asking for changes, reverting
+  and running the checks share one busy state on the task page.
+- **Cancelling the running checks** (`6124ab4`):
+  `POST /api/tasks/:id/checks/cancel`, from a button shown only while they
+  run.
+
+Choices made without the user, the most conservative each:
+
+- **Only the task's note reuses today's heading** (`appendDated` takes
+  `reuseToday`, which `recordInNote` passes). `library add`, lessons and
+  the web app's appends keep one heading per addition, as the user decided
+  for dated additions ("Personal library (H6)"), which a test pins. The
+  heading is reused only when the note's last heading of any level is
+  exactly `### YYYY-MM-DD` for today.
+- **The `notShown` warning follows the page's own rule** (`proposal.ts`
+  takes its 256 KB limit from `validate.ts`, and a test compares the two):
+  either side of a file over the limit or binary, or a link on either
+  side. A submodule and a link that leads out of the project get no
+  warning: they are already errors. Files past the page's first 200 get
+  none either: the page says how many there are, and the step named only
+  large, binary and link files. The validation kinds only grow, so records
+  saved before read as they did (a test reads one written as before).
+- **Errors and warnings are capped apart.** With the one cap of 50, a task
+  with 50 binary files sorted before a link that leads out would have lost
+  the link's error, and approving would not have been blocked; a test
+  shows it failing with the shared cap. Not asked by the step, but the new
+  warning made it reachable.
+- **The secret and path scans of the validations take time that grows
+  with the square of a line's length** (about 1.8 s each for one line of
+  64 KB, measured): a long one-line file, such as a minified bundle, makes
+  a round's end slow. Seen while testing S10, older than this step, and
+  not fixed here: it changes what the scans find. The tests write large
+  files in 1 KB lines. Noted in IDEAS.md §7.
+- **The shared busy state covers the proposal's actions only**: the
+  dialogs and the round controls of a running task are not proposal
+  actions, and nothing else shows while the checks run.
+- **Cancelling the checks takes `{ confirm: true }` and a confirmation on
+  the page**, as approving, discarding and reverting do: a request without
+  it changes nothing. It is not offered to the chat (a test pins the
+  chat's tool list).
+- **It reuses what a stop does and what a restart does**, with no new
+  state: the checks' `AbortController` ends the command's process tree
+  (`killProcessTree`), and the task goes back through the same step as
+  `recover()` (`failed` when the worktree or the branch changed). It runs
+  inside the task's action lock, waits for the checks to end at most as
+  long as a stop waits, and goes back all the same past that, as a
+  restart would.
+- **Its own error, `task.checksNotRunning` (409),** rather than
+  `task.wrongState`: it also answers a running round, which the round's
+  own cancel ends. Checks that ended before the cancel reached them keep
+  their results; a stop that began refuses it with `task.stopping`, since
+  the stop ends them and leaves the task for `recover()`.
+
 ## Phase 7: security review (2026-10-30)
 
 A review of the phase's code (`phase-7-start..HEAD`, about 5,000 lines of
@@ -5586,6 +5651,15 @@ back to `balanced`), recorded after the run in "Decisiones sin Dani (fase
 - The task guard's layer 6 is accepted with unit tests only: in real
   sessions Claude Code refuses those calls first, and the two layers are
   each covered.
+- **Unattended runs (IDEAS.md §6), 2026-11-02:** the decisions and
+  approvals are taken at the start; once a run is unattended, the user is
+  not asked again except in extreme need; when the user has set that a
+  diff is applied once some rules are met, applying it asks for no
+  attention. This replaces the earlier proposal that an unattended run
+  always waits for the user's approval. What it leaves to decide when §6
+  is planned (the checks would run on the consent given at the start, and
+  the mitigations to choose) is in IDEAS.md §6. Nothing of it is built
+  yet.
 
 ## `briefstack paths rewrite` (2026-10-30)
 

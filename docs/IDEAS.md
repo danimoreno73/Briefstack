@@ -331,6 +331,24 @@ when a decision is needed, so the user does not have to watch a screen.
   a new shell command from the phone is off unless the user turns it on;
   an unanswered request times out to the safe choice.
 - Order: after phase 7 and Codex.
+- **The user's decision (2026-11-02):** the decisions and approvals are
+  taken at the start; once a run is unattended, the user is not asked
+  again except in extreme need; when the user has set that a diff is
+  applied once some rules are met, applying it asks for no attention.
+  This replaces the earlier proposal that an unattended run always waits
+  for the user's approval (decisions.md, "Phase 7: M9 accepted, phase
+  closed").
+- **To decide when it is planned, not now:**
+  - The declared checks would run on the consent given at the start: the
+    session writes code that runs before anyone sees the diff, which S8
+    (the checks wait for a click on the proposal page) avoids today.
+  - The mitigations, to choose then: run the checks in an isolation at
+    the system level with no network; apply to an integration branch, not
+    the main one, so that everything stays reversible; a list of shell
+    commands approved at the start; stop and notify only for something
+    outside the rules, with a timeout that takes the safe choice.
+
+  Nothing of this is built.
 
 ## 7. Open items from phase 7
 
@@ -391,24 +409,57 @@ Each item ends with its source, in one of three forms:
   (they refuse `running` and `checking`), but the comment above the save
   says more than that. Copy the round too, or narrow the comment. Review
   of step 07, M3.
-- **Cancelling the checks from the proposal page.** Running checks end only
+- **Done in the cleanup of phase 7** (step 15, commit `6124ab4`:
+  `POST /api/tasks/:id/checks/cancel`, from a button shown while they run).
+  **Cancelling the checks from the proposal page.** Running checks end only
   with a server stop (or their 10-minute timeout per command). Review of
   step 05, M2.
-- **The checks button while another proposal action runs** is not
+- **Done in the cleanup of phase 7** (step 15, commit `cce7fdd`: the
+  proposal's actions share one busy state on the page).
+  **The checks button while another proposal action runs** is not
   disabled; the server's lock per task already makes the actions wait for
   each other. Optional in the review of step 05, I2; left out in
   decisions.md, "Decisiones sin Dani (fase 7)", M8b.
-- **Files the proposal page cannot show** (over 256 KB, binary files,
+- **Done in the cleanup of phase 7** (step 15, commit `43ea994`: a
+  `notShown` warning for each, which does not stop the approval; errors
+  and warnings are now capped apart).
+  **Files the proposal page cannot show** (over 256 KB, binary files,
   links) are listed by name only; a warning for any of them was proposed.
   decisions.md, "Phase 7: security review", S10.
-- **Two equal date headings in a project's note** when a task is applied
+- **Done in the cleanup of phase 7** (step 15, commit `aa90a18`: the
+  task's line goes under today's heading when it is the note's last one;
+  other library additions keep one heading each).
+  **Two equal date headings in a project's note** when a task is applied
   and reverted on the same day: `appendDated` (`src/library/notes.ts`)
   puts today's heading before every addition. Review of step 08, M9; seen
   again in the real run of step 11.
-- **Applying unattended "with checks green"** (§6) clashes with S8: the
-  declared checks run only after a click on the proposal page. That idea
-  needs the user's decision when it is planned. Review of step 05, the
-  report's open question.
+- **Applying unattended "with checks green"** clashes with S8: the
+  declared checks run only after a click on the proposal page. The user
+  decided on 2026-11-02 how unattended runs are approved; what that leaves
+  open for the checks is in §6, "To decide when it is planned". Review of
+  step 05, the report's open question.
+- **The secret and path scans are slow on long lines.** `findSecrets`,
+  `findAbsolutePaths` and `maskSecretValues` take time that grows with the
+  square of a line's length (measured: about 1.8 s, 1.7 s and 3.7 s for one
+  line of 64 KB). The validations scan files up to 1 MB and the proposal
+  page masks files up to 256 KB, so a long one-line file (a minified
+  bundle) makes a round's end and the page slow. Make the scans linear
+  without changing what they find. Seen in step 15 of the cleanup.
+- **What the review of step 14 of the cleanup left, all minor:**
+  `reply()` is not refused while the task manager stops (a reply reaches
+  only the session the stop is ending; M11); a command the user allowed
+  for the whole task is still allowed during a stop, which the commit
+  message of `84d1732` does not say (`api.md` is exact; M4); `startRound`
+  still changes the session id and `running` in memory before saving them
+  (M4); `newRound` and `runChecks` load a task into the server's memory
+  before the late read of the stop, harmlessly (M3). In the tests: no test
+  fixes the `failed` path of `onRoundDone` (M12); the ordering test of
+  `tests/unit/tasks-store.test.ts` waits a fixed 50 ms (M1), and its
+  "failed save" test fails before the queue, so a write that fails inside
+  the queue is not tested (M2); the guard test of
+  `tests/unit/tasks-manager.test.ts` polls for any `tool.denied` line, not
+  the guard's (M5); the I2 tests keep fixed waits of 300 and 500 ms (M6).
+  Review of step 14.
 
 ### Tests
 
@@ -461,6 +512,12 @@ Each item ends with its source, in one of three forms:
   a passing test logs the warning `BRIEFSTACK_LIBRARY_LOCK … EPERM` (the
   lock could not be removed after a change). The phase's open warnings in
   the user's working notes; the failing tests are not named there.
+- **Intermittent locally on Windows, e2e:** `tests/e2e/several.spec.ts`,
+  the test at line 121 (two creations and a folder), failed once with
+  `locator.click: Test timeout of 30000ms exceeded` while waiting for the
+  "New project" link of the menu; the next run passed. Another test and
+  another symptom than the skills pages above. Seen in the gates of step
+  14 of the cleanup; review of step 14, M7.
 
 ### Real checks (`scripts/real/`)
 
