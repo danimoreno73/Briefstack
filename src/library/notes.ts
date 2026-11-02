@@ -143,14 +143,30 @@ export function datedEntryHeading(now: Date): string {
   return `### ${today(now)}`;
 }
 
+/** The last markdown heading line of a text, trimmed, or `undefined`. */
+function lastHeading(text: string): string | undefined {
+  const headings = text.split(/\r?\n/).filter((line) => /^#{1,6}\s/.test(line));
+  return headings.at(-1)?.trim();
+}
+
+export interface AppendDatedOptions {
+  /**
+   * When the note's last heading is already today's date heading, add under
+   * it instead of repeating it (a task applied and reverted on one day).
+   */
+  reuseToday?: boolean;
+}
+
 /**
  * `appendText` with a date heading before the addition. A date heading the
  * addition already starts with is dropped, so the entry is not dated twice.
  */
-export function appendDated(existing: string, addition: string, now: Date): string {
+export function appendDated(existing: string, addition: string, now: Date, options: AppendDatedOptions = {}): string {
   let body = addition.replace(/^\s+/, '');
   if (DATE_HEADING_RE.test(body.split(/\r?\n/, 1)[0] ?? '')) body = body.replace(/^[^\n]*\n?/, '').replace(/^\s+/, '');
-  return appendText(existing, `${datedEntryHeading(now)}\n\n${body}`);
+  const heading = datedEntryHeading(now);
+  if (options.reuseToday === true && lastHeading(existing) === heading) return appendText(existing, body);
+  return appendText(existing, `${heading}\n\n${body}`);
 }
 
 /** The dates of the dated entries in a note, in file order. */

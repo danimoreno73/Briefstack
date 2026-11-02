@@ -165,6 +165,28 @@ describe('index entries', () => {
       '# Lessons\n\n### 2026-10-12\n\n### Context\n\n- Ask less.\n',
     );
   });
+
+  it('adds under today\'s heading when asked and the note\'s last heading is today\'s', () => {
+    const now = new Date('2026-11-02T18:00:00Z');
+    const note = '# Garden\n\n### 2026-11-02\n\n- Task applied: A.\n';
+    const reuse = { reuseToday: true };
+    expect(appendDated(note, '- Task reverted: A.', now, reuse)).toBe('# Garden\n\n### 2026-11-02\n\n- Task applied: A.\n\n- Task reverted: A.\n');
+    // Another day: a new heading.
+    expect(appendDated(note, '- Task reverted: A.', new Date('2026-11-03T08:00:00Z'), reuse)).toBe(
+      '# Garden\n\n### 2026-11-02\n\n- Task applied: A.\n\n### 2026-11-03\n\n- Task reverted: A.\n',
+    );
+    // No heading yet, or a last heading that is not today's date alone: a new heading.
+    expect(appendDated('# Garden\n\nPlot.\n', '- B.', now, reuse)).toBe('# Garden\n\nPlot.\n\n### 2026-11-02\n\n- B.\n');
+    expect(appendDated('Plot.\n', '- B.', now, reuse)).toBe('Plot.\n\n### 2026-11-02\n\n- B.\n');
+    expect(appendDated(`${note}\n## Later\n\nText.\n`, '- B.', now, reuse)).toBe(
+      `${note}\n## Later\n\nText.\n\n### 2026-11-02\n\n- B.\n`,
+    );
+    expect(appendDated('### 2026-11-02 (notes)\n\n- A.\n', '- B.', now, reuse)).toBe('### 2026-11-02 (notes)\n\n- A.\n\n### 2026-11-02\n\n- B.\n');
+    // An addition's own leading date heading is still dropped.
+    expect(appendDated(note, '### 2026-11-02\n\n- B.', now, reuse)).toBe(`${note}\n- B.\n`);
+    // Without the option every addition is dated, as before.
+    expect(appendDated(note, '- B.', now)).toBe(`${note}\n### 2026-11-02\n\n- B.\n`);
+  });
 });
 
 describe('linked session logs', () => {

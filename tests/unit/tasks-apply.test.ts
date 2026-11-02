@@ -157,7 +157,11 @@ describe('revert and discard', () => {
     expect(await readFile(path.join(project, 'src', 'app.txt'), 'utf8')).toBe('one\ntwo\nthree\n');
     expect(await exists(path.join(project, 'CHANGES.md'))).toBe(false);
     expect((await gitIn(project, 'log', '-1', '--format=%s')).trim()).toBe('Revert "Make two loud."');
-    expect(await readFile(path.join(world.library, 'projects', 'garden.md'), 'utf8')).toContain('- Task reverted: Make two loud.');
+    const note = await readFile(path.join(world.library, 'projects', 'garden.md'), 'utf8');
+    expect(note).toContain('- Task reverted: Make two loud.');
+    // Applied and reverted on the same day: one date heading, both lines under it.
+    expect(note.match(/^### 2026-10-29$/gm)).toHaveLength(1);
+    expect(note).toMatch(/### 2026-10-29\n\n- Task applied: .*\n\n- Task reverted: .*\n$/);
     await expect(revertTask(reverted, deps())).rejects.toMatchObject({ code: 'task.wrongState' });
   });
 

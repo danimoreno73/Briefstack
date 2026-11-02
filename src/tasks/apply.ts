@@ -85,7 +85,7 @@ export async function recordInNote(libraryDir: string, slug: string, line: strin
     const text = await readTextIfExists(file);
     if (text === undefined) return;
     const temp = `${file}.${process.pid}.tmp`;
-    await writeFile(temp, appendDated(text, `- ${line}`, now), 'utf8');
+    await writeFile(temp, appendDated(text, `- ${line}`, now, { reuseToday: true }), 'utf8');
     await rename(temp, file);
     await gitCommit(libraryDir, [relative], `library: task in projects/${slug}`);
   });
