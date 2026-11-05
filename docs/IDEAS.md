@@ -548,15 +548,16 @@ Each item ends with its source, in one of three forms:
   checks. It is in each of the 20 Windows CI logs read (2026-10-30 to
   2026-11-02); run alone, the file's other tests print nothing. Not a lock
   failure of the machine.
-- **Pending: no cause found in the time set for it (step 16, about two
-  hours, no test push).** **Intermittent on Windows CI: e2e tests that
-  pass 30 seconds, most while setting up the `app` fixture.** Seen in 4 of
+- **Pending, no cause shown: step 16 used about 20 minutes of the two
+  hours set for it and none of its two test pushes.** **Intermittent on
+  Windows CI: e2e tests that pass 30 seconds, most while setting up the
+  `app` fixture.** Seen in 4 of
   the 20 Windows runs read (2026-10-30 to 2026-11-02), each passed on its
   retry: `tests/e2e/security.spec.ts:31` (in setup), `auth.spec.ts:25` and
   `:45` (in setup, the run's first two tests), `tasks.spec.ts:227`
   (waiting for the page's menu), `ui.spec.ts:422` (the Usage page);
   before them, the skills pages (the phase's open warnings) and the Usage
-  tests of §4 (run 40391171879), the same family. A fifth run
+  tests of §4 (run 40391171879), possibly the same kind. A fifth run
   had another kind: `creation.spec.ts:171` waited the 5 s of `expect` for
   the spec screen (8.3 s in all; its retry passed in 3.8 s). Also
   `tests/e2e/several.spec.ts:121` locally, once (`locator.click` on the
@@ -568,26 +569,36 @@ Each item ends with its source, in one of three forms:
   1.2 s on Linux (p90 2.8 s, max 8.5 s, 6 runs); `security.spec.ts:31`,
   which is nearly all fixture, takes 0.2 s on Linux, 1.3 to 3.3 s on the
   Windows runner when it passes first, and 0.9 to 1.3 s on a Windows 11
-  desktop. The slow
-  tests come together: with two workers, the tests just before and after
-  each failure in the same run were slow too (security: 30.6, 30.0, 24.1
-  and 18.0 s in a row; Usage: 16.9, 21.6, 30.3 and 27.9 s; the run's first
-  four tests once: 30.1, 30.1, 12.8 and 13.0 s; around `tasks.spec.ts:227`,
-  less: 7.4, 10.8 and 8.6 s), and the retries took 4.7 to 18 s. What was ruled out: the library lock (a lock this process failed
+  desktop. The retries of the 30 s failures took 4.7 to 18 s.
+  A hypothesis the data fit, not a measured cause: the Windows runner
+  slows down as a whole for a minute or so, and the fixture, which every
+  test runs, passes 30 s first. For it: in two of the four runs, other
+  tests next to the failure (two workers) took the longest each took in
+  the 20 runs (around `security.spec.ts:31`: 30.6 and 24.1 s, against
+  medians of 3.3 and 2.1 s; around the Usage test: 16.9, 21.6 and 27.9 s,
+  against 3.2, 5.4 and 4.0 s). Against it, or weaker than it looks: in
+  the auth run, the only slow tests were the two failures (30.1 s each)
+  and their retries (12.8 and 13.0 s), and the next ones took 3.1 to
+  4.3 s; around `tasks.spec.ts:227`, the neighbours took their usual
+  time (7.4, 10.8 and 8.6 s, against medians of 6.8, 10.7 and 9.6 s); and
+  on Linux `security.spec.ts:31` is not always 0.2 s (1.2 s in run
+  41464978588). Not the usual cost of a cold start of the workers (the
+  first four tests take 1.9 to 7.5 s in the other 19 runs). Unlikely by
+  reasoning, not measured: the library lock (a lock this process failed
   to remove is taken over at once, `src/library/lock.ts`; the EPERM
-  warning is the test's own, above), a cold start of the workers (the
-  first four tests take 1.9 to 7.5 s in the other 19 runs), and one test's
-  own code (different files, the same 30 s alongside slow neighbours). So the
-  Windows runner slows down as a whole for a minute or so, and the
-  fixture, the slowest common part, passes 30 s first. Only a higher
-  limit for Windows CI would stop the retries, which needs no cause and
-  was not done; the retry keeps CI green and shows each case as flaky.
-  To look at next time: the fixture's steps timed one by one on the
-  runner (a probe outside the repo was refused by the session's
-  permissions in step 16), whether the runner's antivirus scans the
-  temp folders and the git processes the fixture starts (two git
-  repositories and several commits per test), and a fixture that copies a
-  prepared folder instead of running git for each test.
+  warning is the test's own, above), and one test's own code (the
+  failures are in different files). A higher limit for Windows CI might
+  stop the retries; whether 60 s is enough is not known, since the
+  failed attempts were cut at 30 s. It was not set, as step 16 forbade it
+  without a measured cause; the retry keeps CI green and shows each case
+  as flaky. Still to measure: the fixture's steps timed one by one on the
+  Windows CI runner, with at most two test pushes (a probe outside the
+  repo was refused by the session's permissions in step 16); that would
+  confirm or discard the hypothesis. Also to look at: whether the
+  runner's antivirus scans the temp folders and the git processes the
+  fixture starts (two git repositories and several commits per test), and
+  a fixture that copies a prepared folder instead of running git for
+  each test.
 
 ### Real checks (`scripts/real/`)
 

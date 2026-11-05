@@ -5317,8 +5317,10 @@ step 15 is included. Done:
   runner's turn-end test waited a fixed 30 ms (now it polls), and the
   `BRIEFSTACK_LIBRARY_LOCK … EPERM` warning in every Windows log is
   `library-lock.test.ts`'s own simulated failure. The Windows e2e tests
-  that pass 30 s have no cause found in the time set (about two hours, no
-  test push); what was measured and ruled out is in IDEAS.md §7.
+  that pass 30 s stay pending, with no cause shown: the step used about
+  20 minutes of the two hours set and none of its two test pushes. What
+  was measured, the hypothesis it fits and what is left to measure are in
+  IDEAS.md §7.
 
 Choices made without the user:
 
@@ -5354,8 +5356,9 @@ Choices made without the user:
   `settingSources`, but a control that cannot be run in this step is not
   added unproven.
 - **No higher limit for the Windows e2e tests.** The step forbade it
-  without a measured cause, and none was found: the slowness is the
-  runner's as a whole (IDEAS.md §7). The CI retry stays as it is.
+  without a measured cause, and none was measured: a runner that slows
+  down as a whole is a hypothesis the data fit, not a cause shown
+  (IDEAS.md §7). The CI retry stays as it is.
 - **The new e2e test of the cancel confirmation waits on a file** (`go`
   next to the worktree, outside it, so the diff does not change), not on
   a fixed time, so a slow runner cannot end the checks before the test
