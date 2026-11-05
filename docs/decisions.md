@@ -5294,6 +5294,73 @@ Choices made without the user, the most conservative each:
   their results; a stop that began refuses it with `task.stopping`, since
   the stop ends them and leaves the task for `recover()`.
 
+**Cleanup of phase 7, step 16 (2026-11-05): the checks invariant, the
+real scripts and the intermittent Windows tests.** The last of three steps
+on IDEAS.md §7, with the fake runners only; no real session, and no
+script of `scripts/real/` was run. By the user's decisions of
+2026-11-05, the slow scans stay in the backlog, and M1 of the review of
+step 15 is included. Done:
+
+- **The cancel confirmation of the checks no longer comes back by
+  itself** (`156714a`): it closes when the task leaves `checking`; an e2e
+  test leaves it open while the checks end and runs them again.
+- **The checks invariant reaches every chat tool's work and every import
+  form** (`61fc0c2`), shown failing when broken: a read that runs the
+  checks fails its three behaviour tests; an import of `checks.ts` with
+  double quotes in `src/chat/tools.ts` fails the importers' test.
+- **The real scripts of phase 7** (`223e1d2`): deadlines on the context
+  readings, (c) of check 5 on bundled skills only, no `runner` on
+  `startWeb`, what checks 3 and 4 cannot control said in their output
+  and in "Phase 7: M9 real checks", and `tasks-common.ts` held to the
+  structural rules.
+- **Two intermittent tests explained** (`5659302`, `209384f`): the fake
+  runner's turn-end test waited a fixed 30 ms (now it polls), and the
+  `BRIEFSTACK_LIBRARY_LOCK … EPERM` warning in every Windows log is
+  `library-lock.test.ts`'s own simulated failure. The Windows e2e tests
+  that pass 30 s have no cause found in the time set (about two hours, no
+  test push); what was measured and ruled out is in IDEAS.md §7.
+
+Choices made without the user:
+
+- **The pure helpers of `checks.ts` stay exported** (`readChecks`,
+  `writeChecks`, `checkCommandProblem`, `checkEnv`, `cleanOutput`):
+  `tests/unit/tasks-checks.test.ts` tests them directly, and none runs a
+  command. Unexporting them would drop those tests or test them only
+  through the server; the conservative choice keeps them. The invariant
+  test says so.
+- **The chat test of the invariant uses fakes of the improvements** (they
+  note each call) **and the real skill service over the fake GitHub** of
+  the skill tests: the improvement tools only read or prepare through the
+  manager, while installing a skill goes through files and the library,
+  which a fake would not exercise. The test now fails if any of the 22
+  tools is refused, not only if the checks run.
+- **A dynamic `import()` or `require()` whose target is not a plain
+  string counts as loading `checks.ts`.** `src/` has none today; such a
+  target cannot be read, so the test refuses it rather than guessing.
+- **The structural rules for `tasks-common.ts`** are those that fit a
+  helper: the same registration counts as the scripts (queries, tapped
+  sessions, sandboxes, managers), the server it starts stopped with the
+  check, no `startCheck()` and no `process.exit` of its own, and the
+  caller's check as the first parameter of what starts something. The
+  counts leave out whole-line comments, since `tasks-common.ts` names
+  `query()` in two of them. `common.ts` stays out: it defines the check,
+  and its `--yes` refusal exits before any check starts.
+- **A context reading that does not answer within two minutes fails the
+  check** (an error, exit 1). How long it took in the earlier runs was not
+  recorded; two minutes leaves room for a slow machine without hanging.
+- **What the checks cannot control is printed with the prefix
+  `NOT CONTROLLED:`**, not turned into a new control: the control session
+  of check 3 could read `settings.local.json` with `'local'` in its
+  `settingSources`, but a control that cannot be run in this step is not
+  added unproven.
+- **No higher limit for the Windows e2e tests.** The step forbade it
+  without a measured cause, and none was found: the slowness is the
+  runner's as a whole (IDEAS.md §7). The CI retry stays as it is.
+- **The new e2e test of the cancel confirmation waits on a file** (`go`
+  next to the worktree, outside it, so the diff does not change), not on
+  a fixed time, so a slow runner cannot end the checks before the test
+  opens the confirmation.
+
 ## Phase 7: security review (2026-10-30)
 
 A review of the phase's code (`phase-7-start..HEAD`, about 5,000 lines of

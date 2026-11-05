@@ -352,9 +352,11 @@ when a decision is needed, so the user does not have to watch a screen.
 
 ## 7. Open items from phase 7
 
-Left open when phase 7 closed (2026-11-01). None is planned. The phase's
-plan is [PLAN-phase-7.md](PLAN-phase-7.md); its decisions are in
-[decisions.md](decisions.md), "Phase 7".
+Left open when phase 7 closed (2026-11-01). Steps 14 to 16 of the
+cleanup (2026-11-02 to 2026-11-05) closed most of them; each item starts
+with its state: **done**, **accepted** by the user, or **pending** with
+the reason. The phase's plan is [PLAN-phase-7.md](PLAN-phase-7.md); its
+decisions are in [decisions.md](decisions.md), "Phase 7".
 
 Each item ends with its source, in one of three forms:
 
@@ -433,19 +435,28 @@ Each item ends with its source, in one of three forms:
   and reverted on the same day: `appendDated` (`src/library/notes.ts`)
   puts today's heading before every addition. Review of step 08, M9; seen
   again in the real run of step 11.
-- **Applying unattended "with checks green"** clashes with S8: the
-  declared checks run only after a click on the proposal page. The user
+- **Done in the cleanup of phase 7** (step 16, commit `156714a`: the
+  confirmation closes for good when the task leaves `checking`).
+  **The cancel confirmation of the checks came back by itself**: left
+  open while the checks ended, it showed again on the next run without a
+  click. Review of step 15 of the cleanup, M1.
+- **Pending, planned with §6.** **Applying unattended "with checks
+  green"** clashes with S8: the declared checks run only after a click on
+  the proposal page. The user
   decided on 2026-11-02 how unattended runs are approved; what that leaves
   open for the checks is in §6, "To decide when it is planned". Review of
   step 05, the report's open question.
-- **The secret and path scans are slow on long lines.** `findSecrets`,
+- **Pending: the user kept it in the backlog (2026-11-05).** **The secret
+  and path scans are slow on long lines.** `findSecrets`,
   `findAbsolutePaths` and `maskSecretValues` take time that grows with the
   square of a line's length (measured: about 1.8 s, 1.7 s and 3.7 s for one
   line of 64 KB). The validations scan files up to 1 MB and the proposal
   page masks files up to 256 KB, so a long one-line file (a minified
   bundle) makes a round's end and the page slow. Make the scans linear
   without changing what they find. Seen in step 15 of the cleanup.
-- **What the review of step 14 of the cleanup left, all minor:**
+- **Pending: minor, not pursued** (the rule of the cleanup: only
+  important or blocking findings open work).
+  **What the review of step 14 of the cleanup left, all minor:**
   `reply()` is not refused while the task manager stops (a reply reaches
   only the session the stop is ending; M11); a command the user allowed
   for the whole task is still allowed during a stop, which the commit
@@ -460,6 +471,18 @@ Each item ends with its source, in one of three forms:
   `tests/unit/tasks-manager.test.ts` polls for any `tool.denied` line, not
   the guard's (M5); the I2 tests keep fixed waits of 300 and 500 ms (M6).
   Review of step 14.
+- **Pending: minor, not pursued** (the same rule).
+  **What the review of step 15 of the cleanup left, all minor:** two
+  paths of cancelling the checks have no test, the 15-second limit
+  (cancelling goes on with the process maybe alive, and the old
+  `checkWith` must return without writing) and checks that end while the
+  cancel arrives (M2); past 50 warnings the cap drops `notShown` warnings
+  without saying so on the page, so "a warning for each file" does not
+  hold then (M3); `unshown` starts up to four more git processes per file
+  besides the two of `blob()`, and does not stop at the cap, which slows
+  a round's end on large diffs on Windows (M4); the warning's texts are
+  written twice, once per language, and no e2e test goes through the
+  Spanish page (M9). Review of step 15.
 
 ### Tests
 
@@ -497,7 +520,13 @@ Each item ends with its source, in one of three forms:
   task's state, not from a spy; the first I2 test forces the order but its
   `expectOneOrder` accepts either outcome; the I2 tests use a new manager
   rather than `recover()` (the same today). Review of step 06, R5.
-- **The reach of the checks invariant**
+- **Done in the cleanup of phase 7** (step 16, commit `61fc0c2`: fake
+  improvements, a skill service over a fake GitHub, a project and a
+  running creation, so the test fails if any tool is refused; the
+  importers' reading finds those forms, bare imports and any dynamic
+  import whose target is not a plain string; the pure helpers stay
+  exported, since `tests/unit/tasks-checks.test.ts` tests them).
+  **The reach of the checks invariant**
   (`tests/unit/tasks-checks-invariant.test.ts`): four read tools
   (`list_suggestions`, `list_proposals`, `show_proposal`, `list_skills`)
   and four action tools (`cancel_creation`, `prepare_improvement`,
@@ -506,56 +535,116 @@ Each item ends with its source, in one of three forms:
   pattern for importers misses `import X, { Y } from`, double quotes and
   `import()` with a template. `src/tasks/checks.ts` still exports pure
   helpers that only tests use. Review of step 06, R4.
-- **Intermittent on Windows CI:** besides the Usage tests of §4, e2e tests
-  of the skills pages timed out at 30 seconds while setting up the `app`
-  fixture. **Locally, once:** `tests/unit/library-lock.test.ts` failed; and
-  a passing test logs the warning `BRIEFSTACK_LIBRARY_LOCK … EPERM` (the
-  lock could not be removed after a change). The phase's open warnings in
-  the user's working notes; the failing tests are not named there.
-- **Intermittent locally on Windows, e2e:** `tests/e2e/several.spec.ts`,
-  the test at line 121 (two creations and a folder), failed once with
-  `locator.click: Test timeout of 30000ms exceeded` while waiting for the
-  "New project" link of the menu; the next run passed. Another test and
-  another symptom than the skills pages above. Seen in the gates of step
-  14 of the cleanup; review of step 14, M7.
+- **Done in the cleanup of phase 7** (step 16, commit `5659302`: it polls
+  for the turn's end). **Intermittent locally:**
+  `tests/unit/creation-fake-runner.test.ts`, "ends a turn with a message
+  …", read the last event after a fixed 30 ms and got `running` once
+  (the session's start is written to disk before the turn ends). Seen in
+  the gates of the close of step 15 of the cleanup.
+- **Done in the cleanup of phase 7** (step 16, commit `209384f`: a comment
+  in the test). **The warning `BRIEFSTACK_LIBRARY_LOCK … EPERM`** that a
+  passing test logs is `tests/unit/library-lock.test.ts`'s own: the test
+  makes the lock's removal fail on purpose and Node prints the warning it
+  checks. It is in each of the 20 Windows CI logs read (2026-10-30 to
+  2026-11-02); run alone, the file's other tests print nothing. Not a lock
+  failure of the machine.
+- **Pending: no cause found in the time set for it (step 16, about two
+  hours, no test push).** **Intermittent on Windows CI: e2e tests that
+  pass 30 seconds, most while setting up the `app` fixture.** Seen in 4 of
+  the 20 Windows runs read (2026-10-30 to 2026-11-02), each passed on its
+  retry: `tests/e2e/security.spec.ts:31` (in setup), `auth.spec.ts:25` and
+  `:45` (in setup, the run's first two tests), `tasks.spec.ts:227`
+  (waiting for the page's menu), `ui.spec.ts:422` (the Usage page);
+  before them, the skills pages (the phase's open warnings) and the Usage
+  tests of §4 (run 40391171879), the same family. A fifth run
+  had another kind: `creation.spec.ts:171` waited the 5 s of `expect` for
+  the spec screen (8.3 s in all; its retry passed in 3.8 s). Also
+  `tests/e2e/several.spec.ts:121` locally, once (`locator.click` on the
+  menu's "New project" link at 30 s; seen in the gates of step 14; review
+  of step 14, M7), and `tests/unit/library-lock.test.ts` locally, once
+  (the failing test is not known; 20 runs of the file in step 16 passed).
+  What was measured: the e2e tests take 3.5 s at the median on the
+  Windows runner (p90 8.6 s, p99 18.8 s, 2138 passing tests) against
+  1.2 s on Linux (p90 2.8 s, max 8.5 s, 6 runs); `security.spec.ts:31`,
+  which is nearly all fixture, takes 0.2 s on Linux, 1.3 to 3.3 s on the
+  Windows runner when it passes first, and 0.9 to 1.3 s on a Windows 11
+  desktop. The slow
+  tests come together: with two workers, the tests just before and after
+  each failure in the same run were slow too (security: 30.6, 30.0, 24.1
+  and 18.0 s in a row; Usage: 16.9, 21.6, 30.3 and 27.9 s; the run's first
+  four tests once: 30.1, 30.1, 12.8 and 13.0 s; around `tasks.spec.ts:227`,
+  less: 7.4, 10.8 and 8.6 s), and the retries took 4.7 to 18 s. What was ruled out: the library lock (a lock this process failed
+  to remove is taken over at once, `src/library/lock.ts`; the EPERM
+  warning is the test's own, above), a cold start of the workers (the
+  first four tests take 1.9 to 7.5 s in the other 19 runs), and one test's
+  own code (different files, the same 30 s alongside slow neighbours). So the
+  Windows runner slows down as a whole for a minute or so, and the
+  fixture, the slowest common part, passes 30 s first. Only a higher
+  limit for Windows CI would stop the retries, which needs no cause and
+  was not done; the retry keeps CI green and shows each case as flaky.
+  To look at next time: the fixture's steps timed one by one on the
+  runner (a probe outside the repo was refused by the session's
+  permissions in step 16), whether the runner's antivirus scans the
+  temp folders and the git processes the fixture starts (two git
+  repositories and several commits per test), and a fixture that copies a
+  prepared folder instead of running git for each test.
 
 ### Real checks (`scripts/real/`)
 
-- **Layer 6 of the task guard** (it refuses a `Skill` call for a skill
+- **Accepted** (decisions.md, "Phase 7: M9 accepted, phase closed").
+  **Layer 6 of the task guard** (it refuses a `Skill` call for a skill
   that is not the project's) is shown by unit tests only: in real
   sessions Claude Code refuses those calls first, through the SDK `skills`
   option (check 5 in decisions.md, "Phase 7: M9 real checks"). Showing it
   in real needs a skill Claude Code lets the model call while the task's
   layers keep it out. Review of step 08, I2; review of step 10, M3.
-- **The real sessions of M9 ran on Windows only** (Windows 11, Claude Code
+- **Accepted** (decisions.md, "Phase 7: M9 accepted, phase closed").
+  **The real sessions of M9 ran on Windows only** (Windows 11, Claude Code
   2.1.316); macOS and Linux are covered by CI over the fake runners.
   decisions.md, "Phase 7: M9 real checks".
-- **`settings.local.json` in checks 3 and 4 has no control:** the control
+- **Done in the cleanup of phase 7** (step 16, commit `223e1d2`: checks 3
+  and 4 print it as `NOT CONTROLLED`, and decisions.md, "Phase 7: M9 real
+  checks", records it; adding `'local'` to the control session's
+  `settingSources` could control it in a later run).
+  **`settings.local.json` in checks 3 and 4 has no control:** the control
   session loads `settingSources: ['project']`, which does not read the
   local file, so for it only the hiding in the worktree is shown. Review of
   step 08, M2.
-- **Check 4 has no control** that the broad allow rules work without the
+- **Done in the cleanup of phase 7** (step 16, commit `223e1d2`: check 4
+  prints it as `NOT CONTROLLED`, recorded in decisions.md as above).
+  **Check 4 has no control** that the broad allow rules work without the
   task's layers. By H0, allow rules are not used in SDK sessions, so such a
   control may not be possible; the script should say so. Review of step
   08, M3.
-- **`startWeb(…, runner?)`** in `scripts/real/tasks-common.ts` takes a
+- **Done in the cleanup of phase 7** (step 16, commit `223e1d2`).
+  **`startWeb(…, runner?)`** in `scripts/real/tasks-common.ts` takes a
   runner that no script passes (it served rehearsals outside the repo).
   Review of step 08, M4.
-- **The structural test of the real scripts**
+- **Done in the cleanup of phase 7** (step 16, commit `223e1d2`: the same
+  registration rules, counted in code, and a helper's own: no check of
+  its own, no exit, the caller's check first).
+  **The structural test of the real scripts**
   (`tests/unit/real-scripts.test.ts`) skips `tasks-common.ts`; holding it
   to the same rules would be stricter. Review of step 08, M5.
-- **Waits without a limit:** `controlSession` awaits the context reading
+- **Done in the cleanup of phase 7** (step 16, commit `223e1d2`: `within`,
+  two minutes, and the task's reading after the round too).
+  **Waits without a limit:** `controlSession` awaits the context reading
   with no deadline (`scripts/real/tasks-common.ts`), and so does the
   `beforeFinish` of check 5 (`scripts/real/check-task-skills.ts`); a
   missing answer hangs the script instead of failing it (it can never pass
   by it). Race them with a deadline that fails. Review of step 10, M4.
-- **(c) of check 5 counts any skill that is not the project's, by name,**
+- **Done in the cleanup of phase 7** (step 16, commit `223e1d2`).
+  **(c) of check 5 counts any skill that is not the project's, by name,**
   not only bundled ones (source `built-in`) as its step asked. The result
   of the run is the same (the 13 were all `built-in`); require the source
   if it runs again. Review of step 11, M1.
-- **The `design` observation of check 5** has no line in the skills docs,
-  which mention `doctor` only; it rests on the control's init listing it
-  too. Review of step 11, M2.
+- **Done in the cleanup of phase 7: checked, no line to add** (step 16,
+  docs read 2026-11-05, recorded in decisions.md, "Phase 7: M9 real
+  checks": the commands reference lists `/design` as a skill, but no
+  sentence says it stays typable or is hidden from the model when bundled
+  skills are off). **The `design` observation of check 5** has no line in
+  the skills docs, which mention `doctor` only; it rests on the control's
+  init listing it too. Review of step 11, M2.
 
 ### Not listed here
 
