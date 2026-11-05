@@ -170,6 +170,8 @@ describe('library queue', () => {
     expect(JSON.parse(await readFile(path.join(lock, 'owner.json'), 'utf8'))).toMatchObject({ token: 'other' });
   });
 
+  // Node also prints this warning to stderr (`[BRIEFSTACK_LIBRARY_LOCK] … (EPERM)`): it is this test's own
+  // failed removal, not a lock that failed on the machine running the suite.
   it('a lock that cannot be removed after a good change is reported, keeps the result, and does not block the next change', async () => {
     const library = path.join(dir, 'lib');
     const warnings: string[] = [];
