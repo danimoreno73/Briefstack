@@ -14,6 +14,10 @@
 //      so PreToolUse and PostToolUse would have fired.
 // Expected: after the task's round, and after it is discarded (its session
 // closed), the markers folder is empty.
+// Not controlled, and said in the output: the hooks of
+// `.claude/settings.local.json` running without the task's layers (the
+// control session's settingSources ['project'] does not read that file);
+// for it only the hiding in the worktree is shown.
 // Saver profile, the real `briefstack web` in a temp home (tasks-common.ts).
 // Run:  npx tsx scripts/real/check-task-hooks.ts --yes
 
@@ -80,6 +84,9 @@ try {
   console.log(`Control session: tool calls ${control.calls.map((call) => call.name).join(', ') || 'none'}; markers ${controlMarkers.join(', ') || 'none'}`);
   ok = report('control: the project hooks run in a session without the task layers', controlMarkers.some((name) => name.startsWith('settings-') || name.startsWith('local-')), `${controlMarkers.length} marker(s)`) && ok;
   ok = report('control: the project folder is still clean after the control session', execFileSync('git', ['status', '--porcelain'], { cwd: project.dir, encoding: 'utf8' }).trim() === '', '') && ok;
+  console.log(
+    "NOT CONTROLLED: .claude/settings.local.json. The control session loads settingSources ['project'], which does not read the local file, so this check does not show that its hooks would run without the task layers; for it, only the task hiding it is shown (decisions.md, \"Phase 7: M9 real checks\").",
+  );
   await clear(markersDir);
 
   const id = await startTask(web, project.slug, 'Use Glob once to list the *.md files, read README.md, then add one line "Checked." at the end of README.md. Change nothing else.');

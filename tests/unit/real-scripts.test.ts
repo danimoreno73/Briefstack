@@ -22,6 +22,7 @@ import {
   startCheck,
   workRootCandidates,
 } from '../../scripts/real/common.js';
+import { within } from '../../scripts/real/tasks-common.js';
 import { tempDir } from '../helpers.js';
 
 // These scripts start real Claude Code sessions and are never run by the tests;
@@ -544,27 +545,88 @@ describe('every real script closes what it started, whatever happens', () => {
     expect(proc.exits).toEqual([1]);
   });
 
-  it('is used by every script that starts a session, a manager or a sandbox', async () => {
+  it('is used by every script that starts a session, a manager or a sandbox, and the task helpers keep the same rules', async () => {
     const dir = path.join(PACKAGE_ROOT, 'scripts', 'real');
-    // The shared helpers start nothing on their own: each check that uses them is held to these rules.
-    const helpers = ['common.ts', 'tasks-common.ts'];
-    const scripts = (await readdir(dir)).filter((name) => name.endsWith('.ts') && !helpers.includes(name));
-    expect(scripts.length).toBeGreaterThan(5);
-    for (const name of scripts) {
+    // common.ts defines the check itself (and its --yes refusal exits before any check starts).
+    const helper = 'tasks-common.ts';
+    const files = (await readdir(dir)).filter((name) => name.endsWith('.ts') && name !== 'common.ts');
+    expect(files).toContain(helper);
+    expect(files.length).toBeGreaterThan(5);
+    for (const name of files) {
       const source = await readFile(path.join(dir, name), 'utf8');
       const where = (text: string) => `${name}: ${text}`;
-      expect(source, where('startCheck')).toContain('startCheck()');
-      expect(source, where('catch')).toMatch(/\} catch \(error\) \{\s+check\.fail\(error\);\s+\} finally \{\s+await check\.close\(\);\s+\}/);
-      expect(source, where('exit code')).toContain('process.exit(check.exitCode(');
-      // After the check starts, only its exit code ends the process: an early exit would skip the closes.
-      const body = source.slice(source.indexOf('startCheck()'));
-      expect(body.match(/process\.exit\(/g)?.length, where('one exit')).toBe(1);
-      // Every query is registered, and so is every manager and sandbox.
-      expect(source.match(/(?<![.\w])query\(/g)?.length ?? 0, where('queries')).toBe(source.match(/check\.query\(query\(/g)?.length ?? 0);
-      const count = (pattern: RegExp) => source.match(pattern)?.length ?? 0;
+      if (name === helper) {
+        // A helper gets the check of the script that calls it: it starts none and never ends the process.
+        expect(source, where('no check of its own')).not.toContain('startCheck(');
+        expect(source, where('no exit')).not.toContain('process.exit(');
+        // What starts something takes the caller's check first.
+        expect(source, where('startWeb')).toContain('export async function startWeb(check: Check,');
+        expect(source, where('controlSession')).toMatch(/export async function controlSession\(\s+check: Check,/);
+        // The server it starts in this process is stopped with the check.
+        expect(source.match(/=\s*main\(\['web'/g)?.length, where('servers')).toBe(source.match(/check\.add\(stop\)/g)?.length);
+      } else {
+        expect(source, where('startCheck')).toContain('startCheck()');
+        expect(source, where('catch')).toMatch(/\} catch \(error\) \{\s+check\.fail\(error\);\s+\} finally \{\s+await check\.close\(\);\s+\}/);
+        expect(source, where('exit code')).toContain('process.exit(check.exitCode(');
+        // After the check starts, only its exit code ends the process: an early exit would skip the closes.
+        const body = source.slice(source.indexOf('startCheck()'));
+        expect(body.match(/process\.exit\(/g)?.length, where('one exit')).toBe(1);
+      }
+      // Every query is registered, and so is every tapped session, manager and sandbox. Counted in code: whole-line comments are left out.
+      const code = source
+        .split('\n')
+        .filter((line) => !/^\s*(\/\/|\/\*|\*)/.test(line))
+        .join('\n');
+      const count = (pattern: RegExp) => code.match(pattern)?.length ?? 0;
+      expect(count(/(?<![.\w])query\(/g), where('queries')).toBe(count(/check\.query\(query\(/g));
+      // A tapped query opened here is registered; one handed to the task runner is closed with the server.
+      expect(count(/tappedQuery\(tap\)\(/g), where('tapped sessions')).toBe(count(/check\.query\(tappedQuery\(tap\)\(/g));
       expect(count(/await sandbox\(/g), where('sandbox')).toBe(count(/check\.add\(\(\) => box\.cleanup\(\)\)/g));
       expect(count(/createWebCreations\(|new CreationManager\(|ChatManager\.open\(|ImprovementManager\.open\(/g), where('managers')).toBe(count(/check\.add\(\(\) => \w+\.shutdown\(\)\)/g));
     }
+  });
+});
+
+describe('phase 7 real checks: no wait without a deadline, and what they cannot control is said', () => {
+  const read = (name: string) => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', name), 'utf8');
+
+  it('within: the answer when it comes in time; past the deadline an error, which fails the check', async () => {
+    expect(await within(Promise.resolve('read'), 1000, 'the reading')).toBe('read');
+    await expect(within(Promise.reject(new Error('closed')), 1000, 'the reading')).rejects.toThrow('closed');
+    const never = new Promise<string>(() => undefined);
+    await expect(within(never, 20, "the task session's context reading")).rejects.toThrow("the task session's context reading: no answer within 0 s");
+    const check = startCheck(
+      { on: () => undefined, off: () => undefined, exit: () => undefined },
+      () => undefined,
+    );
+    await within(never, 20, 'x').catch((error: unknown) => check.fail(error));
+    await check.close();
+    expect(check.exitCode(true)).toBe(1);
+  });
+
+  it('every context reading is awaited with a deadline', async () => {
+    const common = await read('tasks-common.ts');
+    expect(common).toContain("await within(reading, CONTEXT_READING_MS, \"the control session's context reading\")");
+    expect(common).not.toMatch(/await tap\.contextUsage\?\.get\(/);
+    const skills = await read('check-task-skills.ts');
+    expect(skills).toContain("await within(Promise.all([...(tap.contextUsage?.values() ?? [])]), CONTEXT_READING_MS, \"the task session's context reading\")");
+    expect(skills).toContain("await within(reading, CONTEXT_READING_MS, \"the task session's context reading\")");
+    expect(skills).not.toMatch(/await tap\.contextUsage\?\.get\(/);
+    expect(skills).not.toMatch(/await Promise\.all\(\[\.\.\.\(tap\.contextUsage/);
+  });
+
+  it('check 5, (c): the control counts only bundled skills (source built-in)', async () => {
+    const skills = await read('check-task-skills.ts');
+    expect(skills).toContain("skill.source === 'built-in' && foreign(skill.name)");
+    expect(skills).toContain('const controlForeign = bundledForeign(control.contextSkills) ?? [];');
+  });
+
+  it('checks 3 and 4 say what they cannot control; startWeb takes no runner', async () => {
+    expect(await read('check-task-hooks.ts')).toContain('NOT CONTROLLED: .claude/settings.local.json.');
+    const allowAll = await read('check-task-allow-all.ts');
+    expect(allowAll).toContain('NOT CONTROLLED: that the allow rules would let a shell command run without the task layers.');
+    expect(allowAll).toContain('NOT CONTROLLED: .claude/settings.local.json.');
+    expect(await read('tasks-common.ts')).not.toMatch(/runner\?: TaskRunner|TaskRunner/);
   });
 });
 

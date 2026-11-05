@@ -31,13 +31,31 @@ import { addNote } from '../../src/library/index.js';
 import { writeProjectNote } from '../../src/library/projectStatus.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { TOKEN_HEADER } from '../../src/server/index.js';
-import type { TaskRunner } from '../../src/tasks/runner.js';
 import { TaskSdkRunner } from '../../src/tasks/sdkRunner.js';
 import { baseProfilesFile, loadUsageProfiles } from '../../src/usage/index.js';
 import { CheckStop, oneShot, processesMentioning, readPlanUsage, report, sandboxLibrary, sessionEnv, show, type Check, type Sandbox } from './common.js';
 
 const execFileAsync = promisify(execFile);
 export const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** How long a session's context reading (`getContextUsage()`) may take to answer. */
+export const CONTEXT_READING_MS = 2 * 60_000;
+
+/**
+ * `promise`, or an error once `ms` pass without an answer: a wait that has no
+ * answer fails the check (an error is a failure, `startCheck`), never passes it.
+ */
+export async function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what}: no answer within ${Math.round(ms / 1000)} s`)), ms);
+  });
+  try {
+    return await Promise.race([promise, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** The limits of the user's instruction for M9: stop above these. */
 export const FIVE_HOUR_LIMIT = 90;
@@ -268,7 +286,7 @@ export interface Web {
  * this process on a free port, with the real task runner tapped. The
  * server, and any process left in the work folder, end with the check.
  */
-export async function startWeb(check: Check, box: Sandbox, tap: Tap, runner?: TaskRunner): Promise<Web> {
+export async function startWeb(check: Check, box: Sandbox, tap: Tap): Promise<Web> {
   await sandboxLibrary(box);
   // `sandbox()` set BRIEFSTACK_HOME in this process to the temp home: the server and the runner read it from here.
   const pathEnv = systemPathEnv();
@@ -290,8 +308,7 @@ export async function startWeb(check: Check, box: Sandbox, tap: Tap, runner?: Ta
     cwd: PACKAGE_ROOT,
     pathEnv,
     untilStopped: () => stopped,
-    // `runner` only to try this plumbing without a real session; every check passes none.
-    taskRunner: runner ?? new TaskSdkRunner({ pathEnv, lang: 'en', query: tappedQuery(tap) }),
+    taskRunner: new TaskSdkRunner({ pathEnv, lang: 'en', query: tappedQuery(tap) }),
   };
   const running = main(['web', '--port', '0'], io).catch((error: unknown) => {
     log.push(`web failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -539,8 +556,9 @@ export async function controlSession(
   for await (const message of q) {
     if (message.type === 'result') {
       text = 'result' in message && typeof message.result === 'string' ? message.result : '';
-      // The tap asked the context reading as the result went through. Leaving the loop closes the query, so its answer is awaited here first.
-      contextSkills = (await tap.contextUsage?.get(message.session_id)) ?? 'no context reading was asked';
+      // The tap asked the context reading as the result went through. Leaving the loop closes the query, so its answer is awaited here first, with a deadline.
+      const reading = tap.contextUsage?.get(message.session_id);
+      contextSkills = reading === undefined ? 'no context reading was asked' : await within(reading, CONTEXT_READING_MS, "the control session's context reading");
       break;
     }
   }

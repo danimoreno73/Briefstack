@@ -8,6 +8,10 @@
 // (the control that the files were there to be read and were not).
 // Saver profile, the real `briefstack web` in a temp home (tasks-common.ts).
 // The settings hold allow rules only; no permission mode is set in them.
+// Not controlled, and said in the output: that the allow rules would work
+// without the task's layers (by H0 they are not used in an SDK session, so
+// no control session can show it), and anything about the local settings
+// file beyond its hiding.
 // Run:  npx tsx scripts/real/check-task-allow-all.ts --yes
 
 import { claudeExecutable, report, requireConfirmation, sandbox, startCheck } from './common.js';
@@ -33,6 +37,12 @@ try {
   ok = result.ok && ok;
   const hidden = [...result.task.hidden].sort();
   ok = report('control: the task hid both settings files in its worktree', JSON.stringify(hidden) === JSON.stringify(['.claude/settings.json', '.claude/settings.local.json']), JSON.stringify(hidden)) && ok;
+  console.log(
+    'NOT CONTROLLED: that the allow rules would let a shell command run without the task layers. By H0, permissions.allow of a project\'s settings is not used in an SDK session of an untrusted folder, so a control session could not show it (decisions.md, "Phase 7: H0" and "Phase 7: M9 real checks").',
+  );
+  console.log(
+    'NOT CONTROLLED: .claude/settings.local.json. No control session reads it here (settingSources [\'project\'] does not); for it, only the task hiding it is shown.',
+  );
   await web.stop();
   await usageGate(box, executable, 'after').catch((error: unknown) => console.log(String(error)));
 } catch (error) {

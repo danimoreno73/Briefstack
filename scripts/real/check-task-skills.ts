@@ -30,11 +30,13 @@
 //       that runs, a call with no result, or no call at all, fails;
 //   (c) positive control: a session WITHOUT the task's layers (a plain SDK
 //       session in the project folder, no `skills` option, bundled skills
-//       on) has in its model's context at least one bundled skill that is
-//       not the project's (the model can invoke it: the docs say a skill
-//       whose description is in context is not `disable-model-invocation`),
-//       and the task session's context has none. A control that cannot be
-//       read, or holds no such skill, fails.
+//       on) has in its model's context at least one bundled skill (source
+//       `built-in` in the reading) that is not the project's (the model can
+//       invoke it: the docs say a skill whose description is in context is
+//       not `disable-model-invocation`), and the task session's context has
+//       no skill that is not the project's, whatever its source. A control
+//       that cannot be read, or holds no such skill, fails. A context reading
+//       that does not answer within CONTEXT_READING_MS fails the check.
 // Skills the task's init message lists beyond the project's are an
 // OBSERVATION, not a failure, only when (a), (b) and (c) pass, each one is in
 // the task's `slash_commands`, and the control's init lists it too (so it is
@@ -53,6 +55,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { claudeExecutable, report, requireConfirmation, sandbox, startCheck } from './common.js';
 import {
+  CONTEXT_READING_MS,
   controlSession,
   discard,
   driveRound,
@@ -63,6 +66,7 @@ import {
   startTask,
   startWeb,
   usageGate,
+  within,
   type ContextSkills,
   type EventSeen,
   type Tap,
@@ -87,6 +91,14 @@ const describe = (context: ContextSkills | null | string | undefined): string =>
     : String(context ?? 'no reading');
 /** A skill that is not the project's (the project's are SKILL and, once written, LATE). */
 const foreign = (name: string): boolean => name !== SKILL && name !== LATE;
+/** The skills a reading includes that are bundled with Claude Code (source `built-in`) and not the project's. */
+const bundledForeign = (context: ContextSkills | null | string | undefined): string[] | undefined =>
+  typeof context === 'object' && context !== null
+    ? context.skillFrontmatter
+        .filter((skill) => skill.source === 'built-in' && foreign(skill.name))
+        .map((skill) => skill.name)
+        .sort()
+    : undefined;
 const KNOWN_FIELDS = new Set(['totalSkills', 'includedSkills', 'tokens', 'skillFrontmatter']);
 /** What the reading says about the skills it counts but does not include: a count, and any field beyond the typed ones. */
 function unnamed(label: string, context: ContextSkills | null | string | undefined): void {
@@ -165,7 +177,8 @@ try {
   unnamed('Control', control.contextSkills);
   ok = report('control: the project skill is listed without the task layers', controlInit.includes(SKILL), '') && ok;
   ok = report('control: other skills (not the project\'s) are listed without the task layers', controlInit.some((name) => name !== SKILL), '') && ok;
-  const controlForeign = (controlContext ?? []).filter(foreign);
+  // (c) counts only bundled skills (source `built-in`): a foreign skill from anywhere else would not show what bundled skills reach.
+  const controlForeign = bundledForeign(control.contextSkills) ?? [];
 
   // (ii) The bundled skill to try: one the model can invoke without the layers, i.e. in the control's context.
   const invocable = INVOCABLE.find((name) => controlContext?.includes(name) === true);
@@ -200,14 +213,16 @@ try {
     lateWritten = `not written: ${error instanceof Error ? error.message : String(error)}`;
   });
 
+  // The context reading is answered while the session is open; a reading that never answers fails the check.
   const { task } = await driveRound(web, id, () => 'deny', undefined, async () => {
-    await Promise.all([...(tap.contextUsage?.values() ?? [])]);
+    await within(Promise.all([...(tap.contextUsage?.values() ?? [])]), CONTEXT_READING_MS, "the task session's context reading");
   });
   await late;
   console.log(`${LATE}: ${lateWritten}`);
   const sessionId = task.rounds[0]?.sessionId;
   const init = tap.inits.find((entry) => entry.sessionId === sessionId);
-  const taskContext = sessionId === undefined ? undefined : await tap.contextUsage?.get(sessionId);
+  const reading = sessionId === undefined ? undefined : tap.contextUsage?.get(sessionId);
+  const taskContext = reading === undefined ? undefined : await within(reading, CONTEXT_READING_MS, "the task session's context reading");
   const contextNames = names(taskContext);
   console.log(`Task session: Claude Code ${init?.claudeCodeVersion ?? '?'}, model ${init?.model ?? '?'}, permission mode ${init?.permissionMode ?? '?'}`);
   console.log(`Task session tools: ${(init?.tools ?? []).join(', ')}`);
@@ -227,9 +242,9 @@ try {
   const c = controlContext !== undefined && controlForeign.length >= 1 && taskForeign !== undefined && taskForeign.length === 0;
   ok =
     report(
-      '(c) control: without the task layers the model\'s context holds bundled skills that are not the project\'s; with them, none',
+      '(c) control: without the task layers the model\'s context holds bundled skills (source built-in) that are not the project\'s; with them, no skill that is not the project\'s',
       c,
-      `control: ${controlContext === undefined ? describe(control.contextSkills) : `${controlForeign.length} foreign (${controlForeign.join(', ') || 'none'})`}; task: ${taskForeign === undefined ? describe(taskContext) : `${taskForeign.length} foreign (${taskForeign.join(', ') || 'none'})`}`,
+      `control: ${controlContext === undefined ? describe(control.contextSkills) : `${controlForeign.length} bundled foreign (${controlForeign.join(', ') || 'none'})`}; task: ${taskForeign === undefined ? describe(taskContext) : `${taskForeign.length} foreign (${taskForeign.join(', ') || 'none'})`}`,
     ) && ok;
 
   const skillCalls = tap.calls.filter((call) => call.sessionId === sessionId && call.name === 'Skill');

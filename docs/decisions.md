@@ -5620,6 +5620,37 @@ What stays changed: the project's two commits; the project's library note
 (the declared check and two dated lines, three library commits); the task's
 record under `<home>/tasks/` and its session under `<home>/sessions/`.
 
+**What the checks do not control (2026-11-05, step 16 of the phase 7
+cleanup; the scripts now print each as `NOT CONTROLLED:`; not run since).**
+
+- **`.claude/settings.local.json` in checks 3 and 4.** The control session
+  of check 3 loads `settingSources: ['project']`, which does not read the
+  local file, and check 4 has no control session: for that file the checks
+  show only that the task hides it in its worktree. Adding `'local'` to the
+  control session's `settingSources` could control it in a later run; it
+  was not done, since the scripts are not run in this step.
+- **The allow rules of check 4.** That the broad allow rules would let a
+  shell command run without the task's layers is not shown, and cannot be:
+  by H0, `permissions.allow` of a project's settings is not used in an SDK
+  session of an untrusted folder ("Phase 7: H0", point 2), so no control
+  session can show them working.
+- **Check 5, (c)** now counts only the control's bundled skills (source
+  `built-in` in the context reading), as its step asked; the run's 13 were
+  all `built-in`, so its result does not change. The waits for the context
+  readings (the control's in `controlSession`, the task's in check 5) have
+  a deadline of two minutes: a reading that does not answer fails the
+  check.
+- **The `design` observation of check 5** stays without a line from the
+  docs (read 2026-11-05). The commands reference
+  (code.claude.com/docs/en/commands) lists `/design` as a skill that drafts
+  Claude Design artifacts and needs a session where artifacts are
+  available; the skills page (code.claude.com/docs/en/skills) names
+  `/doctor` only, in "The `/doctor` setup checkup stays typable when
+  `disableBundledSkills` is on". No sentence says that `/design` stays
+  typable, or is hidden from the model, when bundled skills are off. So
+  the observation keeps resting on the control's init listing it too; no
+  line was added to the script.
+
 ## Phase 7: M9 accepted, phase closed (2026-11-01)
 
 **The user's decision (2026-11-01):** M9 is accepted, that is the five real
