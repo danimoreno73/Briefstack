@@ -343,6 +343,36 @@ test.describe('approving without the checks', () => {
     await expect(page.getByTestId('task-approve')).toBeEnabled();
   });
 
+  test('a cancel confirmation left open when the checks end does not come back on the next run', async ({ page, app }) => {
+    await codeProject(app, 'shed', 'Tool shed');
+    // Runs until the test writes `go` next to the worktree (outside it, so the diff does not change).
+    const waiting = nodeCheck("setInterval(()=>{if(require('fs').existsSync('../go'))process.exit(0)},50)");
+    await setProjectChecks({ libraryDir: app.libraryDir, home: app.home, slug: 'shed', commands: [waiting] });
+    const id = await startTask(page, app, 'shed', 'Add a changelog.');
+    const go = path.join(app.home, 'tasks', id, 'go');
+    await finishRound(page);
+    const checks = page.getByTestId('task-check-results');
+    await checks.getByTestId('task-run-checks').click();
+    await confirmDialog(page, 'Run the checks');
+    await expect(checks.getByTestId('task-checking')).toBeVisible(CHECKED);
+
+    // The confirmation is open when the checks end on their own.
+    await checks.getByTestId('task-cancel-checks').click();
+    await expect(page.getByRole('dialog')).toContainText('Nothing they did is kept');
+    await writeFile(go, '');
+    await expect(checks.locator('[data-ok="yes"]')).toHaveText('passed', CHECKED);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await rm(go);
+
+    // The next run shows no confirmation the user did not ask for.
+    await checks.getByTestId('task-run-checks').click();
+    await confirmDialog(page, 'Run the checks');
+    await expect(checks.getByTestId('task-checking')).toBeVisible(CHECKED);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await writeFile(go, '');
+    await expect(checks.locator('[data-ok="yes"]')).toHaveText('passed', CHECKED);
+  });
+
   test('a project without confirmed checks has no button', async ({ page, app }) => {
     await codeProject(app, 'shed', 'Tool shed');
     await startTask(page, app, 'shed', 'Add a changelog.');

@@ -502,6 +502,10 @@ function CheckResults({ data, onDone, shared }: { data: TaskProposalUi; onDone()
   const [reopen, setReopen] = useState(false);
   const { task } = data;
   const commands = data.checkCommands;
+  // Checks that end while the cancel confirmation is open close it for good: the next run does not show it again.
+  useEffect(() => {
+    if (task.state !== 'checking') setConfirmCancel(false);
+  }, [task.state]);
   // The checks changed after the confirmation showed them: once the page has the list as it is now, it is shown again.
   useEffect(() => {
     if (!reopen) return;
