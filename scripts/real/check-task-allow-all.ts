@@ -41,7 +41,7 @@ try {
     'NOT CONTROLLED: that the allow rules would let a shell command run without the task layers. By H0, permissions.allow of a project\'s settings is not used in an SDK session of an untrusted folder, so a control session could not show it (decisions.md, "Phase 7: H0" and "Phase 7: M9 real checks").',
   );
   console.log(
-    'NOT CONTROLLED: .claude/settings.local.json. No control session reads it here (settingSources [\'project\'] does not); for it, only the task hiding it is shown.',
+    'NOT CONTROLLED: .claude/settings.local.json. No control session reads it here; for it, only the task hiding it is shown.',
   );
   await web.stop();
   await usageGate(box, executable, 'after').catch((error: unknown) => console.log(String(error)));
