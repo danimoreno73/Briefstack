@@ -124,7 +124,12 @@ describe('FakeRunner', () => {
       received,
     });
     const handle = runner.start({ creationId: 'c1', idea: 'x', profile: { name: 'balanced', sessionModel: 'sonnet' }, sessionsDir, policy: 'ask', io });
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    // Waits for the turn's end itself: the session's start is written to disk first, which a busy machine can make longer than any fixed wait.
+    const turnEnded = () => {
+      const last = emitted.at(-1);
+      return last?.kind === 'status' && last.status === 'turnEnded';
+    };
+    for (let i = 0; i < 1000 && !turnEnded(); i += 1) await new Promise((resolve) => setTimeout(resolve, 5));
     expect(emitted.at(-1)).toEqual({ kind: 'status', status: 'turnEnded', message: 'Which name?' });
     handle.sendMessage('Seedling');
     expect(await handle.done).toEqual({ kind: 'ended' });
