@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { CanUseTool, HookCallback, Options, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   SdkRunner,
   WEB_REMINDERS,
@@ -354,6 +354,8 @@ describe('SdkRunner', () => {
   let heldBy: (target: string) => string | undefined = () => undefined;
   /** While set, questions and the spec wait for it: the user is thinking. */
   let gate: Promise<void> | undefined;
+  /** Called when the spec approval reaches the user. */
+  let specAsked: () => void = () => undefined;
 
   const io = (): RunnerIO => ({
     askQuestions: async (request) => {
@@ -367,6 +369,7 @@ describe('SdkRunner', () => {
       return permissionAnswer;
     },
     approveSpec: async () => {
+      specAsked();
       await gate;
       return specAnswer;
     },
@@ -434,6 +437,19 @@ describe('SdkRunner', () => {
     );
   };
   const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
+  /**
+   * Runs `body` on the test's clock: only `setTimeout` and `clearTimeout` are faked, so the
+   * runner's quiet waits run out when the test advances time, never because the machine is
+   * slow. Promises, file reads and writes and `setImmediate` stay real.
+   */
+  const withTestClock = async (body: () => Promise<void>): Promise<void> => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await body();
+    } finally {
+      vi.useRealTimers();
+    }
+  };
 
   beforeEach(async () => {
     ({ dir, cleanup } = await tempDir('sdk-runner'));
@@ -456,6 +472,7 @@ describe('SdkRunner', () => {
     claimAnswer = { ok: true };
     heldBy = () => undefined;
     gate = undefined;
+    specAsked = () => undefined;
   });
   afterEach(() => cleanup());
 
@@ -816,12 +833,20 @@ describe('SdkRunner', () => {
     const handle = start(runner({ idleAfterResultMs: 80 }));
     init();
     await handle.sessionId;
-    fake.push({ type: 'result', subtype: 'success' });
-    for (let i = 0; i < 4; i += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 40));
-      fake.push({ type: 'system', subtype: 'task_progress' });
-    }
-    expect(fake.closed).toBe(false);
+    // The test's clock: with real timers a stalled event loop can fire the 80 ms wait before the test's next message.
+    await withTestClock(async () => {
+      fake.push({ type: 'result', subtype: 'success' });
+      // 60 ms apart: each message starts the wait again, so 240 ms pass without it running out.
+      for (let i = 0; i < 4; i += 1) {
+        await vi.advanceTimersByTimeAsync(60);
+        expect(fake.closed).toBe(false);
+        fake.push({ type: 'system', subtype: 'task_progress' });
+      }
+      await vi.advanceTimersByTimeAsync(79);
+      expect(fake.closed).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fake.closed).toBe(true);
+    });
     expect(await handle.done).toEqual({ kind: 'ended' });
   });
   describe('the wait after a turn ended', () => {
@@ -868,19 +893,30 @@ describe('SdkRunner', () => {
       const handle = start(runner({ idleAfterResultMs: 30 }));
       init();
       await handle.sessionId;
-      fake.push({ type: 'result', subtype: 'success' });
       let release!: () => void;
       gate = new Promise<void>((resolve) => (release = resolve));
+      const asked = new Promise<void>((resolve) => (specAsked = resolve));
       const server = options().mcpServers?.['briefstack-web'] as unknown as {
         instance: { _registeredTools: Record<string, { handler: (args: unknown, extra: unknown) => Promise<{ content: { text: string }[] }> }> };
       };
       const files = { specFile: path.join(sessionsDir, SESSION, 'spec.json'), summaryFile: path.join(sessionsDir, SESSION, 'summary.md') };
-      const approving = server.instance._registeredTools.approve_spec?.handler(files, {});
-      await pause(150);
-      expect(fake.closed).toBe(false);
-      expect(await settled(handle.done)).toBe(false);
-      release();
-      expect(JSON.parse((await approving)?.content[0]?.text ?? '{}')).toEqual({ decision: 'approve' });
+      let ended = false;
+      void handle.done.then(() => (ended = true));
+      // The test's clock: the tool checks the files on disk before it asks, and with real timers
+      // a stalled event loop can let the 30 ms wait run out before the request starts.
+      await withTestClock(async () => {
+        fake.push({ type: 'result', subtype: 'success' });
+        const approving = server.instance._registeredTools.approve_spec?.handler(files, {});
+        await asked;
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(fake.closed).toBe(false);
+        expect(ended).toBe(false);
+        release();
+        expect(JSON.parse((await approving)?.content[0]?.text ?? '{}')).toEqual({ decision: 'approve' });
+        // Answered: the quiet wait starts again, and ends it.
+        await vi.advanceTimersByTimeAsync(30);
+        expect(fake.closed).toBe(true);
+      });
       expect(await handle.done).toEqual({ kind: 'ended' });
     });
 
