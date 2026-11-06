@@ -5364,6 +5364,36 @@ Choices made without the user:
   a fixed time, so a slow runner cannot end the checks before the test
   opens the confirmation.
 
+**Cleanup of phase 7, step 18 (2026-11-06): the intermittent tests of the
+SDK runner.** The close of step 15 stopped on a failure of
+`creation-sdk-runner.test.ts:824`; by the user's decision it is fixed, not
+declared intermittent. Tests only, no production code: the runner's quiet
+wait is a plain `setTimeout`, which the test can fake. Cause, fixes and
+what was left are in IDEAS.md §7 (commits `88337c6`, `324e772`).
+
+Choices made without the user:
+
+- **The cause was shown with random stalls of the event loop, not with
+  CPU load.** A busy worker per core did not reproduce the failure in 15
+  runs of the file; synchronous stalls of up to 150 ms did (113 of 300),
+  and a log of the timers showed the 80 ms wait firing before the
+  test's 40 ms timer. The same probe sorted the other candidates.
+- **Fake timers limited to `setTimeout` and `clearTimeout`**, installed
+  after the session id and removed in a `finally`: the runner's start,
+  file reads and writes, promises and `setImmediate` stay real, so only
+  the quiet waits move with the test's clock. The fixed tests also check
+  the edge (open 1 ms before the wait runs out, closed at it), which the
+  real timers could not.
+- **The spec approval test waits for the request to reach the user**
+  (a callback in the test's `io`), not a fixed time, since the tool reads
+  the disk first.
+- **The manager test waits for the manager to finish** before its fake
+  runner writes `session.end`, instead of 150 ms.
+- **Three look-alike tests are not changed** (the reply after a 20 ms
+  `tick()`, the 120 ms pause with a background agent, the 20 ms `tick()`
+  before the first hook): they passed the probe 20 of 20, and the step
+  said to rewrite only what has the defect and to note the doubtful ones.
+
 ## Phase 7: security review (2026-10-30)
 
 A review of the phase's code (`phase-7-start..HEAD`, about 5,000 lines of

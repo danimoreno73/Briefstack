@@ -541,6 +541,36 @@ Each item ends with its source, in one of three forms:
   …", read the last event after a fixed 30 ms and got `running` once
   (the session's start is written to disk before the turn ends). Seen in
   the gates of the close of step 15 of the cleanup.
+- **Done in the cleanup of phase 7** (step 18, commits `88337c6` and
+  `324e772`: the test's clock for the quiet waits, and a condition
+  instead of a fixed time). **Intermittent locally:**
+  `tests/unit/creation-sdk-runner.test.ts`, "keeps waiting while messages
+  keep coming after a result …", found the session closed (`fake.closed`
+  `true`, line 824) once, in the gates of the close of step 15 (on
+  `af5c4b0`). Cause shown: the test sent a message every 40 ms with real
+  timers against an 80 ms quiet wait. With random synchronous stalls of
+  the event loop (up to 150 ms, as a loaded machine causes), Node fired
+  the 80 ms timer before the 40 ms one created in the same millisecond,
+  logged in a probe, and the test failed in 113 of 300 repetitions. CPU
+  load alone (a busy worker per core) did not reproduce it in 15 runs of
+  the file. The same probe, 20 repetitions per test, also failed "does
+  not run while the spec approval waits" (17 of 20: the tool reads the
+  disk before it asks, inside a 30 ms wait) and
+  `tests/unit/creation-manager.test.ts`, "streams the session.end …"
+  (3 of 20: `session.end` was written a fixed 150 ms after
+  `session.finished`, and the manager read both lines in one go). The
+  three are fixed and pass the probe 20 of 20.
+  **Left as they are, noted only:** three tests of the same file that
+  look alike passed the probe 20 of 20, so no defect was shown: the reply
+  sent after a 20 ms `tick()` against a 60 ms wait ("sends a free-text
+  reply …"), the 120 ms pause against the 250 ms wait with a background
+  agent ("waits much longer …"), and the fixed 20 ms `tick()` before the
+  first hook ("claims the first session id …"), which would fail if the
+  runner's reading of its folders took longer than that. Robust by
+  reading: the question and permission tests (the wait is cleared in the
+  same tick as the request), the polling loops with a bound, and the
+  other `creation-*` files (they poll with a deadline, or their fixed
+  waits only make a negative check weaker).
 - **Done in the cleanup of phase 7** (step 16, commit `209384f`: a comment
   in the test). **The warning `BRIEFSTACK_LIBRARY_LOCK … EPERM`** that a
   passing test logs is `tests/unit/library-lock.test.ts`'s own: the test
