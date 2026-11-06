@@ -392,13 +392,14 @@ describe('CreationManager', () => {
 
   it('streams the session.end Claude Code writes as it exits, after session.finished', async () => {
     const session = 'late-end';
+    const made: { manager?: CreationManager } = {};
     const runner: CreationRunner = {
       start: (options) => {
         const done = (async () => {
           await appendEvent(options.sessionsDir, sessionLifecycleEvent(session, 'started', undefined, new Date()));
           await appendEvent(options.sessionsDir, sessionLifecycleEvent(session, 'finished', 'completed', new Date()));
-          // The manager sees `session.finished` and finishes before this line exists.
-          await new Promise((resolve) => setTimeout(resolve, 150));
+          // The manager sees `session.finished` and finishes before this line exists: wait for it, not a fixed time.
+          await waitFor(() => made.manager?.list().some((c) => c.status === 'finished'));
           await appendEvent(options.sessionsDir, sessionEndEvent(session, 'other', new Date()));
           return { kind: 'ended' as const };
         })();
@@ -406,6 +407,7 @@ describe('CreationManager', () => {
       },
     };
     const m = await make(runner);
+    made.manager = m;
     const { id } = await m.create('x');
     const seen: StreamEvent[] = [];
     let ended = false;
