@@ -367,6 +367,13 @@ alike). So step 20's failed GET says nothing about the sandbox, whether
 the runner, the tool or Settings was built. Next: a control that works
 (another destination or another network), on the user's authorisation.
 
+Attempt 2, with `registry.npmjs.org` (reached from outside): no request
+from inside got an answer, in either mode, but the TLS step failed
+(`SEC_E_NO_CREDENTIALS`, Windows' TLS library in the sandbox's account)
+after `Trying <address>:443`, which points to the TCP connection having
+opened (inferred). So no answer is not isolation. Next, attempt 3: a bare
+TCP connection, plain HTTP and Node's own TLS from inside `elevated`.
+
 ## 6. Unattended runs that reach the user
 
 Goal (user): define a project fully up front, leave Claude working

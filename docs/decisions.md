@@ -6003,7 +6003,9 @@ also stays: that is how `elevated` grants the writes. Checked with
 - Measured: `elevated` runs a Node outside the user's profile.
 - *Not measured*: what `codex-windows-sandbox-setup` does on each call.
 
-### Phase 8: step 21, the Internet control closed the gate (2026-11-07)
+### Phase 8: step 21, the Internet control (2026-11-07)
+
+#### Attempt 1: the control failed outside the sandbox
 
 The user's decisions before the step: Codex may read the user's files
 and reach local services, with a plain warning in Settings, **only if
@@ -6043,3 +6045,42 @@ Two requests of eight; **none from inside**.
 - To measure it, the control has to work first: a destination this
   machine can reach over HTTPS, or the same eight requests from a machine
   or network where the control passes. That is the user's choice.
+
+#### Attempt 2: the npm registry; no answer inside, but not a block
+
+On the user's authorisation the host changed to
+`https://registry.npmjs.org/`, which this machine reaches (npm works);
+same cap of eight GETs, same gate. Run `run-2026-11-07T23-47-59-597Z` (`probe-codex.ts --internet`,
+outputs `out/i-*`, `out/I-summary.json`), no model call, all eight sent.
+
+| | Where | Method | Result | Output |
+|---|---|---|---|---|
+| 1 | outside | `Invoke-WebRequest` | **HTTP 200** | `i-outside-powershell.*` |
+| 2 | outside | `curl.exe -v` | **HTTP 200**, from `104.16.11.34`, no proxy | `i-outside-curl.*` |
+| 3 | `elevated` | `Invoke-WebRequest` | no answer: `NETERR`, "an unexpected error occurred on a receive"; no proxy variables | `i-elevated-powershell.*` |
+| 4 | `elevated` | `curl.exe` | no answer, exit 35: `Trying 104.16.11.34:443...`, then `schannel: AcquireCredentialsHandle failed: SEC_E_NO_CREDENTIALS` | `i-elevated-curl.*` |
+| 5 | `elevated` | `curl.exe --noproxy "*"` | the same as 4 | `i-elevated-curl-noproxy.*` |
+| 6 | `unelevated` | `Invoke-WebRequest` | no answer: the same `NETERR`; proxy variables at `http://127.0.0.1:9` | `i-unelevated-powershell.*` |
+| 7 | `unelevated` | `curl.exe` | no answer, exit 7: it used `https_proxy=http://127.0.0.1:9`, connection refused | `i-unelevated-curl.*` |
+| 8 | `unelevated` | `curl.exe --noproxy "*"` | no answer, exit 35: the same `SEC_E_NO_CREDENTIALS` as 4 | `i-unelevated-curl-noproxy.*` |
+
+**What it means.**
+
+- Measured: no request from inside the sandbox got an HTTP answer, in
+  either mode; the controls outside did.
+- Measured: in 4, 5 and 8 the failure is Windows' TLS library
+  (Schannel) not finding credentials for the sandbox's account, after
+  `Trying 104.16.11.34:443`. *Inferred*, not measured: curl (8.21.0,
+  Schannel) starts its TLS step only once the TCP connection below it is
+  open, and the control outside shows the same `Trying` → `schannel`
+  sequence; so the TCP connection to the Internet **opened** from inside
+  `elevated`. The block is a side effect of TLS in the sandbox, not
+  network isolation: plain HTTP, a bare TCP connection or a program with
+  its own TLS would probably get through.
+- Measured: in `unelevated`, the proxy variables stop curl (7); with
+  `--noproxy` it gets as far as in `elevated` (8).
+- **The gate passed to the letter (no answer) but not in intent** ("no
+  traffic to the Internet from `elevated`"). The user chose to stop and
+  measure again (attempt 3: a bare TCP connection, plain HTTP, and a
+  fetch with Node's own TLS). Nothing of the runner, the tool or
+  Settings was built.
