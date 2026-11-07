@@ -291,6 +291,37 @@ describe('phase 7 H0 probe (M0): prepared, guarded, and kept off real data', () 
   });
 });
 
+describe('Codex spike: prepared, guarded, and kept to throwaway repositories', () => {
+  const read = () => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'probe-codex.ts'), 'utf8');
+
+  it('asks for --yes, caps the calls at 10 and works under BRIEFSTACK_REAL_WORKDIR, outside the real data', async () => {
+    const script = await read();
+    expect(script).toContain('requireConfirmation(');
+    expect(script).toContain('const MAX_CALLS = 10;');
+    expect(script).toContain('if (calls >= MAX_CALLS)');
+    expect(script).toContain("path.join(path.resolve(workdir), 'codex-spike')");
+    expect(script).toContain('await overlapping(spikeRoot, await realKeepOut(pathEnv), pathEnv)');
+    expect(script).not.toContain('PACKAGE_ROOT');
+  });
+
+  it('runs codex exec only in workspace-write, sets the Windows mode per call and never reads auth.json or writes config.toml', async () => {
+    const script = await read();
+    expect(script).toMatch(/'--sandbox',\s+'workspace-write',/);
+    expect(script).toContain("['-c', `windows.sandbox=\"${mode}\"`]");
+    // Counted in code: the header comment names what is never used.
+    const code = script
+      .split('\n')
+      .filter((line) => !/^\s*\/\//.test(line))
+      .join('\n');
+    for (const forbidden of ['danger-full-access', '--yolo', '--dangerously', 'bypassPermissions', 'auth.json', 'config.toml']) {
+      expect(code, forbidden).not.toContain(forbidden);
+    }
+    // No credential of ours reaches Codex, and a stop kills the whole tree.
+    expect(script).toContain('/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i');
+    expect(script).toContain('await killProcessTree(pid)');
+  });
+});
+
 describe('phase 5 real checks: prepared, guarded, and kept off real data', () => {
   const read = (name: string) => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', name), 'utf8');
 
