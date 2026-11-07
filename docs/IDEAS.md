@@ -335,6 +335,29 @@ and the Codex brief assume:
 - `codex sandbox -P :workspace -- <command>` runs a command in the same
   sandbox with no model call: a cheap way to tell which mode is ready.
 
+**Step 20 (2026-11-07, no model call; decisions.md, "Step 20").** What it
+adds:
+
+- *`elevated` closes the user's profile:* no. A new folder in the
+  profile's root was read in both modes; only folders whose own
+  permissions exclude the sandbox account (such as `%LOCALAPPDATA%`) are
+  closed.
+- *The Internet:* a GET to `example.com` got no answer in either mode.
+  No control request was made outside the sandbox, so this is not yet
+  proof that the sandbox blocks it. `unelevated` relies, at least in part,
+  on proxy variables pointing at a closed port.
+- *Closing reads per call:* only in `elevated`, only by naming paths to
+  deny in a permission profile (`-c permissions.<name>={extends=":workspace",
+  filesystem={'<path>'="deny"}, ...}` and `-P <name>`). It writes deny
+  entries into the real folders' ACLs, and they stay. `unelevated`
+  refuses any such profile. A profile that does not read the whole disk
+  is refused in both modes. Profiles are ignored when `--sandbox` is
+  passed (docs), so using them in `codex exec` means dropping
+  `--sandbox workspace-write` (not yet tried with the model).
+- *Closing the network per call:* no option tried closes 127.0.0.1
+  (`network={enabled=false}` in a profile, `--sandbox-state-disable-network`).
+- *Node in `elevated`:* it runs when Node is outside the user's profile.
+
 ## 6. Unattended runs that reach the user
 
 Goal (user): define a project fully up front, leave Claude working

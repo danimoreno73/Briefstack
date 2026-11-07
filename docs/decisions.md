@@ -5929,3 +5929,76 @@ hours before the probe (the Codex desktop app and its service).
 - The `mxc` mode: only seen in the binary's strings (`windows.sandbox =
   "mxc" is not allowed when windows.allow_mxc = false`); not tried.
 - macOS and Linux.
+
+### Step 20: the Internet, the user's profile, and closing reads or network per call (2026-11-07)
+
+Second spike, **no model call** (`probe-codex.ts --harden`, run
+`run-2026-11-07T22-45-38-007Z`; outputs `out/h-*` and `out/H-summary.json`).
+Everything with `codex sandbox`. On the user's authorisation for this
+step: one GET to `https://example.com/` per Windows mode (the only
+traffic to the Internet), and a harmless file with fixed text planted in
+a new folder `briefstack-probe-plant` of the user's profile, removed at
+the end (removal checked). Nothing else of the profile was read or listed.
+
+**The docs.** The official permissions page (`developers.openai.com/codex/permissions`,
+redirected to `learn.chatgpt.com/docs/permissions`, read 2026-11-07): a
+permission profile is `[permissions.<name>]` with `extends` (`:read-only`,
+`:workspace` or another profile, never `:danger-full-access`), a
+`filesystem` table of paths or globs set to `read`, `write` or `deny`
+(`deny` wins), and a `network` table (`enabled`; domain rules only while
+the network proxy feature is on). **If `sandbox_mode` is set in any
+config layer, or `--sandbox` is passed, Codex uses the older sandbox
+settings and ignores the profiles.** On native Windows, deny-read globs
+are matched when each sandboxed process starts; `unelevated` cannot
+enforce every read or write carve-out and refuses those policies.
+
+The profiles below were defined per call with `-c` and chosen with `-P`
+(`config.toml` untouched):
+
+- `minimal`: `permissions.bs_minimal={filesystem={":minimal"="read", ":workspace_roots"={"."="write"}}, network={enabled=false}}`
+- `deny`: `permissions.bs_deny={extends=":workspace", filesystem={'<planted folder>'="deny", '<outside folder>'="deny"}, network={enabled=false}}`
+- `nonet`: `permissions.bs_nonet={extends=":workspace", network={enabled=false}}`
+
+| | What | `elevated` | `unelevated` | Output |
+|---|---|---|---|---|
+| 1 | GET `https://example.com/` (Windows PowerShell 5.1, 10 s) | not reached: `NETERR`, the Windows message (in Spanish on this machine) for "the connection was closed: an unexpected error occurred on a receive" | the same | `h-*-internet.*` |
+| 1 | proxy variables inside the sandbox | none set by Codex | Codex sets `ALL_PROXY`, `HTTP_PROXY`, `HTTPS_PROXY`, `GIT_HTTP_PROXY`, `GIT_HTTPS_PROXY` to `http://127.0.0.1:9` and `NO_PROXY=localhost,127.0.0.1,::1` | `h-*-internet.*` |
+| 2 | the planted file in the profile, `:workspace` | **read** | **read** | `h-*-workspace-read-plant.*` |
+| 3 | `minimal` | refused before running: `elevated Windows sandbox requires effective ':root' read access` | refused: `Restricted read-only access requires the elevated Windows sandbox backend` | `h-*-minimal-*` |
+| 3 | `deny` | planted file and outside file: **access denied**; 127.0.0.1: HTTP 200; write in the worktree: written | refused (same message) | `h-*-deny-*` |
+| 3 | `nonet` | 127.0.0.1: HTTP 200; write: written | 127.0.0.1: HTTP 200; reads open; write: written | `h-*-nonet-*` |
+| 3 | `-P :workspace --sandbox-state-disable-network` | accepted; 127.0.0.1: HTTP 200 | the same | `h-*-state-disable-network.*` |
+| 4 | a copy of this Node (`node.exe`) in the run folder, outside the profile | `v24.18.0` | — | `h-elevated-node-copy.*` |
+| 5a | `git add`, `git commit` in the worktree | exit 128, `index.lock`: permission denied | the same | `h-*-git-*` |
+| 5b | an `elevated` command with the setup done | `codex-windows-sandbox-setup` ran during the call; the sandbox accounts unchanged (same `PasswordLastSet`); no admin prompt | — | `H-summary.json` |
+
+**`deny` writes ACLs on the real disk.** After the `deny` calls the
+outside folder carries `CodexSandboxUsers:(DENY)(R)` (and the inherited
+entry on its files), and it stays: the later `nonet` call still could
+not read it. The worktree carries `CodexSandboxUsers:(OI)(CI)(M)`, which
+also stays: that is how `elevated` grants the writes. Checked with
+`icacls` after the run.
+
+**Measured against inferred.**
+
+- Measured: the GET did not get an answer in either mode. *Not measured*:
+  why. No request was made outside the sandbox as a control (not
+  authorised), so a failure of PowerShell's own connection cannot be
+  ruled out; its `SecurityProtocol` is `SystemDefault` (TLS 1.2 and 1.3
+  on Windows 11), which makes that *unlikely* (inferred).
+- Measured: `unelevated` points the usual proxy variables at a closed
+  port. *Inferred*: a program that ignores those variables is not held by
+  them.
+- Measured: a new folder in the profile's root is readable from
+  `elevated`; Node in `%LOCALAPPDATA%` is not (step 19). *Inferred*:
+  `elevated` closes what each folder's own permissions close, not the
+  profile as a whole.
+- Measured: reads can be closed per call only in `elevated`, only by
+  naming what to deny (the whole disk cannot be closed: `:root` read is
+  required), and only with the profiles, which `--sandbox
+  workspace-write` turns off (docs). *Not measured*: the same profile
+  through `codex exec` (`-c default_permissions=...` without
+  `--sandbox`), since that needs a model call.
+- Measured: no per-call option tried closes 127.0.0.1.
+- Measured: `elevated` runs a Node outside the user's profile.
+- *Not measured*: what `codex-windows-sandbox-setup` does on each call.
