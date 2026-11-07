@@ -10,7 +10,9 @@
 // but one GET to https://example.com/ per Windows mode, and a harmless file planted in
 // a new folder of the user's profile (`briefstack-probe-plant`), removed at the end.
 // With `--internet` (Windows) it runs a, S and I (step 21) and stops: no `codex exec` call, at
-// most eight GETs to https://example.com/ (two outside the sandbox, three per mode inside).
+// most eight GETs to https://registry.npmjs.org/ (two outside the sandbox, three per mode
+// inside). Step 21's first attempt used example.com, whose TLS handshake this machine could not
+// complete even outside the sandbox; the npm registry is one it reaches.
 //
 // Everything happens in throwaway git repositories under
 // `$BRIEFSTACK_REAL_WORKDIR/codex-spike/run-<time>/`, which is kept (the raw
@@ -317,7 +319,7 @@ try {
   if (process.argv.includes('--sandbox-only')) throw new CheckStop(0, '--sandbox-only: a and S done; no codex exec call made.');
 
   // ---- I. Internet control, step 21: no model call ---------------------------------------------
-  // At most eight GETs to https://example.com/ (the user's authorisation), each tried once: two
+  // At most eight GETs to https://registry.npmjs.org/ (the user's authorisation), each tried once: two
   // outside the sandbox (PowerShell and curl.exe), to show the method works on this machine, then
   // three per Windows mode inside it: PowerShell, curl.exe, and curl.exe told to ignore the proxy
   // variables. If a control outside fails, nothing is sent from inside.
@@ -326,7 +328,7 @@ try {
     const systemRoot = process.env.SystemRoot;
     if (systemRoot === undefined || systemRoot === '') throw new CheckStop(2, 'SystemRoot is not set, so curl.exe cannot be found.');
     const MAX_GETS = 8;
-    const url = 'https://example.com/';
+    const url = 'https://registry.npmjs.org/';
     const curl = path.join(systemRoot, 'System32', 'curl.exe');
     let gets = 0;
     const measured: Record<string, unknown> = {};
