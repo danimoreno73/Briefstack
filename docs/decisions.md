@@ -6002,3 +6002,44 @@ also stays: that is how `elevated` grants the writes. Checked with
 - Measured: no per-call option tried closes 127.0.0.1.
 - Measured: `elevated` runs a Node outside the user's profile.
 - *Not measured*: what `codex-windows-sandbox-setup` does on each call.
+
+### Phase 8: step 21, the Internet control closed the gate (2026-11-07)
+
+The user's decisions before the step: Codex may read the user's files
+and reach local services, with a plain warning in Settings, **only if
+`elevated` sends no traffic to the Internet**; no permission profiles
+with `deny`; the tool keeps `--sandbox workspace-write`. The step began
+with a control, as a gate: if `elevated` reached the Internet, or if the
+control outside the sandbox did not work, no product code is written.
+
+**What ran** (`probe-codex.ts --internet`, run
+`run-2026-11-07T23-29-14-198Z`, outputs `out/i-*` and
+`out/I-summary.json`; no model call). On the user's authorisation: at
+most eight GETs to `https://example.com/`, each tried once: two outside
+the sandbox (Windows PowerShell 5.1 `Invoke-WebRequest` and the system's
+`curl.exe`), then three per Windows mode inside it (`Invoke-WebRequest`,
+`curl.exe`, and `curl.exe --noproxy "*"`). The script sends nothing from
+inside when a control outside fails.
+
+| | Outside the sandbox | Result | Output |
+|---|---|---|---|
+| 1 | `Invoke-WebRequest`, 10 s | not reached, in 439 ms: `NETERR`, the Windows message (in Spanish on this machine) for "the connection was closed: an unexpected error occurred on a send" | `i-outside-powershell.*` |
+| 2 | `curl.exe -v --max-time 10` | not reached, in 328 ms, exit 35: the name resolved (two IPv4 addresses), the TCP connection opened, then `Recv failure: Connection was reset` and `schannel: failed to receive handshake, SSL/TLS connection failed`; no proxy used | `i-outside-curl.*` |
+
+Two requests of eight; **none from inside**.
+
+**What it means.**
+
+- Measured: from this machine, outside any sandbox, a TLS connection to
+  `example.com` is reset during the handshake, by two different
+  programs. *Not measured*: what resets it (something on this machine or
+  on its network); finding out would need more requests than were
+  authorised.
+- So the step 20 result ("the GET got no answer in either mode") says
+  nothing about the sandbox: the same failure happens without it.
+- **The gate stays closed**: whether `elevated` keeps Codex off the
+  Internet is still not known. By the user's decision, the runner, the
+  tool and the Settings page were not built.
+- To measure it, the control has to work first: a destination this
+  machine can reach over HTTPS, or the same eight requests from a machine
+  or network where the control passes. That is the user's choice.

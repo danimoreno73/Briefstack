@@ -358,6 +358,15 @@ adds:
   (`network={enabled=false}` in a profile, `--sandbox-state-disable-network`).
 - *Node in `elevated`:* it runs when Node is outside the user's profile.
 
+**Step 21 (2026-11-07, no model call; decisions.md, "Phase 8: step 21").**
+The Internet control was a gate for building the runner and the tool. It
+failed **outside** the sandbox: from this machine, a TLS connection to
+`example.com` is reset during the handshake (PowerShell and `curl.exe`
+alike). So step 20's failed GET says nothing about the sandbox, whether
+`elevated` keeps Codex off the Internet is still unknown, and nothing of
+the runner, the tool or Settings was built. Next: a control that works
+(another destination or another network), on the user's authorisation.
+
 ## 6. Unattended runs that reach the user
 
 Goal (user): define a project fully up front, leave Claude working
