@@ -5832,3 +5832,100 @@ briefstack works with to the new place; it is a dry run unless `--apply`.
   any `briefstack paths …`, a prefix that `paths rewrite --apply` also
   matches; `NEVER_SUBCOMMANDS` now denies it under every allowed prefix,
   in the callback and in the command hook.
+
+## Phase 8: Codex spike (2026-11-07, Codex CLI 0.167.0, Windows 11)
+
+Step 19 of the Codex work (IDEAS.md §5 (c)): measure on the user's machine
+what the Codex brief leaves unverified, before any product code. Nothing
+in `src/` changed. Script: `scripts/real/probe-codex.ts`. On the user's
+authorisation for this step: their own ChatGPT login, at most 10 `codex
+exec` calls, only in throwaway repositories under
+`$BRIEFSTACK_REAL_WORKDIR/codex-spike/`, always `--sandbox
+workspace-write`, `config.toml` never written, `auth.json` never read.
+
+**Runs.** One full run (`run-2026-11-07T22-09-17-943Z`, 9 `codex exec`
+calls) and two `--sandbox-only` runs (`run-2026-11-07T22-13-05-346Z`,
+`run-2026-11-07T22-14-03-571Z`: no model call, they added the Node and
+the read checks). The raw outputs stay outside the repo, in each run's
+`out/` folder; the files named below are there.
+
+Every call was `codex exec --json --sandbox workspace-write --ephemeral
+-c approval_policy="never" -c windows.sandbox="<mode>" -C <worktree> -o
+<file> -`, with the prompt on stdin, from Node with no shell, and an
+environment without our credentials (every name with TOKEN, SECRET, KEY,
+PASSWORD or CREDENTIAL, and every `ANTHROPIC_*`, `CLAUDE*`,
+`BRIEFSTACK_*`, `GH_*`, `GITHUB_*` and `CODEX_HOME` left out). On Windows
+the npm launcher `codex.cmd` needs a shell, so the script runs
+`node <npm prefix>/node_modules/@openai/codex/bin/codex.js`. Each case has
+its own repository, a worktree on a `briefstack/task-*` branch outside the
+repository folder (as a task's), and an `outside` folder next to both.
+
+"S" below is `codex sandbox -c windows.sandbox="<mode>" -P :workspace -C
+<worktree> -- <command>`: the same sandbox without the model, so it costs
+no plan usage. `:workspace` is a built-in permission profile (with
+`:read-only` and `:danger-full-access`, seen in the binary's strings).
+
+### Measured
+
+| | What | Result | Output |
+|---|---|---|---|
+| a | `codex --version` | `codex-cli 0.167.0`, stdout, exit 0, ~90 ms | `a-version.*` |
+| a | `codex login status` | `Logged in using ChatGPT` on **stderr**, stdout empty, exit 0 | `a-login-status.*` |
+| a | same, `CODEX_HOME` an empty folder | `Not logged in` on stderr, exit 1; Codex created `tmp/` in that folder | `a-login-status-empty-home.*` |
+| S | who runs a command | `elevated`: `<machine>\codexsandboxoffline`; `unelevated`: the user, with a restricted token | `s-*-whoami.*` |
+| S | writes | inside the worktree: written. Outside it, in the worktree's git folder (`.git/worktrees/work`), in the repository's `.git` and in `.git/refs/heads`: access denied. Both modes | `s-*-writes.*` |
+| S | `git commit`, `git tag` in the worktree | exit 128: `Unable to create '…/.git/worktrees/work/index.lock': Permission denied`; `cannot lock ref 'refs/tags/…'`. Refs unchanged. Both modes | `s-*-git-*`, `S-summary.json` |
+| S | read a file outside the worktree | read. Both modes | run 3, `s-*-read-outside.*` |
+| S | `node --version` (Node from nvm-windows, a link into the user's `%LOCALAPPDATA%`) | `elevated`: by name `CreateProcessAsUserW failed: 2`, by full path `failed: 5 (access denied)`. `unelevated`: `v24.18.0` both ways | runs 2 and 3, `s-*-node-*` |
+| S, e | a request to a server on 127.0.0.1 | **reached**, HTTP 200, in both modes, with and without the model | `server-hits.json` |
+| b | create one file (`elevated`) | exit 0, file written, 8.6 s, first event at 1.2 s (later calls: 0.25–0.32 s) | `b-basic.*` |
+| c | write outside the worktree | the file tool: `patch rejected: writing outside of the project; rejected by user approval settings.`; then the shell: access denied, exit 1; no file. Both modes | `c-outside-*.*` |
+| d | in the worktree: write, `git add`, `git commit`, `git tag`, a write in each git folder (`elevated`) | the write passed; `git add` and `git commit` exit 1 (`index.lock`: permission denied), `git tag` exit 1 (`cannot lock ref`), both writes denied. Refs, log and both git folders unchanged | `d-git.*`, `exec-summary.json` |
+| f | b in `…\task folder\work tree` and in a 186-character path | exit 0, file written, both | `f-spaces.*`, `f-long.*` |
+| g | the mode per call | `-c windows.sandbox="elevated"` / `"unelevated"` takes effect per call (S and c report different users); `config.toml` not touched. `elevated` was already set up on this machine (local accounts `CodexSandboxOffline`, `CodexSandboxOnline`, group `CodexSandboxUsers`); no admin prompt appeared | `c-outside-*`, `s-*-whoami.*` |
+| h | `killProcessTree` (`taskkill /T /F` on the launcher) while a PowerShell loop wrote a heartbeat as the sandbox user | the heartbeat stopped at the kill (4, still 4 after 5 s and 10 s); exit 1; no `turn.completed`, so no usage; no process names the worktree; `git status` works, no lock left | `h-kill.*`, `exec-summary.json` |
+
+**The JSONL (b).** Event types: `thread.started` (`thread_id`),
+`turn.started`, `item.started` and `item.completed` (each with an `item`
+of type `command_execution` — `command`, `aggregated_output`,
+`exit_code`, `status` — or `agent_message` — `text`), `turn.completed`
+(`usage`: `input_tokens`, `cached_input_tokens`,
+`cache_write_input_tokens`, `output_tokens`, `reasoning_output_tokens`).
+stderr was empty in every call. `-o` holds the final message (the last
+`agent_message`). The model's name is in no event. In every case Codex
+wrote files with PowerShell (`Set-Content`), not with its file tool, so
+no `file_change` item appeared; the file tool's refusal in c reached us
+only in the model's final message, not as an event.
+
+**Budget.** 9 of the 10 calls. Tokens per call (input / cached / output
+/ reasoning): b 32 241 / 28 160 / 97 / 0; c elevated 65 787 / 60 800 /
+324 / 17; e elevated 32 491 / 28 160 / 252 / 0; c unelevated 120 384 /
+105 472 / 527 / 69; e unelevated 32 552 / 28 288 / 231 / 0; d 118 501 /
+112 000 / 816 / 46; f spaces 32 237 / 28 160 / 61 / 0; f long 32 711 /
+28 416 / 71 / 0; h none reported (killed). Total 466 904 input (419 456
+cached), 2 379 output, 132 reasoning. A one-step task costs about 32 000
+input tokens, most of them cached.
+
+**Not processes of the probe.** h listed new `bash`, `conhost` and
+`powershell` processes after the kill: by their command lines they were
+the operator's own Claude Code shells and the probe's own process
+listing, not Codex. The `codex.exe app-server` and
+`codex-windows-sandbox-service.exe` running on the machine were started
+hours before the probe (the Codex desktop app and its service).
+
+### Not measured
+
+- Traffic to the Internet from the sandbox (the step forbids it). Only
+  127.0.0.1 was tried.
+- Reading the user's profile from the sandbox. In `unelevated` the
+  command runs as the user, so it can presumably read what the user
+  reads (`~/.claude`, `~/.codex`, the briefstack home): **inferred, not
+  tried.** In `elevated` the sandbox account could not open Node in
+  `%LOCALAPPDATA%`, which suggests the profile is closed to it:
+  **inferred.**
+- What `codex sandbox` or `codex exec` do with `elevated` on a machine
+  where it is not set up yet (here it already was).
+- A `file_change` item: Codex used the shell every time.
+- The `mxc` mode: only seen in the binary's strings (`windows.sandbox =
+  "mxc" is not allowed when windows.allow_mxc = false`); not tried.
+- macOS and Linux.

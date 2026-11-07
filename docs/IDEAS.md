@@ -302,6 +302,39 @@ in its own sandbox limited to the task's worktree, and the diff, the
 declared checks and the user's approval are the control. Auth with the
 user's own Codex login; usage goes to the user's OpenAI quota.
 
+**What the spike measured (step 19, 2026-11-07, Codex CLI 0.167.0,
+Windows only; decisions.md, "Phase 8: Codex spike").** Against what (c)
+and the Codex brief assume:
+
+- *Assumed: the sandbox is limited to the worktree.* Measured: for
+  **writes**, yes, in both Windows modes: outside the worktree, Codex's
+  file tool and the shell are both refused. For **reads**, no: a file
+  outside the worktree was read in both modes.
+- *Assumed (open): the worktree's `.git`, which lives outside it, may not
+  be protected.* Measured: it is. Codex cannot write in the worktree's
+  git folder or the repository's, so `git add`, `git commit` and `git
+  tag` all fail and no ref moves. The history and the refs outside the
+  task's files stay ours; the diff has to come from the worktree's
+  files, which is what tasks already do.
+- *Assumed: the network is blocked inside, and `unelevated` blocks it
+  less.* Measured: a server on 127.0.0.1 is **reached in both modes**.
+  The Internet was not tried. briefstack's own server keeps its token in
+  memory and in the opened address only, so reaching it is not enough to
+  use its API; other local services are open to Codex.
+- *Not foreseen:* in `elevated`, the sandbox account cannot run a Node
+  installed in the user's profile (nvm-windows), so Codex could not run
+  the project's `npm` checks there; in `unelevated` it can.
+- *Confirmed:* the ChatGPT login works headless in `codex exec`; `codex
+  login status` answers on stderr (exit 0 signed in, 1 with `Not logged
+  in`); the mode can be set per call with `-c windows.sandbox=...`
+  without touching `config.toml`; paths with spaces and of 186
+  characters work; killing the tree stops the running command and leaves
+  the worktree usable; `turn.completed` carries the usage, absent when a
+  call is killed; a one-step call costs about 32 000 input tokens, mostly
+  cached.
+- `codex sandbox -P :workspace -- <command>` runs a command in the same
+  sandbox with no model call: a cheap way to tell which mode is ready.
+
 ## 6. Unattended runs that reach the user
 
 Goal (user): define a project fully up front, leave Claude working
