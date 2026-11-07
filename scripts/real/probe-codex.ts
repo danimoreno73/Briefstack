@@ -9,6 +9,8 @@
 // With `--harden` it runs a, S and H (step 20) and stops: no `codex exec` call either,
 // but one GET to https://example.com/ per Windows mode, and a harmless file planted in
 // a new folder of the user's profile (`briefstack-probe-plant`), removed at the end.
+// With `--internet` (Windows) it runs a, S and I (step 21) and stops: no `codex exec` call, at
+// most eight GETs to https://example.com/ (two outside the sandbox, three per mode inside).
 //
 // Everything happens in throwaway git repositories under
 // `$BRIEFSTACK_REAL_WORKDIR/codex-spike/run-<time>/`, which is kept (the raw
@@ -313,6 +315,74 @@ try {
     throw new CheckStop(2, 'The elevated Windows sandbox did not run a command (see out/s-elevated-whoami.*). Run `codex` once in a terminal to finish its setup, then run this again.');
   }
   if (process.argv.includes('--sandbox-only')) throw new CheckStop(0, '--sandbox-only: a and S done; no codex exec call made.');
+
+  // ---- I. Internet control, step 21: no model call ---------------------------------------------
+  // At most eight GETs to https://example.com/ (the user's authorisation), each tried once: two
+  // outside the sandbox (PowerShell and curl.exe), to show the method works on this machine, then
+  // three per Windows mode inside it: PowerShell, curl.exe, and curl.exe told to ignore the proxy
+  // variables. If a control outside fails, nothing is sent from inside.
+  if (process.argv.includes('--internet')) {
+    if (!WINDOWS) throw new CheckStop(2, '--internet measures the two Windows sandbox modes; it runs on Windows only.');
+    const systemRoot = process.env.SystemRoot;
+    if (systemRoot === undefined || systemRoot === '') throw new CheckStop(2, 'SystemRoot is not set, so curl.exe cannot be found.');
+    const MAX_GETS = 8;
+    const url = 'https://example.com/';
+    const curl = path.join(systemRoot, 'System32', 'curl.exe');
+    let gets = 0;
+    const measured: Record<string, unknown> = {};
+    const psGet = [
+      'powershell.exe',
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      [
+        `$p = Get-ChildItem env: | Where-Object { $_.Name -match 'proxy' } | ForEach-Object { "$($_.Name)=$($_.Value)" }`,
+        `"PROXY VARIABLES: $($p -join '; ')"`,
+        `try { $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 10 -Uri '${url}'; "HTTP $($r.StatusCode), $($r.Content.Length) characters" } catch { "NETERR $($_.Exception.Message)" }`,
+      ].join('; '),
+    ];
+    // `-v` writes to stderr whether a proxy was used and which address was tried.
+    const curlGet = (noProxy: boolean) => [curl, '-sS', '-v', '--max-time', '10', ...(noProxy ? ['--noproxy', '*'] : []), '-o', 'NUL', '-w', 'HTTP %{http_code}, %{size_download} bytes, remote %{remote_ip}', url];
+    /** One GET, counted against the cap; reached = an HTTP status printed on stdout. */
+    const get = async (label: string, command: string[], c?: Case, mode?: string) => {
+      if (gets >= MAX_GETS) throw new CheckStop(1, `The cap of ${MAX_GETS} requests to ${url} is reached; ${label} was not run.`);
+      gets += 1;
+      const [file = '', ...rest] = command;
+      const args = c === undefined ? command : ['sandbox', '-c', `windows.sandbox="${mode}"`, '-P', ':workspace', '-C', c.worktree, '--', ...command];
+      const ran = c === undefined ? await runFile(file, rest, { cwd: run, env: baseEnv }) : await codexRun(args, { cwd: c.worktree });
+      await saveRan(`i-${label}`, args, ran);
+      const reachedInternet = /\bHTTP [1-9]\d\d\b/.test(ran.stdout);
+      measured[label] = { args, code: ran.code, ms: ran.ms, reached: reachedInternet, stdout: ran.stdout.trim(), stderr: ran.stderr.trim() };
+      console.log(`I ${label} [${gets}/${MAX_GETS}]: exit ${ran.code}; reached ${reachedInternet}: ${ran.stdout.trim().slice(0, 400)}`);
+      return reachedInternet;
+    };
+    const outsidePs = await get('outside-powershell', psGet);
+    const outsideCurl = await get('outside-curl', curlGet(false));
+    ok = report('I: PowerShell reaches the Internet outside the sandbox', outsidePs, '') && ok;
+    ok = report('I: curl.exe reaches the Internet outside the sandbox', outsideCurl, '') && ok;
+    if (!outsidePs || !outsideCurl) {
+      await save('I-summary.json', `${JSON.stringify({ gets, measured, gate: 'no control' }, null, 2)}\n`);
+      throw new CheckStop(1, `--internet: a control outside the sandbox failed, so nothing was sent from inside (${gets} of ${MAX_GETS} requests).`);
+    }
+    const reachedBy: Record<string, string[]> = {};
+    for (const mode of MODES.filter((entry): entry is string => entry !== undefined && available.includes(entry))) {
+      const c = await makeCase(`i-${mode}`);
+      const reachedHere: string[] = [];
+      for (const [name, command] of [
+        ['powershell', psGet],
+        ['curl', curlGet(false)],
+        ['curl-noproxy', curlGet(true)],
+      ] as const) {
+        if (await get(`${mode}-${name}`, [...command], c, mode)) reachedHere.push(name);
+      }
+      reachedBy[mode] = reachedHere;
+      report(`I ${mode}: no request reached the Internet`, reachedHere.length === 0, reachedHere.join(', ') || 'none');
+    }
+    const gate = (reachedBy.elevated ?? ['not measured']).length === 0 ? 'open: elevated did not reach the Internet' : 'closed: elevated reached the Internet or was not measured';
+    await save('I-summary.json', `${JSON.stringify({ gets, max: MAX_GETS, reachedBy, gate, measured }, null, 2)}\n`);
+    console.log(`I: ${gets} of ${MAX_GETS} requests. Gate ${gate}.`);
+    throw new CheckStop(ok ? 0 : 1, '--internet: I done; no codex exec call made.');
+  }
 
   // ---- H. Hardening, step 20: no model call ---------------------------------------------------
   // One GET to https://example.com/ per mode (the only Internet traffic, on the user's

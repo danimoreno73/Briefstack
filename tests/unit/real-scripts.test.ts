@@ -330,6 +330,20 @@ describe('Codex spike: prepared, guarded, and kept to throwaway repositories', (
     expect(script).toContain('if (existsSync(plantDir)) throw new CheckStop(2,');
     expect(script).toContain('check.add(removePlant);');
   });
+
+  it('--internet: no model call, at most eight GETs to example.com, and nothing from inside if a control outside fails', async () => {
+    const script = await read();
+    const internet = script.slice(script.indexOf("process.argv.includes('--internet')"));
+    const block = internet.slice(0, internet.indexOf("throw new CheckStop(ok ? 0 : 1, '--internet"));
+    expect(block).not.toContain('exec(');
+    expect(block).toContain('const MAX_GETS = 8;');
+    expect(block).toContain('if (gets >= MAX_GETS)');
+    expect(block).toContain("const url = 'https://example.com/';");
+    expect(block).toContain("['--noproxy', '*']");
+    // The controls run first, and a failed one stops before any request from inside.
+    expect(block.indexOf('if (!outsidePs || !outsideCurl)')).toBeGreaterThan(-1);
+    expect(block.indexOf('if (!outsidePs || !outsideCurl)')).toBeLessThan(block.indexOf('await makeCase(`i-${mode}`)'));
+  });
 });
 
 describe('phase 5 real checks: prepared, guarded, and kept off real data', () => {
