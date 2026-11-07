@@ -320,6 +320,16 @@ describe('Codex spike: prepared, guarded, and kept to throwaway repositories', (
     expect(script).toContain('/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i');
     expect(script).toContain('await killProcessTree(pid)');
   });
+
+  it('--harden: no model call, example.com as the only outside address, and the planted folder new and removed', async () => {
+    const script = await read();
+    const harden = script.slice(script.indexOf("process.argv.includes('--harden')"));
+    expect(harden.slice(0, harden.indexOf("throw new CheckStop(ok ? 0 : 1, '--harden"))).not.toContain('exec(');
+    expect([...new Set(script.match(/https:\/\/[^\s'"`)]+/g))]).toEqual(['https://example.com/']);
+    expect(script).toContain("path.join(os.homedir(), 'briefstack-probe-plant')");
+    expect(script).toContain('if (existsSync(plantDir)) throw new CheckStop(2,');
+    expect(script).toContain('check.add(removePlant);');
+  });
 });
 
 describe('phase 5 real checks: prepared, guarded, and kept off real data', () => {

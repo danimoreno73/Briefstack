@@ -6,6 +6,9 @@
 //   npx tsx scripts/real/probe-codex.ts --yes
 //
 // With `--sandbox-only` it stops after a and S: no `codex exec` call, no plan usage.
+// With `--harden` it runs a, S and H (step 20) and stops: no `codex exec` call either,
+// but one GET to https://example.com/ per Windows mode, and a harmless file planted in
+// a new folder of the user's profile (`briefstack-probe-plant`), removed at the end.
 //
 // Everything happens in throwaway git repositories under
 // `$BRIEFSTACK_REAL_WORKDIR/codex-spike/run-<time>/`, which is kept (the raw
@@ -33,9 +36,10 @@
 
 import { execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import { isFullyAbsolute, systemPathEnv } from '../../src/config/index.js';
 import { killProcessTree } from '../../src/creation/processTree.js';
@@ -309,6 +313,127 @@ try {
     throw new CheckStop(2, 'The elevated Windows sandbox did not run a command (see out/s-elevated-whoami.*). Run `codex` once in a terminal to finish its setup, then run this again.');
   }
   if (process.argv.includes('--sandbox-only')) throw new CheckStop(0, '--sandbox-only: a and S done; no codex exec call made.');
+
+  // ---- H. Hardening, step 20: no model call ---------------------------------------------------
+  // One GET to https://example.com/ per mode (the only Internet traffic, on the user's
+  // authorisation), a harmless file planted in a new folder of the user's profile and removed
+  // at the end, and permission profiles defined per call with `-c permissions.<name>={...}`
+  // and chosen with `-P <name>`: can they close reads or the network?
+  if (process.argv.includes('--harden')) {
+    const hardened: Record<string, unknown> = {};
+    const boxed = async (label: string, c: Case, mode: string | undefined, profile: string[], command: string[]) => {
+      const args = ['sandbox', ...(mode === undefined ? [] : ['-c', `windows.sandbox="${mode}"`]), ...profile, '-C', c.worktree, '--', ...command];
+      const ran = await codexRun(args, { cwd: c.worktree });
+      await saveRan(`h-${label}`, args, ran);
+      const output = (ran.stdout + ran.stderr).trim();
+      hardened[label] = { args, code: ran.code, ms: ran.ms, output };
+      console.log(`H ${label}: exit ${ran.code}: ${output.slice(0, 400)}`);
+      return { code: ran.code, output };
+    };
+    const ps = (script: string) => ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script];
+    const readCmd = (file: string) => ps(`try { "READ $(Get-Content -LiteralPath '${file}' -ErrorAction Stop)" } catch { "DENIED read: $($_.Exception.Message)" }`);
+    const writeCmd = (file: string) => ps(`try { Set-Content -LiteralPath '${file}' -Value probe -ErrorAction Stop; 'WROTE' } catch { "DENIED write: $($_.Exception.Message)" }`);
+    const loopbackCmd = (label: string) =>
+      ps(`try { $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 -Uri '${urlFor(label)}'; "HTTP $($r.StatusCode)" } catch { "NETERR $($_.Exception.Message)" }`);
+    const internetCmd = ps(
+      [
+        `$p = Get-ChildItem env: | Where-Object { $_.Name -match 'proxy' } | ForEach-Object { "$($_.Name)=$($_.Value)" }`,
+        `"PROXY VARIABLES: $($p -join '; ')"`,
+        `try { $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 10 -Uri 'https://example.com/'; "HTTP $($r.StatusCode), $($r.Content.Length) characters" } catch { "NETERR $($_.Exception.Message)" }`,
+      ].join('; '),
+    );
+    console.log(`H: proxy variables in this process: ${Object.keys(process.env).filter((name) => /proxy/i.test(name)).join(', ') || 'none'}`);
+
+    // The planted file: a new folder of the user's profile, never one that already exists.
+    const plantDir = path.join(os.homedir(), 'briefstack-probe-plant');
+    const plantFile = path.join(plantDir, 'briefstack-probe-plant.txt');
+    if (existsSync(plantDir)) throw new CheckStop(2, `${plantDir} already exists; it is not ours, so nothing was planted.`);
+    await mkdir(plantDir);
+    const removePlant = async () => {
+      await rm(plantDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+      return !existsSync(plantDir);
+    };
+    check.add(removePlant);
+    await writeFile(plantFile, 'briefstack probe plant: fixed harmless text\n', 'utf8');
+
+    // Profiles defined per call. `minimal`: only the system's minimal reads and the worktree;
+    // `deny`: the workspace profile with the planted folder and the case's outside folder denied;
+    // `nonet`: the workspace profile with the network off. Each one with the network off.
+    const profiles = (c: Case): Record<string, string[]> => ({
+      minimal: ['-c', 'permissions.bs_minimal={filesystem={":minimal"="read", ":workspace_roots"={"."="write"}}, network={enabled=false}}', '-P', 'bs_minimal'],
+      deny: ['-c', `permissions.bs_deny={extends=":workspace", filesystem={'${plantDir}'="deny", '${c.outside}'="deny"}, network={enabled=false}}`, '-P', 'bs_deny'],
+      nonet: ['-c', 'permissions.bs_nonet={extends=":workspace", network={enabled=false}}', '-P', 'bs_nonet'],
+    });
+    const workspace = ['-P', ':workspace'];
+
+    for (const mode of MODES.filter((entry) => entry === undefined || available.includes(entry))) {
+      const tag = mode ?? 'default';
+      const c = await makeCase(`h-${tag}`);
+      const outsideFile = path.join(c.outside, 'planted-outside.txt');
+      await writeFile(outsideFile, `planted-outside-${tag}\n`, 'utf8');
+      // 1. Internet, once per mode.
+      await boxed(`${tag}-internet`, c, mode, workspace, internetCmd);
+      // 2. The planted file in the profile, with the workspace profile.
+      await boxed(`${tag}-workspace-read-plant`, c, mode, workspace, readCmd(plantFile));
+      // 3. The profiles: read the plant, read outside, reach 127.0.0.1, write inside.
+      for (const [name, args] of Object.entries(profiles(c))) {
+        await boxed(`${tag}-${name}-read-plant`, c, mode, args, readCmd(plantFile));
+        await boxed(`${tag}-${name}-read-outside`, c, mode, args, readCmd(outsideFile));
+        await boxed(`${tag}-${name}-loopback`, c, mode, args, loopbackCmd(`h-${tag}-${name}`));
+        await boxed(`${tag}-${name}-write-inside`, c, mode, args, writeCmd(path.join(c.worktree, `h-${name}.txt`)));
+      }
+      await boxed(`${tag}-state-disable-network`, c, mode, [...workspace, '--sandbox-state-disable-network'], loopbackCmd(`h-${tag}-state`));
+      // 5a. git add and commit in the worktree.
+      await writeFile(path.join(c.worktree, 'g.txt'), 'g\n', 'utf8');
+      await boxed(`${tag}-git-add`, c, mode, workspace, ['git', 'add', 'g.txt']);
+      await boxed(`${tag}-git-commit`, c, mode, workspace, ['git', 'commit', '-m', 'h commit']);
+      hardened[`${tag}-refs-after`] = await git(c.repo, ['for-each-ref', '--format=%(refname) %(objectname:short)']);
+    }
+    for (const mode of MODES.filter((entry) => entry !== undefined && available.includes(entry))) {
+      for (const name of ['minimal', 'deny', 'nonet']) {
+        hardened[`${mode}-${name}-loopback-reached`] = reached(`h-${mode}-${name}`);
+      }
+      hardened[`${mode}-state-loopback-reached`] = reached(`h-${mode}-state`);
+    }
+
+    if (WINDOWS) {
+      // 4. A Node outside the user's profile: a copy of this one in the run folder.
+      const nodeCase = await makeCase('h-node');
+      const nodeCopy = path.join(run, 'node-copy', 'node.exe');
+      await mkdir(path.dirname(nodeCopy), { recursive: true });
+      await copyFile(process.execPath, nodeCopy);
+      await boxed('elevated-node-copy', nodeCase, 'elevated', workspace, [nodeCopy, '--version']);
+      // 5b. Does an elevated command, with the setup already done, start the setup again?
+      const users = () =>
+        runFile('powershell.exe', [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          "Get-LocalUser | Where-Object { $_.Name -like 'CodexSandbox*' } | ForEach-Object { \"$($_.Name) enabled=$($_.Enabled) passwordLastSet=$($_.PasswordLastSet)\" }",
+        ]);
+      const usersBefore = (await users()).stdout.trim();
+      const watch = runFile(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', "1..40 | ForEach-Object { Get-Process | Where-Object { $_.ProcessName -like 'codex*' } | ForEach-Object { \"$($_.Id) $($_.ProcessName)\" }; Start-Sleep -Milliseconds 250 }"],
+        { ms: 120_000 },
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await boxed('elevated-setup-check', nodeCase, 'elevated', workspace, ['whoami']);
+      const seen = [...new Set((await watch).stdout.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== ''))].sort();
+      const usersAfter = (await users()).stdout.trim();
+      hardened['elevated-setup-processes-seen'] = seen;
+      hardened['elevated-setup-users'] = { before: usersBefore, after: usersAfter, same: usersBefore === usersAfter };
+      console.log(`H elevated setup: codex processes seen during the call: ${seen.join(', ') || 'none'}`);
+      console.log(`H elevated setup: sandbox users unchanged: ${usersBefore === usersAfter}\n${usersAfter}`);
+    }
+
+    const removed = await removePlant();
+    hardened.plantRemoved = removed;
+    hardened.serverHits = hits;
+    await save('H-summary.json', `${JSON.stringify(hardened, null, 2)}\n`);
+    ok = report('H: the planted file and its folder are gone', removed, plantDir) && ok;
+    throw new CheckStop(ok ? 0 : 1, '--harden: H done; no codex exec call made.');
+  }
 
   // ---- codex exec ------------------------------------------------------------------------------
   let calls = 0;
