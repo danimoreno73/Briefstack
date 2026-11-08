@@ -366,6 +366,31 @@ describe('Codex spike: prepared, guarded, and kept to throwaway repositories', (
     expect(block.indexOf('if (!outsidePlain || !outsideFetch)')).toBeGreaterThan(-1);
     expect(block.indexOf('if (!outsidePlain || !outsideFetch)')).toBeLessThan(block.indexOf('await makeCase(`n-${mode}`)'));
   });
+
+  it('--net-exec: the firewall only read, at most four calls and twelve operations, registry.npmjs.org as the only host', async () => {
+    const script = await read();
+    const start = script.indexOf("process.argv.includes('--net-exec')");
+    expect(start).toBeGreaterThan(-1);
+    const block = script.slice(start, script.indexOf("throw new CheckStop(ok ? 0 : 1, `--net-exec", start));
+    expect(block).toContain('const MAX_NET_CALLS = 4;');
+    expect(block).toContain('if (calls >= MAX_NET_CALLS)');
+    expect(block).toContain('const MAX_NET_OPS = 12;');
+    expect(block).toContain('if (ops + 3 > MAX_NET_OPS)');
+    // Every address and host named in the block is the npm registry.
+    expect([...new Set(block.match(/https?:\/\/[^\s'"`/)]+/g))].sort()).toEqual(['http://registry.npmjs.org', 'https://registry.npmjs.org']);
+    expect(block).toContain("const host = 'registry.npmjs.org';");
+    expect(block).not.toContain('example.com');
+    // The firewall is read with Get-* cmdlets only: nothing that creates, changes or removes a rule.
+    expect(block).toContain('Get-NetFirewallRule -PolicyStore ActiveStore');
+    expect(block).not.toMatch(/(New|Set|Remove|Enable|Disable|Copy|Rename)-NetFirewall|netsh|-Verb\s+RunAs/i);
+    // The calls go through exec(), always workspace-write; the only setting added is the network one.
+    expect(block).toContain("const noNetwork = ['-c', 'sandbox_workspace_write.network_access=false'];");
+    expect(block).toContain('await exec(`x-${combo.label}`, c, combo.mode, netExecPrompt, undefined, combo.config)');
+    // No data on the bare TCP connection, no redirect followed by fetch, and extra network commands stop the run.
+    expect(block).not.toMatch(/GetStream|\.Send\(/);
+    expect(block).toContain("redirect: 'manual'");
+    expect(block).toContain("ran.some((entry) => entry.kind === 'other-network')");
+  });
 });
 
 describe('phase 5 real checks: prepared, guarded, and kept off real data', () => {

@@ -16,6 +16,11 @@
 // With `--net` (Windows) it runs a, S and N (step 21, attempt 3) and stops: no `codex exec` call,
 // at most eight operations against registry.npmjs.org (a bare TCP connection, plain HTTP, and
 // Node's own TLS), two outside the sandbox and three per mode inside.
+// With `--net-exec` (Windows) it runs a, S and X (step 22) and stops: it reads, never changes, the
+// Windows firewall rules that name Codex, then makes at most four `codex exec` calls (each Windows
+// mode, with the product's default policy and with `sandbox_workspace_write.network_access=false`),
+// each asking Codex to run the three operations of `--net` once: at most twelve operations, all
+// against registry.npmjs.org.
 //
 // Everything happens in throwaway git repositories under
 // `$BRIEFSTACK_REAL_WORKDIR/codex-spike/run-<time>/`, which is kept (the raw
@@ -609,7 +614,14 @@ try {
    * One `codex exec` call with the prompt on stdin. `whileRunning` gets the
    * child once it has started and may kill it; the deadline kills its tree.
    */
-  const exec = async (label: string, c: Case, mode: string | undefined, prompt: string, whileRunning?: (pid: number, events: Record<string, unknown>[]) => Promise<void>): Promise<Exec> => {
+  const exec = async (
+    label: string,
+    c: Case,
+    mode: string | undefined,
+    prompt: string,
+    whileRunning?: (pid: number, events: Record<string, unknown>[]) => Promise<void>,
+    config: string[] = [],
+  ): Promise<Exec> => {
     if (calls >= MAX_CALLS) throw new CheckStop(1, `The cap of ${MAX_CALLS} codex exec calls is reached; ${label} was not run.`);
     calls += 1;
     const lastFile = path.join(out, `${label}.last.txt`);
@@ -622,6 +634,7 @@ try {
       '-c',
       'approval_policy="never"',
       ...(mode === undefined ? [] : ['-c', `windows.sandbox="${mode}"`]),
+      ...config,
       '-C',
       c.worktree,
       '-o',
@@ -714,6 +727,167 @@ try {
     results[label] = { worktree: c.worktree, code: result.code, ms: result.ms, firstEventMs: result.firstEventMs, types: result.types, itemTypes: result.itemTypes, usage: result.usage, finalMessage: result.finalMessage, commands: commands(result), state: await stateOf(c), ...extra };
     await save('exec-summary.json', `${JSON.stringify({ calls, results }, null, 2)}\n`);
   };
+
+  // ---- X. codex exec and the network, step 22 --------------------------------------------------
+  // On the user's authorisation: the Windows firewall rules whose name, group or description name
+  // Codex are read (never created, changed or removed; no administrator), then at most four
+  // `codex exec` calls, each asking Codex to run, once, the three operations of `--net` against
+  // registry.npmjs.org: at most twelve operations. Each Windows mode is tried with the product's
+  // default policy and with `sandbox_workspace_write.network_access=false`. A combination that
+  // closes all three (the TCP connection refused or timed out, not a TLS error after it opened)
+  // is then checked with the sandbox alone, no model: it must still write in the worktree and not
+  // in the git folders.
+  if (process.argv.includes('--net-exec')) {
+    if (!WINDOWS) throw new CheckStop(2, '--net-exec measures the two Windows sandbox modes; it runs on Windows only.');
+    const systemRoot = process.env.SystemRoot;
+    if (systemRoot === undefined || systemRoot === '') throw new CheckStop(2, 'SystemRoot is not set, so curl.exe cannot be found.');
+    const MAX_NET_CALLS = 4;
+    const MAX_NET_OPS = 12;
+    const host = 'registry.npmjs.org';
+    const curl = path.join(systemRoot, 'System32', 'curl.exe');
+
+    // F. The firewall, read only: Get-* cmdlets and nothing else.
+    const firewallScript = [
+      "$ErrorActionPreference = 'Stop'",
+      "$match = { \"$($_.Name) $($_.DisplayName) $($_.Group) $($_.Description)\" -match 'codex' }",
+      'try {',
+      '  $persistent = @(Get-NetFirewallRule | Where-Object -FilterScript $match | ForEach-Object { $_.DisplayName })',
+      '  $active = @(Get-NetFirewallRule -PolicyStore ActiveStore | Where-Object -FilterScript $match | ForEach-Object {',
+      '    $sec = $_ | Get-NetFirewallSecurityFilter; $app = $_ | Get-NetFirewallApplicationFilter',
+      '    $adr = $_ | Get-NetFirewallAddressFilter; $prt = $_ | Get-NetFirewallPortFilter',
+      '    [pscustomobject]@{ name = $_.Name; displayName = $_.DisplayName; group = $_.Group; description = $_.Description;',
+      '      enabled = "$($_.Enabled)"; direction = "$($_.Direction)"; action = "$($_.Action)"; profile = "$($_.Profile)";',
+      '      primaryStatus = "$($_.PrimaryStatus)"; enforcementStatus = "$($_.EnforcementStatus)"; enforcementStatusCodes = @($_.EnforcementStatus | ForEach-Object { [int]$_ });',
+      '      localUser = "$($sec.LocalUser)"; program = "$($app.Program)"; package = "$($app.Package)";',
+      '      remoteAddress = "$($adr.RemoteAddress)"; protocol = "$($prt.Protocol)"; remotePort = "$($prt.RemotePort)" } })',
+      "  $users = @(Get-LocalUser | Where-Object { $_.Name -like 'CodexSandbox*' } | ForEach-Object { [pscustomobject]@{ name = $_.Name; sid = \"$($_.SID)\" } })",
+      '  [pscustomobject]@{ persistentStore = $persistent; activeStore = $active; sandboxUsers = $users } | ConvertTo-Json -Depth 5',
+      '} catch { "FWERR $($_.Exception.Message)" }',
+    ].join('\n');
+    const firewall = await runFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', firewallScript], { ms: 120_000 });
+    await save('x-firewall.ps1.txt', firewallScript);
+    await saveRan('x-firewall', ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', '(x-firewall.ps1.txt)'], firewall);
+    interface Rule {
+      displayName: string;
+      enabled: string;
+      direction: string;
+      action: string;
+      profile: string;
+      enforcementStatus: string;
+      enforcementStatusCodes: number[] | number;
+      localUser: string;
+      remoteAddress: string;
+      protocol: string;
+    }
+    let rules: { persistentStore: string[]; activeStore: Rule[]; sandboxUsers: { name: string; sid: string }[] } | undefined;
+    try {
+      rules = JSON.parse(firewall.stdout) as typeof rules;
+    } catch {
+      rules = undefined;
+    }
+    ok = report('X: the firewall rules were read without administrator', rules !== undefined, rules === undefined ? (firewall.stdout + firewall.stderr).trim().slice(0, 400) : `${rules.activeStore.length} rule(s) naming Codex`) && ok;
+    for (const rule of rules?.activeStore ?? []) {
+      const who = (rules?.sandboxUsers ?? []).filter((user) => rule.localUser.includes(user.sid)).map((user) => user.name);
+      console.log(
+        `X firewall: ${rule.displayName}: enabled ${rule.enabled}, ${rule.direction} ${rule.action}, ${rule.protocol}, remote ${rule.remoteAddress}, profile ${rule.profile}, ` +
+          `local user ${who.join(', ') || rule.localUser || 'any'}, enforcement ${rule.enforcementStatus} (${JSON.stringify(rule.enforcementStatusCodes)})`,
+      );
+    }
+
+    // The three operations of `--net`, as PowerShell lines for Codex to run. The Node copy is
+    // outside the user's profile, so `elevated` can run it (step 20).
+    const nodeDir = path.join(run, 'node-copy');
+    const node = path.join(nodeDir, 'node.exe');
+    const fetchFile = path.join(nodeDir, 'bs-fetch.js');
+    await mkdir(nodeDir, { recursive: true });
+    await copyFile(process.execPath, node);
+    const fetchJs = [
+      'const c = new AbortController(); const t = setTimeout(() => c.abort(), 10000);',
+      "fetch('https://registry.npmjs.org/', { signal: c.signal, redirect: 'manual' })",
+      ".then(async (r) => console.log('HTTP ' + r.status + ', ' + (await r.text()).length + ' characters'))",
+      ".catch((e) => console.log('FETCHERR ' + (e.cause?.code ?? e.name) + ': ' + (e.cause?.message ?? e.message)))",
+      '.finally(() => clearTimeout(t));',
+    ].join('\n');
+    await writeFile(fetchFile, `${fetchJs}\n`, 'utf8');
+    const tcpLine = `"USER $([Environment]::UserName)"; $c = New-Object System.Net.Sockets.TcpClient; try { $t = $c.ConnectAsync('${host}', 443); if ($t.Wait(10000) -and $c.Connected) { "TCP CONNECTED $($c.Client.RemoteEndPoint)" } else { 'TCP TIMEOUT' } } catch { "TCPERR $($_.Exception.InnerException.Message) $($_.Exception.Message)" } finally { $c.Close() }`;
+    const httpLine = `& '${curl}' -sS -v --max-time 10 --noproxy '*' -o NUL -w 'HTTP %{http_code}, %{size_download} bytes, remote %{remote_ip}' 'http://registry.npmjs.org/'`;
+    const fetchLine = `& '${node}' '${fetchFile}'`;
+    const netExecPrompt = [
+      'Run exactly these three shell commands, one at a time and in this order, each exactly once, even if one fails.',
+      'Copy each one character for character. Do not retry, do not change them, do not try any other way to reach the network, do not search the web, do not create or change any file, and do not ask for approval.',
+      `1. ${tcpLine}`,
+      `2. ${httpLine}`,
+      `3. ${fetchLine}`,
+      'Then reply with one line per command: its number and its exact output or error.',
+    ].join('\n');
+    const kindOf = (command: string) =>
+      /TcpClient/.test(command) ? 'tcp' : /curl\.exe/i.test(command) ? 'http' : /bs-fetch\.js/.test(command) ? 'fetch' : /https?:|Invoke-WebRequest|Invoke-RestMethod|curl|wget|Net\.Sockets|WebClient|fetch\(/i.test(command) ? 'other-network' : 'other';
+
+    const noNetwork = ['-c', 'sandbox_workspace_write.network_access=false'];
+    const combos = MODES.filter((entry): entry is string => entry !== undefined && available.includes(entry)).flatMap((mode) => [
+      { label: `${mode}-default`, mode, config: [] as string[] },
+      { label: `${mode}-nonet`, mode, config: noNetwork },
+    ]);
+    let ops = 0;
+    const measured: Record<string, unknown> = {};
+    const closing: typeof combos = [];
+    for (const combo of combos) {
+      if (calls >= MAX_NET_CALLS) throw new CheckStop(1, `The cap of ${MAX_NET_CALLS} codex exec calls is reached; ${combo.label} was not run.`);
+      if (ops + 3 > MAX_NET_OPS) throw new CheckStop(1, `The cap of ${MAX_NET_OPS} operations against ${host} would be passed; ${combo.label} was not run.`);
+      const c = await makeCase(`x-${combo.label}`);
+      const result = await exec(`x-${combo.label}`, c, combo.mode, netExecPrompt, undefined, combo.config);
+      const ran = result.events
+        .filter((event) => event.type === 'item.completed')
+        .map((event) => event.item as Record<string, unknown>)
+        .filter((item) => item.type === 'command_execution')
+        .map((item) => ({ kind: kindOf(String(item.command ?? '')), command: String(item.command ?? ''), exit: item.exit_code, output: String(item.aggregated_output ?? '') }));
+      const network = ran.filter((entry) => entry.kind !== 'other');
+      ops += network.length;
+      const first = (kind: string) => ran.find((entry) => entry.kind === kind);
+      const tcp = first('tcp');
+      const http = first('http');
+      const fetched = first('fetch');
+      const reachedTcp = /\bTCP CONNECTED\b/.test(tcp?.output ?? '');
+      const reachedHttp = /\bHTTP [1-9]\d\d\b/.test(http?.output ?? '');
+      const reachedFetch = /\bHTTP [1-9]\d\d\b/.test(fetched?.output ?? '');
+      const httpConnected = /Established connection|Connected to/i.test(http?.output ?? '');
+      const closed = tcp !== undefined && http !== undefined && fetched !== undefined && !reachedTcp && !reachedHttp && !reachedFetch && !httpConnected && /TCPERR|TCP TIMEOUT/.test(tcp.output);
+      const user = /USER (\S+)/.exec(tcp?.output ?? '')?.[1];
+      measured[combo.label] = { mode: combo.mode, config: combo.config, code: result.code, ms: result.ms, usage: result.usage, user, ops: network.length, reached: { tcp: reachedTcp, http: reachedHttp, fetch: reachedFetch }, httpConnected, closed, ran, finalMessage: result.finalMessage };
+      await save('X-summary.json', `${JSON.stringify({ calls, ops, measured }, null, 2)}\n`);
+      ok = report(`X ${combo.label}: codex exec finished`, result.code === 0, `exit ${result.code}`) && ok;
+      report(`X ${combo.label}: the network stayed closed (user ${user ?? '?'})`, closed, `tcp ${reachedTcp ? 'CONNECTED' : 'not'}, http ${reachedHttp ? 'answered' : 'no'}${httpConnected ? ' (connection opened)' : ''}, fetch ${reachedFetch ? 'answered' : 'no'}; ${network.length} operation(s)`);
+      if (network.length > 3 || ran.some((entry) => entry.kind === 'other-network')) {
+        throw new CheckStop(1, `Codex ran more network commands than asked in ${combo.label} (${network.length}); no further call was made.`);
+      }
+      if (closed) closing.push(combo);
+    }
+
+    // A combination that closes the network: does the sandbox alone, with the same settings, still
+    // write in the worktree and not in the git folders? No model call. Whether `codex sandbox` with
+    // these settings equals the policy `codex exec` applied is not measured.
+    const writeChecks: Record<string, unknown> = {};
+    for (const combo of closing) {
+      const c = await makeCase(`xw-${combo.label}`);
+      const sha = await git(c.repo, ['rev-parse', 'HEAD']);
+      const base = ['sandbox', '-c', `windows.sandbox="${combo.mode}"`, '-c', 'sandbox_mode="workspace-write"', ...combo.config, '-C', c.worktree, '--'];
+      const whoami = await codexRun([...base, 'whoami'], { cwd: c.worktree });
+      await saveRan(`xw-${combo.label}-whoami`, [...base, 'whoami'], whoami);
+      const writesArgs = [...base, 'powershell.exe', '-NoProfile', '-NonInteractive', '-Command', writesScript(c, `xw-${combo.label}`, sha)];
+      const writes = await codexRun(writesArgs, { cwd: c.worktree });
+      await saveRan(`xw-${combo.label}-writes`, writesArgs, writes);
+      const text = writes.stdout + writes.stderr;
+      const pass = /WROTE inside/.test(text) && /DENIED worktree-gitdir/.test(text) && /DENIED common-gitdir/.test(text) && /DENIED common-ref/.test(text);
+      writeChecks[combo.label] = { whoami: (whoami.stdout + whoami.stderr).trim(), writes: text.trim(), pass };
+      ok = report(`X ${combo.label}: the sandbox still writes in the worktree and not in the git folders`, pass, text.trim().slice(0, 400)) && ok;
+    }
+
+    await save('X-summary.json', `${JSON.stringify({ calls, maxCalls: MAX_NET_CALLS, ops, maxOps: MAX_NET_OPS, firewall: rules ?? null, measured, closing: closing.map((combo) => combo.label), writeChecks }, null, 2)}\n`);
+    await save('budget.json', `${JSON.stringify({ calls, max: MAX_NET_CALLS, budget }, null, 2)}\n`);
+    console.log(`\nX: ${calls} of ${MAX_NET_CALLS} codex exec calls, ${ops} of ${MAX_NET_OPS} operations.`);
+    for (const entry of budget) console.log(`  ${entry.label}: exit ${entry.code}, ${entry.ms} ms, usage ${JSON.stringify(entry.usage)}`);
+    throw new CheckStop(ok ? 0 : 1, `--net-exec: X done; ${calls} codex exec call(s).`);
+  }
 
   const createPrompt = 'Create a file named hello.txt in the current directory with exactly one line: hello from codex\nDo not run any other command and do not change any other file. Then reply with the single word DONE.';
   const createdOk = async (c: Case) => (await readFile(path.join(c.worktree, 'hello.txt'), 'utf8').catch(() => '')).includes('hello from codex');
