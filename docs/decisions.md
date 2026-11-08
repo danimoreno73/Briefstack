@@ -6129,3 +6129,96 @@ in `elevated`, the user in `unelevated`.
 - *Not measured*: whether `codex exec --sandbox workspace-write` sets
   the network differently from `codex sandbox -P :workspace`, or whether
   any of `codex exec`'s own settings closes it; that needs a model call.
+
+### Phase 8: step 22, can the network be closed on Windows? (2026-11-08)
+
+Two things step 21 left open: what Codex's own firewall rules do, and
+whether `codex exec` with the product's policy, or with
+`sandbox_workspace_write.network_access=false`, closes the network. On the
+user's authorisation: the firewall rules that name Codex read only
+(`Get-NetFirewallRule` and its filters, no administrator, nothing
+created, changed or removed), at most four `codex exec` calls and at most
+twelve operations, all against `registry.npmjs.org`. Script:
+`probe-codex.ts --net-exec` (run `run-2026-11-08T00-41-24-704Z`, outputs
+`out/x-*`, `out/X-summary.json`, `out/budget.json`). Its firewall read
+failed on a cast of mine (`EnforcementStatus` comes as a name, not a
+number), so the read alone was repeated with `--net-exec
+--firewall-only`, no call and no network (run
+`run-2026-11-08T00-44-45-033Z`, `out/x-firewall.*`,
+`out/X-firewall-summary.json`).
+
+**The option's name.** `codex exec --help` lists no network flag; it takes
+`-c key=value` overrides of the config. `sandbox_workspace_write` and
+`network_access` are both in the binary's config keys, and Codex accepted
+`-c sandbox_workspace_write.network_access=false` (exit 0, stderr
+empty). *Not measured*: whether Codex would also accept a misspelt key
+in silence, so "accepted" does not prove "applied"; with the default
+policy the result was the same.
+
+**The firewall** (read as the user, no administrator needed). Five rules
+name Codex, the same in the persistent and the active store:
+
+| Rule | Enabled | Direction, action | Applies to | Remote addresses | Enforcement status |
+|---|---|---|---|---|---|
+| `codex_sandbox_offline_block_outbound` | yes | outbound, block, any protocol | `CodexSandboxOffline` (SID in the rule's local-user filter) | everything but 127.0.0.0/8 and ::1 | `CategoryDisabled` |
+| `codex_sandbox_offline_block_loopback_tcp` | yes | outbound, block, TCP | `CodexSandboxOffline` | 127.0.0.0/8, ::/127 | `CategoryDisabled` |
+| `codex_sandbox_offline_block_loopback_udp` | yes | outbound, block, UDP | `CodexSandboxOffline` | 127.0.0.0/8, ::/127 | `CategoryDisabled` |
+| `codex_sandbox_offline_block_inbound` | yes | inbound, block | `CodexSandboxOffline` | everything but loopback | `CategoryDisabled` |
+| `ChatGPT` | yes | outbound, allow | any user (a package rule) | any | `CategoryDisabled` |
+
+All profiles (`Any`), status "parsed correctly from the store". The setup
+binary also carries the name "Codex Sandbox Offline - Block Loopback TCP
+(Except Proxy)" and messages such as "local firewall policy
+modifications will not take effect: LocalPolicyModifyState=" (seen in
+its strings, not run).
+
+**The four calls.** Each one: `codex exec --json --sandbox workspace-write
+--ephemeral -c approval_policy="never" -c windows.sandbox="<mode>"
+[-c sandbox_workspace_write.network_access=false] -C <worktree> -o
+<file> -`, asking Codex to run, once, the three operations of step 21
+(a bare TCP connection to port 443 with no data sent, which also prints
+the account; a plain HTTP GET with `curl.exe --noproxy "*"`; an HTTPS
+`fetch` with a Node copied outside the user's profile). Results are read
+from the `command_execution` items, not from the model's message. Codex
+ran exactly three commands in each call: twelve operations.
+
+| Mode | Policy | Runs as | TCP to 443 | Plain GET | HTTPS fetch | Tokens (input / cached / output / reasoning) |
+|---|---|---|---|---|---|---|
+| `elevated` | default | `CodexSandboxOffline` | **connected** | **HTTP 301** | **HTTP 200** | 67 913 / 58 240 / 1 104 / 44 |
+| `elevated` | `network_access=false` | `CodexSandboxOffline` | **connected** | **HTTP 301** | **HTTP 200** | 68 065 / 62 208 / 1 071 / 87 |
+| `unelevated` | default | the user | **connected** | **HTTP 301** | **HTTP 200** | 68 384 / 62 464 / 730 / 84 |
+| `unelevated` | `network_access=false` | the user | **connected** | **HTTP 301** | **HTTP 200** | 68 100 / 62 336 / 990 / 0 |
+
+Total: 272 462 input tokens (245 248 cached), 3 895 output, 215 reasoning;
+20–30 s per call. No combination closed the network, so the write check
+planned for one that did (the sandbox alone, writes in the worktree and
+not in the git folders) was not run.
+
+**Measured against inferred.**
+
+- Measured: **with `codex exec` and the product's policy, and with
+  `network_access=false` set explicitly, both Windows modes reach the
+  Internet on this machine.** This closes step 21's open point: `codex
+  exec` behaves like `codex sandbox -P :workspace`.
+- Measured: in `elevated`, `codex exec` runs commands as
+  `CodexSandboxOffline`, the account Codex's block rules name, with or
+  without `network_access=false`.
+- Measured: Codex's firewall rules exist, are enabled and name that
+  account, and Windows reports them as `CategoryDisabled`. Microsoft's
+  reference for `MSFT_NetFirewallRule` lists the enforcement value 3 as
+  `CategoryOff`, with no description (read 2026-11-08).
+- *Inferred, not measured*: the Windows firewall does not enforce its
+  rules on this machine because another product owns the firewall
+  category (a third-party firewall registered with Windows Security).
+  That would explain both step 21 and steps 19–20 (127.0.0.1 reached
+  from `elevated` despite the loopback rule). Which product it is was not
+  looked up (outside this step's authorisation).
+- *Inferred, not measured*: on a machine where the Windows firewall
+  enforces these rules, `elevated` would block the Internet and loopback
+  (except Codex's proxy) for `CodexSandboxOffline`. `unelevated` runs as
+  the user, whom no rule names, so it would stay open either way.
+- So **no configuration of Codex closes the network on this machine.**
+  Isolation in `elevated` depends on the Windows firewall being the
+  active one, which neither briefstack nor Codex controls.
+- *Not measured*: `network_access=true`; the Online account; macOS and
+  Linux.

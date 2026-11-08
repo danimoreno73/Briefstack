@@ -381,6 +381,33 @@ is false on Windows; with reads and 127.0.0.1 also open, Codex could
 read the user's files and send them out. The gate is closed and the
 runner and the tool wait for the user's decision.
 
+**Step 22 (2026-11-08; decisions.md, "Phase 8: step 22").** Four `codex
+exec` calls (each Windows mode, default policy and
+`sandbox_workspace_write.network_access=false`) and a read of the
+firewall rules:
+
+- Measured: **`codex exec` reaches the Internet in all four** (TCP to
+  443, plain HTTP, HTTPS with Node's own TLS). `elevated` runs as
+  `CodexSandboxOffline` in both policies.
+- Measured: Codex installs four Windows firewall rules that block that
+  account (outbound to the Internet, loopback TCP and UDP, inbound). They
+  are enabled, and Windows reports them as `CategoryDisabled`.
+- Inferred: the Windows firewall is not the one enforcing rules on this
+  machine (another firewall product owns that role), so Codex's rules do
+  nothing here. Where the Windows firewall is active, `elevated` would
+  probably be closed; `unelevated` would not (no rule names the user).
+- So outcome (b): **no Codex configuration closes the network on this
+  machine.** Options for the user, not decided: (1) isolate from outside,
+  e.g. a rule in the firewall product that is active, for the
+  `CodexSandboxOffline` account, and require `elevated`; briefstack would
+  have to check that the block works before offering Codex, since it
+  cannot read another product's rules. (2) Postpone Codex on Windows.
+  (3) Accept it with a strong warning (reads, local services and the
+  Internet all open). Recommendation: a cheap check of the network
+  before each round (one `codex sandbox` TCP attempt from `elevated`,
+  no model) as a gate in whatever is chosen, and (2) until that check
+  passes on the user's machine.
+
 ## 6. Unattended runs that reach the user
 
 Goal (user): define a project fully up front, leave Claude working
