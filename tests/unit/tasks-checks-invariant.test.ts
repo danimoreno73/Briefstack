@@ -23,6 +23,7 @@ import type { TaskChecks } from '../../src/tasks/checks.js';
 import { TaskFakeRunner } from '../../src/tasks/fakeRunner.js';
 import { TaskManager } from '../../src/tasks/manager.js';
 import { SESSION, chatWorld } from '../chatWorld.js';
+import { fakeCodex } from '../codexWorld.js';
 import { baseProfiles, specInput, useHermeticGit, writeTree } from '../helpers.js';
 import { HARMLESS } from '../skillFixtures.js';
 import { sampleRepo, startFakeGitHub } from '../skillsWorld.js';
@@ -115,6 +116,36 @@ describe('only the user\'s request runs the declared checks', { timeout: 60_000 
     await until(async () => (await fresh.get(third.id)).state === 'proposal', 'the checks');
     expect(runs).toEqual([['npm test']]);
     await fresh.shutdown();
+  });
+});
+
+describe('delegate_to_codex runs none (phase 8, S8 intact)', { timeout: 60_000 }, () => {
+  it('a round that hands work to Codex, through its end and the proposal, runs no check', async () => {
+    const { checks, runs } = spyChecks();
+    const m = new TaskManager({
+      runner: new TaskFakeRunner({ script: () => ({ steps: [{ kind: 'codex', instruction: 'Add a note.' }, { kind: 'codex', instruction: '[fake:fail]' }, { kind: 'end', summary: 'Done.' }] }) }),
+      store: world.store,
+      sessionsDir: world.sessions,
+      locations: async () => ({ libraryDir: world.library, repoDir: world.repo }),
+      lang: () => 'en',
+      profile: async () => ({ name: 'saver', model: 'sonnet', effort: 'low' }),
+      maxActive: () => 2,
+      pollMs: 10,
+      afterRound: afterRoundWith(),
+      checks,
+      codex: async () => ({ command: fakeCodex(), maxCalls: 5 }),
+    });
+    try {
+      await world.project('garden');
+      const task = await m.start('garden', 'Use Codex.');
+      await endRound(m, task.id);
+      expect((await world.store.load(task.id))?.rounds[0]?.codex?.map((call) => call.outcome)).toEqual(['completed', 'failed']);
+      await m.proposal(task.id);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(runs).toEqual([]);
+    } finally {
+      await m.shutdown();
+    }
   });
 });
 
