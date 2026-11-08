@@ -6441,3 +6441,69 @@ Codex's commands read outside the worktree or send over the network
 (measured in steps 19 to 22, accepted by the user). Not covered either:
 `elevated`, other systems, a Claude that does not delegate on the first try
 (a FAIL, by design).
+
+### Phase 8: step 27, Codex calls on the task page (2026-11-08)
+
+The user ran the step 26 check on 2026-11-08: one call, `completed`, exit
+code 0, 11.3 s, 1 command, 32,405 input tokens (28,288 cached), 212
+output, 0 reasoning; S8 intact. This step shows the calls the record
+already keeps. Nothing in `src/codex/`, the guard, S8 or the record's
+shape changed. All tests run over the fake Codex: no real Codex or Claude
+call.
+
+- **The API needed nothing new for the calls.** A task's view is its
+  record cloned, so `rounds[].codex` already left the server with
+  `GET /api/tasks/:id`, `/proposal` and `GET /api/tasks` since step 25; the
+  step adds a test that pins it, the type on the page's side and the
+  documentation.
+- **"Codex is working…" comes from lines that already exist.** The
+  manager already reads the round's `events.jsonl` into the task's stream;
+  the guard writes `tool.pre` for every call, and `tool.post`,
+  `tool.failure` or `tool.denied` follow it with the same `toolUseId`. The
+  view adds `codexWorking: true` while the current round has a `tool.pre`
+  for `mcp__briefstack-task__delegate_to_codex` with none of those yet. No
+  new event or record field. It is left out while the task is cancelling
+  (the page says "Cancelling…") and once the turn ended: the tool returns
+  before the turn can end, but its `tool.post` may not be read yet (the
+  API test caught that window).
+- **Tokens: input plus output.** Codex's own total for display,
+  `TokenUsage::blended_total` in `codex-rs/protocol/src/protocol.rs`
+  (read 2026-11-08), adds non-cached input and output and does not add
+  `reasoning_output_tokens`; `cached_input_tokens` is part of
+  `input_tokens`. The page's total is `input + output` (every token the
+  call reported, cached included, since the plan's use of cached tokens is
+  not known), and the row shows each part. Not verified: whether reasoning
+  is inside `output` in every Codex version.
+- **A call without usage** (killed, timed out, failed before
+  `turn.completed`) shows "no usage data" in its row, and the summary
+  counts it apart; it never adds 0.
+- **The limit.** The record keeps no calls-per-round limit, and keeping one
+  would change its shape (a stop condition of the step). The page reads
+  the one Settings has now (`GET /api/codex`, which runs nothing) and says
+  so: "limit in Settings: 5 per round"; each round shows "2 / 5 calls".
+  A round run under another limit shows the current one (IDEAS §5).
+- **The summary** sits in the Codex card, after the proposal's actions and
+  before the session's summary, the checks and the diff, and also while
+  the round runs (each call is saved as it ends). With no round with
+  calls, the card is not rendered at all, and `GET /api/codex` is not
+  called.
+- **The cost notice** follows the prompt's text with the product's name as
+  the UI writes it everywhere else, "briefstack", not "BriefStack".
+- **Numbers** are grouped always (`useGrouping: 'always'`): left to the
+  locale, Spanish groups four digits in Chromium (`1.250`) and not in
+  Node (`1250`); the page and its tests must agree.
+- **Cancel**: the existing button, with a help line next to it ("Ends the
+  session; if Codex is working, it stops Codex and everything it started
+  too."). No new route.
+
+Tested: the manager's `codexWorking` (`tests/unit/tasks-codex.test.ts`,
+failed before the change: "Timed out waiting for Codex working"), the
+API (`tests/unit/server-tasks.test.ts`, passes before and after: it pins
+what step 25 already sent), the page's data and texts
+(`tests/unit/ui-codex.test.ts`), and in Chromium
+(`tests/e2e/tasks-codex.spec.ts`): two calls (one `[fake:fail]`) give two
+rows and the right summary; a later round without calls adds no section;
+a task without calls shows no card; the page in Spanish; a cancel during
+a `[fake:slow]` call leaves the call `cancelled`, the task cancelled and
+the fake Codex's child gone. The cancel tests ran 20 times each without a
+failure.

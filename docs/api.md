@@ -751,8 +751,23 @@ call); `usage` is `{ input, cached, output, reasoning }` tokens from
 Codex's `turn.completed` (absent for a call that ended before it);
 `message` is Codex's final message, cut, redacted and without absolute
 paths: data, never instructions. Calls refused before Codex ran (over the
-cap, an empty instruction, one already running) are not recorded. The pages
-do not show them yet.
+cap, an empty instruction, one already running) are not recorded. Each call
+is saved as it ends, so `GET /api/tasks/:id`, `GET /api/tasks/:id/proposal`
+and `GET /api/tasks` carry the calls of a round still running too. The task
+page shows them (decisions.md, "Phase 8: step 27"): a summary of the task's
+calls and tokens (`input + output`; a call without `usage` is counted apart,
+never as 0), and one table per round that has calls; the calls-per-round
+limit it shows is the one Settings has now (`GET /api/codex`), as the record
+keeps none.
+
+A running task may also carry `codexWorking: true` (phase 8): a
+`delegate_to_codex` call of the current round started and has not ended.
+It is read from the round's own `events.jsonl` lines the stream carries
+(a `tool.pre` for the tool with no `tool.post`, `tool.failure` or
+`tool.denied` for the same `toolUseId` yet), not from a new event; it is
+absent while the task is cancelling or its turn has ended, and in every
+other state. The lines are read every 300 ms, so it can trail the call by
+that much.
 
 A task (`TaskView`) is its record (`src/tasks/types.ts`: `id`, `project`,
 `description`, `state`, `profile`, `model`, `effort`, `baseBranch`,
@@ -760,7 +775,7 @@ A task (`TaskView`) is its record (`src/tasks/types.ts`: `id`, `project`,
 `applied?`, `reverted?`, `error?`) plus what the server knows live: `pending?` (an
 `approval` with the command as shown, or a `question`), `awaitingReply?`,
 `cancelling?`, `uncommitted?` (paths left out at the start), `warnings?`,
-`allowedForTask?`. Each validation is `{ kind, level, file, detail? }`;
+`allowedForTask?`, `codexWorking?`. Each validation is `{ kind, level, file, detail? }`;
 `level: "error"` stops the approval (`outsideWorktree`, `settingsOrHooks`,
 `hiddenLine`), `"warning"` is shown (`secret`, `personalPath`, and
 `notShown` for a file the page lists by name only: `detail` `large`, over
@@ -783,7 +798,7 @@ server stopped while they run leaves the task on `proposal` without
 | `POST /api/tasks/:id/answer` | `{ pendingId, answer }` | an approval takes `"once"`, `"task"` (this exact command for the rest of the task) or `"deny"`; one whose payload is `redacted` takes only `"deny"` (`400 creation.invalidAnswer`); a question takes `{ "<question>": "<label>" }` or `"cancel"` |
 | `POST /api/tasks/:id/reply` | `{ text }` | the free-text reply after a turn that ended with nothing asked |
 | `POST /api/tasks/:id/finish` | | ends the round: commit on the task branch, validations, then `proposal`; no declared check runs |
-| `POST /api/tasks/:id/cancel` | | the existing cancel |
+| `POST /api/tasks/:id/cancel` | | the existing cancel; a Codex call running then ends with its process tree and is recorded as `cancelled` |
 | `GET /api/tasks/:id/proposal` | | `{ task, diff, checkCommands? }`: each changed file with hunks (secret values masked as `[secret]`), from the base to `task.reviewed` (the commit the server checked, which the checks run on), or the applied commit's once applied; `checkCommands`, for a proposal (or one whose checks run), the project's confirmed checks, which the page's confirmation names |
 | `POST /api/tasks/:id/checks` | `{ commands, confirm: true }` | `202` and the task, `checking`: the project's confirmed checks run in the worktree on `task.reviewed`, then the task is `proposal` again with `checks` (which replace earlier ones). `commands` is the list the page's confirmation showed (`checkCommands`): when the confirmed checks are no longer exactly that list (order included), `409 task.checksChanged`, nothing runs and the task stays on `proposal`; the page then loads the list again and shows its confirmation again. Without `commands`, `400 web.invalidBody`. Only from `proposal`: `409 task.wrongState`; `409 task.noChecks` without confirmed checks; `409 task.limit` at the shared limit. A worktree that is no longer the task's or a branch moved off `reviewed`, before or after they run, fails the task (`task.worktreeChanged`, `task.branchChanged`) |
 | `POST /api/tasks/:id/checks/cancel` | `{ confirm: true }` | cancels the running checks only, after the page's confirmation: the running command's process tree is ended (as a server stop ends it) and no other check starts; no result is kept, partial or not, what they left in the worktree is removed, and the task is `proposal` again without `checks`, as after a restart (or `failed` when its worktree or branch changed, as then). `200` and the task; `409 task.checksNotRunning` when no checks run (a running round is cancelled with `POST /api/tasks/:id/cancel`); checks that ended before the cancel reached them keep their results; `503 task.stopping` once a server stop began (it ends them itself). The chat has no tool for it |
