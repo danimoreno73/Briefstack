@@ -6084,3 +6084,48 @@ outputs `out/i-*`, `out/I-summary.json`), no model call, all eight sent.
   measure again (attempt 3: a bare TCP connection, plain HTTP, and a
   fetch with Node's own TLS). Nothing of the runner, the tool or
   Settings was built.
+
+#### Attempt 3: `elevated` reaches the Internet; the gate is closed
+
+On the user's authorisation: at most eight operations against
+`registry.npmjs.org`, each tried once, no model call
+(`probe-codex.ts --net`, run `run-2026-11-08T00-07-02-918Z`, outputs
+`out/n-*`, `out/N-summary.json`). Outside, as controls: a plain HTTP GET
+(`curl.exe`, port 80) and an HTTPS `fetch` with a copy of Node kept
+outside the user's profile (Node's own TLS, not Windows'). Inside, per
+mode, with `codex sandbox -c windows.sandbox=<mode> -P :workspace`: a
+bare TCP connection to port 443 (`System.Net.Sockets.TcpClient`, no data
+sent), the same plain GET and the same fetch. curl ran with `--noproxy
+"*"` everywhere, so `unelevated` is measured past its proxy variables.
+The S phase of the same run confirmed who runs: `codexsandboxoffline`
+in `elevated`, the user in `unelevated`.
+
+| | Where | Operation | Result (ms) |
+|---|---|---|---|
+| 1 | outside | plain GET | **HTTP 301** (145) |
+| 2 | outside | Node fetch, HTTPS | **HTTP 200** (760) |
+| 3 | `elevated` | TCP to 443 | **connected** (1216) |
+| 4 | `elevated` | plain GET | **HTTP 301**; curl: `Established connection to registry.npmjs.org (… port 80)` (860) |
+| 5 | `elevated` | Node fetch, HTTPS | **HTTP 200** (1000) |
+| 6 | `unelevated` | TCP to 443 | **connected** (444) |
+| 7 | `unelevated` | plain GET | **HTTP 301** (229) |
+| 8 | `unelevated` | Node fetch, HTTPS | **HTTP 200** (374) |
+
+**What it means.**
+
+- Measured: **neither Windows mode keeps a command in Codex's sandbox off
+  the Internet.** `elevated` opens TCP connections, sends plain HTTP and
+  completes HTTPS with a TLS library of its own. What stopped the earlier
+  requests was Windows' TLS library (Schannel) in the sandbox's account,
+  and in `unelevated` the proxy variables; neither is network isolation.
+- This confirms the inference of attempt 2 and corrects step 20 and the
+  Codex brief ("network blocked inside").
+- With step 19 and 20 (reads outside the worktree and 127.0.0.1 open in
+  both modes), a command run by Codex in a task could read the user's
+  files and send them out.
+- **The gate is closed** (the user's rule: "`elevated` sends no traffic
+  to the Internet"). The runner, the tool and Settings were not built;
+  what to do next is the user's decision.
+- *Not measured*: whether `codex exec --sandbox workspace-write` sets
+  the network differently from `codex sandbox -P :workspace`, or whether
+  any of `codex exec`'s own settings closes it; that needs a model call.

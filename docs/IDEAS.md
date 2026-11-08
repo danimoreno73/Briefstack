@@ -374,6 +374,13 @@ after `Trying <address>:443`, which points to the TCP connection having
 opened (inferred). So no answer is not isolation. Next, attempt 3: a bare
 TCP connection, plain HTTP and Node's own TLS from inside `elevated`.
 
+Attempt 3 (2026-11-08): **both Windows modes reach the Internet** from
+`codex sandbox`: a TCP connection to port 443, a plain HTTP GET and an
+HTTPS fetch with Node's own TLS all succeeded. "Network blocked inside"
+is false on Windows; with reads and 127.0.0.1 also open, Codex could
+read the user's files and send them out. The gate is closed and the
+runner and the tool wait for the user's decision.
+
 ## 6. Unattended runs that reach the user
 
 Goal (user): define a project fully up front, leave Claude working
