@@ -383,6 +383,9 @@ describe('Codex spike: prepared, guarded, and kept to throwaway repositories', (
     // The firewall is read with Get-* cmdlets only: nothing that creates, changes or removes a rule.
     expect(block).toContain('Get-NetFirewallRule -PolicyStore ActiveStore');
     expect(block).not.toMatch(/(New|Set|Remove|Enable|Disable|Copy|Rename)-NetFirewall|netsh|-Verb\s+RunAs/i);
+    // --firewall-only stops after the read, before any call.
+    expect(block.indexOf("process.argv.includes('--firewall-only')")).toBeGreaterThan(-1);
+    expect(block.indexOf("process.argv.includes('--firewall-only')")).toBeLessThan(block.indexOf('await exec('));
     // The calls go through exec(), always workspace-write; the only setting added is the network one.
     expect(block).toContain("const noNetwork = ['-c', 'sandbox_workspace_write.network_access=false'];");
     expect(block).toContain('await exec(`x-${combo.label}`, c, combo.mode, netExecPrompt, undefined, combo.config)');

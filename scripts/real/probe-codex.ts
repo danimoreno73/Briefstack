@@ -20,7 +20,7 @@
 // Windows firewall rules that name Codex, then makes at most four `codex exec` calls (each Windows
 // mode, with the product's default policy and with `sandbox_workspace_write.network_access=false`),
 // each asking Codex to run the three operations of `--net` once: at most twelve operations, all
-// against registry.npmjs.org.
+// against registry.npmjs.org. `--net-exec --firewall-only` stops after the firewall read: no call.
 //
 // Everything happens in throwaway git repositories under
 // `$BRIEFSTACK_REAL_WORKDIR/codex-spike/run-<time>/`, which is kept (the raw
@@ -757,7 +757,7 @@ try {
       '    $adr = $_ | Get-NetFirewallAddressFilter; $prt = $_ | Get-NetFirewallPortFilter',
       '    [pscustomobject]@{ name = $_.Name; displayName = $_.DisplayName; group = $_.Group; description = $_.Description;',
       '      enabled = "$($_.Enabled)"; direction = "$($_.Direction)"; action = "$($_.Action)"; profile = "$($_.Profile)";',
-      '      primaryStatus = "$($_.PrimaryStatus)"; enforcementStatus = "$($_.EnforcementStatus)"; enforcementStatusCodes = @($_.EnforcementStatus | ForEach-Object { [int]$_ });',
+      '      primaryStatus = "$($_.PrimaryStatus)"; enforcementStatus = "$($_.EnforcementStatus)"; status = $_.Status;',
       '      localUser = "$($sec.LocalUser)"; program = "$($app.Program)"; package = "$($app.Package)";',
       '      remoteAddress = "$($adr.RemoteAddress)"; protocol = "$($prt.Protocol)"; remotePort = "$($prt.RemotePort)" } })',
       "  $users = @(Get-LocalUser | Where-Object { $_.Name -like 'CodexSandbox*' } | ForEach-Object { [pscustomobject]@{ name = $_.Name; sid = \"$($_.SID)\" } })",
@@ -774,7 +774,6 @@ try {
       action: string;
       profile: string;
       enforcementStatus: string;
-      enforcementStatusCodes: number[] | number;
       localUser: string;
       remoteAddress: string;
       protocol: string;
@@ -790,8 +789,13 @@ try {
       const who = (rules?.sandboxUsers ?? []).filter((user) => rule.localUser.includes(user.sid)).map((user) => user.name);
       console.log(
         `X firewall: ${rule.displayName}: enabled ${rule.enabled}, ${rule.direction} ${rule.action}, ${rule.protocol}, remote ${rule.remoteAddress}, profile ${rule.profile}, ` +
-          `local user ${who.join(', ') || rule.localUser || 'any'}, enforcement ${rule.enforcementStatus} (${JSON.stringify(rule.enforcementStatusCodes)})`,
+          `local user ${who.join(', ') || rule.localUser || 'any'}, enforcement ${rule.enforcementStatus}`,
       );
+    }
+    // The first run's read failed on a cast; this repeats the read alone: no call, no network.
+    if (process.argv.includes('--firewall-only')) {
+      await save('X-firewall-summary.json', `${JSON.stringify({ firewall: rules ?? null }, null, 2)}\n`);
+      throw new CheckStop(ok ? 0 : 1, '--net-exec --firewall-only: the firewall read done; no codex exec call made.');
     }
 
     // The three operations of `--net`, as PowerShell lines for Codex to run. The Node copy is
