@@ -7,6 +7,8 @@ import type { ImprovementManager } from '../improve/manager.js';
 import { configFilePath, readConfig, resolvePaths, systemPathEnv, type PathEnv } from '../config/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import type { TaskManager } from '../tasks/manager.js';
+import type { CodexService } from '../codex/service.js';
+import { codexRoutes } from './codex.js';
 import { taskRoutes } from './tasks.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
 import { DEFAULT_LANG, type Lang } from '../i18n/index.js';
@@ -52,6 +54,8 @@ export interface WebServerOptions {
   skills?: SkillService;
   /** Tasks in existing projects (phase 7). Without one, the task routes answer 503 `task.unavailable`. The caller owns it. */
   tasks?: TaskManager;
+  /** Codex in Settings (phase 8). Without one, the Codex routes answer 503 `codex.unavailable`. */
+  codex?: CodexService;
   /** The plan-usage warning before a creation or an improvement starts (phase 6). Without it, no warning. */
   usageCheck?: UsageCheck;
   /** Where the user's files live; the real machine by default. Tests pass a temp home. */
@@ -101,6 +105,7 @@ function apiRoutes(options: WebServerOptions): RouteTable {
     ...chatRoutes(options.chat, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
     ...improveRoutes(options.improvements, { usage: options.usageCheck }),
     ...skillRoutes(options.skills),
+    ...codexRoutes(options.codex),
     ...taskRoutes(options.tasks, {
       pathEnv,
       ...(options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),

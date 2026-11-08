@@ -32,6 +32,8 @@ import { UsageCheck } from '../../src/usage/warning.js';
 import { EXFILTRATOR, HARMLESS, INJECTOR } from '../skillFixtures.js';
 import { sampleRepo, startFakeGitHub, type FakeGitHub } from '../skillsWorld.js';
 import { isolateEnvironment } from '../sandboxEnv.js';
+import { CodexService } from '../../src/codex/service.js';
+import { fakeCodex } from '../codexWorld.js';
 
 /**
  * Where Playwright keeps its browsers by default: under the user's home on
@@ -91,6 +93,10 @@ export interface App {
   usageCheck?: UsageCheck;
   /** What `GET /api/claude` answers: a compatible Claude Code signed in with a plan unless a test sets `claude`. */
   claudeStatus: (refresh: boolean) => Promise<ClaudeStatus>;
+  /** Codex in Settings over the fake Codex (phase 8): never the real one. */
+  codex: CodexService;
+  /** One line per command the fake Codex ran. */
+  codexLog: string;
 }
 
 /** A compatible Claude Code signed in with a Claude plan: the default every test runs with. */
@@ -117,6 +123,8 @@ export interface AppOptions {
   claude?: ClaudeStatus;
   /** The fake task runner's script; it writes `CHANGES.md` and ends by default. */
   taskScript?: TaskFakeScript;
+  /** The fake Codex's scenario for the status check (phase 8): `loggedOut`, `noSandbox`; all passing by default. */
+  codexScenario?: string;
 }
 
 async function emptyGitConfig(dir: string): Promise<void> {
@@ -266,9 +274,13 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   const claudeStatus = async () => claude;
   // Tasks (phase 7) over the fake task runner, with the real wiring (checks, validations, the shared limit).
   const taskRunner = new TaskFakeRunner({ ...(options.taskScript === undefined ? {} : { script: options.taskScript }), stepMs: 30 });
-  const tasks = await createWebTasks({ pathEnv, repoDir, lang: 'en', runner: taskRunner, creations: manager });
+  // Codex (phase 8) over the fake Codex CLI: the status check and task rounds never reach a real one.
+  const codexLog = path.join(dir, 'codex-calls.jsonl');
+  await writeFile(codexLog, '', 'utf8');
+  const codex = new CodexService({ pathEnv, locate: () => fakeCodex(codexLog, options.codexScenario) });
+  const tasks = await createWebTasks({ pathEnv, repoDir, lang: 'en', runner: taskRunner, creations: manager, codex });
   holderTasks.value = tasks;
-  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat, improvements, skills, tasks, claudeStatus, ...(usageCheck === undefined ? {} : { usageCheck }) });
+  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat, improvements, skills, tasks, codex, claudeStatus, ...(usageCheck === undefined ? {} : { usageCheck }) });
 
   const app: App = {
     url: server.url,
@@ -292,6 +304,8 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     gh,
     skills,
     claudeStatus,
+    codex,
+    codexLog,
     ...(usageCheck === undefined ? {} : { usageCheck }),
   };
   holder.app = app;
@@ -334,7 +348,7 @@ export async function restartChatServer(app: App, script: ChatScript): Promise<v
   await app.server.close();
   app.chatRunner = new FakeChatRunner(script);
   app.chat = await openChat(app.pathEnv, app.repoDir, app.manager, app.chatRunner, () => app.improvements, app.skills, app.usageCheck, () => app.tasks);
-  app.server = await startWebServer({ port: 0, pathEnv: app.pathEnv, repoDir: app.repoDir, creations: app.manager, chat: app.chat, improvements: app.improvements, skills: app.skills, tasks: app.tasks, claudeStatus: app.claudeStatus });
+  app.server = await startWebServer({ port: 0, pathEnv: app.pathEnv, repoDir: app.repoDir, creations: app.manager, chat: app.chat, improvements: app.improvements, skills: app.skills, tasks: app.tasks, codex: app.codex, claudeStatus: app.claudeStatus });
   app.url = app.server.url;
 }
 

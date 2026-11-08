@@ -115,6 +115,27 @@ export interface SettingsView {
   maxActiveCreations: number;
   /** Plan usage (percent) from which a start shows a warning. */
   usageWarning: { fiveHour: number; week: number };
+  /** Codex in tasks (phase 8): the switch, the Windows sandbox mode and the calls per round. */
+  codex: { enabled: boolean; mode: CodexModeView; maxCalls: number };
+}
+
+export type CodexModeView = 'unelevated' | 'elevated';
+
+/** One part of the Codex status check: passed or not, and a short text (`GET /api/codex`). */
+export interface CodexCheckView {
+  ok: boolean;
+  text: string;
+}
+
+/** Codex in Settings: the settings, the last check (run only on "Check") and whether task rounds get the tool. */
+export interface CodexView {
+  enabled: boolean;
+  mode: CodexModeView;
+  maxCalls: number;
+  modeOffered: boolean;
+  last?: { at: string; platform: string; mode?: CodexModeView; found: boolean; version: CodexCheckView; login: CodexCheckView; sandbox: CodexCheckView; ok: boolean };
+  available: boolean;
+  reason?: 'off' | 'notChecked' | 'checkFailed' | 'modeChanged';
 }
 
 /** The plan-usage warning a start can answer with (`usage.high`). */

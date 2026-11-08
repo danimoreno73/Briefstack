@@ -1,7 +1,7 @@
 import type { SpecIssue } from './spec/index.js';
 
 /** What a config field should have been; rendered by the i18n catalogue. */
-export type FieldExpectation = 'text' | 'lang' | 'permissionPolicy' | 'positiveInteger' | 'percent';
+export type FieldExpectation = 'text' | 'lang' | 'permissionPolicy' | 'positiveInteger' | 'percent' | 'boolean' | 'codexMode' | 'codexMaxCalls';
 
 /** Folders an output directory must stay out of. */
 export type ProtectedRoot = 'repo' | 'library' | 'home' | 'claudeConfig' | 'appData' | 'localAppData';

@@ -64,6 +64,7 @@ import type { ChatManager } from './chat/manager.js';
 import type { TaskManager } from './tasks/manager.js';
 import type { TaskRunner } from './tasks/runner.js';
 import { createWebTasks } from './tasks/wiring.js';
+import { CodexService } from './codex/service.js';
 import { createWebCreations } from './creation/wiring.js';
 import { createWebImprovements } from './improve/wiring.js';
 import type { ImprovementManager } from './improve/manager.js';
@@ -679,6 +680,8 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     mode: io.readAuthMode ?? (io.checkClaude === undefined ? realDeps.mode : async (): Promise<AuthMode> => ({ kind: 'unknown' })),
   });
   let tasks: TaskManager | undefined;
+  // Codex in Settings (phase 8): it runs nothing until the user checks it, and task rounds ask it whether to offer the tool.
+  const codex = new CodexService({ pathEnv: io.pathEnv });
   const creations = await createWebCreations({
     pathEnv: io.pathEnv,
     repoDir: io.repoDir,
@@ -692,7 +695,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   let improvements: ImprovementManager | undefined;
   let server;
   try {
-    tasks = await createWebTasks({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, runner: io.taskRunner, creations });
+    tasks = await createWebTasks({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, runner: io.taskRunner, creations, codex });
     // A server that died with a task running left it interrupted; its worktree stays for the user.
     await tasks.recover();
     chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements, skills, usageCheck, tasks: () => tasks });
@@ -715,6 +718,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       improvements,
       skills,
       tasks,
+      codex,
       claudeStatus: (refresh) => claudeStatus.get(refresh),
       ...(usageCheck === undefined ? {} : { usageCheck }),
       ...(io.repoDir === undefined ? {} : { repoDir: io.repoDir }),

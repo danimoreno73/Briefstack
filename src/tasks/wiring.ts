@@ -1,3 +1,4 @@
+import type { CodexService } from '../codex/service.js';
 import { maxActiveCreationsOf, type PathEnv } from '../config/index.js';
 import type { Lang } from '../i18n/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
@@ -20,6 +21,8 @@ export interface WebTaskOptions {
   creations?: TaskManagerOptions['creations'];
   /** What runs after each round: the validations of the diff (the declared checks wait for the user). */
   afterRound?: (task: TaskRecord, worktree: string) => Promise<AfterRoundResult>;
+  /** Codex in Settings (phase 8): each round asks it whether to offer `delegate_to_codex`. Without it, no round does. */
+  codex?: CodexService | undefined;
 }
 
 /** The active usage profile's name and `work` entry, read when a task starts. */
@@ -55,5 +58,6 @@ export async function createWebTasks(options: WebTaskOptions): Promise<TaskManag
     ...(options.creations === undefined ? {} : { creations: options.creations }),
     afterRound,
     checks: taskChecksWith({ libraryDir, home: paths.home }),
+    ...(options.codex === undefined ? {} : { codex: () => (options.codex as CodexService).session() }),
   });
 }

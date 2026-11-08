@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { CODEX_SANDBOX_MODES, MAX_CODEX_MAX_CALLS, MIN_CODEX_MAX_CALLS, type CodexSandboxMode } from '../codex/limits.js';
 import {
+  codexSettingsOf,
   configFilePath,
   PERMISSION_POLICIES,
   maxActiveCreationsOf,
@@ -44,6 +46,9 @@ const settingsBody = z
     maxActiveCreations: z.int().min(1).optional(),
     usageWarnFiveHour: z.int().min(1).max(100).optional(),
     usageWarnWeek: z.int().min(1).max(100).optional(),
+    codexEnabled: z.boolean().optional(),
+    codexMode: z.enum(CODEX_SANDBOX_MODES).optional(),
+    codexMaxCalls: z.int().min(MIN_CODEX_MAX_CALLS).max(MAX_CODEX_MAX_CALLS).optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'at least one setting' });
 
@@ -72,6 +77,7 @@ export function writeRoutes(context: WriteContext): RouteTable {
       permissionPolicy: permissionPolicyOf(config),
       maxActiveCreations: maxActiveCreationsOf(config),
       usageWarning: usageWarningOf(config),
+      codex: codexSettingsOf(config),
     };
   };
 
@@ -118,7 +124,19 @@ export function writeRoutes(context: WriteContext): RouteTable {
       'PUT /api/settings',
       async (req, res) => {
         const body = await readJsonBody(req, settingsBody);
-        const patch: { lang?: Lang | undefined; permissionPolicy?: PermissionPolicy; maxActiveCreations?: number; usageWarnFiveHour?: number; usageWarnWeek?: number } = {};
+        const patch: {
+          lang?: Lang | undefined;
+          permissionPolicy?: PermissionPolicy;
+          maxActiveCreations?: number;
+          usageWarnFiveHour?: number;
+          usageWarnWeek?: number;
+          codexEnabled?: boolean;
+          codexMode?: CodexSandboxMode;
+          codexMaxCalls?: number;
+        } = {};
+        if (body.codexEnabled !== undefined) patch.codexEnabled = body.codexEnabled;
+        if (body.codexMode !== undefined) patch.codexMode = body.codexMode;
+        if (body.codexMaxCalls !== undefined) patch.codexMaxCalls = body.codexMaxCalls;
         if (body.lang !== undefined) patch.lang = body.lang ?? undefined;
         if (body.permissionPolicy !== undefined) patch.permissionPolicy = body.permissionPolicy;
         if (body.maxActiveCreations !== undefined) patch.maxActiveCreations = body.maxActiveCreations;

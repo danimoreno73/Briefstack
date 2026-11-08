@@ -3,6 +3,7 @@ import { MANY_CREATIONS_NOTE_ABOVE } from '../config/limits.js';
 import { isLang } from '../i18n/index.js';
 import { api } from './api.js';
 import { ClaudeCard } from './claude.js';
+import { CodexCard } from './codex.js';
 import { PathText } from './common.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { ErrorNote, LoadState, Note } from './kit.js';
@@ -105,6 +106,7 @@ export function SettingsPage() {
       </header>
       <div class="page">
         <ClaudeCard />
+        <CodexCard />
         <LoadState loaded={loaded}>
           {() => (
             <form class="settings" onSubmit={(event) => void save(event)}>

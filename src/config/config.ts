@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { DEFAULT_CODEX_MAX_CALLS, DEFAULT_CODEX_MODE, isCodexMaxCalls, isCodexSandboxMode, type CodexSandboxMode } from '../codex/limits.js';
 import { BriefstackError, type FieldExpectation } from '../errors.js';
 import { isLang, type Lang } from '../i18n/index.js';
 import { DEFAULT_MAX_ACTIVE_CREATIONS, DEFAULT_USAGE_WARN_FIVE_HOUR, DEFAULT_USAGE_WARN_WEEK } from './limits.js';
@@ -34,6 +35,17 @@ export interface BriefstackConfig {
   usageWarnFiveHour?: number;
   /** Percent of the week above which a start shows a warning; absent means the default. */
   usageWarnWeek?: number;
+  /** Whether task sessions may get `delegate_to_codex` (phase 8); absent means off. */
+  codexEnabled?: boolean;
+  /** Codex's Windows sandbox mode; absent means `DEFAULT_CODEX_MODE`. */
+  codexMode?: CodexSandboxMode;
+  /** Codex calls per task round, 1 to 10; absent means `DEFAULT_CODEX_MAX_CALLS`. */
+  codexMaxCalls?: number;
+}
+
+/** The config's Codex settings, with the defaults (off, `unelevated`, 5 calls per round). */
+export function codexSettingsOf(config: BriefstackConfig): { enabled: boolean; mode: CodexSandboxMode; maxCalls: number } {
+  return { enabled: config.codexEnabled === true, mode: config.codexMode ?? DEFAULT_CODEX_MODE, maxCalls: config.codexMaxCalls ?? DEFAULT_CODEX_MAX_CALLS };
 }
 
 /** The thresholds of the plan-usage warning. */
@@ -175,6 +187,18 @@ export function parseConfig(text: string, file: string): BriefstackConfig {
     if (raw[field] === undefined) continue;
     if (!isPercent(raw[field])) invalid(field, 'percent');
     config[field] = raw[field] as number;
+  }
+  if (raw.codexEnabled !== undefined) {
+    if (typeof raw.codexEnabled !== 'boolean') invalid('codexEnabled', 'boolean');
+    config.codexEnabled = raw.codexEnabled as boolean;
+  }
+  if (raw.codexMode !== undefined) {
+    if (!isCodexSandboxMode(raw.codexMode)) invalid('codexMode', 'codexMode');
+    config.codexMode = raw.codexMode as CodexSandboxMode;
+  }
+  if (raw.codexMaxCalls !== undefined) {
+    if (!isCodexMaxCalls(raw.codexMaxCalls)) invalid('codexMaxCalls', 'codexMaxCalls');
+    config.codexMaxCalls = raw.codexMaxCalls as number;
   }
   return config;
 }
