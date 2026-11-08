@@ -417,8 +417,24 @@ the Settings card (off by default, `unelevated` by default, 5 calls per
 round), all over a fake Codex in CI. Step 26 prepared the real check on
 Windows (`scripts/real/check-codex-task.ts`, run by the user: it checks
 Codex in Settings before spending anything, then a task where Claude must
-hand `src/slug.js` to Codex; decisions.md, "Phase 8: step 26"). Showing the
-calls on the proposal page comes after it.
+hand `src/slug.js` to Codex; decisions.md, "Phase 8: step 26"). The user
+ran it on 2026-11-08: one call, completed, 11 s, 32,617 tokens, S8 intact.
+
+**Step 27 (2026-11-08; decisions.md, "Phase 8: step 27").** The task page
+shows the calls: a summary (calls of the task, the per-round limit
+Settings has now, total tokens), one table per round that has calls
+(outcome, time, commands, tokens, Codex's final message), and the cost
+notice; "Codex is working…" while a call runs, read from the round's own
+event lines (no new event); the cancel button's help says it stops Codex
+too. Open, not done:
+
+- The record keeps no calls-per-round limit, so the page shows the one in
+  Settings now; a round run under another limit shows the current one.
+  Keeping it would change the record's shape (step 27 left the record as
+  it is).
+- Not demonstrated with a real Codex: a cancel in the middle of a call
+  (the tree kill is tested with the fake Codex only), the limit reached,
+  `headChanged`, large tasks.
 
 Future improvement, **not measured**: a mode without Codex's shell
 (`codex exec --disable shell_tool`). Codex would keep only its file
@@ -771,6 +787,14 @@ Each item ends with its source, in one of three forms:
   on the CI runner. If the A7 test fails again on CI, that is the cause
   left: measure the holder's delay on the runner (with test pushes)
   before raising `staleMs`.
+- **Noted only, not investigated (reviews of steps 24 and 25):**
+  - `tests/unit/chat-improve-tools.test.ts` failed once on Windows CI: its
+    `beforeEach` passed 30 s and the file took 68 s (run 42478022386); it
+    passed when the run was retried.
+  - `takeOver` in `src/library/lock.ts` keeps a small window: a holder
+    that freshens its lock just after the taker's `rename` still loses it.
+  - `tests/unit/tasks-validate.test.ts` can pass its 30 s limit when the
+    machine is loaded on purpose (seen while measuring step 24, not in CI).
 
 ### Real checks (`scripts/real/`)
 
