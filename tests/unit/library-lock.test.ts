@@ -90,24 +90,31 @@ describe('library queue', () => {
 
   it('never takes over the lock of a live process whose write takes longer than staleMs (backlog 1, A7)', async () => {
     const library = path.join(dir, 'lib');
+    // Measured in step 24 on Windows 11 under CPU load and the whole suite: the holder's lock
+    // was at most 102 ms old (a 75 ms heartbeat plus 27 ms late). 300 ms allows 225 ms late,
+    // 8 times that. holdMs keeps the lock well past staleMs.
     const staleMs = 300;
     const holdMs = 1500;
     const fixture = path.join(PACKAGE_ROOT, 'tests', 'fixtures', 'hold-library-lock.ts');
-    const other = spawn(process.execPath, ['--import', 'tsx', fixture, library, lockRoot, String(staleMs), String(holdMs)], { cwd: PACKAGE_ROOT, stdio: ['ignore', 'pipe', 'inherit'] });
+    // The other process writes this file just before it lets go of the lock.
+    const doneFile = path.join(dir, 'other-done');
+    const other = spawn(process.execPath, ['--import', 'tsx', fixture, library, lockRoot, String(staleMs), String(holdMs), doneFile], {
+      cwd: PACKAGE_ROOT,
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
     try {
       let output = '';
-      const said = (word: string) => output.split('\n').includes(word);
       const held = new Promise<void>((resolve, reject) => {
         other.stdout.on('data', (chunk: Buffer) => {
           output += chunk.toString('utf8');
-          if (said('held')) resolve();
+          if (output.split('\n').includes('held')) resolve();
         });
         other.once('exit', (code) => reject(new Error(`the other process ended first (${code ?? 'signal'})`)));
       });
       await held;
       // Far past staleMs while the other process still writes: the lock must still be its own.
       let doneBeforeUs: boolean | undefined;
-      await withLibraryLock(library, async () => (doneBeforeUs = said('done')), { lockRoot, staleMs, retryMs: 10, timeoutMs: 20_000 });
+      await withLibraryLock(library, async () => (doneBeforeUs = await exists(doneFile)), { lockRoot, staleMs, retryMs: 10, timeoutMs: 20_000 });
       expect(doneBeforeUs).toBe(true);
     } finally {
       other.kill();
