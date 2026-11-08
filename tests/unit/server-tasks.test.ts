@@ -4,8 +4,9 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { PathEnv } from '../../src/config/index.js';
 import { startWebServer, TOKEN_HEADER, type WebServer } from '../../src/server/index.js';
-import { TaskFakeRunner } from '../../src/tasks/fakeRunner.js';
-import { TaskManager } from '../../src/tasks/manager.js';
+import { TaskFakeRunner, type TaskFakeScript } from '../../src/tasks/fakeRunner.js';
+import { TaskManager, type TaskManagerOptions } from '../../src/tasks/manager.js';
+import { fakeCodex } from '../codexWorld.js';
 import { afterRoundWith } from '../../src/tasks/afterRound.js';
 import { taskChecksWith } from '../../src/tasks/checks.js';
 import { useHermeticGit, writeTree } from '../helpers.js';
@@ -74,11 +75,12 @@ afterEach(async () => {
   await world.cleanup();
 });
 
-async function start(withTasks = true): Promise<void> {
+async function start(withTasks = true, extra: { script?: TaskFakeScript; codex?: TaskManagerOptions['codex'] } = {}): Promise<void> {
   if (withTasks) {
     const checks = taskChecksWith({ libraryDir: async () => world.library, home: world.home });
     manager = new TaskManager({
-      runner: new TaskFakeRunner({ script: () => ({ steps: [{ kind: 'shell', command: 'npm test' }, { kind: 'write', file: 'CHANGES.md', content: 'Done.\n' }, { kind: 'end', summary: 'Wrote CHANGES.md.' }] }) }),
+      runner: new TaskFakeRunner({ script: extra.script ?? (() => ({ steps: [{ kind: 'shell', command: 'npm test' }, { kind: 'write', file: 'CHANGES.md', content: 'Done.\n' }, { kind: 'end', summary: 'Wrote CHANGES.md.' }] })) }),
+      ...(extra.codex === undefined ? {} : { codex: extra.codex }),
       store: world.store,
       sessionsDir: world.sessions,
       locations: async () => ({ libraryDir: world.library, repoDir: world.repo }),
@@ -134,6 +136,31 @@ describe('task API', { timeout: 60_000 }, () => {
     const reverted = await send(`/api/tasks/${id}/revert`, { method: 'POST', body: { confirm: true } });
     expect(reverted.json).toMatchObject({ state: 'reverted' });
     expect((await send('/api/tasks')).json.tasks).toHaveLength(1);
+  });
+
+  it('a round\'s Codex calls come with the task and its proposal, as recorded (phase 8)', async () => {
+    await world.project('garden');
+    await start(true, {
+      script: () => ({ steps: [{ kind: 'codex', instruction: 'Add a note.' }, { kind: 'codex', instruction: '[fake:fail]' }, { kind: 'end', summary: 'Done.' }] }),
+      codex: async () => ({ command: fakeCodex(), maxCalls: 5 }),
+    });
+    const id = (await send('/api/tasks', { method: 'POST', body: { project: 'garden', description: 'Use Codex.' } })).json.id as string;
+    await until(async () => (await send(`/api/tasks/${id}`)).json.awaitingReply !== undefined, 'the turn');
+    const calls = [
+      { n: 1, outcome: 'completed', exitCode: 0, usage: { input: 1200, cached: 1000, output: 50, reasoning: 7 }, commands: 1, message: 'I wrote codex-note.txt.' },
+      { n: 2, outcome: 'failed', exitCode: 1, commands: 0 },
+    ];
+    const task = (await send(`/api/tasks/${id}`)).json as { rounds: { codex?: Record<string, unknown>[] }[]; codexWorking?: unknown };
+    expect(task.rounds[0]?.codex).toMatchObject(calls);
+    // A call that ended before Codex reported usage has none: never zeros.
+    expect(task.rounds[0]?.codex?.[1]?.usage).toBeUndefined();
+    expect(task.codexWorking).toBeUndefined();
+    expect((await send(`/api/tasks/${id}/finish`, { method: 'POST' })).status).toBe(200);
+    await until(async () => (await send(`/api/tasks/${id}`)).json.state === 'proposal', 'the proposal');
+    const proposal = (await send(`/api/tasks/${id}/proposal`)).json as { task: { rounds: { codex?: unknown[] }[] } };
+    expect(proposal.task.rounds[0]?.codex).toMatchObject(calls);
+    const listed = (await send('/api/tasks')).json.tasks as { rounds: { codex?: unknown[] }[] }[];
+    expect(listed[0]?.rounds[0]?.codex).toHaveLength(2);
   });
 
   it('refuses to approve into a dirty folder with the reason, asks for changes, and discards', async () => {
