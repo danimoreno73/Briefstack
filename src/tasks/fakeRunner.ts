@@ -3,8 +3,10 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { appendEvent } from '../events/index.js';
 import type { Question, QuestionResult } from '../creation/types.js';
+import type { CodexDelegate, CodexToolResult } from '../codex/tool.js';
+import { CODEX_TOOL_ID } from '../codex/toolNames.js';
 import { evaluateTaskToolUse } from './guard.js';
-import { closeTaskSession, openTaskSession, taskHookEvent, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
+import { closeTaskSession, codexDelegateFor, openTaskSession, taskHookEvent, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
 import { describeCommand } from './shell.js';
 
 /**
@@ -26,6 +28,8 @@ export type TaskFakeStep =
   | { kind: 'web'; url: string }
   | { kind: 'question'; questions: Question[] }
   | { kind: 'agent'; agentType: string; files?: { file: string; content: string }[] }
+  /** A `delegate_to_codex` call through the guard and the same delegate as the real runner (phase 8); `results` collects what Claude would read. */
+  | { kind: 'codex'; instruction: string; results?: CodexToolResult[] }
   | { kind: 'wait'; ms: number }
   | { kind: 'fail'; error: string }
   | { kind: 'end'; summary: string };
@@ -73,6 +77,7 @@ class FakeRun {
   private replies: string[] = [];
   private summary: string | undefined;
   private calls = 0;
+  private readonly codex: CodexDelegate | undefined;
   private readonly done: Promise<TaskRunnerOutcome>;
   private opened!: () => void;
   /** Resolves once the session folder is open, as the real runner's id does. */
@@ -82,6 +87,7 @@ class FakeRun {
     private readonly options: TaskRunnerStartOptions,
     private readonly fake: TaskFakeRunnerOptions,
   ) {
+    this.codex = codexDelegateFor(options, process.env);
     this.done = this.run();
   }
 
@@ -90,6 +96,7 @@ class FakeRun {
       sessionId: this.sessionReady,
       requestCancel: () => {
         this.cancelled = true;
+        this.codex?.stop();
         this.poke();
       },
       sendMessage: (text) => {
@@ -102,6 +109,7 @@ class FakeRun {
       },
       stop: async () => {
         this.stopped = true;
+        this.codex?.stop();
         this.poke();
         await this.done.catch(() => undefined);
       },
@@ -133,7 +141,7 @@ class FakeRun {
       return false;
     };
     if (this.cancelled) return deny('The user cancelled this task.');
-    const verdict = await evaluateTaskToolUse({ worktree: this.options.worktree, skills: this.options.skills }, { tool_name: tool, tool_input: input, agent_id: agent?.agentId });
+    const verdict = await evaluateTaskToolUse({ worktree: this.options.worktree, skills: this.options.skills, codex: this.codex !== undefined }, { tool_name: tool, tool_input: input, agent_id: agent?.agentId });
     if (verdict.verdict === 'deny') return deny(verdict.reason);
     if (verdict.verdict === 'ask') {
       const decision = await this.options.approvals.decide(toolUseId, { kind: verdict.kind, tool, key: verdict.key, display: describeCommand(verdict.key), ...(agent === undefined ? {} : { agentType: agent.agentType }) });
@@ -194,6 +202,12 @@ class FakeRun {
           if (inner !== 'ok') return inner;
           break;
         }
+        case 'codex':
+          await this.call(CODEX_TOOL_ID, { instruction: step.instruction }, agent, async () => {
+            const result = await this.codex?.call(step.instruction);
+            if (result !== undefined) step.results?.push(result);
+          });
+          break;
         case 'wait':
           await this.sleep(step.ms);
           break;
@@ -241,6 +255,8 @@ class FakeRun {
       this.options.io.emit({ kind: 'status', status: 'running' });
       result = await this.steps(round.onReply ?? [{ kind: 'end', summary: `Read your reply: ${reply}` }]);
     }
+    this.codex?.stop();
+    await this.codex?.settled();
     await closeTaskSession(this.options.sessionsDir, this.session, outcome.kind === 'ended' ? 'completed' : outcome.kind === 'failed' ? 'failed' : 'cancelled').catch(() => undefined);
     await this.options.approvals.clearRecords().catch(() => undefined);
     return outcome;

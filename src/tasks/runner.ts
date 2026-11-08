@@ -1,9 +1,11 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { appendEvent, EVENT_FORMAT, isSessionId, MAX_TARGET_LENGTH, sessionLifecycleEvent, TASK_SESSION_MARKER, type EventTarget, type HookEvent, type HookEventType, type SessionOutcome } from '../events/index.js';
+import { CodexDelegate, type CodexSession } from '../codex/tool.js';
 import type { Effort } from '../models.js';
 import type { QuestionRequest, QuestionResult } from '../creation/types.js';
 import type { TaskApprovals } from './shell.js';
+import { branchOf, type TaskCodexCall } from './types.js';
 
 /**
  * A task's session runner (BRIEF-phase-7 §3.2): the SDK one and a fake one
@@ -19,6 +21,8 @@ export type TaskRunnerEvent =
 export interface TaskRunnerIO {
   askQuestions(request: QuestionRequest): Promise<QuestionResult>;
   emit(event: TaskRunnerEvent): void;
+  /** Saves one `delegate_to_codex` call in the round's record (phase 8). */
+  recordCodex?(call: TaskCodexCall): Promise<void>;
 }
 
 export interface TaskRunnerStartOptions {
@@ -42,6 +46,8 @@ export interface TaskRunnerStartOptions {
   approvalsDir: string;
   /** The task's shell and web approvals: kept across its rounds, asked through the manager's dialog. */
   approvals: TaskApprovals;
+  /** Set when the round offers `delegate_to_codex` (phase 8): the Settings switch is on and the last check passed. */
+  codex?: CodexSession;
   io: TaskRunnerIO;
 }
 
@@ -82,6 +88,18 @@ export function roundPrompt(input: { description: string; round: number; changes
     lines.push('', `This is round ${input.round}. The changes of the earlier rounds are already in this folder, committed. The user reviewed them and asks for these changes:`, input.changes);
   }
   return lines.join('\n');
+}
+
+/** The round's `delegate_to_codex` calls, when it offers the tool: Codex in the worktree, on the task's branch, each call recorded. */
+export function codexDelegateFor(options: TaskRunnerStartOptions, env: Readonly<Record<string, string | undefined>>): CodexDelegate | undefined {
+  if (options.codex === undefined) return undefined;
+  return new CodexDelegate({
+    session: options.codex,
+    worktree: options.worktree,
+    branch: branchOf(options.taskId),
+    env,
+    record: (call) => options.io.recordCodex?.(call) ?? Promise.resolve(),
+  });
 }
 
 /** What a task's session folder holds besides `events.jsonl`, so the sessions list can tell a task from a creation. */

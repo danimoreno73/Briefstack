@@ -46,6 +46,8 @@ const rulesSchema = z
     serverPid: z.int().positive(),
     /** Once known: a hook input from any other session is denied. */
     sessionIds: z.array(z.string()).optional(),
+    /** Whether the round offers `delegate_to_codex` (phase 8); absent means no. */
+    codex: z.boolean().optional(),
     cancelled: z.boolean(),
   })
   .strict();

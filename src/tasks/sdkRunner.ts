@@ -11,7 +11,9 @@ import type { Lang } from '../i18n/index.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { evaluateTaskToolUse, type TaskGuardRules } from './guard.js';
 import { writeTaskRulesSync } from './guardCommand.js';
-import { closeTaskSession, openTaskSession, taskHookEvent, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
+import { createTaskToolsServer, type CodexDelegate } from '../codex/tool.js';
+import { TASK_TOOLS_SERVER_NAME } from '../codex/toolNames.js';
+import { closeTaskSession, codexDelegateFor, openTaskSession, taskHookEvent, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
 import { taskFlagSettings, taskTools, TASK_ENV } from './session.js';
 import { describeCommand, TaskApprovals, TASK_HOOK_TIMEOUT_S } from './shell.js';
 
@@ -67,6 +69,8 @@ export function buildTaskQueryOptions(params: {
   canUseTool: CanUseTool;
   abortController: AbortController;
   spawn: NonNullable<Options['spawnClaudeCodeProcess']>;
+  /** Only the task's own server, when the round offers `delegate_to_codex`; none otherwise. */
+  mcpServers?: NonNullable<Options['mcpServers']>;
 }): Options {
   const { options } = params;
   return {
@@ -81,7 +85,7 @@ export function buildTaskQueryOptions(params: {
     // Only the project's own skills: Claude Code's bundled skills, built-in plugins and synced skills are hidden and refused.
     skills: [...options.skills],
     strictMcpConfig: true,
-    mcpServers: {},
+    mcpServers: params.mcpServers ?? {},
     additionalDirectories: [],
     env: params.env,
     hooks: params.hooks,
@@ -116,6 +120,8 @@ class TaskSdkRun {
   private readonly tracked: TrackedSpawn;
   private readonly approvals: TaskApprovals;
   private readonly rules: TaskGuardRules;
+  /** The round's Codex calls, when it offers `delegate_to_codex`. */
+  private readonly codex: CodexDelegate | undefined;
   private query: Query | undefined;
   private idleTimer: NodeJS.Timeout | undefined;
   private resolveSession!: (id: string) => void;
@@ -130,7 +136,8 @@ class TaskSdkRun {
     private readonly options: TaskRunnerStartOptions,
   ) {
     this.tracked = (deps.tracked ?? (() => spawnTracked((pid) => killProcessTree(pid))))();
-    this.rules = { worktree: options.worktree, skills: options.skills };
+    this.codex = codexDelegateFor(options, deps.pathEnv.env);
+    this.rules = { worktree: options.worktree, skills: options.skills, codex: this.codex !== undefined };
     this.approvals = options.approvals;
     this.sessionPromise = new Promise<string>((resolve, reject) => {
       this.resolveSession = resolve;
@@ -146,6 +153,7 @@ class TaskSdkRun {
       requestCancel: () => {
         this.cancelled = true;
         this.writeRules();
+        this.codex?.stop();
       },
       sendMessage: (text) => this.sendMessage(text),
       finish: () => this.close(),
@@ -164,6 +172,7 @@ class TaskSdkRun {
         serverPid: this.deps.serverPid ?? process.pid,
         cancelled: this.cancelled,
         ...(this.claimed === undefined ? {} : { sessionIds: [this.claimed] }),
+        ...(this.codex === undefined ? {} : { codex: true }),
       });
     } catch (error) {
       if (strict) throw error;
@@ -197,6 +206,7 @@ class TaskSdkRun {
         canUseTool: (toolName, input, extra) => this.canUseTool(toolName, input, extra.toolUseID, extra.agentID),
         abortController: this.abort,
         spawn: (spawnOptions) => this.tracked.spawn(spawnOptions),
+        mcpServers: this.codex === undefined || this.options.codex === undefined ? {} : { [TASK_TOOLS_SERVER_NAME]: createTaskToolsServer(this.codex, this.options.codex) },
       });
       this.input.push({ type: 'user', message: { role: 'user', content: this.options.prompt }, parent_tool_use_id: null });
       this.query = (this.deps.query ?? (sdkQuery as QueryFn))({ prompt: this.input, options: queryOptions });
@@ -213,6 +223,9 @@ class TaskSdkRun {
       this.options.io.emit({ kind: 'status', status: 'error' });
       return { kind: 'failed', error: this.text(error) };
     } finally {
+      // A Codex call still running ends with the session, and is recorded before the round's end is.
+      this.codex?.stop();
+      await this.codex?.settled();
       await this.tracked.killTree().catch(() => undefined);
       await this.approvals.clearRecords().catch(() => undefined);
       await this.eventChain;
@@ -379,6 +392,7 @@ class TaskSdkRun {
 
   private async stop(): Promise<void> {
     this.stopped = true;
+    this.codex?.stop();
     this.close();
     await this.tracked.killTree().catch(() => undefined);
     await this.donePromise.catch(() => undefined);

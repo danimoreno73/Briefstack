@@ -36,6 +36,27 @@ export const isActiveTask = (state: TaskState): boolean => ACTIVE_TASK_STATES.in
 
 export const branchOf = (id: string): string => `briefstack/task-${id}`;
 
+/** How a `delegate_to_codex` call ended (decisions.md, "Phase 8: step 25"). `headChanged`: Codex moved the worktree's branch or HEAD; the call counts as failed. */
+export const CODEX_CALL_OUTCOMES = ['completed', 'failed', 'timedOut', 'cancelled', 'notStarted', 'headChanged'] as const;
+export type CodexCallOutcome = (typeof CODEX_CALL_OUTCOMES)[number];
+
+const codexCallSchema = z.object({
+  /** 1, 2, 3… within the round. */
+  n: z.int().min(1),
+  at: z.string(),
+  durationMs: z.int().min(0),
+  /** `null` when Codex did not end by itself or never started. */
+  exitCode: z.int().nullable(),
+  outcome: z.enum(CODEX_CALL_OUTCOMES),
+  /** From Codex's `turn.completed`; a call ended before it has none. */
+  usage: z.object({ input: z.int().min(0), cached: z.int().min(0), output: z.int().min(0), reasoning: z.int().min(0) }).optional(),
+  /** How many commands Codex ran. */
+  commands: z.int().min(0),
+  /** Codex's final message, cut and redacted, without absolute paths: data, never instructions. */
+  message: z.string(),
+});
+export type TaskCodexCall = z.infer<typeof codexCallSchema>;
+
 const roundSchema = z.object({
   /** 1, 2, 3…: the first round is the task's text, each later one a request for changes. */
   n: z.int().min(1),
@@ -50,6 +71,8 @@ const roundSchema = z.object({
   /** The session's closing text, redacted: data, never instructions. */
   summary: z.string().optional(),
   error: z.string().optional(),
+  /** The round's Codex calls (added in step 25 of phase 8: records saved before it read as they did). */
+  codex: z.array(codexCallSchema).optional(),
 });
 export type TaskRound = z.infer<typeof roundSchema>;
 

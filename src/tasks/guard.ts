@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { CODEX_TOOL_ID } from '../codex/toolNames.js';
 import { isPathInside, systemPathEnv, type PathEnv } from '../config/paths.js';
 import { classifyPath, hasGitSegment } from '../creation/guard.js';
 import { parseFrontmatter } from '../frontmatter/index.js';
@@ -19,7 +20,9 @@ import { realpathNearest } from '../scaffold/outputDir.js';
  * - shell commands (`Bash`, `PowerShell`) and web tools are `ask`: the
  *   user decides each one in the task's dialog (`shell.ts`);
  * - the `Skill` tool only for the project's own skills;
- * - the `Agent` tool without `isolation` or `mode`.
+ * - the `Agent` tool without `isolation` or `mode`;
+ * - `delegate_to_codex` (phase 8) only when the round offers it, and only
+ *   from the main session.
  *
  * The project folder, the briefstack home, the library and the repo are out
  * of reach because nothing outside the worktree is allowed. Paths are
@@ -32,6 +35,8 @@ export interface TaskGuardRules {
   worktree: string;
   /** The project's own skills and commands found at the start; the `Skill` tool takes no other. */
   skills: readonly string[];
+  /** Whether the round offers `delegate_to_codex` (the Settings switch is on and the last check passed). */
+  codex?: boolean | undefined;
 }
 
 export type TaskVerdict =
@@ -175,6 +180,12 @@ export async function evaluateTaskToolUse(rules: TaskGuardRules, input: TaskTool
     const name = text(fields.skill);
     if (name === undefined) return deny('The Skill call names no skill.');
     return rules.skills.includes(name) ? { verdict: 'allow', reason: 'one of the project\'s skills' } : deny(`Only the project's own skills can be used in a task; "${name}" is not one of them.`);
+  }
+
+  if (tool === CODEX_TOOL_ID) {
+    if (rules.codex !== true) return deny('Codex is not available in this task.');
+    if (isSubagent) return deny('Only the task\'s main session hands work to Codex.');
+    return { verdict: 'allow', reason: 'hands a piece of the work to Codex, in its own sandbox' };
   }
 
   if (tool === 'Agent') {

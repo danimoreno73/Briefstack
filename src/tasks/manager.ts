@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { CodexSession } from '../codex/tool.js';
 import { DEFAULT_MAX_ACTIVE_CREATIONS } from '../config/limits.js';
 import { systemPathEnv, type PathEnv } from '../config/paths.js';
 import type { QuestionRequest, QuestionResult } from '../creation/types.js';
@@ -19,7 +20,7 @@ import { roundPrompt, type TaskRunner, type TaskRunnerEvent, type TaskRunnerHand
 import { inspectProject, projectRestrictions, type ProjectInspection } from './session.js';
 import { TaskApprovals, TASK_DIALOG_TIMEOUT_MS, type ApprovalRequest, type CommandFeature, type ShellAnswer } from './shell.js';
 import { newTaskId, type TaskStore } from './store.js';
-import { branchOf, isActiveTask, type TaskRecord, type TaskState, type TaskValidation } from './types.js';
+import { branchOf, isActiveTask, type TaskCodexCall, type TaskRecord, type TaskState, type TaskValidation } from './types.js';
 import path from 'node:path';
 
 /**
@@ -96,6 +97,12 @@ export interface TaskManagerOptions {
   afterRound?: (task: TaskRecord, worktree: string) => Promise<AfterRoundResult>;
   /** The project's confirmed checks, run only by `runChecks`, when the user asks on the proposal page. Without it, none. */
   checks?: TaskChecks;
+  /**
+   * Read when each round starts (phase 8): what the round needs to offer
+   * `delegate_to_codex`, or `undefined` when Settings leaves it off or its
+   * last check did not pass. Without it, no round offers the tool.
+   */
+  codex?: () => Promise<Omit<CodexSession, 'outDir'> | undefined>;
   pathEnv?: PathEnv;
   now?: () => Date;
   /** How often `events.jsonl` is read. Default 300 ms. */
@@ -646,6 +653,8 @@ export class TaskManager {
     inspection ??= await inspectProject(worktree);
     const restrictions = await projectRestrictions(record.projectDir, record.baseCommit);
     const lang = await this.options.lang();
+    // Anything that goes wrong reading Settings leaves the tool out: the round runs without Codex.
+    const codex = await (this.options.codex?.() ?? Promise.resolve(undefined)).catch(() => undefined);
     // Read again with no await before the record changes: a stop that began while the round was prepared refuses it with
     // nothing changed, so a reviewed proposal is kept (review of step 07, M2).
     this.refuseWhileStopping();
@@ -679,9 +688,11 @@ export class TaskManager {
       rulesFile: this.options.store.rulesFile(record.id),
       approvalsDir: path.join(this.options.store.taskDir(record.id), 'approvals'),
       approvals: l.approvals,
+      ...(codex === undefined ? {} : { codex: { ...codex, outDir: path.join(this.options.store.taskDir(record.id), 'codex') } }),
       io: {
         askQuestions: (request) => this.request<QuestionResult>(l, { id: '', kind: 'question', payload: request }),
         emit: (event) => this.onRunnerEvent(l, event),
+        recordCodex: (call) => this.recordCodex(l, n, call),
       },
     });
     l.handle = handle;
@@ -814,6 +825,19 @@ export class TaskManager {
     await this.options.store.save(next);
     l.record = next;
     this.pushStatus(l);
+  }
+
+  /**
+   * One `delegate_to_codex` call, kept in its round's record (phase 8): the
+   * message without absolute paths. The runner records every call before its
+   * round ends, so the round's end (made from the record) carries them.
+   */
+  private async recordCodex(l: Live, round: number, call: TaskCodexCall): Promise<void> {
+    const target = l.record.rounds.find((item) => item.n === round);
+    if (target === undefined) return;
+    target.codex = [...(target.codex ?? []), { ...call, message: hideAbsolutePaths(call.message) }];
+    l.record.updatedAt = this.now().toISOString();
+    await this.options.store.save(l.record);
   }
 
   // ---- requests to the user --------------------------------------------------------------------
