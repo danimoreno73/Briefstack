@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ApiError } from './apiError.js';
+import { codexTotals, formatCount, messageHead, roundsWithCodex } from './codexData.js';
 import { describeError } from './errors.js';
 import { formatWhen } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
@@ -7,7 +8,7 @@ import { Diff } from './improve.js';
 import { ConfirmModal, ErrorNote, LoadState, Note, UsageWarningModal, usageWarningIn } from './kit.js';
 import { formatDuration } from './panelData.js';
 import { routeHash } from './route.js';
-import type { ProjectTasksUi, TaskProposalUi, TaskViewUi, UsageView, UsageWarningView } from './types.js';
+import type { CodexView, ProjectTasksUi, TaskProposalUi, TaskViewUi, UsageView, UsageWarningView } from './types.js';
 
 /**
  * Tasks in existing projects (BRIEF-phase-7 §3): the project page's section
@@ -371,6 +372,11 @@ function RoundControls({ task, onDone }: { task: TaskViewUi; onDone(): void }) {
       {action.error !== undefined && <ErrorNote error={action.error} />}
       {task.state === 'checking' && <p data-testid="task-finishing">{t.taskFinishing}</p>}
       {task.state === 'running' && turn === undefined && task.pending === undefined && <p data-testid="task-working">{task.cancelling === true ? t.taskCancelling : t.taskWorking}</p>}
+      {task.state === 'running' && task.codexWorking === true && task.cancelling !== true && (
+        <p class="t-strong" data-testid="task-codex-working">
+          {t.taskCodexWorking}
+        </p>
+      )}
       {task.state === 'running' && turn !== undefined && (
         <div class="stack-2" data-testid="task-turn-ended">
           <p class="t-strong">{t.taskTurnEnded}</p>
@@ -408,6 +414,9 @@ function RoundControls({ task, onDone }: { task: TaskViewUi; onDone(): void }) {
           <button type="button" class="btn btn-ghost btn-sm" disabled={action.busy} onClick={() => void action.run(() => send('POST', `/api/tasks/${task.id}/cancel`)).then(onDone)} data-testid="task-cancel">
             {t.taskCancel}
           </button>
+          <span class="t-small muted" data-testid="task-cancel-hint">
+            {t.taskCancelHint}
+          </span>
         </div>
       )}
     </section>
@@ -599,6 +608,86 @@ function CheckResults({ data, onDone, shared }: { data: TaskProposalUi; onDone()
   );
 }
 
+/**
+ * The task's Codex calls (phase 8, decisions.md "Phase 8: step 27"): a
+ * summary, then one table per round that has calls. Nothing at all when no
+ * round has one. A call without usage data says so; it is never shown as 0.
+ */
+function CodexCalls({ task }: { task: TaskViewUi }) {
+  const rounds = roundsWithCodex(task.rounds);
+  return rounds.length === 0 ? null : <CodexCallsCard task={task} rounds={rounds} />;
+}
+
+function CodexCallsCard({ task, rounds }: { task: TaskViewUi; rounds: ReturnType<typeof roundsWithCodex> }) {
+  const { t, lang } = useApp();
+  // The calls-per-round limit as Settings has it now (the record keeps no limit): only read, it runs nothing.
+  const settings = useLoad<CodexView>('/api/codex');
+  const cap = settings.data?.maxCalls;
+  const totals = codexTotals(task.rounds);
+  const count = (value: number) => formatCount(value, lang);
+  return (
+    <section class="card" aria-labelledby="codex-calls-title" data-testid="task-codex">
+      <h2 class="t-2" id="codex-calls-title">
+        {t.taskCodexTitle}
+      </h2>
+      <p class="t-strong" data-testid="task-codex-summary">
+        {t.taskCodexSummary(totals.calls, cap)}
+      </p>
+      <p data-testid="task-codex-tokens">{t.taskCodexTokens(count(totals.tokens), totals.withoutUsage)}</p>
+      <p class="t-small muted" data-testid="task-codex-cost">
+        {t.taskCodexCost}
+      </p>
+      {rounds.map((round) => (
+        <div key={round.n} class="stack-2" data-testid={`task-codex-round-${round.n}`}>
+          <h3 class="t-3">{t.taskCodexRound(round.n, round.calls.length, cap)}</h3>
+          <div class="table-scroll">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th scope="col">{t.taskCodexColCall}</th>
+                  <th scope="col">{t.taskCodexColOutcome}</th>
+                  <th scope="col">{t.taskCodexColDuration}</th>
+                  <th scope="col">{t.taskCodexColCommands}</th>
+                  <th scope="col">{t.taskCodexColTokens}</th>
+                  <th scope="col">{t.taskCodexColMessage}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {round.calls.map((call) => (
+                  <tr key={call.n} data-testid="task-codex-call" data-outcome={call.outcome}>
+                    <td class="td-mono">{call.n}</td>
+                    <td data-ok={call.outcome === 'completed' ? 'yes' : 'no'}>{t.taskCodexOutcome(call.outcome)}</td>
+                    <td class="td-mono">{formatDuration(call.durationMs, lang)}</td>
+                    <td class="td-mono">{call.commands}</td>
+                    <td data-testid="task-codex-usage">
+                      {call.usage === undefined ? (
+                        <span class="muted">{t.taskCodexNoUsage}</span>
+                      ) : (
+                        t.taskCodexUsage(count(call.usage.input), count(call.usage.cached), count(call.usage.output), count(call.usage.reasoning))
+                      )}
+                    </td>
+                    <td>
+                      {call.message.trim() === '' ? (
+                        <span class="muted">{t.taskCodexNoMessage}</span>
+                      ) : (
+                        <details>
+                          <summary>{messageHead(call.message)}</summary>
+                          <p class="t-small muted">{t.taskCodexMessageNote}</p>
+                          <pre class="request request-clip">{call.message}</pre>
+                        </details>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function ProposalBody({ data, onDone, shared }: { data: TaskProposalUi; onDone(): void; shared: SharedBusy }) {
   const { t } = useApp();
   const { task, diff } = data;
@@ -716,6 +805,7 @@ export function TaskPage({ id }: { id: string }) {
               {/* While the checks the user asked for run, the page keeps the diff they run on. */}
               {LIVE.has(view.state) && !checksRunning && <RoundControls task={view} onDone={loaded.reload} />}
               <ProposalActions task={view} onDone={loaded.reload} shared={proposalBusy} />
+              <CodexCalls task={view} />
               {(!LIVE.has(view.state) || checksRunning) && <ProposalBody data={data} onDone={loaded.reload} shared={proposalBusy} />}
             </div>
           </>

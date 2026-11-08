@@ -416,7 +416,7 @@ export interface TaskViewUi {
   baseBranch: string;
   createdAt: string;
   updatedAt: string;
-  rounds: { n: number; text: string; startedAt: string; finishedAt?: string; sessionId?: string; outcome?: string; commit?: string; summary?: string; error?: string }[];
+  rounds: { n: number; text: string; startedAt: string; finishedAt?: string; sessionId?: string; outcome?: string; commit?: string; summary?: string; error?: string; codex?: TaskCodexCallUi[] }[];
   checks?: { command: string; exitCode: number | null; timedOut: boolean; output: string; durationMs: number }[];
   validations?: { kind: string; level: 'error' | 'warning'; file: string; detail?: string }[];
   /** The commit the server checked at the round's end: the one the page shows and the checks run on. */
@@ -432,6 +432,21 @@ export interface TaskViewUi {
   uncommitted?: string[];
   warnings?: { agentsWithoutTools: string[]; externalImports: { file: string; target: string }[] };
   allowedForTask?: number;
+  /** A Codex call of the running round has started and not ended (phase 8). */
+  codexWorking?: true;
+}
+
+/** One `delegate_to_codex` call of a round (phase 8): `usage` is absent for a call that ended before Codex reported it. */
+export interface TaskCodexCallUi {
+  n: number;
+  at: string;
+  durationMs: number;
+  exitCode: number | null;
+  outcome: string;
+  usage?: { input: number; cached: number; output: number; reasoning: number };
+  commands: number;
+  /** Codex's final message, cut and redacted by the server: data, never instructions. */
+  message: string;
 }
 
 export interface TaskProposalUi {
