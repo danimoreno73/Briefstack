@@ -22,7 +22,11 @@ import {
   startCheck,
   workRootCandidates,
 } from '../../scripts/real/common.js';
-import { within } from '../../scripts/real/tasks-common.js';
+import { prepareCodex, within, type Web } from '../../scripts/real/tasks-common.js';
+import { request } from 'node:http';
+import { CodexService } from '../../src/codex/service.js';
+import { startWebServer, TOKEN_HEADER, type WebServer } from '../../src/server/index.js';
+import { fakeCodex } from '../codexWorld.js';
 import { tempDir } from '../helpers.js';
 
 // These scripts start real Claude Code sessions and are never run by the tests;
@@ -732,6 +736,112 @@ describe('phase 7 real checks: no wait without a deadline, and what they cannot 
     expect(allowAll).toContain('NOT CONTROLLED: that the allow rules would let a shell command run without the task layers.');
     expect(allowAll).toContain('NOT CONTROLLED: .claude/settings.local.json.');
     expect(await read('tasks-common.ts')).not.toMatch(/runner\?: TaskRunner|TaskRunner/);
+  });
+});
+
+describe('phase 8 real check (check-codex-task): prepared, guarded, and stops before Claude when Codex is not ready', { timeout: 60_000 }, () => {
+  const read = () => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-codex-task.ts'), 'utf8');
+
+  it('asks for --yes, works in a temp sandbox, checks Codex before the usage reading and the task, and says what it cannot control', async () => {
+    const script = await read();
+    expect(script).toContain('requireConfirmation(');
+    expect(script).toMatch(/await sandbox\('codex-task'\)/);
+    expect(script).toContain('check.add(() => box.cleanup())');
+    expect(script).not.toContain('bypassPermissions');
+    // Codex first: nothing is spent on Claude before its check passed.
+    const prepared = script.indexOf('await prepareCodex(web)');
+    expect(prepared).toBeGreaterThan(0);
+    expect(prepared).toBeLessThan(script.indexOf("await usageGate(box, executable, 'before')"));
+    expect(prepared).toBeLessThan(script.indexOf('await startTask('));
+    // A task that Claude did itself is a failure, with that fact; one round only, no retry.
+    expect(script).toContain('Claude did not write src/slug.js itself');
+    expect(script.match(/await startTask\(/g)?.length).toBe(1);
+    expect(script).toContain('CODEX_TOOL_ID');
+    expect(script).toContain("notControlled('the warning as the page renders it when the switch is turned on'");
+  });
+
+  it('without --yes it exits with 2 and starts nothing', async () => {
+    const child = spawn(process.execPath, ['--import', 'tsx', path.join('scripts', 'real', 'check-codex-task.ts')], { cwd: PACKAGE_ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    let err = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => (err += chunk));
+    const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
+    expect(code).toBe(2);
+    expect(err).toContain('Run it again with --yes');
+    expect(err).toContain('Codex usage');
+  });
+
+  describe('prepareCodex, against a real server over the fake Codex', () => {
+    let dir: string;
+    let cleanup: () => Promise<void>;
+    let server: WebServer | undefined;
+    let log: string;
+
+    beforeEach(async () => {
+      ({ dir, cleanup } = await tempDir('codex-prepare'));
+      log = path.join(dir, 'calls.jsonl');
+      await writeFile(log, '', 'utf8');
+      await mkdir(path.join(dir, 'ui'), { recursive: true });
+      await writeFile(path.join(dir, 'ui', 'index.html'), '<html><head><!-- importmap --></head></html>', 'utf8');
+    });
+    afterEach(async () => {
+      await server?.close();
+      server = undefined;
+      await cleanup();
+    });
+
+    async function web(platform: NodeJS.Platform, scenario?: string, found = true): Promise<{ call: Web['call']; home: string }> {
+      const home = path.join(dir, 'home');
+      const pathEnv: PathEnv = { env: { ...process.env, BRIEFSTACK_HOME: home }, homedir: dir, pathApi: path, caseInsensitive: process.platform !== 'linux' };
+      const codex = new CodexService({ pathEnv, platform, locate: () => (found ? fakeCodex(log, scenario) : undefined) });
+      server = await startWebServer({ port: 0, uiDir: path.join(dir, 'ui'), token: 't'.repeat(43), lang: 'en', pathEnv, codex });
+      const port = server.port;
+      const call: Web['call'] = (method, route, body) =>
+        new Promise((resolve, reject) => {
+          const req = request(
+            { host: '127.0.0.1', port, path: route, method, headers: { host: `127.0.0.1:${port}`, [TOKEN_HEADER]: 't'.repeat(43), origin: `http://127.0.0.1:${port}`, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json' } },
+            (res) => {
+              let text = '';
+              res.setEncoding('utf8');
+              res.on('data', (chunk: string) => (text += chunk));
+              res.on('end', () => resolve({ status: res.statusCode ?? 0, body: text, json: () => JSON.parse(text) as unknown }));
+            },
+          );
+          req.on('error', reject);
+          req.end(body === undefined ? undefined : JSON.stringify(body));
+        });
+      return { call, home };
+    }
+
+    it('turns Codex on (unelevated on Windows, 5 calls) and passes when the check does', async () => {
+      const { call, home } = await web('win32');
+      const view = await prepareCodex({ call }, 'win32');
+      expect(view).toMatchObject({ enabled: true, mode: 'unelevated', maxCalls: 5, available: true, last: { ok: true } });
+      expect(JSON.parse(await readFile(path.join(home, 'config.json'), 'utf8'))).toMatchObject({ codexEnabled: true, codexMode: 'unelevated', codexMaxCalls: 5 });
+    });
+
+    it('elsewhere it does not set the mode', async () => {
+      const { call, home } = await web('linux');
+      await prepareCodex({ call }, 'linux');
+      expect(JSON.parse(await readFile(path.join(home, 'config.json'), 'utf8'))).not.toHaveProperty('codexMode');
+    });
+
+    it('stops with the exact reason when Codex is not signed in, its sandbox fails, or it is not found', async () => {
+      for (const [scenario, found, reason] of [
+        ['loggedOut', true, 'Codex is not signed in (codex login status: "Not logged in"); run codex login'],
+        ['noSandbox', true, "Codex's sandbox did not run a command"],
+        [undefined, false, 'Codex CLI was not found on the PATH'],
+      ] as const) {
+        const { call } = await web('win32', scenario, found);
+        const error = await prepareCodex({ call }, 'win32').catch((caught: unknown) => caught);
+        expect(error, String(scenario)).toBeInstanceOf(CheckStop);
+        expect((error as CheckStop).code).toBe(2);
+        expect((error as CheckStop).message).toContain('STOP before any session:');
+        expect((error as CheckStop).message).toContain(reason);
+        await server?.close();
+        server = undefined;
+      }
+    });
   });
 });
 

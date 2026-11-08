@@ -501,6 +501,59 @@ export async function sessionEventTypes(box: Sandbox, sessionId: string | undefi
   return (await sessionEvents(box, sessionId)).map((event) => `${event.type}${event.tool === undefined ? '' : `:${event.tool}`}`);
 }
 
+// ---- Codex in Settings (phase 8, check-codex-task.ts) -------------------------------------------
+
+/** What `GET /api/codex` and `POST /api/codex/check` answer (docs/api.md, "Codex routes"). */
+export interface CodexSeen {
+  enabled: boolean;
+  mode: string;
+  maxCalls: number;
+  modeOffered: boolean;
+  available: boolean;
+  reason?: string;
+  last?: { at: string; platform: string; mode?: string; found: boolean; ok: boolean; version: { ok: boolean; text: string }; login: { ok: boolean; text: string }; sandbox: { ok: boolean; text: string } };
+}
+
+/**
+ * Before anything is spent: through the API the Settings card uses, turns
+ * Codex on (mode `unelevated` on Windows, 5 calls per round) and runs the
+ * status check (`--version`, `login status`, `sandbox ... -- whoami`: no
+ * plan). Prints the three readings. When Codex is not found, not signed in,
+ * its sandbox fails or task rounds would not get the tool, it stops the check
+ * with the exact reason (a `CheckStop`), before any Claude session.
+ */
+export async function prepareCodex(web: Pick<Web, 'call'>, platform: NodeJS.Platform = process.platform): Promise<CodexSeen> {
+  const settings = { codexEnabled: true, codexMaxCalls: 5, ...(platform === 'win32' ? { codexMode: 'unelevated' } : {}) };
+  const saved = await web.call('PUT', '/api/settings', settings);
+  if (saved.status !== 200) throw new CheckStop(2, `STOP before any session: the Codex settings were not saved (${saved.status} ${saved.body.slice(0, 300)}).`);
+  const checked = await web.call('POST', '/api/codex/check');
+  if (checked.status !== 200) throw new CheckStop(2, `STOP before any session: the Codex check did not answer (${checked.status} ${checked.body.slice(0, 300)}).`);
+  const view = checked.json() as CodexSeen;
+  const last = view.last;
+  console.log(`Codex settings: enabled ${view.enabled}, mode ${view.modeOffered ? view.mode : '(not offered here)'}, ${view.maxCalls} calls per round.`);
+  if (last !== undefined) {
+    console.log(`Codex check: version ${last.version.ok ? 'ok' : 'FAILED'} ${JSON.stringify(last.version.text)}`);
+    console.log(`Codex check: login ${last.login.ok ? 'ok' : 'FAILED'} ${JSON.stringify(last.login.text)}`);
+    console.log(`Codex check: sandbox ${last.sandbox.ok ? 'ok' : 'FAILED'} ${JSON.stringify(last.sandbox.text)}${last.mode === undefined ? '' : ` (mode ${last.mode})`}`);
+  }
+  const why =
+    last === undefined
+      ? 'the check left no result'
+      : !last.found
+        ? 'Codex CLI was not found on the PATH (install it with npm install -g @openai/codex, then codex login)'
+        : !last.version.ok
+          ? `codex --version failed: ${JSON.stringify(last.version.text)}`
+          : !last.login.ok
+            ? `Codex is not signed in (codex login status: ${JSON.stringify(last.login.text)}); run codex login`
+            : !last.sandbox.ok
+              ? `Codex's sandbox did not run a command (${JSON.stringify(last.sandbox.text)})`
+              : !view.available
+                ? `task rounds would not get the tool (${view.reason ?? 'no reason given'})`
+                : undefined;
+  if (why !== undefined) throw new CheckStop(2, `STOP before any session: ${why}.`);
+  return view;
+}
+
 /** Discards a task that is not to be applied (its branch and worktree go). */
 export async function discard(web: Web, id: string): Promise<void> {
   const answer = await web.call('POST', `/api/tasks/${id}/discard`, { confirm: true });
