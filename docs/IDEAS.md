@@ -699,7 +699,8 @@ Each item ends with its source, in one of three forms:
   `tests/e2e/several.spec.ts:121` locally, once (`locator.click` on the
   menu's "New project" link at 30 s; seen in the gates of step 14; review
   of step 14, M7), and `tests/unit/library-lock.test.ts` locally, once
-  (the failing test is not known; 20 runs of the file in step 16 passed).
+  (the failing test is not known; 20 runs of the file in step 16 passed;
+  its A7 test later failed on Windows CI, see the next item).
   What was measured: the e2e tests take 3.5 s at the median on the
   Windows runner (p90 8.6 s, p99 18.8 s, 2138 passing tests) against
   1.2 s on Linux (p90 2.8 s, max 8.5 s, 6 runs); `security.spec.ts:31`,
@@ -735,6 +736,20 @@ Each item ends with its source, in one of three forms:
   fixture starts (two git repositories and several commits per test), and
   a fixture that copies a prepared folder instead of running git for
   each test.
+- **Partly done in phase 8** (step 24; decisions.md, "Phase 8: step 24,
+  the library lock's judge counted its own delay"). **The A7 test of
+  `tests/unit/library-lock.test.ts` failed once on Windows CI** (run
+  42431672549, retried green): the test process took a live process's
+  lock. Fixed: the judge of a stale lock no longer counts its own delay
+  as the lock's age, a holder that freshens its lock before the take-over
+  keeps it, and the test no longer reads the other process's `done`
+  through the pipe. **Left by design** (A7 keeps the age rule): a holder
+  that stops running for more than about `staleMs` × 3/4 (225 ms in the
+  test, 90 s in production) still loses its lock. Measured on a Windows
+  11 desktop under load: the holder was at most 27 ms late; not measured
+  on the CI runner. If the A7 test fails again on CI, that is the cause
+  left: measure the holder's delay on the runner (with test pushes)
+  before raising `staleMs`.
 
 ### Real checks (`scripts/real/`)
 

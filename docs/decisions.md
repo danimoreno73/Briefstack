@@ -6222,3 +6222,67 @@ not in the git folders) was not run.
   active one, which neither briefstack nor Codex controls.
 - *Not measured*: `network_access=true`; the Online account; macOS and
   Linux.
+
+### Phase 8: step 24, the library lock's judge counted its own delay (2026-11-08)
+
+The A7 test (`library-lock.test.ts`, "never takes over the lock of a live
+process whose write takes longer than staleMs") failed once on the
+Windows CI runner (run 42431672549, step 22): the test process took the
+lock 1252 ms in, before the other process's 1500 ms hold ended. Step 23
+found a production defect behind it and stopped: `staleToken` in
+`src/library/lock.ts` read the folder's time with `stat`, then awaited
+the read of `owner.json`, and only then took `Date.now()`, so the judge's
+own delay (a slow read, a busy event loop, no CPU) counted as the lock's
+age. Measured with a probe that slowed only the judge's read of
+`owner.json`: at 400 ms, a lock freshened every 20 ms by a live process
+was taken over. With `staleMs` at its default of 2 minutes this needs a
+judge delayed by about 90 s, so the practical effect was low; it was a
+defect all the same (two library writes at once, an index line lost).
+
+The user allowed changing `src/library/lock.ts`, only as needed:
+
+- `staleToken` takes the age right after the `stat`, before it reads
+  `owner.json`, and returns the folder time it judged by with the token.
+- `takeOver`, after the rename and the read of the owner, also reads the
+  folder time of the lock it moved aside. It removes the lock only if the
+  token is the judged one **and** the time is not newer than the judged
+  time; otherwise it puts the lock back. A live holder that freshened its
+  lock between the judgement and the take-over keeps it. This closes the
+  window step 23 found by reading (a freshening after the look and before
+  the rename).
+- **(choice)** If the folder time of the moved lock cannot be read, the
+  lock is put back (judged as fresh): the next try judges it again.
+- Assumed, checked by CI on the three systems: a rename inside the same
+  folder does not change the moved folder's own time (if it did, no stale
+  lock would ever be taken over and the "takes over a lock whose process
+  is gone, or that is too old" test would time out).
+
+Tests: `tests/unit/library-lock-judge.test.ts` (step 23's probe, as a
+regression test: the judge's reads of `owner.json` slowed by 400 ms with
+`vi.mock`, a live owner freshening every 20 ms, the call must end in
+`library.busy`), and a test in `library-lock.test.ts` where the holder
+freshens the lock between the judgement and the take-over (through the
+existing `onStale` hook). Both failed against the old `lock.ts` ("promise
+resolved true instead of rejecting") and pass with the fix.
+
+The A7 test no longer depends on the pipe: the other process writes a
+file just before it lets go (`tests/fixtures/hold-library-lock.ts`, a new
+fifth argument) and the test checks that file when it gets the lock,
+instead of looking for `done` in the child's output (step 23 saw that
+arrive late once, 1 run in 32, under forced stalls of the test process).
+`staleMs` 300 and `holdMs` 1500 are kept, **measured**: an instrumented
+copy of the holder read its lock folder's age every 5 ms on a Windows 11
+desktop (16 logical cores). The largest age seen, over 140 runs, was 82
+ms at rest, 92 ms under 16 and under 32 busy workers, 92 ms with the
+whole unit suite running at the same time, and 102 ms with both (a 75 ms
+heartbeat plus at most 27 ms late; event-loop gaps up to 28 ms). With
+`staleMs` 300 the holder can be up to 225 ms late, 8 times the largest
+delay measured. Not measured: the Windows CI runner itself (it would take
+test pushes).
+
+What stays, by design (A7's age rule): a holder that stops running for
+more than about `staleMs` minus a heartbeat (`staleMs` × 3/4, 225 ms in the
+test, 90 s in production) loses its lock. Step 23 showed it with a holder
+blocked 400 ms (taken over in 21 of 21). The log of the CI failure does not
+say whether that, or the judge's delay now fixed, was the cause there;
+open in [IDEAS.md](IDEAS.md) §7.
