@@ -13,6 +13,9 @@
 // most eight GETs to https://registry.npmjs.org/ (two outside the sandbox, three per mode
 // inside). Step 21's first attempt used example.com, whose TLS handshake this machine could not
 // complete even outside the sandbox; the npm registry is one it reaches.
+// With `--net` (Windows) it runs a, S and N (step 21, attempt 3) and stops: no `codex exec` call,
+// at most eight operations against registry.npmjs.org (a bare TCP connection, plain HTTP, and
+// Node's own TLS), two outside the sandbox and three per mode inside.
 //
 // Everything happens in throwaway git repositories under
 // `$BRIEFSTACK_REAL_WORKDIR/codex-spike/run-<time>/`, which is kept (the raw
@@ -384,6 +387,85 @@ try {
     await save('I-summary.json', `${JSON.stringify({ gets, max: MAX_GETS, reachedBy, gate, measured }, null, 2)}\n`);
     console.log(`I: ${gets} of ${MAX_GETS} requests. Gate ${gate}.`);
     throw new CheckStop(ok ? 0 : 1, '--internet: I done; no codex exec call made.');
+  }
+
+  // ---- N. Network without Windows TLS, step 21 attempt 3: no model call -----------------------
+  // In attempt 2, curl inside the sandbox failed in Windows' TLS library after opening the TCP
+  // connection, so "no answer" was not isolation. At most eight operations against
+  // registry.npmjs.org (the user's authorisation), each tried once. Outside, as controls: a plain
+  // HTTP GET with curl.exe and an HTTPS fetch with a copy of this Node (its own TLS). Inside, per
+  // Windows mode: a bare TCP connection to port 443 (no data sent), the same plain GET and the
+  // same fetch. curl ignores the proxy variables everywhere, so `unelevated` is measured past
+  // them. If a control outside fails, nothing is tried from inside.
+  if (process.argv.includes('--net')) {
+    if (!WINDOWS) throw new CheckStop(2, '--net measures the two Windows sandbox modes; it runs on Windows only.');
+    const systemRoot = process.env.SystemRoot;
+    if (systemRoot === undefined || systemRoot === '') throw new CheckStop(2, 'SystemRoot is not set, so curl.exe cannot be found.');
+    const MAX_OPS = 8;
+    const host = 'registry.npmjs.org';
+    const curl = path.join(systemRoot, 'System32', 'curl.exe');
+    // A Node outside the user's profile, which `elevated` can run (step 20).
+    const node = path.join(run, 'node-copy', 'node.exe');
+    await mkdir(path.dirname(node), { recursive: true });
+    await copyFile(process.execPath, node);
+    let ops = 0;
+    const measured: Record<string, unknown> = {};
+    const plainGet = [curl, '-sS', '-v', '--max-time', '10', '--noproxy', '*', '-o', 'NUL', '-w', 'HTTP %{http_code}, %{size_download} bytes, remote %{remote_ip}', 'http://registry.npmjs.org/'];
+    const fetchJs = [
+      "const c = new AbortController(); const t = setTimeout(() => c.abort(), 10000);",
+      "fetch('https://registry.npmjs.org/', { signal: c.signal, redirect: 'manual' })",
+      ".then(async (r) => console.log('HTTP ' + r.status + ', ' + (await r.text()).length + ' characters'))",
+      ".catch((e) => console.log('FETCHERR ' + (e.cause?.code ?? e.name) + ': ' + (e.cause?.message ?? e.message)))",
+      '.finally(() => clearTimeout(t));',
+    ].join(' ');
+    const nodeFetch = [node, '-e', fetchJs];
+    const tcpOnly = [
+      'powershell.exe',
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      `$c = New-Object System.Net.Sockets.TcpClient; try { $t = $c.ConnectAsync('${host}', 443); if ($t.Wait(10000) -and $c.Connected) { "TCP CONNECTED $($c.Client.RemoteEndPoint)" } else { 'TCP TIMEOUT' } } catch { "TCPERR $($_.Exception.InnerException.Message) $($_.Exception.Message)" } finally { $c.Close() }`,
+    ];
+    /** One operation, counted against the cap; reached = a TCP connection or an HTTP status on stdout. */
+    const attempt = async (label: string, command: string[], c?: Case, mode?: string) => {
+      if (ops >= MAX_OPS) throw new CheckStop(1, `The cap of ${MAX_OPS} operations against ${host} is reached; ${label} was not run.`);
+      ops += 1;
+      const [file = '', ...rest] = command;
+      const args = c === undefined ? command : ['sandbox', '-c', `windows.sandbox="${mode}"`, '-P', ':workspace', '-C', c.worktree, '--', ...command];
+      const ran = c === undefined ? await runFile(file, rest, { cwd: run, env: baseEnv }) : await codexRun(args, { cwd: c.worktree });
+      await saveRan(`n-${label}`, args, ran);
+      const reachedInternet = /\bTCP CONNECTED\b|\bHTTP [1-9]\d\d\b/.test(ran.stdout);
+      measured[label] = { args, code: ran.code, ms: ran.ms, reached: reachedInternet, stdout: ran.stdout.trim(), stderr: ran.stderr.trim() };
+      console.log(`N ${label} [${ops}/${MAX_OPS}]: exit ${ran.code}; reached ${reachedInternet}; ${ran.ms} ms: ${ran.stdout.trim().slice(0, 400)}`);
+      return reachedInternet;
+    };
+    const outsidePlain = await attempt('outside-http', plainGet);
+    const outsideFetch = await attempt('outside-fetch', nodeFetch);
+    ok = report('N: curl.exe gets a plain HTTP answer outside the sandbox', outsidePlain, '') && ok;
+    ok = report("N: Node's fetch gets an HTTPS answer outside the sandbox", outsideFetch, '') && ok;
+    if (!outsidePlain || !outsideFetch) {
+      await save('N-summary.json', `${JSON.stringify({ ops, measured, gate: 'no control' }, null, 2)}\n`);
+      throw new CheckStop(1, `--net: a control outside the sandbox failed, so nothing was tried from inside (${ops} of ${MAX_OPS} operations).`);
+    }
+    const reachedBy: Record<string, string[]> = {};
+    for (const mode of MODES.filter((entry): entry is string => entry !== undefined && available.includes(entry))) {
+      const c = await makeCase(`n-${mode}`);
+      const reachedHere: string[] = [];
+      for (const [name, command] of [
+        ['tcp', tcpOnly],
+        ['http', plainGet],
+        ['fetch', nodeFetch],
+      ] as const) {
+        if (await attempt(`${mode}-${name}`, [...command], c, mode)) reachedHere.push(name);
+      }
+      reachedBy[mode] = reachedHere;
+      report(`N ${mode}: nothing reached the Internet`, reachedHere.length === 0, reachedHere.join(', ') || 'none');
+    }
+    const elevated = reachedBy.elevated;
+    const gate = elevated === undefined ? 'closed: elevated was not measured' : elevated.length > 0 ? `closed: elevated reached the Internet (${elevated.join(', ')})` : 'not reached from elevated: read how each one failed before calling it a block';
+    await save('N-summary.json', `${JSON.stringify({ ops, max: MAX_OPS, reachedBy, gate, measured }, null, 2)}\n`);
+    console.log(`N: ${ops} of ${MAX_OPS} operations. Gate ${gate}.`);
+    throw new CheckStop(ok ? 0 : 1, '--net: N done; no codex exec call made.');
   }
 
   // ---- H. Hardening, step 20: no model call ---------------------------------------------------

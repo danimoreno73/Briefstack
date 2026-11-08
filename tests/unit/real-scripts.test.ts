@@ -347,6 +347,25 @@ describe('Codex spike: prepared, guarded, and kept to throwaway repositories', (
     expect(block.indexOf('if (!outsidePs || !outsideCurl)')).toBeGreaterThan(-1);
     expect(block.indexOf('if (!outsidePs || !outsideCurl)')).toBeLessThan(block.indexOf('await makeCase(`i-${mode}`)'));
   });
+
+  it('--net: no model call, at most eight operations, registry.npmjs.org as the only host, and nothing from inside if a control fails', async () => {
+    const script = await read();
+    const net = script.slice(script.indexOf("process.argv.includes('--net')"));
+    const block = net.slice(0, net.indexOf("throw new CheckStop(ok ? 0 : 1, '--net"));
+    expect(block).not.toContain('exec(');
+    expect(block).toContain('const MAX_OPS = 8;');
+    expect(block).toContain('if (ops >= MAX_OPS)');
+    // Every address and host named in the block is the npm registry.
+    expect([...new Set(block.match(/https?:\/\/[^\s'"`/)]+/g))].sort()).toEqual(['http://registry.npmjs.org', 'https://registry.npmjs.org']);
+    expect(block).toContain("const host = 'registry.npmjs.org';");
+    expect(block).not.toContain('example.com');
+    // No data on the bare TCP connection, and no redirect followed by fetch.
+    expect(block).toContain('System.Net.Sockets.TcpClient');
+    expect(block).not.toMatch(/GetStream|\.Send\(/);
+    expect(block).toContain("redirect: 'manual'");
+    expect(block.indexOf('if (!outsidePlain || !outsideFetch)')).toBeGreaterThan(-1);
+    expect(block.indexOf('if (!outsidePlain || !outsideFetch)')).toBeLessThan(block.indexOf('await makeCase(`n-${mode}`)'));
+  });
 });
 
 describe('phase 5 real checks: prepared, guarded, and kept off real data', () => {
