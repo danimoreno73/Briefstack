@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { addNote, initLibrary, libraryLockDir, saveNote, withLibraryLock } from '../../src/library/index.js';
@@ -147,6 +147,31 @@ describe('library queue', () => {
       });
       expect(ran).toBe(false);
       expect(JSON.parse(await readFile(path.join(lock, 'owner.json'), 'utf8'))).toMatchObject({ token: 'fresh' });
+    } finally {
+      other.kill();
+    }
+  });
+
+  it('puts back a lock judged stale whose live holder freshened it before the take-over', async () => {
+    const library = path.join(dir, 'lib');
+    const lock = libraryLockDir(library, lockRoot);
+    const other = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], { stdio: 'ignore' });
+    try {
+      await mkdir(lock, { recursive: true });
+      await writeFile(path.join(lock, 'owner.json'), JSON.stringify({ pid: other.pid, token: 'live' }));
+      const old = new Date(Date.now() - 10_000);
+      await utimes(lock, old, old);
+      // Judged stale by its age; then its holder sets its time to now, as keepFresh does.
+      const onStale = async () => {
+        const now = new Date();
+        await utimes(lock, now, now);
+      };
+      let ran = false;
+      await expect(withLibraryLock(library, async () => (ran = true), { lockRoot, staleMs: 300, retryMs: 10, timeoutMs: 150, onStale })).rejects.toMatchObject({
+        code: 'library.busy',
+      });
+      expect(ran).toBe(false);
+      expect(JSON.parse(await readFile(path.join(lock, 'owner.json'), 'utf8'))).toMatchObject({ token: 'live' });
     } finally {
       other.kill();
     }

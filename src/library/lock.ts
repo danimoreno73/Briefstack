@@ -79,30 +79,40 @@ function alive(pid: number): boolean {
   }
 }
 
-/** The owner token of a stale lock (`null` when it has none), or `undefined` when the lock is live or gone. */
-async function staleToken(dir: string, staleMs: number): Promise<string | null | undefined> {
+/** A lock judged stale: its owner token (`null` when it has none) and the folder time it was judged by. */
+interface Stale {
+  token: string | null;
+  mtimeMs: number;
+}
+
+/** The stale lock, or `undefined` when the lock is live or gone. */
+async function staleToken(dir: string, staleMs: number): Promise<Stale | undefined> {
   let mtimeMs: number;
   try {
     mtimeMs = (await stat(dir)).mtimeMs;
   } catch {
     return undefined;
   }
+  // The age is taken now, before reading the owner: a slow read on this side
+  // must not count as the lock's age.
+  const age = Date.now() - mtimeMs;
   const owner = await readOwner(dir);
   const token = typeof owner?.token === 'string' ? owner.token : null;
-  if (Date.now() - mtimeMs > staleMs) return token;
+  if (age > staleMs) return { token, mtimeMs };
   // No owner file yet: someone is writing it.
   if (owner === undefined || typeof owner.pid !== 'number') return undefined;
   // Left by this process (a removal that failed): no call here holds it.
-  if (owner.pid === process.pid) return token !== null && !held.has(token) ? token : undefined;
-  return alive(owner.pid) ? undefined : token;
+  if (owner.pid === process.pid) return token !== null && !held.has(token) ? { token, mtimeMs } : undefined;
+  return alive(owner.pid) ? undefined : { token, mtimeMs };
 }
 
 /**
  * Moves a stale lock out of the way: renamed first (only one taker can), then
- * removed if it is the lock that was judged stale. If another taker replaced
- * it in between, it is put back.
+ * removed if it is the lock that was judged stale and its holder did not
+ * freshen it since. If another taker replaced it in between, or its holder
+ * freshened it, it is put back.
  */
-async function takeOver(dir: string, judged: string | null): Promise<void> {
+async function takeOver(dir: string, judged: Stale): Promise<void> {
   const aside = `${dir}.stale-${randomUUID()}`;
   try {
     await rename(dir, aside);
@@ -112,11 +122,15 @@ async function takeOver(dir: string, judged: string | null): Promise<void> {
   }
   const owner = await readOwner(aside);
   const token = typeof owner?.token === 'string' ? owner.token : null;
-  if (token === judged) {
+  const mtimeMs = await stat(aside).then(
+    (stats) => stats.mtimeMs,
+    () => Number.POSITIVE_INFINITY,
+  );
+  if (token === judged.token && mtimeMs <= judged.mtimeMs) {
     await rm(aside, { recursive: true, force: true }).catch(() => undefined);
     return;
   }
-  // A fresh lock, taken by another process after our look: give it back.
+  // A fresh lock, taken by another process after our look, or freshened by its live holder: give it back.
   await rename(aside, dir).catch(() => undefined);
 }
 
