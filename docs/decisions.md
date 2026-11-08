@@ -6535,3 +6535,53 @@ totals and both languages' texts; failed before the change) and
 `tests/e2e/tasks-codex.spec.ts` with the fake Codex's usual numbers (1,200
 input, 1,000 cached, 50 output, 7 reasoning: "250 tokens (1,250 with
 cache)"; failed before the change: 3 of 4).
+
+**Real cancel check prepared.** `scripts/real/check-codex-cancel.ts`, for
+the user to run (`npx tsx scripts/real/check-codex-cancel.ts --yes`): one
+short real Codex call, cut by the cancel, and one short Claude task
+session (saver). Written and tested without running it: no real `codex
+exec` and no Claude session in this step. Same pattern as
+`check-codex-task.ts` (step 26): `requireConfirmation`, a sandbox with a
+temp home, the real `briefstack web` in the script's process, a sample
+project, the tap on the SDK's `query()`, and `prepareCodex` before the
+plan reading and the task, so nothing is spent on Claude unless Codex is
+ready.
+
+- **The task.** Claude is to call `delegate_to_codex` once and write and
+  run nothing itself; Codex creates `src/hold.js` (it waits 90 s) and runs
+  `node src/hold.js briefstack-hold-<random>` in the foreground before
+  answering. The waiting command is the file Codex wrote rather than a
+  `node -e "..."`, so no quoting has to survive the sandbox's shell, and
+  the random marker on its command line finds that one process. Codex is
+  asked to give its shell tool a timeout of at least 150 s, in case its
+  own default is shorter (not verified).
+- **When it cancels.** Every second it reads the task: a dialog is denied,
+  a question gets its first options. It waits (up to 10 minutes) for
+  `codexWorking` and a new process whose command line names `codex` and
+  the task's worktree (Codex gets `-C <worktree>`), then up to 2 minutes
+  more for the `node` with the marker; then it cancels with
+  `POST /api/tasks/:id/cancel`, the route the page's button uses. If the
+  marker never shows, it cancels with Codex at work all the same, and the
+  end of that command is NOT CONTROLLED. If the task left `running`,
+  Claude's turn ended or a call was recorded before the cancel (Claude did
+  not delegate, or the call ended first), that is a FAIL with that fact,
+  and nothing is retried.
+- **What it reads after** (PASS or FAIL with data, then a summary): the task
+  `cancelled`; `rounds[0].codex` one call, `cancelled`, with no `usage` in
+  `GET /api/tasks/:id`, which the page shows as "no usage data" / "sin
+  datos de uso"; the session called the tool and did not write
+  `src/hold.js` itself; within 30 s (polled), no new process naming
+  `codex` (against those running before the check), the marker or the
+  worktree, each one left listed with its command line; the task branch
+  still on the base (a cancelled round commits nothing) and the worktree
+  holding nothing but `src/hold.js`; the project folder unchanged;
+  discarding removes the branch and the worktree; no new `codex` process
+  at the end.
+- **Not controlled** (printed as such): the row as the page renders it (no
+  browser; the cancel test of `tests/e2e/tasks-codex.spec.ts` shows it),
+  and what Codex's commands read or send (steps 19 to 22).
+
+Tested in `tests/unit/real-scripts.test.ts`: the text (temp sandbox,
+`prepareCodex` before the plan reading and `startTask`, one task, the
+cancel route the page uses, after `codexWorking`), and that without
+`--yes` it exits with 2 and starts nothing.

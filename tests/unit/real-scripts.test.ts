@@ -845,6 +845,56 @@ describe('phase 8 real check (check-codex-task): prepared, guarded, and stops be
   });
 });
 
+describe('phase 8 real check (check-codex-cancel): prepared, guarded, Codex checked before Claude, cancel by the page\'s route', { timeout: 60_000 }, () => {
+  const read = () => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-codex-cancel.ts'), 'utf8');
+
+  it('asks for --yes, works in a temp sandbox, checks Codex before the usage reading and the task, and starts one task only', async () => {
+    const script = await read();
+    expect(script).toContain('requireConfirmation(');
+    expect(script).toMatch(/await sandbox\('codex-cancel'\)/);
+    expect(script).toContain('check.add(() => box.cleanup())');
+    expect(script).not.toContain('bypassPermissions');
+    const prepared = script.indexOf('await prepareCodex(web)');
+    expect(prepared).toBeGreaterThan(0);
+    expect(prepared).toBeLessThan(script.indexOf("await usageGate(box, executable, 'before')"));
+    expect(prepared).toBeLessThan(script.indexOf('await startTask('));
+    // One round, no retry; a Claude that does the work itself is a failure with that fact.
+    expect(script.match(/await startTask\(/g)?.length).toBe(1);
+    expect(script).toContain('Claude did not write src/hold.js itself');
+    expect(script).toContain('CODEX_TOOL_ID');
+  });
+
+  it('cancels with the route the page\'s button uses, only once Codex is at work, and reads the outcome with data', async () => {
+    const script = await read();
+    const page = await readFile(path.join(PACKAGE_ROOT, 'src', 'ui', 'tasks.tsx'), 'utf8');
+    expect(page).toContain("send('POST', `/api/tasks/${task.id}/cancel`)");
+    expect(script).toContain("web.call('POST', `/api/tasks/${id}/cancel`)");
+    // The cancel waits for the task's own signal and a new codex process for the worktree.
+    const working = script.indexOf('task.codexWorking === true');
+    expect(working).toBeGreaterThan(0);
+    expect(working).toBeLessThan(script.indexOf("web.call('POST', `/api/tasks/${id}/cancel`)"));
+    // A call that ended before the cancel is a failure with that fact.
+    expect(script).toContain('the Codex call ended before the cancel');
+    expect(script).toContain("rounds[0].codex has one call, cancelled");
+    expect(script).toContain('uiMessages.es.taskCodexNoUsage');
+    // Processes are polled until gone, against the ones that ran before, and listed when left.
+    expect(script).toContain('!before.has(entry.pid)');
+    expect(script).toContain('still running:');
+    expect(script).toContain("notControlled('the row as the page renders it'");
+  });
+
+  it('without --yes it exits with 2 and starts nothing', async () => {
+    const child = spawn(process.execPath, ['--import', 'tsx', path.join('scripts', 'real', 'check-codex-cancel.ts')], { cwd: PACKAGE_ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    let err = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => (err += chunk));
+    const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
+    expect(code).toBe(2);
+    expect(err).toContain('Run it again with --yes');
+    expect(err).toContain('Codex usage');
+  });
+});
+
 describe('check-two-creations: acts on fresh state only', () => {
   it('reads each creation just before acting on it and skips finished ones', async () => {
     const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-two-creations.ts'), 'utf8');
