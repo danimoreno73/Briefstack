@@ -6466,7 +6466,8 @@ call.
   (the page says "Cancelling…") and once the turn ended: the tool returns
   before the turn can end, but its `tool.post` may not be read yet (the
   API test caught that window).
-- **Tokens: input plus output.** Codex's own total for display,
+- **Tokens: input plus output** (replaced in step 28: the main figure is
+  now Codex's own count). Codex's own total for display,
   `TokenUsage::blended_total` in `codex-rs/protocol/src/protocol.rs`
   (read 2026-11-08), adds non-cached input and output and does not add
   `reasoning_output_tokens`; `cached_input_tokens` is part of
@@ -6507,3 +6508,30 @@ a task without calls shows no card; the page in Spanish; a cancel during
 a `[fake:slow]` call leaves the call `cancelled`, the task cancelled and
 the fake Codex's child gone. The cancel tests ran 20 times each without a
 failure.
+
+### Phase 8: step 28, Codex's token count and the real cancel check (2026-11-08)
+
+**Codex's count is the main figure** (the user's call after the step 27
+review). The task's total and each call's row now show first the tokens as
+Codex counts them, `TokenUsage::blended_total`: the input that was not
+cached plus the output, `max(0, input - cached) + output` (Codex subtracts
+with `saturating_sub`); reasoning is not added, as Codex does not add it.
+Then, in brackets, every token the call reported, cached input included
+(`input + output`, step 27's figure). With the step 26 call: "4,329 tokens
+(32,617 with cache)"; the summary says "… tokens in total, as Codex counts
+them (… with cache)". Each row keeps the parts below the figure (input,
+cached, output, reasoning). The record is unchanged: it already keeps
+`input`, `cached`, `output` and `reasoning`. A call without usage is still
+"no usage data", counted apart. The cost notice is unchanged.
+
+Why Codex's count and not the plan's: what a call takes from the user's
+ChatGPT plan cannot be read (no API gives it to briefstack, and how the
+plan weighs cached tokens is not published). Codex's own figure is the
+closest the page can show without guessing; the bracket keeps the whole
+reported input visible.
+
+Tested: `tests/unit/ui-codex.test.ts` (the two counts, the floor at 0, the
+totals and both languages' texts; failed before the change) and
+`tests/e2e/tasks-codex.spec.ts` with the fake Codex's usual numbers (1,200
+input, 1,000 cached, 50 output, 7 reasoning: "250 tokens (1,250 with
+cache)"; failed before the change: 3 of 4).

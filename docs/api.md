@@ -754,9 +754,12 @@ paths: data, never instructions. Calls refused before Codex ran (over the
 cap, an empty instruction, one already running) are not recorded. Each call
 is saved as it ends, so `GET /api/tasks/:id`, `GET /api/tasks/:id/proposal`
 and `GET /api/tasks` carry the calls of a round still running too. The task
-page shows them (decisions.md, "Phase 8: step 27"): a summary of the task's
-calls and tokens (`input + output`; a call without `usage` is counted apart,
-never as 0), and one table per round that has calls; the calls-per-round
+page shows them (decisions.md, "Phase 8: steps 27 and 28"): a summary of the
+task's calls and tokens, and one table per round that has calls. The main
+token figure is Codex's own count, `max(0, input - cached) + output`
+(`blended_total`; reasoning is not added), with `input + output` (cached
+included) in brackets, for the task and for each call; a call without
+`usage` is counted apart, never as 0. The calls-per-round
 limit it shows is the one Settings has now (`GET /api/codex`), as the record
 keeps none.
 

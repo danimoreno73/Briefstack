@@ -9,19 +9,27 @@ import type { TaskCodexCallUi, TaskViewUi } from './types.js';
 export type CodexUsageUi = NonNullable<TaskCodexCallUi['usage']>;
 
 /**
- * One call's tokens: input plus output, as Codex's own total for display
- * (`blended_total`) adds them. Cached tokens are part of the input; the
- * reasoning tokens are shown apart and not added again.
+ * One call's tokens as Codex counts them (`TokenUsage::blended_total`,
+ * decisions.md "Phase 8: step 28"): the input that was not cached plus the
+ * output. The page's main figure. Reasoning is not added, as Codex does not.
  */
 export function callTokens(usage: CodexUsageUi): number {
+  // Codex subtracts with a floor at 0 (`saturating_sub`).
+  return Math.max(0, usage.input - usage.cached) + usage.output;
+}
+
+/** Every token the call reported: the whole input (cached included) plus the output. Shown in brackets. */
+export function callTokensWithCache(usage: CodexUsageUi): number {
   return usage.input + usage.output;
 }
 
 export interface CodexTotals {
   /** Every recorded call of the task, all rounds. */
   calls: number;
-  /** The tokens of the calls that have usage. */
+  /** The tokens of the calls that have usage, as Codex counts them (`callTokens`). */
   tokens: number;
+  /** The same calls' tokens with the cached input (`callTokensWithCache`). */
+  tokensWithCache: number;
   /** Calls with no usage (ended before Codex reported it): never counted as 0 tokens. */
   withoutUsage: number;
 }
@@ -29,15 +37,19 @@ export interface CodexTotals {
 export function codexTotals(rounds: TaskViewUi['rounds']): CodexTotals {
   let calls = 0;
   let tokens = 0;
+  let tokensWithCache = 0;
   let withoutUsage = 0;
   for (const round of rounds) {
     for (const call of round.codex ?? []) {
       calls += 1;
       if (call.usage === undefined) withoutUsage += 1;
-      else tokens += callTokens(call.usage);
+      else {
+        tokens += callTokens(call.usage);
+        tokensWithCache += callTokensWithCache(call.usage);
+      }
     }
   }
-  return { calls, tokens, withoutUsage };
+  return { calls, tokens, tokensWithCache, withoutUsage };
 }
 
 /** The rounds that have Codex calls, in order; the page shows a section only for these. */

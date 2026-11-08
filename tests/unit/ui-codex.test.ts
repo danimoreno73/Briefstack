@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { uiMessages } from '../../src/i18n/ui.js';
-import { callTokens, codexTotals, formatCount, messageHead, roundsWithCodex } from '../../src/ui/codexData.js';
+import { callTokens, callTokensWithCache, codexTotals, formatCount, messageHead, roundsWithCodex } from '../../src/ui/codexData.js';
 import type { TaskCodexCallUi, TaskViewUi } from '../../src/ui/types.js';
 
 // Codex calls on a task's page (decisions.md, "Phase 8: step 27").
@@ -22,15 +22,23 @@ const round = (n: number, codex?: TaskCodexCallUi[]): TaskViewUi['rounds'][numbe
 const REAL = { input: 32_405, cached: 28_288, output: 212, reasoning: 0 };
 
 describe('Codex calls: the data the page shows', () => {
-  it('a call\'s tokens are input plus output; cached is part of input and reasoning is not added again', () => {
-    expect(callTokens(REAL)).toBe(32_617);
-    expect(callTokens({ input: 1200, cached: 1000, output: 50, reasoning: 7 })).toBe(1250);
+  it('a call\'s tokens are counted as Codex counts them: input not cached plus output; reasoning is not added', () => {
+    expect(callTokens(REAL)).toBe(4329);
+    expect(callTokens({ input: 1200, cached: 1000, output: 50, reasoning: 7 })).toBe(250);
+    expect(callTokens({ input: 100, cached: 0, output: 10, reasoning: 2 })).toBe(110);
+    // Codex subtracts with a floor at 0 (`saturating_sub`): a cached count above the input never gives less than the output.
+    expect(callTokens({ input: 10, cached: 30, output: 5, reasoning: 0 })).toBe(5);
+  });
+
+  it('with cache, a call\'s tokens are every input token plus output; cached is part of input, reasoning is not added', () => {
+    expect(callTokensWithCache(REAL)).toBe(32_617);
+    expect(callTokensWithCache({ input: 1200, cached: 1000, output: 50, reasoning: 7 })).toBe(1250);
   });
 
   it('the totals count every call of every round, and the calls without usage apart, never as 0', () => {
     const rounds = [round(1, [call(1, 'completed', REAL), call(2, 'cancelled')]), round(2), round(3, [call(1, 'completed', { input: 100, cached: 0, output: 10, reasoning: 2 })])];
-    expect(codexTotals(rounds)).toEqual({ calls: 3, tokens: 32_727, withoutUsage: 1 });
-    expect(codexTotals([round(1), round(2, [])])).toEqual({ calls: 0, tokens: 0, withoutUsage: 0 });
+    expect(codexTotals(rounds)).toEqual({ calls: 3, tokens: 4439, tokensWithCache: 32_727, withoutUsage: 1 });
+    expect(codexTotals([round(1), round(2, [])])).toEqual({ calls: 0, tokens: 0, tokensWithCache: 0, withoutUsage: 0 });
     // Older records have no `codex` at all.
     expect(roundsWithCodex([round(1)])).toEqual([]);
   });
@@ -70,10 +78,16 @@ describe('Codex calls: the texts', () => {
     expect(es.taskCodexSummary(1, undefined)).toBe('1 llamada a Codex en esta tarea');
   });
 
-  it('the total says how many calls have no usage data', () => {
-    expect(en.taskCodexTokens('1,250', 0)).toBe('1,250 tokens in total (input and output)');
-    expect(en.taskCodexTokens('1,250', 1)).toBe('1,250 tokens in total (input and output); 1 call without usage data');
-    expect(es.taskCodexTokens('0', 2)).toBe('0 tokens en total (entrada y salida); 2 llamadas sin datos de uso');
+  it('the total gives Codex\'s count first, the count with cache in brackets, and how many calls have no usage data', () => {
+    expect(en.taskCodexTokens('4,329', '32,617', 0)).toBe('4,329 tokens in total, as Codex counts them (32,617 with cache)');
+    expect(en.taskCodexTokens('250', '1,250', 1)).toBe('250 tokens in total, as Codex counts them (1,250 with cache); 1 call without usage data');
+    expect(es.taskCodexTokens('4.329', '32.617', 0)).toBe('4.329 tokens en total, como los cuenta Codex (32.617 con caché)');
+    expect(es.taskCodexTokens('0', '0', 2)).toBe('0 tokens en total, como los cuenta Codex (0 con caché); 2 llamadas sin datos de uso');
+  });
+
+  it('a row gives Codex\'s count first and the count with cache in brackets; the parts follow apart', () => {
+    expect(en.taskCodexCallTokens('4,329', '32,617')).toBe('4,329 tokens (32,617 with cache)');
+    expect(es.taskCodexCallTokens('4.329', '32.617')).toBe('4.329 tokens (32.617 con caché)');
   });
 
   it('each round says calls used out of the limit', () => {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ApiError } from './apiError.js';
-import { codexTotals, formatCount, messageHead, roundsWithCodex } from './codexData.js';
+import { callTokens, callTokensWithCache, codexTotals, formatCount, messageHead, roundsWithCodex } from './codexData.js';
 import { describeError } from './errors.js';
 import { formatWhen } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
@@ -633,7 +633,7 @@ function CodexCallsCard({ task, rounds }: { task: TaskViewUi; rounds: ReturnType
       <p class="t-strong" data-testid="task-codex-summary">
         {t.taskCodexSummary(totals.calls, cap)}
       </p>
-      <p data-testid="task-codex-tokens">{t.taskCodexTokens(count(totals.tokens), totals.withoutUsage)}</p>
+      <p data-testid="task-codex-tokens">{t.taskCodexTokens(count(totals.tokens), count(totals.tokensWithCache), totals.withoutUsage)}</p>
       <p class="t-small muted" data-testid="task-codex-cost">
         {t.taskCodexCost}
       </p>
@@ -663,7 +663,14 @@ function CodexCallsCard({ task, rounds }: { task: TaskViewUi; rounds: ReturnType
                       {call.usage === undefined ? (
                         <span class="muted">{t.taskCodexNoUsage}</span>
                       ) : (
-                        t.taskCodexUsage(count(call.usage.input), count(call.usage.cached), count(call.usage.output), count(call.usage.reasoning))
+                        <>
+                          <div class="t-strong" data-testid="task-codex-usage-main">
+                            {t.taskCodexCallTokens(count(callTokens(call.usage)), count(callTokensWithCache(call.usage)))}
+                          </div>
+                          <div class="t-small muted" data-testid="task-codex-usage-detail">
+                            {t.taskCodexUsage(count(call.usage.input), count(call.usage.cached), count(call.usage.output), count(call.usage.reasoning))}
+                          </div>
+                        </>
                       )}
                     </td>
                     <td>

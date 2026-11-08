@@ -356,7 +356,9 @@ export const uiMessages = defineCatalogue({
     taskCodexWorking: 'Codex is working…',
     taskCodexTitle: 'Codex',
     taskCodexSummary: (calls: number, cap: number | undefined) => `${calls} call${calls === 1 ? '' : 's'} to Codex in this task${cap === undefined ? '' : ` (limit in Settings: ${cap} per round)`}`,
-    taskCodexTokens: (tokens: string, withoutUsage: number) => `${tokens} tokens in total (input and output)${withoutUsage === 0 ? '' : `; ${withoutUsage} call${withoutUsage === 1 ? '' : 's'} without usage data`}`,
+    taskCodexTokens: (tokens: string, withCache: string, withoutUsage: number) =>
+      `${tokens} tokens in total, as Codex counts them (${withCache} with cache)${withoutUsage === 0 ? '' : `; ${withoutUsage} call${withoutUsage === 1 ? '' : 's'} without usage data`}`,
+    taskCodexCallTokens: (tokens: string, withCache: string) => `${tokens} tokens (${withCache} with cache)`,
     taskCodexCost: 'Each call uses your ChatGPT plan; briefstack cannot read how much you have left.',
     taskCodexRound: (n: number, calls: number, cap: number | undefined) => `Round ${n}: ${cap === undefined ? calls : `${calls} / ${cap}`} call${(cap ?? calls) === 1 ? '' : 's'}`,
     taskCodexColCall: 'Call',
@@ -1420,7 +1422,9 @@ export const uiMessages = defineCatalogue({
     taskCodexWorking: 'Codex está trabajando…',
     taskCodexTitle: 'Codex',
     taskCodexSummary: (calls: number, cap: number | undefined) => `${calls} ${calls === 1 ? 'llamada' : 'llamadas'} a Codex en esta tarea${cap === undefined ? '' : ` (tope en Ajustes: ${cap} por ronda)`}`,
-    taskCodexTokens: (tokens: string, withoutUsage: number) => `${tokens} tokens en total (entrada y salida)${withoutUsage === 0 ? '' : `; ${withoutUsage} ${withoutUsage === 1 ? 'llamada' : 'llamadas'} sin datos de uso`}`,
+    taskCodexTokens: (tokens: string, withCache: string, withoutUsage: number) =>
+      `${tokens} tokens en total, como los cuenta Codex (${withCache} con caché)${withoutUsage === 0 ? '' : `; ${withoutUsage} ${withoutUsage === 1 ? 'llamada' : 'llamadas'} sin datos de uso`}`,
+    taskCodexCallTokens: (tokens: string, withCache: string) => `${tokens} tokens (${withCache} con caché)`,
     taskCodexCost: 'Cada llamada gasta de tu plan de ChatGPT; briefstack no puede leer lo que te queda.',
     taskCodexRound: (n: number, calls: number, cap: number | undefined) => `Ronda ${n}: ${cap === undefined ? calls : `${calls} / ${cap}`} ${(cap ?? calls) === 1 ? 'llamada' : 'llamadas'}`,
     taskCodexColCall: 'Llamada',

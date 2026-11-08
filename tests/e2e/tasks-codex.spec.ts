@@ -71,8 +71,9 @@ test.describe('Codex calls on the task page', () => {
     const codex = page.getByTestId('task-codex');
     await expect(codex.getByRole('heading', { name: 'Codex', exact: true })).toBeVisible();
     await expect(codex.getByTestId('task-codex-summary')).toHaveText('2 calls to Codex in this task (limit in Settings: 5 per round)');
-    // Only the completed call has usage: 1,200 input + 50 output. The failed one is counted apart, not as 0.
-    await expect(codex.getByTestId('task-codex-tokens')).toHaveText('1,250 tokens in total (input and output); 1 call without usage data');
+    // Only the completed call has usage: 1,200 input of which 1,000 cached, 50 output. As Codex counts it, 200 + 50;
+    // with cache, 1,200 + 50. The failed one is counted apart, not as 0.
+    await expect(codex.getByTestId('task-codex-tokens')).toHaveText('250 tokens in total, as Codex counts them (1,250 with cache); 1 call without usage data');
     await expect(codex.getByTestId('task-codex-cost')).toHaveText('Each call uses your ChatGPT plan; briefstack cannot read how much you have left.');
     const round = codex.getByTestId('task-codex-round-1');
     await expect(round.getByRole('heading')).toHaveText('Round 1: 2 / 5 calls');
@@ -81,7 +82,8 @@ test.describe('Codex calls on the task page', () => {
     await expect(rows.nth(0)).toHaveAttribute('data-outcome', 'completed');
     await expect(rows.nth(0).locator('td').nth(1)).toHaveText('completed');
     await expect(rows.nth(0).locator('td').nth(3)).toHaveText('1');
-    await expect(rows.nth(0).getByTestId('task-codex-usage')).toHaveText('1,200 input (1,000 cached) · 50 output · 7 reasoning');
+    await expect(rows.nth(0).getByTestId('task-codex-usage-main')).toHaveText('250 tokens (1,250 with cache)');
+    await expect(rows.nth(0).getByTestId('task-codex-usage-detail')).toHaveText('1,200 input (1,000 cached) · 50 output · 7 reasoning');
     await expect(rows.nth(0)).toContainText('I wrote codex-note.txt.');
     await expect(rows.nth(1)).toHaveAttribute('data-outcome', 'failed');
     await expect(rows.nth(1).locator('td').nth(1)).toHaveText('failed');
@@ -136,7 +138,7 @@ test.describe('Codex calls on the task page', () => {
     await expect(rows.nth(0)).toHaveAttribute('data-outcome', 'cancelled');
     await expect(rows.nth(0).locator('td').nth(1)).toHaveText('cancelled');
     await expect(rows.nth(0).getByTestId('task-codex-usage')).toHaveText('no usage data');
-    await expect(page.getByTestId('task-codex').getByTestId('task-codex-tokens')).toHaveText('0 tokens in total (input and output); 1 call without usage data');
+    await expect(page.getByTestId('task-codex').getByTestId('task-codex-tokens')).toHaveText('0 tokens in total, as Codex counts them (0 with cache); 1 call without usage data');
     expect((await app.tasks.get(id)).rounds[0]?.codex?.map((call) => call.outcome)).toEqual(['cancelled']);
     await expect.poll(() => alive(child), CHECKED).toBe(false);
   });
@@ -152,12 +154,13 @@ test.describe('Codex calls on the task page, in Spanish', () => {
     await finishRound(page);
     const codex = page.getByTestId('task-codex');
     await expect(codex.getByTestId('task-codex-summary')).toHaveText('2 llamadas a Codex en esta tarea (tope en Ajustes: 5 por ronda)');
-    await expect(codex.getByTestId('task-codex-tokens')).toHaveText('1.250 tokens en total (entrada y salida); 1 llamada sin datos de uso');
+    await expect(codex.getByTestId('task-codex-tokens')).toHaveText('250 tokens en total, como los cuenta Codex (1.250 con caché); 1 llamada sin datos de uso');
     await expect(codex.getByTestId('task-codex-cost')).toHaveText('Cada llamada gasta de tu plan de ChatGPT; briefstack no puede leer lo que te queda.');
     await expect(codex.getByTestId('task-codex-round-1').getByRole('heading')).toHaveText('Ronda 1: 2 / 5 llamadas');
     const rows = codex.getByTestId('task-codex-call');
     await expect(rows.nth(0).locator('td').nth(1)).toHaveText('completada');
-    await expect(rows.nth(0).getByTestId('task-codex-usage')).toHaveText('1.200 de entrada (1.000 en caché) · 50 de salida · 7 de razonamiento');
+    await expect(rows.nth(0).getByTestId('task-codex-usage-main')).toHaveText('250 tokens (1.250 con caché)');
+    await expect(rows.nth(0).getByTestId('task-codex-usage-detail')).toHaveText('1.200 de entrada (1.000 en caché) · 50 de salida · 7 de razonamiento');
     await expect(rows.nth(1).locator('td').nth(1)).toHaveText('falló');
     await expect(rows.nth(1).getByTestId('task-codex-usage')).toHaveText('sin datos de uso');
     await expect(codex.getByRole('columnheader')).toHaveText(['Llamada', 'Resultado', 'Tiempo', 'Comandos', 'Tokens', 'Mensaje final de Codex']);
