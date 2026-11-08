@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import path from 'node:path';
@@ -136,7 +137,8 @@ describe('the service and its routes', { timeout: 60_000 }, () => {
     expect(calls.map((call) => call.argv)).toEqual([['--version'], ['login', 'status'], ['sandbox', '-c', 'windows.sandbox="unelevated"', '-P', ':workspace', '--', 'whoami']]);
     // Never our credentials, never CODEX_HOME (so never another auth.json); run in briefstack's own folder.
     expect(calls.flatMap((call) => call.suspect)).toEqual([]);
-    expect(calls.every((call) => path.resolve(call.cwd) === path.resolve(home, 'codex', 'check'))).toBe(true);
+    // Real paths on both sides: macOS reports its temp folder under /private.
+    expect(calls.map((call) => realpathSync(call.cwd))).toEqual(calls.map(() => realpathSync(path.join(home, 'codex', 'check'))));
     // Kept: the next GET runs nothing and shows it.
     expect((await send('GET', '/api/codex')).json).toMatchObject({ available: true, last: { ok: true } });
     expect(await logged()).toHaveLength(3);
