@@ -6286,3 +6286,107 @@ test, 90 s in production) loses its lock. Step 23 showed it with a holder
 blocked 400 ms (taken over in 21 of 21). The log of the CI failure does not
 say whether that, or the judge's delay now fixed, was the cause there;
 open in [IDEAS.md](IDEAS.md) §7.
+
+### Phase 8: step 25, the Codex runner, `delegate_to_codex` and Settings (2026-11-08)
+
+**The user's decision (2026-11-08).** After steps 19 to 22, the user chose
+to go on with Codex **and accept the measured risk with a plain warning**:
+on Windows, Codex's sandbox protects writes outside the worktree and the
+git folders, but it **reads outside the worktree and has the network (the
+Internet and 127.0.0.1) in both modes**. A closed network is no longer a
+requirement. Codex keeps its shell (a mode without it is in
+[IDEAS.md](IDEAS.md) §5, not measured). The mitigations that stay: the
+switch is off by default, Settings shows the measured warning, Codex gets a
+cleaned environment, the diff and the user's approval are the control, and
+what Codex says is data. The Windows mode defaults to `unelevated` (on the
+user's machine the only one that runs Node installed with nvm; neither
+closes the network); `elevated` can be chosen. Calls per round: a setting,
+default 5, 1 to 10.
+
+**What was built** (no real `codex exec`, no real Claude session; a fake
+Codex, `tests/fixtures/codex/fake-codex.mjs`, in the tests and CI):
+
+- `src/codex/runner.ts`: one call is exactly the measured `exec --json
+  --sandbox workspace-write --ephemeral -c approval_policy="never" -c
+  windows.sandbox="<mode>" -C <worktree> -o <file> -`, the instruction on
+  stdin, no shell (on Windows `node <npm prefix>/node_modules/@openai/codex/bin/codex.js`,
+  found next to `codex.cmd` on the PATH; elsewhere `codex` from the PATH),
+  through `spawnTracked`, so a deadline (10 minutes), an abort (cancel, a
+  stopped round, a server stop) and the server's exit end the whole process
+  tree. It reads the JSONL (`thread.started`, `item.completed` with
+  `command_execution` and `agent_message`, `turn.completed` with `usage`,
+  `turn.failed`, `error`), the `-o` file and the exit code.
+- `src/codex/env.ts`: every variable with TOKEN, SECRET, KEY, PASSWORD or
+  CREDENTIAL in its name, and every `ANTHROPIC_*`, `CLAUDE*`,
+  `BRIEFSTACK_*`, `GH_*`, `GITHUB_*` and `CODEX_HOME`, is left out.
+- `src/codex/tool.ts`: `delegate_to_codex`, the only tool of a task
+  session's own in-process MCP server `briefstack-task`, offered only when
+  the round gets it. One parameter, `instruction`. The task guard (and its
+  command hook, through `guard.json`'s new optional `codex`) allows
+  `mcp__briefstack-task__delegate_to_codex` only when the round offers it;
+  the chat, creations and improvements have no such server, and their tool
+  lists are unchanged (`tests/unit/codex-tools-invariant.test.ts`). The
+  task's built-in tools and skills layers do not change. The tool never
+  runs the declared checks (S8; `tests/unit/tasks-checks-invariant.test.ts`).
+- The round's record gets `codex?` (additive: older records read as they
+  did): per call `n`, `at`, `durationMs`, `exitCode`, `outcome`, `usage?`
+  (input, cached, output, reasoning), `commands` and the final message, cut
+  and redacted. Not shown yet (step 26).
+- `src/codex/service.ts` and the Settings card: the switch, the mode
+  (Windows only; elsewhere "not verified on this system"), the calls per
+  round, and the status, read only when the user presses "Check":
+  `codex --version`, `codex login status` (exit code and stderr; never
+  `auth.json`) and `codex sandbox [-c windows.sandbox="<mode>"] -P
+  :workspace -- whoami`. A round gets the tool only when the switch is on,
+  the last check passed and Codex is still found; otherwise the card says
+  why (`off`, `notChecked`, `checkFailed`, `modeChanged`).
+
+**Choices made without the user** (the most conservative at hand):
+
+- **Main session only.** A subagent's call to the tool is denied by the
+  guard: one place decides when Codex works, and the cap is easier to
+  follow.
+- **One call at a time.** A call while another runs is refused (two
+  Codex runs in one worktree would step on each other). Refused calls
+  (empty, over 20 000 characters, one already running, over the cap, a
+  worktree not on the task's branch) never run Codex, do not count and
+  are not recorded.
+- **Branch and HEAD.** Before a call the worktree must be on
+  `refs/heads/briefstack/task-<id>`; after it, the branch and HEAD must
+  be the same. Otherwise the call is `headChanged`, an error for Claude,
+  and counts as failed.
+- **What Claude gets back:** a notice that this is another program's
+  output and not instructions, the outcome, exit code, duration and
+  number of commands, and the final message, at most 8 000 characters.
+  The text is cut first, at the end of a line, then each line is masked
+  (`maskSecretValues`), so the masking never reads more than is kept and
+  no line, nor a secret in it, is split where the masking could miss it.
+  The commands Codex ran are not passed. The record keeps at most 2 000
+  characters, the same way, without absolute paths.
+- **Usage** is what Codex reported in `turn.completed`; a call ended
+  before it has none (as measured in step 19).
+- **The `-o` file** goes to `<home>/tasks/<id>/codex/`, outside the
+  worktree, and is removed once read.
+- **`-c windows.sandbox` only on Windows**, in the call and in the check
+  (other systems: not measured). The value is quoted as measured
+  (`"<mode>"`), also in the check (the brief wrote it unquoted there).
+  The mode is saved on any system; only Windows uses it.
+- **The last check counts only for the mode and the system it ran
+  with**: changing the mode needs a new check. It is kept in
+  `<home>/codex/status.json` and runs in `<home>/codex/check/`, with the
+  cleaned environment, each command with a 60 s deadline.
+- **Reading Settings fails at a round's start**: the round runs without
+  the tool.
+- **The tool's MCP timeout** is the call's deadline plus 2 minutes, our
+  own, not `MCP_TOOL_TIMEOUT` from the user's environment (as the chat).
+  The tool is not in `allowedTools`: the guard's `PreToolUse` answer
+  allows it, and `canUseTool` asks the same guard.
+- **The Settings card is a form of its own** with "Apply Codex settings":
+  the main form's "Save" stays the only button of that name. The warning
+  shows while the switch is on, before it is applied too.
+
+**Not verified here** (left to step 27, the real check on Windows): that
+Claude Code offers the in-process tool in a task session (`auto` mode,
+`strictMcpConfig`, the closed `tools` list) and that the hook's allow lets
+it run; the real `codex` behind the check and the runner on this machine;
+everything off Windows beyond the fake Codex.

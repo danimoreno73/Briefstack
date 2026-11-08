@@ -187,9 +187,10 @@ will be created.
 
 ### `GET /api/settings`
 
-`{ "projectsDir", "lang", "configLang": "en" | "es" | null, "permissionPolicy": "ask" | "unattended", "maxActiveCreations": 2, "usageWarning": { "fiveHour": 80, "week": 85 } }`.
+`{ "projectsDir", "lang", "configLang": "en" | "es" | null, "permissionPolicy": "ask" | "unattended", "maxActiveCreations": 2, "usageWarning": { "fiveHour": 80, "week": 85 }, "codex": { "enabled": false, "mode": "unelevated", "maxCalls": 5 } }`.
 `lang` is the language in use; `configLang` the one saved in the config;
-`usageWarning` the plan-usage percentages from which a start shows a warning.
+`usageWarning` the plan-usage percentages from which a start shows a warning;
+`codex` the Codex settings of task rounds (phase 8, "Codex routes").
 
 ## Write routes
 
@@ -237,6 +238,12 @@ Body with at least one of:
   creations may be active at once.
 - `usageWarnFiveHour`, `usageWarnWeek`: whole numbers from 1 to 100
   (defaults 80 and 85): the plan-usage warning thresholds.
+- `codexEnabled`: `true` or `false` (default `false`): whether task rounds
+  may get `delegate_to_codex` (phase 8).
+- `codexMode`: `"unelevated"` (default) or `"elevated"`: Codex's Windows
+  sandbox mode. Saved on any system; only Windows uses it.
+- `codexMaxCalls`: a whole number from 1 to 10 (default 5): Codex calls per
+  task round.
 
 Answers the same as `GET /api/settings`.
 
@@ -735,6 +742,18 @@ task is removed, and an existing one is left as an abrupt stop leaves it,
 which the next start's recovery puts back (a round as interrupted, checks
 back on the proposal without results).
 
+Each round may carry `codex?` (phase 8; records saved before it read as
+they did): one entry per `delegate_to_codex` call that ran,
+`{ n, at, durationMs, exitCode, outcome, usage?, commands, message }`.
+`outcome` is `completed`, `failed`, `timedOut`, `cancelled`, `notStarted`
+or `headChanged` (Codex moved the worktree's branch or HEAD: a failed
+call); `usage` is `{ input, cached, output, reasoning }` tokens from
+Codex's `turn.completed` (absent for a call that ended before it);
+`message` is Codex's final message, cut, redacted and without absolute
+paths: data, never instructions. Calls refused before Codex ran (over the
+cap, an empty instruction, one already running) are not recorded. The pages
+do not show them yet.
+
 A task (`TaskView`) is its record (`src/tasks/types.ts`: `id`, `project`,
 `description`, `state`, `profile`, `model`, `effort`, `baseBranch`,
 `baseCommit`, `branch`, `rounds[]`, `checks?`, `validations?`, `reviewed?`,
@@ -775,6 +794,37 @@ server stopped while they run leaves the task on `proposal` without
 | `GET /api/projects/:slug/tasks` | | `{ tasks, checks, start }`: the project's tasks, its declared checks (`{ command, confirmed }`), and whether a task can start (`{ ok: true, branch, uncommitted }` or `{ ok: false, code, params, message }`; the page shows its own text for `code` and `params`, never `message`) |
 | `PUT /api/projects/:slug/checks` | `{ commands, confirm: true }` | the note's checks block rewritten through the library queue, each command recorded as confirmed; `400 task.invalidCheck` |
 | `POST /api/projects/:slug/git-init` | `{ confirm: true }` | for a folder in no git repository: `git init` and one commit of its files; `409 task.alreadyRepo`, `task.insideOtherRepo` |
+
+## Codex routes (phase 8)
+
+Codex in Settings (decisions.md, "Phase 8: step 25"). The switch, the mode
+and the calls per round are saved with `PUT /api/settings`. Without a Codex
+service both routes answer `503 codex.unavailable`.
+
+### `GET /api/codex`
+
+Runs nothing: the settings and the last status check.
+`{ "enabled", "mode", "maxCalls", "modeOffered", "last"?, "available", "reason"? }`.
+`modeOffered` is `true` only on Windows (the mode is not verified
+elsewhere). `last`, once checked:
+`{ "at", "platform", "mode"?, "found", "version", "login", "sandbox", "ok" }`,
+each of the three `{ "ok", "text" }` (`text` cut to 300 characters,
+secrets and absolute paths hidden). `available` says whether a task round
+starting now gets `delegate_to_codex`; when not, `reason` is `off`,
+`notChecked` (never checked, or checked on another system), `checkFailed`
+or `modeChanged` (Windows: the mode saved now is not the one checked).
+A round also looks for Codex again; not found, the round has no tool.
+
+### `POST /api/codex/check`
+
+Runs the status check, one at a time, and keeps it in
+`<home>/codex/status.json`; answers as `GET /api/codex`. Three commands,
+none of which uses the plan, without a shell, with Codex's cleaned
+environment, in `<home>/codex/check/`: `codex --version`, `codex login
+status` (its exit code and stderr; `auth.json` is never read) and `codex
+sandbox [-c windows.sandbox="<mode>"] -P :workspace -- whoami` (the mode
+on Windows only). It passes when all three end with exit code 0. Codex not
+on the PATH is `found: false`.
 
 ## CLI: `skills install`
 

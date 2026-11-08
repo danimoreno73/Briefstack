@@ -408,6 +408,24 @@ firewall rules:
   no model) as a gate in whatever is chosen, and (2) until that check
   passes on the user's machine.
 
+**The user's decision and step 25 (2026-11-08; decisions.md, "Phase 8:
+step 25").** The user chose (3): Codex stays, with its shell, and the
+measured risk is accepted with a plain warning in Settings; a closed
+network is no longer a requirement. Step 25 built the runner, the
+`delegate_to_codex` tool (task sessions only), the per-round record and
+the Settings card (off by default, `unelevated` by default, 5 calls per
+round), all over a fake Codex in CI. The proposal page (step 26) and the
+real check on Windows (step 27) are next.
+
+Future improvement, **not measured**: a mode without Codex's shell
+(`codex exec --disable shell_tool`). Codex would keep only its file
+tool, which the spike saw refuse writes outside the worktree; without a
+shell it could not run commands, so the network and reads outside the
+worktree through programs would be out of its reach (to be measured: what
+the file tool itself can read, and whether the flag holds in `codex
+exec`). It would also lose running the project's tests. Measure it before
+offering it as an option.
+
 ## 6. Unattended runs that reach the user
 
 Goal (user): define a project fully up front, leave Claude working
