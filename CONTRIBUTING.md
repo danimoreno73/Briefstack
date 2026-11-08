@@ -33,7 +33,7 @@ The CI runs the same on Linux, Windows and macOS for every push and pull request
 The tests never reach the network, never start a real Claude Code session
 and never touch your own data: they work in temp folders, with a fake
 runner instead of Claude Code and a local fake GitHub. Checks that need a
-real Claude Code session live in `scripts/real/`; they ask for `--yes`,
+real Claude Code session (or the user's Codex CLI) live in `scripts/real/`; they ask for `--yes`,
 work in a sandbox and are run by a person, never by the tests or the CI.
 
 ## Rules

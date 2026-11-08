@@ -414,8 +414,11 @@ measured risk is accepted with a plain warning in Settings; a closed
 network is no longer a requirement. Step 25 built the runner, the
 `delegate_to_codex` tool (task sessions only), the per-round record and
 the Settings card (off by default, `unelevated` by default, 5 calls per
-round), all over a fake Codex in CI. The proposal page (step 26) and the
-real check on Windows (step 27) are next.
+round), all over a fake Codex in CI. Step 26 prepared the real check on
+Windows (`scripts/real/check-codex-task.ts`, run by the user: it checks
+Codex in Settings before spending anything, then a task where Claude must
+hand `src/slug.js` to Codex; decisions.md, "Phase 8: step 26"). Showing the
+calls on the proposal page comes after it.
 
 Future improvement, **not measured**: a mode without Codex's shell
 (`codex exec --disable shell_tool`). Codex would keep only its file

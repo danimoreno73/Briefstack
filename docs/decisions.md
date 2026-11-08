@@ -6385,8 +6385,59 @@ Codex, `tests/fixtures/codex/fake-codex.mjs`, in the tests and CI):
   the main form's "Save" stays the only button of that name. The warning
   shows while the switch is on, before it is applied too.
 
-**Not verified here** (left to step 27, the real check on Windows): that
+**Not verified here** (left to the real check on Windows, step 26 below): that
 Claude Code offers the in-process tool in a task session (`auto` mode,
 `strictMcpConfig`, the closed `tools` list) and that the hook's allow lets
 it run; the real `codex` behind the check and the runner on this machine;
 everything off Windows beyond the fake Codex.
+
+### Phase 8: step 26, real check prepared (2026-11-08)
+
+`scripts/real/check-codex-task.ts`, for the user to run (`npx tsx
+scripts/real/check-codex-task.ts --yes`): it spends real Codex usage with
+the user's ChatGPT login and one short Claude task session (saver). Written
+and tested without running it: no real `codex exec` and no Claude session
+in this step. Same pattern as `check-task-flow.ts`: a sandbox with a temp
+home, the real `briefstack web` in the script's process (whose Codex
+service is the real one, from the PATH), a sample project, the tap on the
+SDK's `query()`.
+
+**Before anything is spent** (`prepareCodex`, in `tasks-common.ts`), through
+the API the Settings card uses: the switch on, `unelevated` on Windows, 5
+calls per round, then the status check. It prints the three readings, and
+if Codex is not found, not signed in, its sandbox fails or rounds would not
+get the tool, the script stops (exit 2) with the exact reason before any
+Claude session. Tested against a real server over the fake Codex
+(`tests/unit/real-scripts.test.ts`).
+
+**What it shows when it passes** (each a PASS or FAIL line with its data,
+then a summary table, Codex's tokens, the duration and the plan usage
+before and after):
+
+- Claude Code lists `mcp__briefstack-task__delegate_to_codex` in the task
+  session's init tools; the session called it; no `tool.denied` line for it
+  (neither the guard nor Claude Code refused it); its result came back
+  without an error and starts with the notice that it is Codex's output,
+  not instructions.
+- Claude did not write `src/slug.js` itself (no `Write` or `Edit` of it):
+  if it did, that is a FAIL with that fact, and nothing is retried.
+- `rounds[0].codex[0]`: `completed`, exit code 0, a duration, a command
+  count, and token usage above 0; no `headChanged`.
+- The diff holds `src/slug.js`; no blocking validation.
+- S8: the checks did not run by themselves (no results, no log line); run
+  from the proposal with the list the page shows, both pass (one runs
+  Codex's `slugify` on the example) and the log has one line.
+- Nothing reached the project folder before approving; approving leaves one
+  commit on `main` with the file, the branch and the worktree go, no remote.
+- No new process naming Codex (against the ones running before the check,
+  such as the Codex desktop app) and none naming the work folder, after the
+  round and at the end.
+- The Settings warning in the catalogue is the measured text, in English
+  and Spanish.
+
+**What it does not control** (printed as NOT CONTROLLED): the warning as the
+page renders it (no browser; `tests/e2e/codex.spec.ts` covers it), and what
+Codex's commands read outside the worktree or send over the network
+(measured in steps 19 to 22, accepted by the user). Not covered either:
+`elevated`, other systems, a Claude that does not delegate on the first try
+(a FAIL, by design).
