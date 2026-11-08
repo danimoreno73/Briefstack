@@ -257,6 +257,37 @@ describe('the manager: Codex calls in the round\'s record', { timeout: 60_000 },
     await until(() => !alive(child), 'Codex\'s child to be gone');
   });
 
+  it('while a call runs the task says Codex is working; a call that ended, a cancel or a refused call do not', async () => {
+    const m = manager(
+      () => ({ steps: [{ kind: 'codex', instruction: 'Add a note.' }, { kind: 'codex', instruction: '[fake:slow]' }, { kind: 'end', summary: 'Done.' }] }),
+      offered,
+    );
+    await world.project('garden');
+    const task = await m.start('garden', 'Use Codex.');
+    // The first call ended (its record is saved), the second one runs.
+    await until(async () => (await m.get(task.id)).rounds[0]?.codex?.length === 1, 'the first call');
+    await until(async () => (await m.get(task.id)).codexWorking === true, 'Codex working');
+    m.cancel(task.id);
+    // Cancelling: the page says so, not that Codex works.
+    expect((await m.get(task.id)).codexWorking).toBeUndefined();
+    await until(async () => (await m.get(task.id)).state === 'cancelled', 'the cancel');
+    expect((await m.get(task.id)).codexWorking).toBeUndefined();
+
+    // A call the guard refuses (the round does not offer the tool) never shows as working once refused.
+    const off = manager(() => ({ steps: [{ kind: 'codex', instruction: 'Go.' }, { kind: 'end', summary: 'Done.' }] }), async () => undefined);
+    await world.project('garden2');
+    const refused = await off.start('garden2', 'Use Codex.');
+    const lines: string[] = [];
+    off.subscribe(refused.id, 0, (event) => {
+      const type = (event.data as { type?: string }).type;
+      if ((event.kind === 'hook' || event.kind === 'runner') && type !== undefined) lines.push(type);
+    });
+    await until(async () => (await off.get(refused.id)).awaitingReply !== undefined, 'the turn to end');
+    // Both of the call's lines were read: its start, then its refusal.
+    await until(() => lines.includes('tool.pre') && lines.includes('tool.denied'), 'the refusal to be read');
+    expect((await off.get(refused.id)).codexWorking).toBeUndefined();
+  });
+
   it('a server stop while Codex works ends its process tree too', async () => {
     const m = manager(() => ({ steps: [{ kind: 'codex', instruction: '[fake:slow]' }, { kind: 'end', summary: 'Done.' }] }), offered);
     await world.project('garden');

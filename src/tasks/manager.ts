@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { CodexSession } from '../codex/tool.js';
+import { CODEX_TOOL_ID } from '../codex/toolNames.js';
 import { DEFAULT_MAX_ACTIVE_CREATIONS } from '../config/limits.js';
 import { systemPathEnv, type PathEnv } from '../config/paths.js';
 import type { QuestionRequest, QuestionResult } from '../creation/types.js';
@@ -61,6 +62,12 @@ export interface TaskView extends TaskRecord {
   warnings?: { agentsWithoutTools: string[]; externalImports: { file: string; target: string }[] };
   /** How many exact commands, addresses and queries the user allowed for the rest of the task. */
   allowedForTask?: number;
+  /**
+   * A `delegate_to_codex` call of the running round has started and not
+   * ended (phase 8): read from the round's own `tool.pre` line with no
+   * `tool.post`, `tool.failure` or `tool.denied` for the same call yet.
+   */
+  codexWorking?: true;
 }
 
 /** One item of a task's live stream, as creations stream theirs (`flow`, `hook`, `runner` carry `events.jsonl` lines). */
@@ -1016,7 +1023,23 @@ export class TaskManager {
       view.warnings = { agentsWithoutTools: [...l.inspection.agentsWithoutTools], externalImports: l.inspection.externalImports.map((item) => ({ ...item })) };
     }
     if (l.approvals.size > 0) view.allowedForTask = l.approvals.size;
+    // A turn that ended waits for the user: the tool returned, even if its last line is not read yet.
+    if (l.record.state === 'running' && !l.cancelling && l.awaitingReply === undefined && this.codexWorking(l)) view.codexWorking = true;
     return view;
+  }
+
+  /** Whether a `delegate_to_codex` call of the current round is still open in the lines read so far (no new event: the panel's own lines). */
+  private codexWorking(l: Live): boolean {
+    const round = l.record.rounds.length;
+    const open = new Set<string>();
+    for (const event of l.buffer) {
+      if (event.round !== round || (event.kind !== 'hook' && event.kind !== 'runner')) continue;
+      const line = event.data as { type?: unknown; tool?: unknown; toolUseId?: unknown };
+      if (typeof line.toolUseId !== 'string') continue;
+      if (line.type === 'tool.pre' && line.tool === CODEX_TOOL_ID) open.add(line.toolUseId);
+      else if (line.type === 'tool.post' || line.type === 'tool.failure' || line.type === 'tool.denied') open.delete(line.toolUseId);
+    }
+    return open.size > 0;
   }
 
   /** For the tests: the state of a task as the stream last said. */
