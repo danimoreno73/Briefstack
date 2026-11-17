@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { isApprovedCommand } from '../builds/commands.js';
+import { integrationHead, landOnIntegration } from '../builds/git.js';
 import type { CodexSession } from '../codex/tool.js';
 import { CODEX_TOOL_ID } from '../codex/toolNames.js';
 import { DEFAULT_MAX_ACTIVE_CREATIONS } from '../config/limits.js';
@@ -17,12 +19,40 @@ import type { TaskChecks } from './checks.js';
 import { allFiles, branchHead, commitRound, createTaskWorktree, headOf, isTaskWorktree, removeTaskWorktree, restoreToHead } from './git.js';
 import { proposalDiff, type ProposalDiff } from './proposal.js';
 import { checkTaskPreconditions } from './preconditions.js';
-import { roundPrompt, type TaskRunner, type TaskRunnerEvent, type TaskRunnerHandle, type TaskRunnerOutcome } from './runner.js';
+import { roundPrompt, UNATTENDED_DENIED, type TaskRunner, type TaskRunnerEvent, type TaskRunnerHandle, type TaskRunnerOutcome } from './runner.js';
 import { inspectProject, projectRestrictions, type ProjectInspection } from './session.js';
 import { TaskApprovals, TASK_DIALOG_TIMEOUT_MS, type ApprovalRequest, type CommandFeature, type ShellAnswer } from './shell.js';
 import { newTaskId, type TaskStore } from './store.js';
-import { branchOf, isActiveTask, type TaskCodexCall, type TaskRecord, type TaskState, type TaskValidation } from './types.js';
+import { branchOf, buildBranchOf, isActiveTask, type TaskCodexCall, type TaskRecord, type TaskState, type TaskValidation } from './types.js';
 import path from 'node:path';
+
+/**
+ * A round a build runs (phase 9; decisions.md, "Phase 9: H0", 3): nobody is
+ * asked anything. A shell command runs only when it is on the build's exact
+ * list (`isApprovedCommand`); every other command and web request is denied
+ * without a dialog and handed to `onDenied`; a question is refused by the
+ * runner; the turn's end ends the round.
+ */
+export interface UnattendedRound {
+  /** The exact commands the user approved at the build's start. */
+  commands: readonly string[];
+  /** The round's whole first message, written by the build. */
+  prompt: string;
+  /** Each command or address the round denied, as the dialog would have shown it (redacted). */
+  onDenied(entry: { tool: string; text: string }): void;
+}
+
+/** Where a build's task starts (phase 9). */
+export interface BuildTaskInput {
+  build: { id: string; n: number };
+  /** The integration branch and its head now. */
+  base: { branch: string; commit: string };
+  description: string;
+  round: UnattendedRound;
+}
+
+const firstLineOf = (text: string): string => redactSecretLines(text.trim().split(/\r?\n/, 1)[0] ?? '').trim();
+const clipTo = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
 
 /**
  * Tasks in existing projects (BRIEF-phase-7): their start, their rounds and
@@ -110,6 +140,8 @@ export interface TaskManagerOptions {
    * last check did not pass. Without it, no round offers the tool.
    */
   codex?: () => Promise<Omit<CodexSession, 'outDir'> | undefined>;
+  /** The open build on a project, if any (phase 9): it holds the project, so no ordinary task starts there. */
+  buildOn?: (project: string) => string | undefined | Promise<string | undefined>;
   pathEnv?: PathEnv;
   now?: () => Date;
   /** How often `events.jsonl` is read. Default 300 ms. */
@@ -154,6 +186,8 @@ interface Live {
   checksDone: Promise<void>;
   /** Aborts the checks running now: a server stop ends their process tree. */
   checksAbort?: AbortController | undefined;
+  /** Set while a round a build runs is at work (phase 9): nobody is asked. */
+  unattended?: UnattendedRound | undefined;
 }
 
 const questionAnswerSchema = z.record(z.string(), z.string().trim().min(1));
@@ -220,6 +254,97 @@ export class TaskManager {
     const run = this.starting.then(() => this.startNow(project, text));
     this.starting = run.catch(() => undefined);
     return run;
+  }
+
+  /**
+   * Starts a build's task (phase 9): the same preconditions, worktree and
+   * checks of the project's definitions as `start`, but the worktree starts
+   * at the build's integration head, the build's own open tasks do not take
+   * the project, and the first round is unattended.
+   */
+  startForBuild(project: string, input: BuildTaskInput): Promise<TaskView> {
+    if (this.stopping) return Promise.reject(new BriefstackError('task.stopping', {}));
+    const text = input.description.trim();
+    const run = this.starting.then(() => this.startNow(project, text, input));
+    this.starting = run.catch(() => undefined);
+    return run;
+  }
+
+  /** Waits until the task's current round ended and its end is recorded (phase 9: the build waits for its rounds). */
+  async roundSettled(id: string): Promise<TaskView> {
+    const l = this.live.get(id);
+    if (l === undefined) return this.get(id);
+    await l.roundEnded;
+    return this.view(l);
+  }
+
+  /** Another unattended round on a build's task: a fix round with the failing checks (phase 9). */
+  async newBuildRound(id: string, changes: string, round: UnattendedRound): Promise<TaskView> {
+    return this.act(id, async (record) => {
+      this.refuseWhileStopping();
+      if (record.build === undefined) throw new BriefstackError('task.notInBuild', { id });
+      if (record.state !== 'proposal') throw new BriefstackError('task.wrongState', { id, state: record.state });
+      const l = this.live.get(id) ?? this.adopt(record);
+      const limit = await this.limit();
+      const active = [...this.activeIds(), ...(this.options.creations?.activeIds() ?? [])];
+      if (active.length >= limit) throw new BriefstackError('task.limit', { limit, active });
+      await this.startRound(l, changes.trim(), round);
+      return this.view(l);
+    });
+  }
+
+  /**
+   * Runs a build's checks on the commit the round's end reviewed, right
+   * after the round, on the consent the user gave at the build's start
+   * (phase 9; decisions.md, "Phase 9: H0", 4). Only a build's task: any
+   * other is refused (`task.notInBuild`), so an ordinary task's checks still
+   * run only when the user asks on its proposal page (S8). Same runner,
+   * environment, time limit and clean-up as `runChecks`. Resolves once they
+   * ended and their results are recorded.
+   */
+  async runBuildChecks(id: string, commands: readonly string[]): Promise<TaskView> {
+    const started = await this.act(id, async (record) => {
+      this.refuseWhileStopping();
+      if (record.build === undefined) throw new BriefstackError('task.notInBuild', { id });
+      if (record.state !== 'proposal' || record.reviewed === undefined) throw new BriefstackError('task.wrongState', { id, state: record.state });
+      if (commands.length === 0) return false;
+      const l = this.live.get(id) ?? this.adopt(record);
+      const limit = await this.limit();
+      const active = [...this.activeIds(), ...(this.options.creations?.activeIds() ?? [])];
+      if (active.length >= limit) throw new BriefstackError('task.limit', { limit, active });
+      this.refuseWhileStopping();
+      l.record.state = 'checking';
+      delete l.record.checks;
+      delete l.record.error;
+      l.record.updatedAt = this.now().toISOString();
+      await this.options.store.save(l.record);
+      this.pushStatus(l);
+      l.checksDone = this.checkNow(l, l.record.reviewed as string, [...commands]).catch(() => undefined);
+      return true;
+    });
+    const l = this.live.get(id);
+    if (started && l !== undefined) await l.checksDone;
+    return this.get(id);
+  }
+
+  /** Whether checks run now on the task (phase 9: a build's cancel ends them). */
+  checksRunning(id: string): boolean {
+    return this.live.get(id)?.checksAbort !== undefined;
+  }
+
+  /** Ends the checks running now on a build's task, as a server stop does (phase 9: the build was cancelled). Nothing is recorded. */
+  async abortBuildChecks(id: string): Promise<void> {
+    const l = this.live.get(id);
+    if (l === undefined || l.record.build === undefined) return;
+    l.checksAbort?.abort();
+    await settlesWithin(l.checksDone, this.options.shutdownTimeoutMs ?? 15_000);
+    await this.act(id, async () => {
+      if (this.stopping || l.record.state !== 'checking') return;
+      const next = await this.backToProposal(l.record);
+      await this.options.store.save(next);
+      l.record = next;
+      this.pushStatus(l);
+    });
   }
 
   /** Answers the pending request `pendingId`. Once a server stop began, nothing is answered: the stop settled every request. */
@@ -470,12 +595,41 @@ export class TaskManager {
 
   /** Approve on the proposal page: one commit on the default branch (BRIEF §3.5). */
   approve(id: string): Promise<TaskView> {
-    return this.act(id, async (record) => this.update(await applyTask(record, await this.applyDeps())));
+    return this.act(id, async (record) => this.update(record.build !== undefined ? await this.applyToBuild(record) : await applyTask(record, await this.applyDeps())));
   }
 
-  /** Revert an applied task with one commit, after the user confirmed it. */
+  /**
+   * A build's task is applied to the build's integration branch, never to
+   * the default branch (phase 9; BRIEF-phase-9 §4): one commit made with
+   * `commit-tree` on the branch's head, moved there only if the head is
+   * still the one read. The worktree and the task's branch go, as after an
+   * approval. Nothing is written in the user's folder or library note.
+   */
+  private async applyToBuild(task: TaskRecord): Promise<TaskRecord> {
+    const build = task.build;
+    if (build === undefined) throw new BriefstackError('task.notInBuild', { id: task.id });
+    if (task.state !== 'proposal') throw new BriefstackError('task.wrongState', { id: task.id, state: task.state });
+    const blocking = (task.validations ?? []).filter((item) => item.level === 'error');
+    if (blocking.length > 0) throw new BriefstackError('task.blocked', { id: task.id, files: blocking.map((item) => item.file) });
+    const branch = buildBranchOf(build.id);
+    const expected = await integrationHead(task.projectDir, branch);
+    if (expected === undefined) throw new BriefstackError('build.branchMoved', { branch });
+    const taskHead = await branchHead(task.projectDir, task.branch);
+    if (task.reviewed !== undefined && taskHead !== task.reviewed) throw new BriefstackError('task.branchChanged', { id: task.id });
+    if (taskHead === undefined || taskHead === task.baseCommit) throw new BriefstackError('task.noChanges', { id: task.id });
+    const rounds = task.rounds.length;
+    const message = `${clipTo(firstLineOf(task.description), 72)}\n\nApplied by briefstack from task ${task.id} of build ${build.id} (${rounds} round${rounds === 1 ? '' : 's'}).\n`;
+    const commit = await landOnIntegration(task.projectDir, { branch, expected, from: task.baseCommit, to: taskHead, message, project: task.project, id: task.id });
+    await removeTaskWorktree(task.projectDir, this.options.store.worktreeDir(task.id), task.branch).catch(() => undefined);
+    return { ...task, state: 'applied', applied: { commit, at: this.now().toISOString() } };
+  }
+
+  /** Revert an applied task with one commit, after the user confirmed it. A build's task is reverted only with its build. */
   revert(id: string): Promise<TaskView> {
-    return this.act(id, async (record) => this.update(await revertTask(record, await this.applyDeps())));
+    return this.act(id, async (record) => {
+      if (record.build !== undefined) throw new BriefstackError('task.inBuild', { id, build: record.build.id });
+      return this.update(await revertTask(record, await this.applyDeps()));
+    });
   }
 
   /** Discard: the branch and the worktree go. Nothing allowed for the task is kept. */
@@ -528,6 +682,7 @@ export class TaskManager {
             const ids = [...this.activeIds(), ...(this.options.creations?.activeIds() ?? [])];
             return { count: ids.length, limit, ids };
           },
+          ...(this.options.buildOn === undefined ? {} : { buildOn: this.options.buildOn }),
         },
         project,
       );
@@ -557,7 +712,7 @@ export class TaskManager {
 
   // ---- start and rounds ------------------------------------------------------------------------
 
-  private async startNow(project: string, description: string): Promise<TaskView> {
+  private async startNow(project: string, description: string, forBuild?: BuildTaskInput): Promise<TaskView> {
     this.refuseWhileStopping();
     if (description === '' || description.length > MAX_DESCRIPTION) throw new BriefstackError('web.invalidBody', { issues: [`description: 1 to ${MAX_DESCRIPTION} characters`] });
     const { libraryDir, repoDir } = await this.options.locations();
@@ -573,8 +728,10 @@ export class TaskManager {
           const ids = [...this.activeIds(), ...(this.options.creations?.activeIds() ?? [])];
           return { count: ids.length, limit, ids };
         },
+        ...(this.options.buildOn === undefined ? {} : { buildOn: this.options.buildOn }),
       },
       project,
+      forBuild === undefined ? undefined : { build: forBuild.build.id },
     );
     const profile = await this.options.profile();
     const id = newTaskId(this.now());
@@ -589,13 +746,15 @@ export class TaskManager {
       model: profile.model,
       effort: profile.effort,
       state: 'running',
-      baseBranch: start.branch,
-      baseCommit: start.head,
+      // A build's task starts at the build's integration branch, not at the folder's branch (phase 9).
+      baseBranch: forBuild?.base.branch ?? start.branch,
+      baseCommit: forBuild?.base.commit ?? start.head,
       branch: branchOf(id),
       hidden: [],
       createdAt: at,
       updatedAt: at,
       rounds: [],
+      ...(forBuild === undefined ? {} : { build: { id: forBuild.build.id, n: forBuild.build.n } }),
     };
     // The last check of the shared limit and the registration happen with no await between them.
     const active = [...this.activeIds(), ...(this.options.creations?.activeIds() ?? [])];
@@ -605,13 +764,13 @@ export class TaskManager {
 
     const worktree = this.options.store.worktreeDir(id);
     try {
-      const created = await createTaskWorktree(start.dir, worktree, record.branch, start.head);
+      const created = await createTaskWorktree(start.dir, worktree, record.branch, record.baseCommit);
       record.hidden = created.hidden;
       const inspection = await inspectProject(worktree);
       if (inspection.unsafe.length > 0) throw new BriefstackError('task.unsafeDefinitions', { project: start.slug, items: inspection.unsafe });
       l.inspection = inspection;
       record.skills = inspection.skills;
-      await this.startRound(l, undefined);
+      await this.startRound(l, undefined, forBuild?.round);
     } catch (error) {
       this.live.delete(id);
       await removeTaskWorktree(start.dir, worktree, record.branch).catch(() => undefined);
@@ -645,7 +804,7 @@ export class TaskManager {
     return l;
   }
 
-  private async startRound(l: Live, changes: string | undefined): Promise<void> {
+  private async startRound(l: Live, changes: string | undefined, unattended?: UnattendedRound): Promise<void> {
     const { record } = l;
     const n = record.rounds.length + 1;
     const worktree = this.options.store.worktreeDir(record.id);
@@ -676,6 +835,8 @@ export class TaskManager {
     delete l.awaitingReply;
     delete l.sessionId;
     l.consumed = 0;
+    // A build's round asks nobody anything; a round the user starts later on the same task is an ordinary one.
+    l.unattended = unattended;
     record.updatedAt = this.now().toISOString();
     await this.options.store.save(record);
     // Read with no await before the session starts: a stop that began during that save found no session to end, so none starts.
@@ -685,7 +846,8 @@ export class TaskManager {
       taskId: record.id,
       project: record.project,
       round: n,
-      prompt: roundPrompt({ description: record.description, round: n, ...(changes === undefined ? {} : { changes }), lang }),
+      prompt: unattended?.prompt ?? roundPrompt({ description: record.description, round: n, ...(changes === undefined ? {} : { changes }), lang }),
+      ...(unattended === undefined ? {} : { unattended: true }),
       worktree,
       model: record.model,
       effort: record.effort,
@@ -697,12 +859,18 @@ export class TaskManager {
       approvals: l.approvals,
       ...(codex === undefined ? {} : { codex: { ...codex, outDir: path.join(this.options.store.taskDir(record.id), 'codex') } }),
       io: {
-        askQuestions: (request) => this.request<QuestionResult>(l, { id: '', kind: 'question', payload: request }),
+        // The runner refuses questions in a build's round; this is only a second line: nothing is ever queued for the user.
+        askQuestions: (request) => (l.unattended !== undefined ? Promise.resolve<QuestionResult>({ decision: 'cancel' }) : this.request<QuestionResult>(l, { id: '', kind: 'question', payload: request })),
         emit: (event) => this.onRunnerEvent(l, event),
         recordCodex: (call) => this.recordCodex(l, n, call),
       },
     });
     l.handle = handle;
+    // A build's turn that ended before the handle was kept still ends the round.
+    if (l.unattended !== undefined && l.awaitingReply !== undefined) {
+      delete l.awaitingReply;
+      handle.finish();
+    }
     this.pushStatus(l);
     void handle.sessionId.then(
       (sessionId) => {
@@ -732,6 +900,7 @@ export class TaskManager {
     l.pollTimer = undefined;
     delete l.handle;
     delete l.awaitingReply;
+    delete l.unattended;
     const { record } = l;
     const last = record.rounds.at(-1);
     if (last === undefined) return;
@@ -850,6 +1019,13 @@ export class TaskManager {
   // ---- requests to the user --------------------------------------------------------------------
 
   private ask(l: Live, request: ApprovalRequest): Promise<ShellAnswer> {
+    // A build's round (phase 9): the build's exact list decides, once per call, and no dialog opens. Web requests are never on it.
+    const unattended = l.unattended;
+    if (unattended !== undefined) {
+      const allowed = request.kind === 'shell' && !request.display.redacted && isApprovedCommand(request.key, unattended.commands);
+      if (!allowed) unattended.onDenied({ tool: request.tool, text: request.display.text });
+      return Promise.resolve(allowed ? 'once' : 'deny');
+    }
     const payload: ApprovalPayload = {
       kind: request.kind,
       tool: request.tool,
@@ -912,6 +1088,11 @@ export class TaskManager {
 
   private onRunnerEvent(l: Live, event: TaskRunnerEvent): void {
     if (event.kind === 'status' && event.status === 'turnEnded') {
+      // In a build's round nobody replies: the turn's end ends the round (phase 9).
+      if (l.unattended !== undefined && l.handle !== undefined) {
+        l.handle.finish();
+        return;
+      }
       l.awaitingReply = { lastMessage: hideAbsolutePaths(redactSecretLines(event.message ?? '')).slice(0, 4000), at: this.now().toISOString() };
       this.pushStatus(l);
       return;
@@ -927,7 +1108,8 @@ export class TaskManager {
       this.recordLine(l, {
         type: 'tool.denied',
         tool: event.toolName,
-        by: reason === 'The user did not allow this.' ? 'user' : 'guard',
+        // A build's denial (phase 9) is the rule the user set at its start: `policy`, as a creation's unattended policy.
+        by: reason === 'The user did not allow this.' ? 'user' : reason === UNATTENDED_DENIED ? 'policy' : 'guard',
         reason,
         ...(event.agentId === undefined ? {} : { agentId: event.agentId }),
         ...(event.agentType === undefined ? {} : { agentType: event.agentType }),

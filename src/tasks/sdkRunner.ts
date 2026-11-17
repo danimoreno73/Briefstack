@@ -13,7 +13,7 @@ import { evaluateTaskToolUse, type TaskGuardRules } from './guard.js';
 import { writeTaskRulesSync } from './guardCommand.js';
 import { createTaskToolsServer, type CodexDelegate } from '../codex/tool.js';
 import { TASK_TOOLS_SERVER_NAME } from '../codex/toolNames.js';
-import { closeTaskSession, codexDelegateFor, openTaskSession, taskHookEvent, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
+import { closeTaskSession, codexDelegateFor, openTaskSession, taskHookEvent, UNATTENDED_DENIED, UNATTENDED_QUESTION, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
 import { taskFlagSettings, taskTools, TASK_ENV } from './session.js';
 import { describeCommand, TaskApprovals, TASK_HOOK_TIMEOUT_S } from './shell.js';
 
@@ -301,7 +301,7 @@ class TaskSdkRun {
             ...(agentType === undefined ? {} : { agentType }),
           }),
         );
-        if (decision === 'deny' || this.cancelled) return refuse(this.cancelled ? CANCELLED_MESSAGE : 'The user did not allow this.');
+        if (decision === 'deny' || this.cancelled) return refuse(this.cancelled ? CANCELLED_MESSAGE : this.notAllowed());
         this.decidedCalls.add(hook.tool_use_id);
       }
       return { hookSpecificOutput: { hookEventName: 'PreToolUse' as const, permissionDecision: 'allow' as const, permissionDecisionReason: verdict.reason } };
@@ -398,8 +398,15 @@ class TaskSdkRun {
     await this.donePromise.catch(() => undefined);
   }
 
+  /** What the session reads when a command or request is denied: in a build nobody was asked (phase 9). */
+  private notAllowed(): string {
+    return this.options.unattended === true ? UNATTENDED_DENIED : 'The user did not allow this.';
+  }
+
   private async canUseTool(toolName: string, input: Record<string, unknown>, toolUseId: string | undefined, agentID: string | undefined): Promise<PermissionResult> {
     if (this.cancelled) return { behavior: 'deny', message: CANCELLED_MESSAGE };
+    // A build's round (phase 9): nobody can answer, so the question is refused, never asked.
+    if (toolName === 'AskUserQuestion' && this.options.unattended === true) return { behavior: 'deny', message: UNATTENDED_QUESTION };
     if (toolName === 'AskUserQuestion') {
       const parsed = askInputSchema.safeParse(input);
       if (!parsed.success) return { behavior: 'deny', message: 'The questions were not in the expected shape.' };
@@ -415,6 +422,6 @@ class TaskSdkRun {
     const decision = await this.whileAsking(() =>
       this.approvals.decide(toolUseId, { kind: verdict.kind, tool: toolName, key: verdict.key, ...(agentID === undefined ? {} : { agentType: this.agents.get(agentID) ?? 'agent' }) }),
     );
-    return decision === 'allow' ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: 'The user did not allow this.' };
+    return decision === 'allow' ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: this.notAllowed() };
   }
 }

@@ -4,7 +4,7 @@ import type { HookCallback, Options, Query, SDKMessage } from '@anthropic-ai/cla
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TrackedSpawn } from '../../src/creation/processTree.js';
 import type { QuestionRequest, QuestionResult } from '../../src/creation/types.js';
-import type { TaskRunnerEvent, TaskRunnerStartOptions } from '../../src/tasks/runner.js';
+import { UNATTENDED_DENIED, UNATTENDED_QUESTION, type TaskRunnerEvent, type TaskRunnerStartOptions } from '../../src/tasks/runner.js';
 import { TaskSdkRunner } from '../../src/tasks/sdkRunner.js';
 import { TaskApprovals, type ApprovalRequest, type ShellAnswer } from '../../src/tasks/shell.js';
 import { tempDir, writeTree } from '../helpers.js';
@@ -74,7 +74,7 @@ beforeEach(async () => {
 
 afterEach(() => cleanup());
 
-function start(skills: string[] = []) {
+function start(skills: string[] = [], unattended = false) {
   const runner = new TaskSdkRunner({
     pathEnv: { env: { PATH: 'x', ANTHROPIC_MODEL: 'opus', CLAUDE_CODE_ENTRYPOINT: 'cli', CLAUDE_CODE_SYNC_SKILLS: '1' }, homedir: dir, pathApi: path, caseInsensitive: process.platform !== 'linux' },
     query: (params) => {
@@ -102,6 +102,7 @@ function start(skills: string[] = []) {
       asked.push(request);
       return answers.shift() ?? 'deny';
     }),
+    ...(unattended ? { unattended: true as const } : {}),
     io: {
       askQuestions: async (request): Promise<QuestionResult> => {
         questions.push(request);
@@ -222,6 +223,26 @@ describe('TaskSdkRunner: tool calls', () => {
     expect(await handle.done).toEqual({ kind: 'ended', summary: 'Changed a.txt.' });
     const lines = await readFile(path.join(dir, 'home', 'sessions', SESSION, 'events.jsonl'), 'utf8');
     expect(lines.trim().split('\n').at(-1)).toContain('"type":"session.finished","outcome":"completed"');
+  });
+
+  it('in a build\'s round (phase 9): a question is refused, never asked, and a denial says nobody was asked', async () => {
+    const { handle } = start([], true);
+    await until(() => options !== undefined, 'query');
+    fake.push({ type: 'system', subtype: 'init', session_id: SESSION, tools: [] });
+    await handle.sessionId;
+    const refused = await options?.canUseTool?.('AskUserQuestion', { questions: [{ question: 'Which?', header: 'W', options: [{ label: 'A', description: '' }], multiSelect: false }] }, { signal: new AbortController().signal } as never);
+    expect(refused).toEqual({ behavior: 'deny', message: UNATTENDED_QUESTION });
+    expect(questions).toHaveLength(0);
+    // The decision is the manager's (here: deny); the session reads the build's text, not "the user did not allow".
+    const denied = await pre('Bash', { command: 'curl https://example.com' }, 'toolu_3');
+    expect(decisionOf(denied)).toBe('deny');
+    expect((denied as { hookSpecificOutput?: { permissionDecisionReason?: string } }).hookSpecificOutput?.permissionDecisionReason).toBe(UNATTENDED_DENIED);
+    const viaCanUse = await options?.canUseTool?.('Bash', { command: 'curl https://example.com' }, { signal: new AbortController().signal, toolUseID: 'toolu_4' } as never);
+    expect(viaCanUse).toEqual({ behavior: 'deny', message: UNATTENDED_DENIED });
+    // Not unattended: the permission mode, tools and settings are the task's, the same as any round.
+    expect(options?.permissionMode).toBe('auto');
+    fake.close();
+    await handle.done;
   });
 
   it('denies everything once cancelled, and ends as stopped', async () => {

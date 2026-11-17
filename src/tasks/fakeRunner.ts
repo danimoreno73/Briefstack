@@ -6,7 +6,7 @@ import type { Question, QuestionResult } from '../creation/types.js';
 import type { CodexDelegate, CodexToolResult } from '../codex/tool.js';
 import { CODEX_TOOL_ID } from '../codex/toolNames.js';
 import { evaluateTaskToolUse } from './guard.js';
-import { closeTaskSession, codexDelegateFor, openTaskSession, taskHookEvent, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
+import { closeTaskSession, codexDelegateFor, openTaskSession, taskHookEvent, UNATTENDED_DENIED, UNATTENDED_QUESTION, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
 import { describeCommand } from './shell.js';
 
 /**
@@ -146,7 +146,7 @@ class FakeRun {
     if (verdict.verdict === 'ask') {
       const decision = await this.options.approvals.decide(toolUseId, { kind: verdict.kind, tool, key: verdict.key, display: describeCommand(verdict.key), ...(agent === undefined ? {} : { agentType: agent.agentType }) });
       await this.options.approvals.forget(toolUseId);
-      if (decision === 'deny' || this.cancelled) return deny(this.cancelled ? 'The user cancelled this task.' : 'The user did not allow this.');
+      if (decision === 'deny' || this.cancelled) return deny(this.cancelled ? 'The user cancelled this task.' : this.options.unattended === true ? UNATTENDED_DENIED : 'The user did not allow this.');
     }
     await act();
     await this.event('tool.post', { tool, toolUseId, ...agent });
@@ -185,6 +185,11 @@ class FakeRun {
           await this.call('WebFetch', { url: step.url, prompt: 'Read it.' }, agent, async () => undefined);
           break;
         case 'question': {
+          // A build's round (phase 9): refused as the real runner refuses it, and the round goes on.
+          if (this.options.unattended === true) {
+            this.options.io.emit({ kind: 'denial', toolName: 'AskUserQuestion', summary: 'AskUserQuestion', reason: UNATTENDED_QUESTION, ...agent });
+            break;
+          }
           const result: QuestionResult = await this.options.io.askQuestions({ questions: step.questions });
           if (result.decision === 'cancel') return 'stop';
           break;

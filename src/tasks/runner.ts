@@ -48,8 +48,19 @@ export interface TaskRunnerStartOptions {
   approvals: TaskApprovals;
   /** Set when the round offers `delegate_to_codex` (phase 8): the Settings switch is on and the last check passed. */
   codex?: CodexSession;
+  /**
+   * A build runs this round (phase 9): nobody watches it. Questions are
+   * refused with `UNATTENDED_QUESTION`, and a denied command or request is
+   * explained with `UNATTENDED_DENIED` instead of "the user did not allow".
+   */
+  unattended?: true;
   io: TaskRunnerIO;
 }
+
+/** What a build's session reads when it tries to ask a question (phase 9). */
+export const UNATTENDED_QUESTION = 'Nobody can answer questions during a build. Decide yourself, following the task and its "done when", and say what you decided in your final message.';
+/** What a build's session reads when a command or request is denied (phase 9). */
+export const UNATTENDED_DENIED = 'Denied: during a build only the exact commands approved at its start can run, and web requests are not allowed. Nobody was asked. Go on without it, or use an approved command.';
 
 export type TaskRunnerOutcome = { kind: 'ended'; summary?: string } | { kind: 'stopped' } | { kind: 'failed'; error: string };
 
