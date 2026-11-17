@@ -6654,3 +6654,129 @@ What the reviews of steps 19 to 28 left open is in
 [IDEAS.md](IDEAS.md), §8 "Open items from phase 8". The tag
 `phase-8-done` is the user's to create, on the commit that closes this
 step once its CI is green.
+
+## Phase 9: H0 (2026-11-17, SDK 0.3.286, git 2.55, Windows 11)
+
+The five points of [BRIEF-phase-9.md](BRIEF-phase-9.md) §6, checked before
+the plan. No real plan reading and no real session: the SDK's types, the
+code and tests already in the repo, and git in a temp folder. None of them
+makes a decision of the brief's §2 impossible or unsafe, so the plan and
+the milestones go ahead (the brief's §8).
+
+**1. Applying a commit to a branch that is not checked out.** Probe in a
+temp repository (git 2.55.0.windows.2): a ref `briefstack/build-x` made at
+`main`'s head with `update-ref`; a worktree on a new branch from that ref;
+a commit there; then, in the user's folder, `commit-tree <task head>^{tree}
+-p <build head>` and `update-ref refs/heads/briefstack/build-x <new> <old>`.
+The ref moved (exit 0); the same `update-ref` with the old value no longer
+current failed (exit 128, "is at … but expected …"), so it is a compare and
+swap. The user's folder kept `main` checked out, the same `HEAD`, the same
+files and a clean `git status`. A second worktree made from the ref holds
+the first task's file. **Conclusion:** applying a task to the integration
+branch is `commit-tree` (the task's reviewed tree, one parent: the
+integration head the task started from) and `update-ref` with that head as
+the old value; no `merge-tree` is needed, since a build runs one task at a
+time and each starts at the integration head, and nothing is checked out
+in the user's folder (only a new branch name appears in `git branch`).
+The same commands run on Linux, Windows and macOS through the unit tests
+of M1 in CI. Output kept outside the repo (the step's temp folder).
+
+**2. The plan-usage reading.** `SDKControlGetUsageResponse` in the SDK's
+`sdk.d.ts` (0.3.286): `rate_limits.five_hour` and `.seven_day` each carry
+`utilization` (0–100, or `null`) and `resets_at`, "ISO 8601 timestamp when
+the window resets", **typed `string | null`**; `rate_limits_available` is
+false and `rate_limits` null for an API key, Bedrock, Vertex or a missing
+profile scope. The reading is a control request with no message, so it
+spends nothing (decisions.md, phase 2; `src/creation/planUsage.ts`). The
+existing tests (`tests/unit/plan-usage.test.ts`) never set `resets_at`.
+**Not known without a real reading:** whether `resets_at` is filled for
+the user's login type, and what the reading answers when a window is used
+up (presumably `utilization` 100; the reading itself is not a model call,
+so it is expected to work, not verified). **Conclusion:** the build reads
+`resets_at` when it is a valid time in the future and resumes then;
+otherwise (absent, `null`, unparsable, in the past) it reads again on an
+interval. A reading that fails pauses the build and is retried on the
+interval; "plan limits not available for this login" (API key, cloud
+provider) never pauses. The real check confirms what the login gives.
+
+**3. Where the permission handler can take a pre-approved list and never
+ask.** Every shell command and web request of a task round reaches
+`TaskApprovals.decide` (`src/tasks/shell.ts`), from the guard's `ask`
+verdict in the `PreToolUse` callback and in `canUseTool`
+(`src/tasks/sdkRunner.ts`) and in the fake runner. `decide` already takes
+the asking function from its owner: the task manager passes `ask(l,
+request)`, which opens the dialog. **Conclusion:** a build round needs no
+change to the guard (`src/tasks/guard.ts`, `guardCommand.ts`) nor to
+`decide`: the manager answers a build round's requests itself, from the
+build's exact list ("once" for a listed command, "deny" for anything else,
+recorded), and never queues a dialog. Ordinary rounds keep `ask` as it is.
+The questions tool (`AskUserQuestion`) is answered in `canUseTool`: a build
+round tells the runner it is unattended, and the runner refuses the tool
+with a message to decide alone, instead of asking. The turn's end, which
+today waits for the user's reply or "finish", ends the round at once in a
+build.
+
+**4. Where the declared checks run after a round.** They do not:
+`afterRoundWith` (`src/tasks/afterRound.ts`) runs only the diff's
+validations, and `TaskManager.runChecks` is the only caller of
+`TaskChecks.run`, from `POST /api/tasks/:id/checks`, with the list the
+page showed (S8; `tests/unit/tasks-checks-invariant.test.ts` holds it by
+behaviour). **Conclusion, the smallest change:** a new manager method,
+`runBuildChecks`, which refuses any task without a build and runs the
+build's own recorded list (approved at the build's start) through the same
+`TaskChecks.run` (same environment with proxies pointed nowhere, same
+10-minute limit, same worktree clean-up before and after). Only the build
+driver calls it. No task route calls it, `afterRound` is unchanged, and
+the existing invariant tests stay as they are (ordinary tasks: S8 intact).
+
+**5. What a created project offers to plan from, and structured output.**
+The `software` template writes `docs/BRIEF.md` with "Goal", "Audience",
+"Deliverables", "Constraints", "Done when", "Setup" and "Current status";
+the `generic` and `learning-or-management` templates write no brief
+(`docs/NOTES.md`, `docs/PROGRESS.md`). Every `claude-code` template writes
+`CLAUDE.md`, whose "Commands" section starts as "None yet". A
+`package.json`, when there is one, lists `scripts`. **No briefstack session
+uses structured output today** (no `outputFormat` in `src/`). The SDK's
+`Options.outputFormat` takes `{ type: 'json_schema', schema }`, and the
+result message carries `structured_output` (`sdk.d.ts`); `tools: []`
+disables every built-in tool. **Conclusion:** the planner session gets the
+brief, `CLAUDE.md` and the `package.json` scripts as text in its prompt, no
+tools at all (`tools: []`, no MCP server, no project settings), and
+`outputFormat` with the queue's JSON schema; its `structured_output` is
+validated again on the server with the same schema (zod), and anything
+that does not pass is a planning error shown to the user. A project
+without `docs/BRIEF.md` cannot be planned (the brief says the queue comes
+from the project's approved brief). Not verified without a real session:
+that Claude Code fills `structured_output` with this schema; the real check
+does.
+
+## Decisiones sin Dani (fase 9)
+
+Phase 9 runs unattended (BRIEF-phase-9.md, §8; the user's authorisation of
+2026-11-17). Each doubt is settled with the most conservative option and
+recorded here; the design decisions are in
+[PLAN-phase-9.md](PLAN-phase-9.md), §1.
+
+- **The tag `phase-9-start`** was refused by the session's permissions
+  (2026-11-17). It belongs on `f111713` (the commit that adds the brief),
+  a lightweight tag as `phase-7-start`; the user creates it.
+- **No `plan` entry in the usage profiles**: the planner uses the active
+  profile's `work` entry. A new required entry would make the user's own
+  presets fail to load, as `work` did in phase 7.
+- **A project without `docs/BRIEF.md` cannot be planned** (only the
+  `software` template writes one): the brief says the queue comes from the
+  project's approved brief, and planning from other notes would be a guess.
+- **The compound rule**: a chain is split only on `&&`, `||` and `;`
+  outside quotes, and each part must be an exact item. Pipes, redirects,
+  substitutions, background jobs and second lines never match unless the
+  whole command is written exactly so on the list; list items themselves
+  may not be compound, nor hold an unquoted `*` or `?`, an invisible
+  character or a part that looks like a secret.
+- **Web requests are always denied in a build** (never on the list).
+- **A waiting task approved by the user goes to the integration branch**,
+  through `merge-tree` from the task's base when the branch moved since
+  the task started (other tasks applied); a conflict is refused, as for a
+  task's approval.
+- **Builds that hold a project**: every build state but `applied`,
+  `reverted` and `discarded` (a failed plan included), so its integration
+  branch and waiting tasks are never left beside an ordinary task.
