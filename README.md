@@ -43,6 +43,14 @@ the next interview asks less.
   checks you declared for the project on it; then approve it (one commit on
   the project's branch, never pushed), ask for changes, or discard it. Any
   applied task can be reverted from the web.
+- **Codex in tasks** (optional, off by default): when you turn it on in
+  Settings, Claude can hand parts of the code writing in a task to Codex
+  (OpenAI's coding agent), with your own ChatGPT login. Claude decides
+  when; Codex works inside the task's worktree, with a limit of calls per
+  round (5 by default, 1 to 10). The task page lists each call, its
+  commands, its tokens and Codex's final message. The diff, the checks you
+  run from the proposal page and your approval stay the control, whoever
+  wrote the code.
 
 ## Requirements
 
@@ -58,6 +66,11 @@ the next interview asks less.
   Safari 17.5 or later.
 - **Operating systems:** Windows (native), macOS and Linux. The CI runs on
   Linux, Windows and macOS on every push.
+- **Codex CLI**, optional, only for Codex in tasks: `npm install -g
+  @openai/codex`, then `codex login` with your ChatGPT account. Settings
+  checks it (`codex --version`, `codex login status` and one command in
+  Codex's sandbox) when you press **Check**. Codex's use counts against
+  your ChatGPT plan, which briefstack cannot read.
 
 ## Install
 
@@ -193,6 +206,13 @@ improvements before you move anything.
   instructions: the guard, the dialogs, the server's checks of the diff
   and your own review of the diff are what stop them. Nothing reaches your
   branch until you approve the diff.
+- **Codex is held by its own sandbox, not by the guard.** When Codex in
+  tasks is on, Codex runs `codex exec --sandbox workspace-write` in the
+  task's worktree, with an environment cleaned of tokens and keys. The
+  guard does not see Codex's writes; the diff does, and every check of the
+  diff runs on it as on Claude's changes. What Codex writes back is shown
+  as data, never followed as instructions. What its sandbox does and does
+  not hold, as measured, is under Limitations.
 
 See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
@@ -216,6 +236,20 @@ See [SECURITY.md](SECURITY.md) to report a vulnerability.
   nowhere (a program can ignore them, so no network is not guaranteed) and
   a 10-minute limit each. You can approve without running them. Declare
   and run only commands you would run on the task's changes yourself.
+- **Codex can read your files and use the network.** Measured on one
+  Windows 11 machine with Codex CLI 0.167.0, in both Windows sandbox modes
+  (`unelevated`, the default, and `elevated`): Codex's writes stay inside
+  the task's worktree and it cannot change the repository's git folders,
+  but **it can read files outside the worktree, reach services on
+  127.0.0.1 and reach the Internet**. No Codex setting tried closed the
+  network on that machine. With reads and the network both open, a
+  command Codex runs could read your files and send them out (inferred
+  from the two measurements, not tried). Settings
+  shows this warning while the switch is on. `unelevated` runs as you;
+  `elevated` runs as a separate sandbox account and cannot run Node
+  installed in your profile (for example with nvm). Codex in tasks was
+  checked with the real Codex on Windows only; on macOS and Linux it is
+  tested with a fake Codex in CI, and its sandbox there was not measured.
 - A task's copy has no `node_modules` or other ignored files: a check that
   needs dependencies must install them (`npm ci --offline` works from
   npm's cache), or the session can ask to run the install.
