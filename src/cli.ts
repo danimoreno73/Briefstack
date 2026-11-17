@@ -64,6 +64,9 @@ import type { ChatManager } from './chat/manager.js';
 import type { TaskManager } from './tasks/manager.js';
 import type { TaskRunner } from './tasks/runner.js';
 import { createWebTasks } from './tasks/wiring.js';
+import type { BuildManager } from './builds/manager.js';
+import { FakeBuildPlanner, type BuildPlanner } from './builds/planner.js';
+import { createWebBuilds } from './builds/wiring.js';
 import { CodexService } from './codex/service.js';
 import { createWebCreations } from './creation/wiring.js';
 import { createWebImprovements } from './improve/wiring.js';
@@ -124,6 +127,8 @@ export interface CliIO {
   improveRunner?: ImprovementRunner;
   /** The runner of tasks in existing projects: the real SDK one unless a test passes the fake one. */
   taskRunner?: TaskRunner;
+  /** The planner of builds (phase 9): the real one unless a test passes the fake one; with a test's task runner and none, a planner that refuses. */
+  buildPlanner?: BuildPlanner;
   improveVerifier?: Verifier;
   safetyReviewer?: SafetyReviewer;
   /** The model review of skills and the GitHub hosts: the real ones unless a test passes its own. */
@@ -680,6 +685,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     mode: io.readAuthMode ?? (io.checkClaude === undefined ? realDeps.mode : async (): Promise<AuthMode> => ({ kind: 'unknown' })),
   });
   let tasks: TaskManager | undefined;
+  let builds: BuildManager | undefined;
   // Codex in Settings (phase 8): it runs nothing until the user checks it, and task rounds ask it whether to offer the tool.
   const codex = new CodexService({ pathEnv: io.pathEnv });
   const creations = await createWebCreations({
@@ -688,16 +694,29 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     lang,
     runner: io.creationRunner,
     skills,
-    // Tasks share the active-sessions limit (BRIEF-phase-7 §2.6).
-    otherActive: () => tasks?.activeIds() ?? [],
+    // Tasks and build planners share the active-sessions limit (BRIEF-phase-7 §2.6, BRIEF-phase-9 §2).
+    otherActive: () => [...(tasks?.activeIds() ?? []), ...(builds?.activeIds() ?? [])],
   });
   let chat: ChatManager | undefined;
   let improvements: ImprovementManager | undefined;
   let server;
   try {
-    tasks = await createWebTasks({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, runner: io.taskRunner, creations, codex });
+    tasks = await createWebTasks({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, runner: io.taskRunner, creations, codex, buildOn: async (slug) => builds?.holder(slug) });
     // A server that died with a task running left it interrupted; its worktree stays for the user.
     await tasks.recover();
+    // Builds (phase 9): a test's task runner never meets the real planner or plan reading.
+    const testRun = io.taskRunner !== undefined;
+    builds = await createWebBuilds({
+      pathEnv: io.pathEnv,
+      repoDir: io.repoDir,
+      lang,
+      tasks,
+      creations,
+      planner: io.buildPlanner ?? (testRun ? new FakeBuildPlanner(new Error('No planner in this run.')) : undefined),
+      usage: testRun ? null : undefined,
+    });
+    // A server that died with a build running left it interrupted; nothing resumes by itself.
+    await builds.recover();
     chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements, skills, usageCheck, tasks: () => tasks });
     improvements = await createWebImprovements({
       pathEnv: io.pathEnv,
@@ -718,6 +737,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       improvements,
       skills,
       tasks,
+      builds,
       codex,
       claudeStatus: (refresh) => claudeStatus.get(refresh),
       ...(usageCheck === undefined ? {} : { usageCheck }),
@@ -727,6 +747,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   } catch (error) {
     await improvements?.shutdown();
     await chat?.shutdown();
+    await builds?.shutdown();
     await tasks?.shutdown();
     await creations.shutdown();
     throw error;
@@ -752,6 +773,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     // The chat and the creations first: a running creation is closed as interrupted before the server goes.
     await improvements.shutdown();
     await chat.shutdown();
+    await builds.shutdown();
     await tasks.shutdown();
     await creations.shutdown();
     await server.close();

@@ -7,7 +7,9 @@ import type { ImprovementManager } from '../improve/manager.js';
 import { configFilePath, readConfig, resolvePaths, systemPathEnv, type PathEnv } from '../config/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import type { TaskManager } from '../tasks/manager.js';
+import type { BuildManager } from '../builds/manager.js';
 import type { CodexService } from '../codex/service.js';
+import { buildRoutes } from './builds.js';
 import { codexRoutes } from './codex.js';
 import { taskRoutes } from './tasks.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
@@ -56,6 +58,8 @@ export interface WebServerOptions {
   tasks?: TaskManager;
   /** Codex in Settings (phase 8). Without one, the Codex routes answer 503 `codex.unavailable`. */
   codex?: CodexService;
+  /** Builds (phase 9). Without one, the build routes answer 503 `build.unavailable`. The caller owns it. */
+  builds?: BuildManager;
   /** The plan-usage warning before a creation or an improvement starts (phase 6). Without it, no warning. */
   usageCheck?: UsageCheck;
   /** Where the user's files live; the real machine by default. Tests pass a temp home. */
@@ -106,6 +110,7 @@ function apiRoutes(options: WebServerOptions): RouteTable {
     ...improveRoutes(options.improvements, { usage: options.usageCheck }),
     ...skillRoutes(options.skills),
     ...codexRoutes(options.codex),
+    ...buildRoutes(options.builds, { usage: options.usageCheck }),
     ...taskRoutes(options.tasks, {
       pathEnv,
       ...(options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),

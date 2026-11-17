@@ -23,6 +23,8 @@ export interface WebTaskOptions {
   afterRound?: (task: TaskRecord, worktree: string) => Promise<AfterRoundResult>;
   /** Codex in Settings (phase 8): each round asks it whether to offer `delegate_to_codex`. Without it, no round does. */
   codex?: CodexService | undefined;
+  /** The open build on a project (phase 9): it holds the project. */
+  buildOn?: ((project: string) => Promise<string | undefined>) | undefined;
 }
 
 /** The active usage profile's name and `work` entry, read when a task starts. */
@@ -59,5 +61,6 @@ export async function createWebTasks(options: WebTaskOptions): Promise<TaskManag
     afterRound,
     checks: taskChecksWith({ libraryDir, home: paths.home }),
     ...(options.codex === undefined ? {} : { codex: () => (options.codex as CodexService).session() }),
+    ...(options.buildOn === undefined ? {} : { buildOn: options.buildOn }),
   });
 }
