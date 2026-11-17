@@ -192,6 +192,7 @@ describe('error catalogue', () => {
     'build.branchMoved': { branch: 'briefstack/build-abc123-0f0f' },
     'build.nothingToApply': { id: 'abc123-0f0f' },
     'build.taskRunning': { id: 'abc123-0f0f', task: 'abc124-0f0f' },
+    'build.attendedTask': { id: 'abc123-0f0f' },
     'creation.noSpec': { id: 'c1' },
     'creation.claudeNotFound': {},
     'creation.slashCommandMissing': { command: 'new-project' },

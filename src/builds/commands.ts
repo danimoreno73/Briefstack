@@ -23,9 +23,19 @@ export function approvedCommandProblem(command: string): string | undefined {
   const display = describeCommand(command);
   if (display.features.includes('invisible')) return 'an invisible character';
   if (display.compound) return 'more than one command (list each part on its own)';
-  if (/[*?]/.test(command.replace(/'[^']*'|"[^"]*"/g, ''))) return 'a wildcard';
+  if (/[*?[\]{}]/.test(command)) return 'a wildcard';
+  // Only characters that no shell (sh, bash, cmd, PowerShell) reads as anything but text: a backslash, a bracket, `$`,
+  // `%`, `^`, `!`, `~` or `#` could make one item several commands in one of them (review of M2, I1).
+  if (!SAFE_ITEM_RE.test(command)) return 'a character other than letters, digits, spaces, quotes and - _ . / : = @ + ,';
+  if ((command.match(/"/g)?.length ?? 0) % 2 !== 0 || (command.match(/'/g)?.length ?? 0) % 2 !== 0) return 'a quote that is not closed';
   return undefined;
 }
+
+/** What an approved item may hold. */
+const SAFE_ITEM_RE = /^[A-Za-z0-9 _\-./:=@+,"']+$/;
+
+/** Spaces and tabs only: not every character `String.trim` removes. */
+const trimBlanks = (text: string): string => text.replace(/^[ \t]+|[ \t]+$/g, '');
 
 /** The problems of a whole list (`undefined` when it can be approved), each with its 1-based line. */
 export function approvedListProblems(commands: readonly string[], what: 'commands' | 'checks', max = MAX_COMMANDS): string[] {
@@ -71,7 +81,7 @@ export function chainParts(command: string): string[] | undefined {
   }
   if (quote !== undefined) return undefined;
   parts.push(command.slice(start));
-  const trimmed = parts.map((part) => part.trim());
+  const trimmed = parts.map(trimBlanks);
   return trimmed.some((part) => part === '') ? undefined : trimmed;
 }
 

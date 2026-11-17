@@ -9,6 +9,7 @@ import { TaskFakeRunner, type TaskFakeScript } from '../../src/tasks/fakeRunner.
 import { TaskManager, type UnattendedRound } from '../../src/tasks/manager.js';
 import { UNATTENDED_DENIED, UNATTENDED_QUESTION } from '../../src/tasks/runner.js';
 import { buildBranchOf, type CheckResult } from '../../src/tasks/types.js';
+import { fakeCodex } from '../codexWorld.js';
 import { useHermeticGit, writeTree } from '../helpers.js';
 import { commitAll, gitIn, taskWorld, type TaskWorld } from '../taskWorld.js';
 
@@ -182,6 +183,59 @@ describe('a build\'s task', () => {
       expect(await gitIn(project, 'status', '--porcelain')).toBe('');
       expect((await gitIn(project, 'branch', '--list', task.branch)).trim()).toBe('');
       await expect(m.revert(task.id)).rejects.toMatchObject({ code: 'task.inBuild' });
+    } finally {
+      await m.shutdown();
+    }
+  });
+});
+
+describe('a build\'s task, after the review of M2', () => {
+  it('a build\'s round never offers Codex; an ordinary round still does (I3)', async () => {
+    const head = await integration();
+    const runner = new TaskFakeRunner();
+    const m = new TaskManager({
+      runner,
+      store: world.store,
+      sessionsDir: world.sessions,
+      locations: async () => ({ libraryDir: world.library, repoDir: world.repo }),
+      lang: () => 'en',
+      profile: async () => ({ name: 'saver', model: 'sonnet', effort: 'low' }),
+      maxActive: () => 2,
+      pollMs: 10,
+      afterRound: afterRoundWith(),
+      checks: spyChecks().checks,
+      codex: async () => ({ command: fakeCodex(), maxCalls: 5 }),
+      buildOn: () => BUILD,
+    });
+    try {
+      const task = await m.startForBuild('garden', { build: { id: BUILD, n: 1 }, base: { branch: BRANCH, commit: head }, description: 'x', round: round() });
+      await m.roundSettled(task.id);
+      expect(runner.started[0]?.codex).toBeUndefined();
+      // The user's own round on the same task is an ordinary one: it may get Codex.
+      await m.newRound(task.id, 'More.');
+      await until(async () => (await m.get(task.id)).awaitingReply !== undefined, 'the turn');
+      expect(runner.started[1]?.codex).toBeDefined();
+      expect(runner.started[1]?.unattended).toBeUndefined();
+      m.finishRound(task.id);
+      await m.roundSettled(task.id);
+    } finally {
+      await m.shutdown();
+    }
+  });
+
+  it('a round the user asks for opens dialogs; a command allowed for the task stops further build rounds (I4)', async () => {
+    const head = await integration();
+    const { m } = manager((n) => (n === 1 ? undefined : { steps: [{ kind: 'shell', command: 'make deploy' }, { kind: 'end', summary: 'Done.' }] }), spyChecks().checks);
+    try {
+      const task = await m.startForBuild('garden', { build: { id: BUILD, n: 1 }, base: { branch: BRANCH, commit: head }, description: 'x', round: round() });
+      await m.roundSettled(task.id);
+      await m.newRound(task.id, 'Deploy it.');
+      await until(async () => (await m.get(task.id)).pending?.kind === 'approval', 'the dialog');
+      m.answer(task.id, (await m.get(task.id)).pending?.id as string, 'task');
+      await until(async () => (await m.get(task.id)).awaitingReply !== undefined, 'the turn');
+      m.finishRound(task.id);
+      expect((await m.roundSettled(task.id)).state).toBe('proposal');
+      await expect(m.newBuildRound(task.id, 'Fix.', round(['npm test']))).rejects.toMatchObject({ code: 'build.attendedTask' });
     } finally {
       await m.shutdown();
     }

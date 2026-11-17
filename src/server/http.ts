@@ -108,6 +108,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'build.branchMoved': 409,
   'build.nothingToApply': 409,
   'build.taskRunning': 409,
+  'build.attendedTask': 409,
   'creation.wrongPending': 409,
   'creation.noSpec': 404,
   'skills.unavailable': 503,

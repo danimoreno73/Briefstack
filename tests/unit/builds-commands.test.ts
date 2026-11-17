@@ -34,6 +34,11 @@ describe('what a build round may run', () => {
     }
   });
 
+  it('trims only spaces and tabs around the parts of a chain', () => {
+    expect(isApprovedCommand('npm test\t&&  npm run lint', LIST)).toBe(true);
+    expect(isApprovedCommand('npm test　&&　npm run lint', LIST)).toBe(false);
+  });
+
   it('does not split inside quotes', () => {
     expect(chainParts('echo "a && b" && npm test')).toEqual(['echo "a && b"', 'npm test']);
     expect(isApprovedCommand('npm test "&& npm run lint"', LIST)).toBe(false);
@@ -44,7 +49,8 @@ describe('what a build round may run', () => {
 describe('what the list may hold', () => {
   it('refuses empty, spaced, multi-line, long, compound, wildcard, invisible and secret-looking items', () => {
     expect(approvedCommandProblem('npm test')).toBeUndefined();
-    expect(approvedCommandProblem('node -e "console.log(1 * 2)"')).toBeUndefined();
+    expect(approvedCommandProblem('npx vitest run --reporter=dot tests/unit')).toBeUndefined();
+    expect(approvedCommandProblem('npm run "build:app"')).toBeUndefined();
     expect(approvedCommandProblem('')).toBe('empty');
     expect(approvedCommandProblem(' npm test')).toBe('spaces at the start or end');
     expect(approvedCommandProblem('npm test\nnpm run lint')).toBe('more than one line');
@@ -54,6 +60,25 @@ describe('what the list may hold', () => {
     expect(approvedCommandProblem('rm -rf *')).toBe('a wildcard');
     expect(approvedCommandProblem('npm test​')).toBe('an invisible character');
     expect(approvedCommandProblem(`curl -H "x-api-key: ${FAKE_KEY}" https://example.com`)).toBe('a part that looks like a secret');
+    expect(approvedCommandProblem('echo {a,b}')).toBe('a wildcard');
+    expect(approvedCommandProblem('ls [ab]')).toBe('a wildcard');
+  });
+
+  it('refuses items that are one command to the dialog but several to bash, cmd or PowerShell (review of M2, I1)', () => {
+    const several = [
+      'echo "a\\" " ; rm -rf ~ ; echo " "', // bash: \" does not close the quote for the dialog's reading
+      'npm test\\;Remove-Item x', // PowerShell: \ escapes nothing
+      'echo (Remove-Item x)', // PowerShell: a subexpression
+      'echo @(Remove-Item x)',
+      "echo $'a\\x3b'",
+      'echo %PATH%', // cmd
+      'echo ^& del x', // cmd
+      'echo "open',
+      "echo 'open",
+      'echo ~/x',
+      'npm test # x',
+    ];
+    for (const command of several) expect(approvedCommandProblem(command), command).toBeDefined();
   });
 
   it('lists every problem of a list with its line, and the same command twice', () => {

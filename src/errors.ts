@@ -180,6 +180,8 @@ export interface ErrorParams {
   'build.branchMoved': { branch: string };
   'build.nothingToApply': { id: string };
   'build.taskRunning': { id: string; task: string };
+  /** A build's task the user allowed commands in: it gets no more unattended rounds. */
+  'build.attendedTask': { id: string };
 }
 
 /** Why a skill link is refused. */

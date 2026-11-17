@@ -285,6 +285,9 @@ export class TaskManager {
       if (record.build === undefined) throw new BriefstackError('task.notInBuild', { id });
       if (record.state !== 'proposal') throw new BriefstackError('task.wrongState', { id, state: record.state });
       const l = this.live.get(id) ?? this.adopt(record);
+      // A command the user allowed "for the rest of the task" in a round with dialogs would run in a build's round without
+      // being on its list (`TaskApprovals.decide` asks nobody about it): such a task gets no more build rounds (review of M2, I4).
+      if (l.approvals.size > 0) throw new BriefstackError('build.attendedTask', { id });
       const limit = await this.limit();
       const active = [...this.activeIds(), ...(this.options.creations?.activeIds() ?? [])];
       if (active.length >= limit) throw new BriefstackError('task.limit', { limit, active });
@@ -820,7 +823,9 @@ export class TaskManager {
     const restrictions = await projectRestrictions(record.projectDir, record.baseCommit);
     const lang = await this.options.lang();
     // Anything that goes wrong reading Settings leaves the tool out: the round runs without Codex.
-    const codex = await (this.options.codex?.() ?? Promise.resolve(undefined)).catch(() => undefined);
+    // A build's round never offers it (review of M2, I3): Codex runs commands in its own sandbox, outside the build's
+    // exact list, which the brief's §2.6 says no command may do; the conservative reading of §2.4 against §2.6.
+    const codex = unattended !== undefined ? undefined : await (this.options.codex?.() ?? Promise.resolve(undefined)).catch(() => undefined);
     // Read again with no await before the record changes: a stop that began while the round was prepared refuses it with
     // nothing changed, so a reviewed proposal is kept (review of step 07, M2).
     this.refuseWhileStopping();

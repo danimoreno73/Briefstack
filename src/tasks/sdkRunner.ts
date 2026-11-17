@@ -406,7 +406,12 @@ class TaskSdkRun {
   private async canUseTool(toolName: string, input: Record<string, unknown>, toolUseId: string | undefined, agentID: string | undefined): Promise<PermissionResult> {
     if (this.cancelled) return { behavior: 'deny', message: CANCELLED_MESSAGE };
     // A build's round (phase 9): nobody can answer, so the question is refused, never asked.
-    if (toolName === 'AskUserQuestion' && this.options.unattended === true) return { behavior: 'deny', message: UNATTENDED_QUESTION };
+    if (toolName === 'AskUserQuestion' && this.options.unattended === true) {
+      // Recorded as the fake runner records it: a `tool.denied` line for the panel (review of M2, I2).
+      const agentType = agentID === undefined ? undefined : this.agents.get(agentID);
+      this.options.io.emit({ kind: 'denial', toolName, summary: toolName, reason: UNATTENDED_QUESTION, ...(agentType === undefined ? {} : { agentType }), ...(agentID === undefined ? {} : { agentId: agentID }), ...(toolUseId === undefined ? {} : { toolUseId }) });
+      return { behavior: 'deny', message: UNATTENDED_QUESTION };
+    }
     if (toolName === 'AskUserQuestion') {
       const parsed = askInputSchema.safeParse(input);
       if (!parsed.success) return { behavior: 'deny', message: 'The questions were not in the expected shape.' };

@@ -233,6 +233,7 @@ describe('TaskSdkRunner: tool calls', () => {
     const refused = await options?.canUseTool?.('AskUserQuestion', { questions: [{ question: 'Which?', header: 'W', options: [{ label: 'A', description: '' }], multiSelect: false }] }, { signal: new AbortController().signal } as never);
     expect(refused).toEqual({ behavior: 'deny', message: UNATTENDED_QUESTION });
     expect(questions).toHaveLength(0);
+    expect(events.find((event) => event.kind === 'denial')).toMatchObject({ toolName: 'AskUserQuestion', reason: UNATTENDED_QUESTION });
     // The decision is the manager's (here: deny); the session reads the build's text, not "the user did not allow".
     const denied = await pre('Bash', { command: 'curl https://example.com' }, 'toolu_3');
     expect(decisionOf(denied)).toBe('deny');
