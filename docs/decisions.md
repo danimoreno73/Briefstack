@@ -6675,11 +6675,17 @@ files and a clean `git status`. A second worktree made from the ref holds
 the first task's file. **Conclusion:** applying a task to the integration
 branch is `commit-tree` (the task's reviewed tree, one parent: the
 integration head the task started from) and `update-ref` with that head as
-the old value; no `merge-tree` is needed, since a build runs one task at a
-time and each starts at the integration head, and nothing is checked out
-in the user's folder (only a new branch name appears in `git branch`).
-The same commands run on Linux, Windows and macOS through the unit tests
-of M1 in CI. Output kept outside the repo (the step's temp folder).
+the old value; nothing is checked out in the user's folder (only a new
+branch name appears in `git branch`). **Changed in M1** (review of M1,
+I3): the probe needed no `merge-tree`, since in the loop each task starts
+at the integration head; but a waiting task the user approves later may
+have started before other tasks were applied, so applying always goes
+through `merge-tree` from the task's base onto the head read just before
+(for a task that started at the head, the result is its own tree), and a
+conflict is refused (PLAN-phase-9.md §1, 3). Measured on Windows only by
+the probe; the same commands then run on Linux, Windows and macOS in the
+unit tests of M1 (`tests/unit/builds-git.test.ts`) in CI. Output kept
+outside the repo (the step's temp folder).
 
 **2. The plan-usage reading.** `SDKControlGetUsageResponse` in the SDK's
 `sdk.d.ts` (0.3.286): `rate_limits.five_hour` and `.seven_day` each carry

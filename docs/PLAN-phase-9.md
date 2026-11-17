@@ -18,7 +18,7 @@ Updated 2026-11-17.
 | # | Milestone | State |
 |---|---|---|
 | H0 | Verify before designing (BRIEF §6) | done, decisions.md "Phase 9: H0" |
-| M1 | Build record and store; the integration branch; tasks based on it | pending |
+| M1 | Build record and store; the integration branch; tasks based on it | done (`804fba1`, `e96a131`, `f0aca14`; review fixes `4a2b71b`): `src/builds/types.ts`, `store.ts`, `git.ts`, build-aware preconditions. The manager's start of a build's task moved to M2 (below). Review: I1 (scope) moved to M2, I3 (docs and `merge-tree`) aligned, I4 (relaxed checks without a build) fixed; minors in IDEAS §9 |
 | M2 | Unattended task rounds: the exact list, no dialog, checks after each round in builds only, rules, fix rounds | pending |
 | M3 | The planner (fake and SDK) and the start page | pending |
 | M4 | The loop: order, dependencies, usage pause and resume, restart, cancel | pending |
@@ -41,11 +41,16 @@ Each one is the conservative reading and is in decisions.md.
    task's worktree starts at its head; its record's `baseBranch` is the
    integration branch and its `baseCommit` that head, so its diff, its
    validations and its proposal page show the task's own change.
-3. **Applying a task to the integration branch** is `commit-tree` of the
-   reviewed tree with the head the task started from as its one parent,
-   then `update-ref` with that head as the old value (H0, 1). Refused when
-   a validation blocks, the task's branch moved since the review, or the
-   integration head is not the task's base. The task's worktree and branch
+3. **Applying a task to the integration branch** is `merge-tree` of the
+   task's change (from its base to the reviewed commit) onto the
+   integration head read just before, `commit-tree` with that head as the
+   one parent, then `update-ref` with that head as the old value (H0, 1).
+   In the loop a task always starts at the head, so the result is the
+   task's own tree; a waiting task the user approves later, after other
+   tasks were applied, is combined the same way, and a conflict is refused
+   (`task.conflict`), as for a task's approval. Also refused when a
+   validation blocks, the task's branch moved since the review, or the
+   head moved between the read and `update-ref` (`build.branchMoved`). The task's worktree and branch
    go, as after an approval; the task becomes `applied`, with the
    integration commit; nothing is written in the user's folder or library
    note (that happens once, when the whole build is applied). A build
@@ -126,12 +131,17 @@ Each one is the conservative reading and is in decisions.md.
 
 `src/builds/types.ts` (zod schema of the record and queue), `store.ts`,
 `git.ts` (create the integration branch, apply a task to it, delete it,
-its head). Task record: optional `build`. Task manager: start a task for a
-build (base = integration head, the build's own open tasks do not block),
-and refuse ordinary tasks while a build holds the project. Tests: the
-schema; the store; applying to the integration branch leaves the user's
-folder untouched (status, `HEAD`, files) and refuses a stale head; a new
-worktree is based on the integration head.
+its head). Task record: optional `build`. Preconditions: an open build
+holds the project; a build's task skips the folder's branch and files only
+for the build that holds the project. Tests: the schema; the store;
+applying to the integration branch leaves the user's folder untouched
+(status, `HEAD`, files) and refuses a stale head; a new worktree is based
+on the integration head.
+
+**Moved to M2** (review of M1, I1): the task manager's start of a build's
+task and its wiring of `buildOn`. Starting a build's task always starts an
+unattended round, so it cannot be committed apart from M2's rounds; until
+M2, `task.buildOnProject` has no caller in the manager.
 
 ### M2 — Unattended rounds
 

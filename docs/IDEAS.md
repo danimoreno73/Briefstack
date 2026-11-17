@@ -950,3 +950,29 @@ under load and `chat-improve-tools.test.ts` on Windows CI are in §7,
   briefstack's sandbox ever changed `HOME` or `USERPROFILE`, `codex login
   status` would fail and the check would stop before spending. Review of
   step 26, risks.
+
+## 9. Open items from phase 9
+
+Minor findings of the milestone reviews of phase 9 (builds), noted and not
+pursued (only blocking and important findings are fixed within their
+milestone). Each ends with its source, "Review of M<n>". The plan is
+[PLAN-phase-9.md](PLAN-phase-9.md); the decisions are in
+[decisions.md](decisions.md), "Phase 9".
+
+- **Pending: minor.** Creating the integration branch reports any failure
+  of `update-ref` as `build.branchExists`, an invalid base too
+  (`src/builds/git.ts`). Review of M1.
+- **Pending: minor.** Nothing stops the user from checking out
+  `briefstack/build-<id>` by hand: `update-ref` would then move the branch
+  under their folder, and removing it would leave that folder's `HEAD` on
+  a missing branch. A check that no worktree has it checked out, before
+  moving or removing it, would close that. Review of M1.
+- **Pending: to verify.** `git merge-tree --write-tree --merge-base` is
+  documented from git 2.40, while `MIN_GIT_VERSION` says 2.38; phase 7's
+  apply (`src/tasks/apply.ts`) already used it, and the integration branch
+  uses it too. Review of M1.
+- **Noted.** Several error codes and states were added in M1 before the
+  milestones that use them. Review of M1.
+- **Noted.** The H0.1 probe's output does not print the user's folder's
+  `HEAD` before the change; it is read from `update-ref`'s message. Review
+  of M1.
