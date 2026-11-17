@@ -130,5 +130,14 @@ export const taskRecordSchema = z.object({
   reverted: z.object({ commit: z.string(), at: z.string() }).optional(),
   /** Why the last action failed, redacted, without absolute paths. */
   error: z.string().optional(),
+  /**
+   * Set when a build runs this task (phase 9; records saved before it read
+   * as they did): its base is the build's integration branch, approving
+   * applies to that branch, and only the whole build is reverted.
+   */
+  build: z.object({ id: z.string().regex(TASK_ID_RE), n: z.int().min(1) }).optional(),
 });
 export type TaskRecord = z.infer<typeof taskRecordSchema>;
+
+/** A build's integration branch (phase 9): where its tasks start and are applied. */
+export const buildBranchOf = (buildId: string): string => `briefstack/build-${buildId}`;

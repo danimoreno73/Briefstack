@@ -164,6 +164,22 @@ export interface ErrorParams {
   'task.noChanges': { id: string };
   'task.blocked': { id: string; files: string[] };
   'task.mergeDrivers': { project: string };
+  /** A build holds the project: no ordinary task starts (phase 9). */
+  'task.buildOnProject': { project: string; build: string };
+  /** A build's task: only the whole build is reverted (phase 9). */
+  'task.inBuild': { id: string; build: string };
+  /** Only a build's task runs its checks after a round (phase 9). */
+  'task.notInBuild': { id: string };
+  'build.unavailable': Record<string, never>;
+  'build.notFound': { id: string };
+  'build.wrongState': { id: string; state: string };
+  'build.noBrief': { project: string };
+  'build.projectBusy': { project: string; id: string };
+  'build.invalidStart': { issues: string[] };
+  'build.branchExists': { branch: string };
+  'build.branchMoved': { branch: string };
+  'build.nothingToApply': { id: string };
+  'build.taskRunning': { id: string; task: string };
 }
 
 /** Why a skill link is refused. */
