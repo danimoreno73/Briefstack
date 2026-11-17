@@ -129,17 +129,20 @@ export async function checkTaskPreconditions(ctx: PreconditionContext, slug: str
   if (!repo.inRepo) throw new BriefstackError('task.notGitRepo', { project: slug });
   if (!repo.isTop) throw new BriefstackError('task.insideOtherRepo', { project: slug });
   if (repo.head === undefined) throw new BriefstackError('task.noCommit', { project: slug });
+  // A build's task relaxes the folder's checks only for the build that holds the project now (review of M1, I4).
+  const build = await ctx.buildOn?.(slug);
+  if (forBuild !== undefined && build !== forBuild.build) throw new BriefstackError('build.notFound', { id: forBuild.build });
   if (repo.branch === undefined && forBuild === undefined) throw new BriefstackError('task.detachedHead', { project: slug });
 
   const open = (await ctx.tasks()).find((task) => task.project === slug && isOpenTask(task.state) && (forBuild === undefined || task.build?.id !== forBuild.build));
   if (open !== undefined) throw new BriefstackError('task.projectBusy', { project: slug, id: open.id });
-  const build = await ctx.buildOn?.(slug);
   if (build !== undefined && build !== forBuild?.build) throw new BriefstackError('task.buildOnProject', { project: slug, build });
   const holder = await ctx.creationOn(dir);
   if (holder !== undefined) throw new BriefstackError('task.creationOnFolder', { project: slug, holder });
   const active = await ctx.active();
   if (active.count >= active.limit) throw new BriefstackError('task.limit', { limit: active.limit, active: active.ids });
 
+  // The folder's branch and head are not where a build's task starts: the task manager takes the integration branch's.
   if (forBuild !== undefined) return { ...project, branch: repo.branch ?? 'HEAD', head: repo.head, uncommitted: [] };
   return { ...project, branch: repo.branch as string, head: repo.head, uncommitted: await uncommittedPaths(dir) };
 }

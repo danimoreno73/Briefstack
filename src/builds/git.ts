@@ -11,13 +11,12 @@ import { branchHead, withSafeGit } from '../tasks/git.js';
  * Git runs as the task's git does: no hooks, no filters, no monitor.
  */
 
-const ZERO = '0'.repeat(40);
-
 /** Makes `refs/heads/<branch>` at `base`; refused when the branch already exists. */
 export async function createIntegrationBranch(projectDir: string, branch: string, base: string): Promise<void> {
   await withSafeGit(projectDir, async (git, run) => {
     await git(['check-ref-format', '--branch', branch]);
-    const result = await run(['update-ref', `refs/heads/${branch}`, base, ZERO]);
+    // An empty old value: the ref must not exist (whatever the repository's hash format).
+    const result = await run(['update-ref', `refs/heads/${branch}`, base, '']);
     if (result.code !== 0) throw new BriefstackError('build.branchExists', { branch });
   });
 }

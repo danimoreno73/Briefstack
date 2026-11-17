@@ -163,5 +163,7 @@ export const buildRecordSchema = z.object({
   reverted: z.object({ commit: z.string(), at: z.string() }).optional(),
   /** Why the last action or the planner failed, redacted, without absolute paths. */
   error: z.string().optional(),
-});
+})
+  // A record never names another branch: an edited `build.json` cannot point the server's git at `main` (review of M1).
+  .refine((record) => record.branch === buildBranchOf(record.id), { path: ['branch'], message: 'must be briefstack/build-<id>' });
 export type BuildRecord = z.infer<typeof buildRecordSchema>;

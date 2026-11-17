@@ -99,6 +99,8 @@ describe('BuildStore', () => {
     expect(() => store.buildDir('../outside')).toThrow();
     expect(await store.load('../outside')).toBeUndefined();
     await expect(store.save({ ...record('mabc12-0a0b'), state: 'flying' as never })).rejects.toThrow();
+    await expect(store.save({ ...record('mabc12-0a0b'), branch: 'main' })).rejects.toThrow();
+    expect(buildRecordSchema.safeParse({ ...record('mabc12-0a0b'), branch: 'briefstack/build-mabc13-0a0b' }).success).toBe(false);
   });
 
   it('keeps the last of many saves asked at once', async () => {

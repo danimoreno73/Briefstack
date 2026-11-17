@@ -165,23 +165,27 @@ describe('task preconditions with builds (phase 9)', () => {
     const holding = { ...ctx(), buildOn: async () => 'mbld01-0a0b' };
     expect(await refusal(checkTaskPreconditions(holding, 'garden'))).toMatchObject({ code: 'task.buildOnProject', params: { project: 'garden', build: 'mbld01-0a0b' } });
     await expect(checkTaskPreconditions(holding, 'garden', { build: 'mbld01-0a0b' })).resolves.toMatchObject({ slug: 'garden', uncommitted: [] });
-    expect(await refusal(checkTaskPreconditions(holding, 'garden', { build: 'mbld02-0a0b' }))).toMatchObject({ code: 'task.buildOnProject' });
+    expect(await refusal(checkTaskPreconditions(holding, 'garden', { build: 'mbld02-0a0b' }))).toMatchObject({ code: 'build.notFound' });
   });
 
   it('a build\'s own waiting tasks do not take the project for its next task; any other open task does', async () => {
     const own = { ...record('proposal'), build: { id: 'mbld01-0a0b', n: 1 } };
+    const holding = { ...ctx(), buildOn: async () => 'mbld01-0a0b' };
     tasks = [own];
     expect(await refusal(checkTaskPreconditions(ctx(), 'garden'))).toMatchObject({ code: 'task.projectBusy', params: { id: own.id } });
-    await expect(checkTaskPreconditions(ctx(), 'garden', { build: 'mbld01-0a0b' })).resolves.toMatchObject({ slug: 'garden' });
+    await expect(checkTaskPreconditions(holding, 'garden', { build: 'mbld01-0a0b' })).resolves.toMatchObject({ slug: 'garden' });
     tasks = [own, record('failed')];
-    expect(await refusal(checkTaskPreconditions(ctx(), 'garden', { build: 'mbld01-0a0b' }))).toMatchObject({ code: 'task.projectBusy' });
+    expect(await refusal(checkTaskPreconditions(holding, 'garden', { build: 'mbld01-0a0b' }))).toMatchObject({ code: 'task.projectBusy' });
   });
 
-  it('a build\'s task needs no branch checked out and leaves the folder\'s files out', async () => {
+  it('a build\'s task needs no branch checked out and leaves the folder\'s files out, only for the build that holds the project', async () => {
     await writeFile(path.join(project, 'notes.txt'), 'draft\n', 'utf8');
     await gitIn(project, 'checkout', '--quiet', '--detach');
     expect(await refusal(checkTaskPreconditions(ctx(), 'garden'))).toMatchObject({ code: 'task.detachedHead' });
-    await expect(checkTaskPreconditions(ctx(), 'garden', { build: 'mbld01-0a0b' })).resolves.toMatchObject({ uncommitted: [] });
+    await expect(checkTaskPreconditions({ ...ctx(), buildOn: async () => 'mbld01-0a0b' }, 'garden', { build: 'mbld01-0a0b' })).resolves.toMatchObject({ uncommitted: [] });
+    // Any other id, or no build at all, relaxes nothing (review of M1, I4).
+    expect(await refusal(checkTaskPreconditions(ctx(), 'garden', { build: 'mbld01-0a0b' }))).toMatchObject({ code: 'build.notFound' });
+    expect(await refusal(checkTaskPreconditions({ ...ctx(), buildOn: async () => 'mbld02-0a0b' }, 'garden', { build: 'mbld01-0a0b' }))).toMatchObject({ code: 'build.notFound' });
   });
 });
 
