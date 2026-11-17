@@ -160,6 +160,31 @@ describe('task preconditions', () => {
   });
 });
 
+describe('task preconditions with builds (phase 9)', () => {
+  it('an open build holds the project: no ordinary task starts, its own tasks do', async () => {
+    const holding = { ...ctx(), buildOn: async () => 'mbld01-0a0b' };
+    expect(await refusal(checkTaskPreconditions(holding, 'garden'))).toMatchObject({ code: 'task.buildOnProject', params: { project: 'garden', build: 'mbld01-0a0b' } });
+    await expect(checkTaskPreconditions(holding, 'garden', { build: 'mbld01-0a0b' })).resolves.toMatchObject({ slug: 'garden', uncommitted: [] });
+    expect(await refusal(checkTaskPreconditions(holding, 'garden', { build: 'mbld02-0a0b' }))).toMatchObject({ code: 'task.buildOnProject' });
+  });
+
+  it('a build\'s own waiting tasks do not take the project for its next task; any other open task does', async () => {
+    const own = { ...record('proposal'), build: { id: 'mbld01-0a0b', n: 1 } };
+    tasks = [own];
+    expect(await refusal(checkTaskPreconditions(ctx(), 'garden'))).toMatchObject({ code: 'task.projectBusy', params: { id: own.id } });
+    await expect(checkTaskPreconditions(ctx(), 'garden', { build: 'mbld01-0a0b' })).resolves.toMatchObject({ slug: 'garden' });
+    tasks = [own, record('failed')];
+    expect(await refusal(checkTaskPreconditions(ctx(), 'garden', { build: 'mbld01-0a0b' }))).toMatchObject({ code: 'task.projectBusy' });
+  });
+
+  it('a build\'s task needs no branch checked out and leaves the folder\'s files out', async () => {
+    await writeFile(path.join(project, 'notes.txt'), 'draft\n', 'utf8');
+    await gitIn(project, 'checkout', '--quiet', '--detach');
+    expect(await refusal(checkTaskPreconditions(ctx(), 'garden'))).toMatchObject({ code: 'task.detachedHead' });
+    await expect(checkTaskPreconditions(ctx(), 'garden', { build: 'mbld01-0a0b' })).resolves.toMatchObject({ uncommitted: [] });
+  });
+});
+
 describe('task store', () => {
   it('saves a record aside and renames it, reads it back, and lists newest first', async () => {
     const store = new TaskStore(path.join(dir, 'home', 'tasks'));

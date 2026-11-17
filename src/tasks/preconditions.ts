@@ -44,6 +44,13 @@ export interface PreconditionContext {
   creationOn: (dir: string) => string | undefined | Promise<string | undefined>;
   /** Sessions active now (creations and tasks) and the shared limit. */
   active: () => Promise<{ count: number; limit: number; ids: string[] }>;
+  /** The open build on the project, if any (phase 9): it holds the project. */
+  buildOn?: (slug: string) => string | undefined | Promise<string | undefined>;
+}
+
+/** For a build's task (phase 9): its own build's open tasks do not take the project, and no branch need be checked out. */
+export interface BuildTaskStart {
+  build: string;
 }
 
 const firstHeading = (body: string): string | undefined => /^# +(.+?)\s*#*\s*$/m.exec(body)?.[1]?.trim() || undefined;
@@ -101,8 +108,14 @@ export async function initProjectRepo(ctx: Pick<PreconditionContext, 'libraryDir
   return { commit: await initRepoWithCommit(project.dir) };
 }
 
-/** Throws the first precondition that fails; otherwise where the task starts. */
-export async function checkTaskPreconditions(ctx: PreconditionContext, slug: string): Promise<TaskStartPoint> {
+/**
+ * Throws the first precondition that fails; otherwise where the task starts.
+ * With `forBuild`, the task is a build's (phase 9): it starts from the
+ * build's integration branch, so the folder's checked-out branch and its
+ * uncommitted files do not matter, and the build's own open tasks do not
+ * take the project.
+ */
+export async function checkTaskPreconditions(ctx: PreconditionContext, slug: string, forBuild?: BuildTaskStart): Promise<TaskStartPoint> {
   const pathEnv = ctx.pathEnv ?? systemPathEnv();
   const project = await projectForTask(ctx.libraryDir, slug, pathEnv);
   const { dir } = project;
@@ -116,14 +129,17 @@ export async function checkTaskPreconditions(ctx: PreconditionContext, slug: str
   if (!repo.inRepo) throw new BriefstackError('task.notGitRepo', { project: slug });
   if (!repo.isTop) throw new BriefstackError('task.insideOtherRepo', { project: slug });
   if (repo.head === undefined) throw new BriefstackError('task.noCommit', { project: slug });
-  if (repo.branch === undefined) throw new BriefstackError('task.detachedHead', { project: slug });
+  if (repo.branch === undefined && forBuild === undefined) throw new BriefstackError('task.detachedHead', { project: slug });
 
-  const open = (await ctx.tasks()).find((task) => task.project === slug && isOpenTask(task.state));
+  const open = (await ctx.tasks()).find((task) => task.project === slug && isOpenTask(task.state) && (forBuild === undefined || task.build?.id !== forBuild.build));
   if (open !== undefined) throw new BriefstackError('task.projectBusy', { project: slug, id: open.id });
+  const build = await ctx.buildOn?.(slug);
+  if (build !== undefined && build !== forBuild?.build) throw new BriefstackError('task.buildOnProject', { project: slug, build });
   const holder = await ctx.creationOn(dir);
   if (holder !== undefined) throw new BriefstackError('task.creationOnFolder', { project: slug, holder });
   const active = await ctx.active();
   if (active.count >= active.limit) throw new BriefstackError('task.limit', { limit: active.limit, active: active.ids });
 
-  return { ...project, branch: repo.branch, head: repo.head, uncommitted: await uncommittedPaths(dir) };
+  if (forBuild !== undefined) return { ...project, branch: repo.branch ?? 'HEAD', head: repo.head, uncommitted: [] };
+  return { ...project, branch: repo.branch as string, head: repo.head, uncommitted: await uncommittedPaths(dir) };
 }
