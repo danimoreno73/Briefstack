@@ -976,3 +976,18 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
 - **Noted.** The H0.1 probe's output does not print the user's folder's
   `HEAD` before the change; it is read from `update-ref`'s message. Review
   of M1.
+- **Noted.** Commit `a259a5c` holds several concerns (a build's task
+  start, unattended rounds, `runBuildChecks`, applying to the integration
+  branch, the refused revert). Review of M2.
+- **Pending: minor.** No test for the race where a build's turn ends
+  before the manager keeps the round's handle, nor for a PowerShell call
+  in a build's round. The S8 regression test for builds is in
+  `tests/unit/builds-tasks.test.ts`, not next to
+  `tasks-checks-invariant.test.ts`. Review of M2.
+- **Pending: minor.** `runBuildChecks` takes its commands from its caller
+  (the build), not from the build's record; a build's commands are checked
+  at its start, not again when the record is read. Review of M2.
+- **Pending: minor.** A shell request with no tool-use id is denied by
+  `TaskApprovals.decide` before the build hears of it, so it is not in the
+  build's denied list; a denial through `canUseTool` writes no
+  `tool.denied` line (as before phase 9). Review of M2.

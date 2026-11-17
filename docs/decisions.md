@@ -6773,11 +6773,34 @@ recorded here; the design decisions are in
   `software` template writes one): the brief says the queue comes from the
   project's approved brief, and planning from other notes would be a guess.
 - **The compound rule**: a chain is split only on `&&`, `||` and `;`
-  outside quotes, and each part must be an exact item. Pipes, redirects,
-  substitutions, background jobs and second lines never match unless the
-  whole command is written exactly so on the list; list items themselves
-  may not be compound, nor hold an unquoted `*` or `?`, an invisible
-  character or a part that looks like a secret.
+  outside quotes, and each part, trimmed of spaces and tabs only, must be
+  an exact item. Pipes, redirects, substitutions, background jobs and
+  second lines never match; list items themselves may not be compound,
+  nor hold a wildcard (`* ? [ ] { }`), an invisible character, a part that
+  looks like a secret, or any character outside the safe set below.
+- **Safe characters only in an approved item** (review of M2, I1): the
+  dialog's reading of a command (`describeCommand`) is not every shell's,
+  so an item such as `echo "a\" " ; rm -rf ~ ; echo " "` looked like one
+  command to it and is three to bash, and `echo (Remove-Item x)` runs a
+  subexpression in PowerShell. An item may now hold only letters, digits,
+  spaces, closed quotes and `- _ . / : = @ + ,` (no backslash, bracket,
+  brace, `$`, `%`, `^`, `!`, `~` or `#`), which plain commands such as
+  `npm test`, `npm run build:app` or `npx vitest run tests/unit` need no
+  more than. A command a session runs that is not exactly an item, or a
+  chain of items, is still denied.
+- **No Codex in a build's round** (review of M2, I3). The brief's §2, 4
+  lets Claude hand work to Codex through phase 8's switch, and §2, 6 says
+  any command outside the approved list is denied. Codex runs commands in
+  its own sandbox that never pass through that list (and on Windows it
+  reads outside the worktree and reaches the network: decisions.md,
+  "Phase 8: closed"). The conservative reading: a round the build runs
+  never offers `delegate_to_codex`; a round the user runs on a waiting
+  task still does, as any task's. Nothing of `src/codex/` changed. **For
+  the user to decide** whether builds should offer Codex.
+- **A task with commands the user allowed "for the rest of the task" gets
+  no more build rounds** (review of M2, I4): `TaskApprovals.decide` lets
+  such a command run without asking, so in a build's round it would skip
+  the list (`build.attendedTask`).
 - **Web requests are always denied in a build** (never on the list).
 - **A waiting task approved by the user goes to the integration branch**,
   through `merge-tree` from the task's base when the branch moved since

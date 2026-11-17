@@ -19,7 +19,7 @@ Updated 2026-11-17.
 |---|---|---|
 | H0 | Verify before designing (BRIEF §6) | done, decisions.md "Phase 9: H0" |
 | M1 | Build record and store; the integration branch; tasks based on it | done (`804fba1`, `e96a131`, `f0aca14`; review fixes `4a2b71b`): `src/builds/types.ts`, `store.ts`, `git.ts`, build-aware preconditions. The manager's start of a build's task moved to M2 (below). Review: I1 (scope) moved to M2, I3 (docs and `merge-tree`) aligned, I4 (relaxed checks without a build) fixed; minors in IDEAS §9 |
-| M2 | Unattended task rounds: the exact list, no dialog, checks after each round in builds only, rules, fix rounds | pending |
+| M2 | Unattended task rounds: the exact list, no dialog, checks after each round in builds only, rules, fix rounds | done (`971b8b4`, `a259a5c`; review fixes `deea60d`): `src/builds/commands.ts`, `prompt.ts`; `TaskManager.startForBuild`, `newBuildRound`, `runBuildChecks`, approving a build's task onto the integration branch; the runners' unattended mode. Review: I1 (items several commands to some shell) fixed with a safe character set, I2 (refused question unrecorded by the real runner) fixed, I3 (Codex outside the list) resolved by no Codex in build rounds, for the user to decide, I4 (commands allowed for the task) fixed; minors in IDEAS §9 |
 | M3 | The planner (fake and SDK) and the start page | pending |
 | M4 | The loop: order, dependencies, usage pause and resume, restart, cancel | pending |
 | M5 | The build page: progress, cumulative diff, apply, revert, discard | pending |
@@ -63,7 +63,9 @@ Each one is the conservative reading and is in decisions.md.
    question is refused by the runner with "decide yourself". The turn's
    end ends the round. Its prompt says all of this and lists the approved
    commands, the task's "done when" and, in a fix round, the failing
-   checks' output.
+   checks' output. It never offers Codex (review of M2, I3: Codex's
+   commands would not pass through the list); the user's own rounds on a
+   waiting task do.
 5. **The approved list** holds exact commands only: no wildcard, no
    prefix, each a single line within the declared checks' limits; a
    command with a part that looks like a secret is refused at the start
