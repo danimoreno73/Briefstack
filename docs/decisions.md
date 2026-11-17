@@ -6585,3 +6585,72 @@ Tested in `tests/unit/real-scripts.test.ts`: the text (temp sandbox,
 `prepareCodex` before the plan reading and `startTask`, one task, the
 cancel route the page uses, after `codexWorking`), and that without
 `--yes` it exits with 2 and starts nothing.
+
+## Phase 8: closed (2026-11-17)
+
+Codex in tasks is done. Its brief, with what changed after it was
+approved and the steps as they were done, is
+[BRIEF-phase-8.md](BRIEF-phase-8.md). No plan file was written; each
+step's results are in the "Phase 8" sections above.
+
+**What was built** (steps 25, 27 and 28): the runner for `codex exec`
+(`src/codex/`), with a cleaned environment, a 10-minute deadline and the
+whole process tree ended on cancel, stop or server exit; the
+`delegate_to_codex` tool, offered only to a task's main session, one call
+at a time, at most the per-round limit (a setting, 5 by default, 1 to 10);
+the per-round record of each call; the Settings card (a switch, off by
+default; the Windows sandbox mode, `unelevated` by default, `elevated`
+selectable; the limit; the status check; the measured warning); and the
+task page (calls, outcome, commands, tokens as Codex counts them with the
+total with cache in brackets, Codex's final message as data, "Codex is
+working…", cancel). The guard, S8 and the task's skill layers are
+unchanged. CI runs everything over a fake Codex on Linux, Windows and
+macOS.
+
+**The two real checks, run by the user on Windows 11 with Codex CLI
+0.167.0 and the ChatGPT login, `unelevated`:**
+
+- Step 26 (`scripts/real/check-codex-task.ts`, 2026-11-08): **all PASS**.
+  Claude Code 2.1.319 offered `mcp__briefstack-task__delegate_to_codex`
+  in the task session, the call ran with no `tool.denied`; one call,
+  `completed`, exit code 0, 11.3 s, 1 command, 32,405 input tokens
+  (28,288 cached), 212 output; Claude did not write the file itself; the
+  diff held `src/slug.js`; the checks did not run by themselves (S8) and
+  passed when run from the proposal; approving left one commit on `main`;
+  no new Codex process afterwards. Not controlled: the warning as the
+  page renders it (covered by e2e) and what Codex's commands read or send.
+- Step 28 (`scripts/real/check-codex-cancel.ts`, 2026-11-08): **all
+  PASS**. With the real Codex at work (`node codex.js`, `codex.exe` and
+  the `node src/hold.js <marker>` Codex started), the cancel route
+  answered 200, the task was `cancelled` 1 s later, the call `cancelled`
+  (11.2 s, no usage), and none of those processes was alive within 30 s;
+  the branch did not move, the worktree held only `src/hold.js`, the
+  project was unchanged and discarding removed the branch and the
+  worktree.
+
+**The user's decision on the network** (2026-11-08, "Phase 8: step 25"):
+on Windows, Codex's sandbox holds writes to the worktree and keeps the git
+folders out of reach, but reads outside the worktree and reaches 127.0.0.1
+and the Internet in both modes, and no Codex setting tried closes the
+network on the user's machine (steps 19 to 22). The user accepted that
+risk with a plain warning in Settings; a closed network is no longer a
+requirement. The README states it under "Limitations".
+
+**Not covered** (not shown with a real Codex, or not at all):
+
+- `elevated` in a real task (the real checks used `unelevated`; the
+  spikes measured `elevated` with `codex sandbox` and `codex exec` only).
+- macOS and Linux: only the fake Codex in CI; their sandboxes were not
+  measured.
+- A cancel right as a call starts or ends (step 28 cancelled in the
+  middle).
+- The per-round limit reached, and `headChanged`, with a real Codex (unit
+  tests only).
+- Large tasks (more tokens, more commands, several calls).
+- Generation with Codex (the creation flow): it needs a brief of its own
+  (IDEAS.md §5).
+
+What the reviews of steps 19 to 28 left open is in
+[IDEAS.md](IDEAS.md), §8 "Open items from phase 8". The tag
+`phase-8-done` is the user's to create, on the commit that closes this
+step once its CI is green.
