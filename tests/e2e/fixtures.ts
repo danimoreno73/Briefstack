@@ -34,6 +34,11 @@ import { sampleRepo, startFakeGitHub, type FakeGitHub } from '../skillsWorld.js'
 import { isolateEnvironment } from '../sandboxEnv.js';
 import { CodexService } from '../../src/codex/service.js';
 import { fakeCodex } from '../codexWorld.js';
+import type { BuildManager } from '../../src/builds/manager.js';
+import { FakeBuildPlanner } from '../../src/builds/planner.js';
+import type { PlanOutput } from '../../src/builds/types.js';
+import type { UsageReading } from '../../src/builds/usage.js';
+import { createWebBuilds } from '../../src/builds/wiring.js';
 
 /**
  * Where Playwright keeps its browsers by default: under the user's home on
@@ -97,6 +102,9 @@ export interface App {
   codex: CodexService;
   /** One line per command the fake Codex ran. */
   codexLog: string;
+  /** Builds over the fake planner and the fake task runner (phase 9). */
+  builds: BuildManager;
+  buildPlanner: FakeBuildPlanner;
 }
 
 /** A compatible Claude Code signed in with a Claude plan: the default every test runs with. */
@@ -125,7 +133,21 @@ export interface AppOptions {
   taskScript?: TaskFakeScript;
   /** The fake Codex's scenario for the status check (phase 8): `loggedOut`, `noSandbox`; all passing by default. */
   codexScenario?: string;
+  /** What the fake build planner answers (phase 9); a two-task queue by default. */
+  buildPlan?: PlanOutput | Error;
+  /** Plan readings before each build task, one per reading (phase 9); none (never a pause) by default. */
+  buildUsage?: UsageReading[];
 }
+
+/** The fake planner's default queue (phase 9). */
+export const BUILD_PLAN: PlanOutput = {
+  tasks: [
+    { title: 'Notes', instruction: 'Write NOTES.md.', doneWhen: 'NOTES.md exists.', dependsOn: [] },
+    { title: 'Summary', instruction: 'Write SUMMARY.md from the notes.', doneWhen: 'SUMMARY.md exists.', dependsOn: [1] },
+  ],
+  commands: ['npm test'],
+  checks: [],
+};
 
 async function emptyGitConfig(dir: string): Promise<void> {
   // No identity, signing or hooks from the developer's machine.
@@ -278,9 +300,23 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   const codexLog = path.join(dir, 'codex-calls.jsonl');
   await writeFile(codexLog, '', 'utf8');
   const codex = new CodexService({ pathEnv, locate: () => fakeCodex(codexLog, options.codexScenario) });
-  const tasks = await createWebTasks({ pathEnv, repoDir, lang: 'en', runner: taskRunner, creations: manager, codex });
+  const holderBuilds: { value?: BuildManager } = {};
+  const tasks = await createWebTasks({ pathEnv, repoDir, lang: 'en', runner: taskRunner, creations: manager, codex, buildOn: async (slug) => holderBuilds.value?.holder(slug) });
   holderTasks.value = tasks;
-  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat, improvements, skills, tasks, codex, claudeStatus, ...(usageCheck === undefined ? {} : { usageCheck }) });
+  // Builds (phase 9) over the fake planner; the plan readings are the test's, never a real one.
+  const buildPlanner = new FakeBuildPlanner(options.buildPlan ?? BUILD_PLAN, 100);
+  const buildReadings = [...(options.buildUsage ?? [])];
+  const builds = await createWebBuilds({
+    pathEnv,
+    repoDir,
+    lang: 'en',
+    tasks,
+    creations: manager,
+    planner: buildPlanner,
+    usage: options.buildUsage === undefined ? null : async () => buildReadings.shift() ?? { kind: 'unavailable' },
+  });
+  holderBuilds.value = builds;
+  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat, improvements, skills, tasks, builds, codex, claudeStatus, ...(usageCheck === undefined ? {} : { usageCheck }) });
 
   const app: App = {
     url: server.url,
@@ -306,12 +342,15 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     claudeStatus,
     codex,
     codexLog,
+    builds,
+    buildPlanner,
     ...(usageCheck === undefined ? {} : { usageCheck }),
   };
   holder.app = app;
   const stop = async () => {
     await app.improvements.shutdown();
     await app.chat.shutdown();
+    await app.builds.shutdown();
     await app.tasks.shutdown();
     await manager.shutdown();
     await app.server.close();

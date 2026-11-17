@@ -9,6 +9,7 @@ import { ChatDrawer, ChatPage } from './chat.js';
 import { ClaudeBanner } from './claude.js';
 import { ImprovePage } from './improve.js';
 import { TaskPage } from './tasks.js';
+import { BuildPage } from './builds.js';
 import { AppCtx, useApp, useSend, type AppContext } from './hooks.js';
 import {
   IconChat,
@@ -55,7 +56,7 @@ const NAV: { page: Route['page']; route: Route; label: NavLabel; icon: FunctionC
 
 /** The menu item a route belongs to: a project or a past session under Projects, a running creation under Creations. */
 function navPage(route: Route): Route['page'] {
-  if (route.page === 'project' || route.page === 'session') return 'projects';
+  if (route.page === 'project' || route.page === 'session' || route.page === 'build') return 'projects';
   if (route.page === 'new' && route.id !== undefined) return 'creations';
   return route.page;
 }
@@ -97,6 +98,8 @@ function Page({ route }: { route: Route }) {
       return <SkillsPage name={route.name} />;
     case 'task':
       return <TaskPage key={route.id} id={route.id} />;
+    case 'build':
+      return <BuildPage key={route.id} id={route.id} />;
   }
 }
 

@@ -456,6 +456,60 @@ export interface TaskProposalUi {
   checkCommands?: string[];
 }
 
+/** One item of a build's queue, as the planner proposes it and the start page sends it (phase 9). */
+export interface QueueItemUi {
+  title: string;
+  instruction: string;
+  doneWhen: string;
+  dependsOn: number[];
+}
+
+/** One task of a started build, with its progress (phase 9). */
+export interface BuildTaskUi extends QueueItemUi {
+  n: number;
+  state: string;
+  taskId?: string;
+  reason?: string;
+  skippedFor?: number;
+  detail?: string;
+  commit?: string;
+  denied?: { tool: string; text: string }[];
+  rounds: number;
+  /** What the server adds from the task itself (M5): its checks and Codex calls. */
+  task?: { state: string; checks?: { command: string; exitCode: number | null; timedOut: boolean }[]; codexCalls?: number; tokens?: number };
+}
+
+/** A build, as `GET /api/builds/:id` gives it (phase 9). */
+export interface BuildViewUi {
+  id: string;
+  project: string;
+  state: string;
+  model: string;
+  effort: string;
+  createdAt: string;
+  branch: string;
+  baseBranch?: string;
+  baseCommit?: string;
+  plan?: { tasks: QueueItemUi[]; commands: string[]; checks: string[] };
+  tasks: BuildTaskUi[];
+  settings?: { limit: number; commands: string[]; checks: string[]; fixRounds: number; maxRounds: number; thresholds: { fiveHour: number; week: number } };
+  roundsRun: number;
+  pause?: { reason: string; at: string; until?: string; fiveHour?: number | null; sevenDay?: number | null };
+  startedAt?: string;
+  finishedAt?: string;
+  applied?: { commit: string; at: string };
+  reverted?: { commit: string; at: string };
+  error?: string;
+  pausing?: true;
+  cancelling?: true;
+}
+
+export interface ProjectBuildsUi {
+  builds: BuildViewUi[];
+  plan: { ok: true } | { ok: false; code: string; params: Record<string, unknown>; message: string };
+  thresholds: { fiveHour: number; week: number };
+}
+
 export interface ProjectTasksUi {
   tasks: TaskViewUi[];
   checks: { command: string; confirmed: boolean }[];

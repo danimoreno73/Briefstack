@@ -135,6 +135,6 @@ export function describeError(error: unknown, t: Messages): string {
         Number(error.params.warnWeek),
       );
     default:
-      return (error.code.startsWith('task.') ? t.errTask(error.code, taskFacts(error.params, t)) : undefined) ?? t.errGeneric(error.code);
+      return (error.code.startsWith('task.') || error.code.startsWith('build.') ? t.errTask(error.code, taskFacts(error.params, t)) : undefined) ?? t.errGeneric(error.code);
   }
 }

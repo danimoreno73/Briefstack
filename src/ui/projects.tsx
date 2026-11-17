@@ -6,6 +6,7 @@ import { setIdeaDraft } from './ideaDraft.js';
 import { ConfirmModal, Empty, ErrorNote, LoadState, MetaLine, Note } from './kit.js';
 import { routeHash } from './route.js';
 import { ProjectTasks } from './tasks.js';
+import { ProjectBuilds } from './builds.js';
 import type { ProjectDetail, ProjectListing, SessionSummary } from './types.js';
 
 export function ProjectsView() {
@@ -254,6 +255,7 @@ export function ProjectView({ slug }: { slug: string }) {
                       </div>
                     </section>
                   )}
+                  {status?.target === 'claude-code' && status.archived === undefined && <ProjectBuilds slug={project.slug} />}
                   {status?.target === 'claude-code' && status.archived === undefined && <ProjectTasks slug={project.slug} />}
                   {commands !== undefined && (
                     <section class="card" aria-labelledby="code-title">
