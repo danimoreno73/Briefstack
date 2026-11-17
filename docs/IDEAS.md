@@ -302,6 +302,15 @@ in its own sandbox limited to the task's worktree, and the diff, the
 declared checks and the user's approval are the control. Auth with the
 user's own Codex login; usage goes to the user's OpenAI quota.
 
+- **Tasks: done** (phase 8, closed 2026-11-17): the brief, what changed
+  and the steps as done are in [BRIEF-phase-8.md](BRIEF-phase-8.md); the
+  close is decisions.md, "Phase 8: closed". What its reviews left open is
+  §8 below.
+- **Generation: next**, not started. It needs a brief of its own (the
+  creation flow's guard differs from the task guard).
+
+The notes below are the history of the tasks part, step by step.
+
 **What the spike measured (step 19, 2026-11-07, Codex CLI 0.167.0,
 Windows only; decisions.md, "Phase 8: Codex spike").** Against what (c)
 and the Codex brief assume:
@@ -870,3 +879,74 @@ Each item ends with its source, in one of three forms:
   chat. The finding was fixed in [api.md](api.md) instead, and the current
   order is safe: the task manager's stop ends or aborts the work the task
   routes accepted in those seconds.
+
+## 8. Open items from phase 8
+
+Left open when phase 8 (Codex in tasks) closed (2026-11-17). Each item
+starts with its state and ends with its source, in the forms of §7 (for
+example "Review of step 22, minor"). The brief is
+[BRIEF-phase-8.md](BRIEF-phase-8.md); the decisions are in
+[decisions.md](decisions.md), "Phase 8". Already listed elsewhere, so not
+repeated here: what the real checks did not cover (`elevated` in a real
+task, other systems, a cancel right at a call's start or end, the limit
+reached, `headChanged`, large tasks) is in decisions.md, "Phase 8:
+closed", and §5 (step 27); the limit the record does not keep is in §5
+(step 27); the mode without Codex's shell is in §5; the A7 test to watch
+on Windows CI, the small window of `takeOver`, `tasks-validate.test.ts`
+under load and `chat-improve-tools.test.ts` on Windows CI are in §7,
+"Tests".
+
+### Codex itself (not measured)
+
+- **Pending: not measured.** **`elevated` on a machine where it is not
+  set up yet**: on the user's machine it was already set up (by the Codex
+  desktop app), so its first run, and whether it asks for administrator
+  rights, were not seen. Review of step 19, point 6.
+- **Pending: not measured.** **The `mxc` sandbox mode** was only seen in
+  the binary's strings. Review of step 19, m2.
+- **Pending: not measured.** **Writes and git in `unelevated` through
+  `codex exec`** (case d) and **paths with spaces and long paths in
+  `unelevated`** (case f) were measured with the model in `elevated`
+  only; `unelevated` was measured with `codex sandbox`, without the
+  model. Review of step 19, m3.
+- **Pending: not explained.** **Why the `DENY` entry stayed on the
+  outside folder and not on the planted one** after the step 20 calls.
+  Review of step 20, m1.
+- **Pending: not measured.** **What `codex-windows-sandbox-setup` does on
+  each `elevated` call.** Review of step 20, m2.
+- **Pending: not measured.** **Why Windows reports Codex's firewall rules
+  as `CategoryDisabled`** on the user's machine (inferred: another
+  product owns the firewall category), and **whether
+  `sandbox_workspace_write.network_access=false` is applied** at all
+  (accepted with no error, same result as the default). Review of step
+  22, minor.
+- **Noted.** **A call costs more than step 19 suggested**: about 68,000
+  input tokens per call in step 22 (most cached), against 32,000 for a
+  one-step call. Review of step 22, minor.
+- **Pending: not measured.** **Codex's own default timeout for its shell
+  tool** (the step 28 check asks Codex for at least 150 s in case it is
+  shorter). Review of step 28, risks.
+
+### Code and real checks
+
+- **Pending: minor.** **`requireConfirmation` says "Claude Code
+  session"** (`scripts/real/common.ts`) also for scripts whose spend is
+  Codex's, such as `probe-codex.ts`. Review of step 19, m1.
+- **Pending: not shown with a real Codex.** **Events the runner does not
+  read are ignored**, such as a `file_change` item (Codex used its shell
+  in every measured call, so none was seen). Review of step 25, "not
+  tested".
+- **Pending: partly shown.** **"Codex is working…" with a real Claude
+  Code** relies on a `tool.post` line, written by the `PostToolUse` hook,
+  for the in-process tool. The step 28 real check showed it turning on;
+  that it turns off when the call returns (and not only at the turn's
+  end) was not checked in real. Review of step 27, "not tested".
+- **Pending: unit tests only.** **The `timedOut` and `notStarted`
+  outcomes** of a call are shown on the page by unit tests only. Review
+  of step 27, "not tested".
+- **Noted.** **The real checks find Codex's processes by name**, compared
+  with the ones running before (the Codex desktop app also names
+  `codex`), and **they rely on Codex finding the user's own login**: if
+  briefstack's sandbox ever changed `HOME` or `USERPROFILE`, `codex login
+  status` would fail and the check would stop before spending. Review of
+  step 26, risks.
