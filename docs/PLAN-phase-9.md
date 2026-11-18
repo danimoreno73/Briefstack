@@ -13,14 +13,14 @@ the user is in decisions.md, "Decisiones sin Dani (fase 9)".
 
 ## 0. Status
 
-Updated 2026-11-17.
+Updated 2026-11-18.
 
 | # | Milestone | State |
 |---|---|---|
 | H0 | Verify before designing (BRIEF §6) | done, decisions.md "Phase 9: H0" |
 | M1 | Build record and store; the integration branch; tasks based on it | done (`804fba1`, `e96a131`, `f0aca14`; review fixes `4a2b71b`): `src/builds/types.ts`, `store.ts`, `git.ts`, build-aware preconditions. The manager's start of a build's task moved to M2 (below). Review: I1 (scope) moved to M2, I3 (docs and `merge-tree`) aligned, I4 (relaxed checks without a build) fixed; minors in IDEAS §9 |
 | M2 | Unattended task rounds: the exact list, no dialog, checks after each round in builds only, rules, fix rounds | done (`971b8b4`, `a259a5c`; review fixes `deea60d`): `src/builds/commands.ts`, `prompt.ts`; `TaskManager.startForBuild`, `newBuildRound`, `runBuildChecks`, approving a build's task onto the integration branch; the runners' unattended mode. Review: I1 (items several commands to some shell) fixed with a safe character set, I2 (refused question unrecorded by the real runner) fixed, I3 (Codex outside the list) resolved by no Codex in build rounds (confirmed by the user on 2026-11-18), I4 (commands allowed for the task) fixed; minors in IDEAS §9 |
-| M3 | The planner (fake and SDK) and the start page | pending |
+| M3 | The planner (fake and SDK) and the start page | done (`1afd526`, `51a9782`, `fa22599`, `038cc9b`; review fixes in the commits after `038cc9b`): `src/builds/planner.ts`, `manager.ts`, `usage.ts`, `wiring.ts`, `src/server/builds.ts`, `src/ui/builds.tsx`. `51a9782` also holds most of M4's loop (order, dependencies, limit, cap of rounds, usage pause, restart); M4 adds its tests and the user's pause, resume and cancel. Review: B1 (stop hung on a build's round) fixed with the stop order; I1 (planner refused `StructuredOutput`; schema in draft 2020-12) fixed after the official docs; I2 (full limit failed the queue) fixed by waiting for a place; I3 (tasks did not count planners) fixed; I4 (an unstarted build held the project for good) fixed with discard; I5 (planner errors in English only) fixed with codes; I6 (unhandled rejections) fixed; I7 (one large commit with M4 code) noted; minors in IDEAS §9 |
 | M4 | The loop: order, dependencies, usage pause and resume, restart, cancel | pending |
 | M5 | The build page: progress, cumulative diff, apply, revert, discard | pending |
 | M6 | Docs and the real check script (prepared, not run) | pending |
@@ -97,10 +97,14 @@ Each one is the conservative reading and is in decisions.md.
    retried on the same interval; "not available for this login" never
    pauses (H0, 2). "Resume" from the page skips the reading for the next
    task: the user's explicit choice.
-10. **Restart**: a build left `running`, `paused` or `planning` by the
-    last server is `interrupted`; its running task is interrupted by the
-    task manager's own recovery and becomes waiting. Nothing resumes by
-    itself. **Cancel** stops the running round (the task manager's cancel,
+10. **Restart**: a build left `running` or `paused` by the last server is
+    `interrupted`; its running task is interrupted by the task manager's
+    own recovery and becomes waiting. A build left `planning` is
+    `planFailed` (`build.planStopped`): a planner cannot be resumed, so the
+    user discards it and plans again (review of M3). Nothing resumes by
+    itself. A server stop stops the builds first without waiting, then the
+    tasks (which ends their rounds and checks), then waits for the builds'
+    loops (review of M3, B1). **Cancel** stops the running round (the task manager's cancel,
     which kills the process tree, Codex included) or the running checks,
     and leaves the integration branch as it is.
 11. **One build or task per project at a time**: a build cannot start
@@ -109,10 +113,13 @@ Each one is the conservative reading and is in decisions.md.
     not block its next tasks. Builds share the active-sessions limit
     (each running round or check counts, as a task's).
 12. **The planner** (H0, 5): a session with no tools (`tools: []`, no MCP
-    server, no setting sources, nothing allowed), `cwd` an empty folder of
-    the build's, the brief, `CLAUDE.md` and the `package.json` scripts in
-    the prompt as data, and `outputFormat` with the queue's JSON schema;
-    the result is validated again with zod. It returns the queue (title,
+    server, no setting sources, nothing allowed but `StructuredOutput`,
+    the tool Claude Code adds to return the answer), `cwd` an empty folder
+    of the build's, the brief, `CLAUDE.md` and the `package.json` scripts
+    in the prompt as data, and `outputFormat` with the queue's JSON schema
+    in draft-07 (the only draft the SDK validates; decisions.md, "Phase 9:
+    the planner and structured output"); the result is validated again
+    with zod. It returns the queue (title,
     instruction, done when, dependencies), proposed commands and proposed
     checks; nothing is approved until the user starts the build. A fake
     planner serves every UI and API test. Model and effort: the profile's

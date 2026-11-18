@@ -991,3 +991,29 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   `TaskApprovals.decide` before the build hears of it, so it is not in the
   build's denied list; a denial through `canUseTool` writes no
   `tool.denied` line (as before phase 9). Review of M2.
+- **Noted.** Commit `51a9782` holds the build manager, most of M4's loop
+  (usage pause, restart, cap of rounds), the usage reader, the routes and
+  the wiring in one commit, and M4's code came without M4's tests (added in
+  M4). Review of M3, I7.
+- **Pending: minor.** A build may start with no checks: the rule "the
+  checks pass" then holds by itself and every task with no denied command
+  is applied. The start page does not warn about it. Review of M3.
+- **Pending: minor.** `build.invalidStart` shows a generic text on the
+  page, not the list of issues the server names (they are English only,
+  as `approvedListProblems` of M2), and "how many tasks to run" is not
+  lowered when tasks are removed, which then refuses the start. Review of
+  M3.
+- **Pending: minor.** `TaskManager.start` and `BuildManager.plan` queue on
+  different lines, so both may pass the preconditions before the other
+  saves (harmless: the build's start checks again); and a planner counts
+  in the shared limit only from a moment after its record is saved.
+  Review of M3.
+- **Pending: minor.** The planner prompt's data markers are fixed text: a
+  brief holding `=== end of docs/BRIEF.md ===` fakes the end of the data
+  (low impact: no tools, the user reviews the queue). A random marker
+  would close it. Review of M3.
+- **Pending: minor.** A build task's `denied` list grows without a cap in
+  `build.json`. Review of M3.
+- **Pending: minor.** The build page polls only while `planning` or
+  `running`: a build paused for usage does not refresh when it resumes by
+  itself. Review of M3.

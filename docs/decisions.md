@@ -6821,3 +6821,74 @@ recorded here; the design decisions are in
   the approved list. Ordinary tasks are unchanged, and a waiting task the
   user opens and runs as an ordinary task still offers Codex when the
   switch is on. The start page says so in one line (`buildNoCodex`).
+
+## Phase 9: the planner and structured output (2026-11-18, SDK 0.3.286)
+
+Checked in the official documentation (review of M3, I1), "Get structured
+output from agents",
+`https://code.claude.com/docs/en/agent-sdk/structured-outputs`, read on
+2026-11-18:
+
+- "When you set `outputFormat` … your message stream carries a tool call
+  named `StructuredOutput` that you never defined. Claude Code adds this
+  tool to the session, and the agent calls it to return its answer." The
+  SDK's own comment (`sdk.d.ts`) calls these "end-turn tool sessions".
+- "The SDK validates schemas with JSON Schema draft-07, so schemas that
+  declare a newer version are rejected. Zod targets draft 2020-12 by
+  default, so pass `target: "draft-7"`", and "A schema that isn't valid
+  JSON Schema fails the run at startup".
+- A result with `subtype: success` is not an answer when `is_error` is true
+  or `structured_output` is absent; the failure subtype is
+  `error_max_structured_output_retries`.
+
+**What changed:** the planner's schema is generated with
+`target: 'draft-7'` (zod's default declared 2020-12, which would have
+failed every real planning at the session's start); the planner's
+`PreToolUse` hook and `canUseTool` refuse every tool **except
+`StructuredOutput`**, by exact name, which it needs to answer at all
+(before, they refused everything); a `success` result with `is_error` is a
+failure. The rest stays: `tools: []`, no MCP server, no setting sources,
+`permissionMode: 'default'`. **Not verified without a real session:**
+whether `tools: []` keeps `StructuredOutput` (the documentation says Claude
+Code adds it; `tools` is described as "the base set of available built-in
+tools"), and whether `StructuredOutput` passes through `PreToolUse` and
+`canUseTool` at all. The real check (`scripts/real/check-build.ts`, M6)
+plans a real queue: a build left `planned` confirms both, a `planFailed`
+with `error_max_structured_output_retries` or "without a structured answer"
+says otherwise.
+
+## Phase 9: review of M3, the fixes (2026-11-18)
+
+- **The server's stop order** (B1): `briefstack web` calls the build
+  manager's `stop()` (nothing new starts, planners aborted, pause timers
+  and waits for a free place ended, no waiting), then the task manager's
+  `shutdown()` (which ends the round or the checks a build waits on and
+  their process trees), then the build manager's `shutdown()` (waits for
+  the loops). Before, the build manager waited for its loops first, which
+  waited on a round only the task manager's stop ends. During a stop the
+  loop records nothing more: the build stays `running` and the next
+  start's `recover()` makes it `interrupted`, its task waiting.
+- **A full shared limit pauses the queue** (I2): a build's task start, its
+  checks and its fix rounds wait for a free place (`task.limit`), trying
+  again every 30 seconds while the build stays `running` (the page says it
+  waits); a stop or a cancel ends the wait. Before, the task was left
+  waiting (`notStarted`) and the next ones failed the same way. A start of
+  the build itself still refuses a full limit, as a task's start does.
+- **Tasks count build planners** in the shared limit (I3), through the
+  creations side of the task manager's limit.
+- **A build that never started can be discarded** (I4): `planned` and
+  `planFailed` builds (no branch, no task) become `discarded` from the
+  build's page (`POST /api/builds/:id/discard`), which frees the project.
+  They still hold the project until then. Discarding started builds comes
+  with the build page (M5).
+- **Planner failures are error codes** with English and Spanish text
+  (I5): `build.planStopped`, `build.planSession`, `build.planNoOutput`,
+  `build.planSchema`, `build.planLaterDependency`; a build the last server
+  left `planning` is `planFailed` with `build.planStopped`, not
+  `interrupted` (the plan said `interrupted`; a planner cannot be resumed,
+  so the user discards it and plans again).
+- **The loop and the planner never reject unhandled** (I6): both chains
+  end in a handler; when the loop fails unexpectedly the build becomes
+  `interrupted` and the task it was at waits (`interrupted`).
+- **The fake task runner's `wait` step ends on a stop or a cancel**, as a
+  real session's work does, so the stop tests do not wait a minute.
