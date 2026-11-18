@@ -38,6 +38,7 @@ test.describe('builds', () => {
     await expect(page.getByTestId('build-state')).toHaveText('Ready to start');
     await expect(page.getByTestId('build-queue-item')).toHaveCount(2);
     await expect(page.getByTestId('build-warning')).toContainText('A build runs code before you read it');
+    await expect(page.getByTestId('build-no-codex')).toContainText('A build never hands work to Codex');
     // Edit: a clearer title for the first task, one command more, then remove the second task.
     await page.getByTestId('build-item-title').first().fill('Notes');
     await page.getByTestId('build-commands').fill('npm test\nnpm run lint');

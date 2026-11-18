@@ -6795,8 +6795,9 @@ recorded here; the design decisions are in
   reads outside the worktree and reaches the network: decisions.md,
   "Phase 8: closed"). The conservative reading: a round the build runs
   never offers `delegate_to_codex`; a round the user runs on a waiting
-  task still does, as any task's. Nothing of `src/codex/` changed. **For
-  the user to decide** whether builds should offer Codex.
+  task still does, as any task's. Nothing of `src/codex/` changed.
+  **Decided by the user on 2026-11-18** ("Phase 9: the user's decisions",
+  below): builds offer no Codex.
 - **A task with commands the user allowed "for the rest of the task" gets
   no more build rounds** (review of M2, I4): `TaskApprovals.decide` lets
   such a command run without asking, so in a build's round it would skip
@@ -6809,3 +6810,14 @@ recorded here; the design decisions are in
 - **Builds that hold a project**: every build state but `applied`,
   `reverted` and `discarded` (a failed plan included), so its integration
   branch and waiting tasks are never left beside an ordinary task.
+
+## Phase 9: the user's decisions (2026-11-18)
+
+- **Builds offer no Codex** (source: the user, 2026-11-18, confirming the
+  choice made in the review of M2, I3). For builds, this replaces the
+  brief's §2, 4 ("Claude may hand work to Codex through phase 8's switch"):
+  a round the build runs never offers `delegate_to_codex`, whatever the
+  Settings switch says, because Codex's commands would not pass through
+  the approved list. Ordinary tasks are unchanged, and a waiting task the
+  user opens and runs as an ordinary task still offers Codex when the
+  switch is on. The start page says so in one line (`buildNoCodex`).

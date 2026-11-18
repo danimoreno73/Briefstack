@@ -247,6 +247,9 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
         <input class="input" type="number" min={0} max={2} value={fixRounds} onInput={(event) => setFixRounds((event.target as HTMLInputElement).value)} data-testid="build-fix-rounds" />
       </label>
       <p class="t-small muted">{t.buildFixRoundsHint}</p>
+      <p class="t-small muted" data-testid="build-no-codex">
+        {t.buildNoCodex}
+      </p>
       <div class="btn-row">
         <label class="label">
           {t.buildThresholdFive}
