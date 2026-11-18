@@ -6892,3 +6892,33 @@ says otherwise.
   `interrupted` and the task it was at waits (`interrupted`).
 - **The fake task runner's `wait` step ends on a stop or a cancel**, as a
   real session's work does, so the stop tests do not wait a minute.
+
+## Phase 9: M4, pause, resume and cancel (2026-11-18)
+
+Choices made without the user, each the conservative reading:
+
+- **The user's pause** takes effect before the next task: the task at work
+  goes on to its end (applied or waiting), so nothing is cut halfway.
+  Cancel is the way to stop it now.
+- **Resume** is allowed from `paused`, `interrupted` and `finished`, never
+  from `cancelled` (a cancelled build is applied or discarded). It first
+  takes in what the user did meanwhile: a waiting task the user approved
+  (onto the integration branch) becomes `applied` with its commit, and
+  every skipped task is queued again, the loop skipping again those still
+  blocked (PLAN §1.8). A waiting task the user did not approve stays
+  waiting. The next task starts without reading the plan usage (PLAN
+  §1.9); the cap of rounds still holds.
+- **Cancel** of a running build sets the flag, ends the wait for a free
+  place, and keeps cancelling what the loop's task runs (its round through
+  the task manager's cancel, which ends the process tree, Codex included,
+  or its checks) until the loop stops, since a round or checks may start
+  just after the click; the build is then `cancelled` and its task too.
+  A paused or interrupted build, with no loop, is cancelled at once. The
+  integration branch is left as it is.
+- **A task the build's loop drives** (from its start to its apply or
+  wait) refuses the user's own actions: approve, discard, ask for changes,
+  run or cancel checks, answer, reply, finish (`task.heldByBuild`; open
+  item of the review of M2). A cancel from the task page or the chat is
+  still allowed: it is a safety action, and the build then leaves the task
+  waiting. The build applies its task through `applyForBuild`, which skips
+  that refusal; `approve` is the user's.
