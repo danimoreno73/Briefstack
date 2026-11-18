@@ -69,5 +69,8 @@ export function buildRoutes(manager: BuildManager | undefined, options: BuildRou
       },
     ],
     ['POST /api/builds/:id/discard', async (_req, res, params) => sendJson(res, 200, await need().discard(id(params)))],
+    ['POST /api/builds/:id/pause', async (_req, res, params) => sendJson(res, 200, await need().pause(id(params)))],
+    ['POST /api/builds/:id/resume', async (_req, res, params) => sendJson(res, 200, await need().resume(id(params)))],
+    ['POST /api/builds/:id/cancel', async (_req, res, params) => sendJson(res, 200, await need().cancel(id(params)))],
   ];
 }

@@ -182,6 +182,7 @@ describe('error catalogue', () => {
     'task.buildOnProject': { project: 'garden', build: 'abc123-0f0f' },
     'task.inBuild': { id: 'abc123-0f0f', build: 'abc124-0f0f' },
     'task.notInBuild': { id: 'abc123-0f0f' },
+    'task.heldByBuild': { id: 'abc123-0f0f', build: 'abc123-0a0a' },
     'build.unavailable': {},
     'build.notFound': { id: 'abc123-0f0f' },
     'build.wrongState': { id: 'abc123-0f0f', state: 'running' },

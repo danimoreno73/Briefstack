@@ -170,6 +170,8 @@ export interface ErrorParams {
   'task.inBuild': { id: string; build: string };
   /** Only a build's task runs its checks after a round (phase 9). */
   'task.notInBuild': { id: string };
+  /** A build's loop drives the task now: the user's own actions on it wait (phase 9). */
+  'task.heldByBuild': { id: string; build: string };
   'build.unavailable': Record<string, never>;
   'build.notFound': { id: string };
   'build.wrongState': { id: string; state: string };

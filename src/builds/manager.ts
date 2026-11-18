@@ -363,6 +363,139 @@ export class BuildManager {
     return this.view(next);
   }
 
+  // ---- pause, resume, cancel (M4) ---------------------------------------------------------------
+
+  /** Whether a build's loop drives this task now: its round, its checks or its apply (the task manager refuses the user's actions on it). */
+  drives(taskId: string): boolean {
+    for (const l of this.live.values()) if (l.taskId === taskId) return true;
+    return false;
+  }
+
+  /** The user's pause: the build pauses before its next task; the task at work goes on to its end. */
+  async pause(id: string): Promise<BuildView> {
+    this.refuseWhileStopping();
+    const record = await this.load(id);
+    const l = this.liveOf(id);
+    if (record.state !== 'running' || l.cancelling) throw new BriefstackError('build.wrongState', { id, state: record.state });
+    l.pausing = true;
+    return this.view(record);
+  }
+
+  /**
+   * Resumes a paused, interrupted or finished build, on the user's click. A
+   * waiting task the user approved since (onto the integration branch) is
+   * applied, and the tasks skipped are queued again: those still blocked are
+   * skipped again by the loop (PLAN §1.8). The next task starts without
+   * reading the plan usage: the user's explicit choice (PLAN §1.9).
+   */
+  resume(id: string): Promise<BuildView> {
+    const run = this.starting.then(() => this.resumeNow(id));
+    this.starting = run.catch(() => undefined);
+    return run;
+  }
+
+  private async resumeNow(id: string): Promise<BuildView> {
+    this.refuseWhileStopping();
+    const record = await this.load(id);
+    const l = this.liveOf(id);
+    if (!['paused', 'interrupted', 'finished'].includes(record.state) || l.loop !== undefined || l.cancelling) throw new BriefstackError('build.wrongState', { id, state: record.state });
+    const tasks: BuildTask[] = [];
+    for (const item of record.tasks) {
+      if (item.state === 'waiting' && item.taskId !== undefined) {
+        const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
+        if (task?.state === 'applied') {
+          const applied: BuildTask = { ...item, state: 'applied', ...(task.applied === undefined ? {} : { commit: task.applied.commit }) };
+          delete applied.reason;
+          delete applied.detail;
+          tasks.push(applied);
+          continue;
+        }
+      }
+      if (item.state === 'skipped') {
+        const queued: BuildTask = { ...item, state: 'queued' };
+        delete queued.skippedFor;
+        tasks.push(queued);
+        continue;
+      }
+      tasks.push(item);
+    }
+    const next: BuildRecord = { ...record, tasks, state: 'running', updatedAt: this.now().toISOString() };
+    delete next.pause;
+    delete next.error;
+    delete next.finishedAt;
+    if (l.timer !== undefined) clearTimeout(l.timer);
+    delete l.timer;
+    await this.save(next);
+    l.pausing = false;
+    l.skipUsage = true;
+    this.kick(id);
+    return this.view(next);
+  }
+
+  /**
+   * Cancels a build: the round at work is cancelled (the task manager's
+   * cancel, which ends its process tree, Codex included) or its checks are
+   * ended; a wait for a free place or a usage pause ends. The build becomes
+   * `cancelled` once its loop stopped; the integration branch stays.
+   */
+  async cancel(id: string): Promise<BuildView> {
+    this.refuseWhileStopping();
+    const record = await this.load(id);
+    const l = this.liveOf(id);
+    if (record.state === 'paused' || record.state === 'interrupted') {
+      if (l.loop !== undefined) throw new BriefstackError('build.wrongState', { id, state: record.state });
+      if (l.timer !== undefined) clearTimeout(l.timer);
+      delete l.timer;
+      const next: BuildRecord = { ...record, state: 'cancelled', finishedAt: this.now().toISOString(), updatedAt: this.now().toISOString() };
+      delete next.pause;
+      await this.save(next);
+      return this.view(next);
+    }
+    if (record.state !== 'running') throw new BriefstackError('build.wrongState', { id, state: record.state });
+    if (!l.cancelling) {
+      l.cancelling = true;
+      l.pausing = false;
+      l.wake?.();
+      void this.finishCancel(id, l);
+    }
+    return this.view(record);
+  }
+
+  /** Cancels the task's round, or ends its checks, when the build was asked to cancel. */
+  private cancelIfAsked(l: Live, taskId: string): void {
+    if (!l.cancelling) return;
+    const state = this.options.tasks.stateOf(taskId);
+    try {
+      if (state === 'running') this.options.tasks.cancel(taskId);
+      else if (state === 'checking' && this.options.tasks.checksRunning(taskId)) void this.options.tasks.abortBuildChecks(taskId).catch(() => undefined);
+    } catch {
+      // It ended meanwhile: nothing to cancel.
+    }
+  }
+
+  /** Keeps ending what the loop's task runs until the loop stops (a round or checks may start just after the click), then records `cancelled`. */
+  private async finishCancel(id: string, l: Live): Promise<void> {
+    const loop = l.loop;
+    let settled = loop === undefined;
+    void loop?.finally(() => (settled = true));
+    while (!settled && !this.stopping) {
+      if (l.taskId !== undefined) this.cancelIfAsked(l, l.taskId);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    await loop?.catch(() => undefined);
+    try {
+      if (this.stopping) return;
+      const record = await this.load(id);
+      if (record.state !== 'running') return;
+      const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'cancelled' as const } : task));
+      await this.save({ ...record, tasks, state: 'cancelled', finishedAt: this.now().toISOString(), updatedAt: this.now().toISOString() });
+    } catch {
+      // Nothing more to record.
+    } finally {
+      l.cancelling = false;
+    }
+  }
+
   // ---- the loop ---------------------------------------------------------------------------------
 
   private liveOf(id: string): Live {
@@ -587,6 +720,8 @@ export class BuildManager {
       return;
     }
     l.taskId = task.id;
+    // A cancel that came while the task was starting did not know its id: its round is cancelled now.
+    this.cancelIfAsked(l, task.id);
     await this.updateTask(record.id, n, { taskId: task.id });
     try {
       let fixesLeft = settings.fixRounds;
@@ -627,7 +762,7 @@ export class BuildManager {
         const reason: WaitReason | undefined = blocking.length > 0 ? 'blocked' : failed.length > 0 ? 'checksFailed' : denied.length > 0 ? 'denied' : undefined;
         if (reason === undefined) {
           try {
-            const applied = await this.options.tasks.approve(task.id);
+            const applied = await this.options.tasks.applyForBuild(task.id);
             await this.updateTask(record.id, n, { state: 'applied', ...(applied.applied === undefined ? {} : { commit: applied.applied.commit }) });
           } catch (error) {
             if (this.stopping) return;
@@ -647,6 +782,7 @@ export class BuildManager {
         const id = task.id;
         try {
           await this.withSlot(l, () => this.options.tasks.newBuildRound(id, `Fix round ${roundNumber}`, round({ round: roundNumber, failures })));
+          this.cancelIfAsked(l, id);
         } catch (error) {
           if (this.stopping) return;
           await this.updateTask(record.id, n, l.cancelling ? { state: 'cancelled' } : { state: 'waiting', reason, detail: await this.message(error) });

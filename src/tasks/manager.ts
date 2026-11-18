@@ -142,6 +142,13 @@ export interface TaskManagerOptions {
   codex?: () => Promise<Omit<CodexSession, 'outDir'> | undefined>;
   /** The open build on a project, if any (phase 9): it holds the project, so no ordinary task starts there. */
   buildOn?: (project: string) => string | undefined | Promise<string | undefined>;
+  /**
+   * Whether a build's loop is driving this task now (phase 9): its round,
+   * its checks or its apply. The user's own actions on it (approve, discard,
+   * ask for changes, run or cancel checks, answer, reply, finish) are then
+   * refused (`task.heldByBuild`); a cancel is not. Only a build's task can be.
+   */
+  buildDrives?: (taskId: string) => boolean;
   pathEnv?: PathEnv;
   now?: () => Date;
   /** How often `events.jsonl` is read. Default 300 ms. */
@@ -354,6 +361,7 @@ export class TaskManager {
   answer(id: string, pendingId: string, answer: unknown): TaskView {
     const l = this.find(id);
     this.refuseWhileStopping();
+    this.refuseIfDriven(l.record);
     const head = l.queue[0];
     if (head === undefined || l.record.state !== 'running') throw new BriefstackError('creation.noPending', { id });
     if (head.pending.id !== pendingId) throw new BriefstackError('creation.wrongPending', { pendingId, expected: head.pending.id });
@@ -380,6 +388,7 @@ export class TaskManager {
   /** The user's free-text reply to a turn that ended waiting for text. */
   reply(id: string, text: string): TaskView {
     const l = this.find(id);
+    this.refuseIfDriven(l.record);
     if (l.awaitingReply === undefined || l.handle === undefined || l.record.state !== 'running') throw new BriefstackError('creation.noReply', { id });
     delete l.awaitingReply;
     l.handle.sendMessage(text);
@@ -390,6 +399,7 @@ export class TaskManager {
   /** The user is done with this round: the session ends, its changes are committed and checked. */
   finishRound(id: string): TaskView {
     const l = this.find(id);
+    this.refuseIfDriven(l.record);
     if (l.record.state !== 'running' || l.handle === undefined) throw new BriefstackError('task.wrongState', { id, state: l.record.state });
     l.handle.finish();
     return this.view(l);
@@ -522,6 +532,7 @@ export class TaskManager {
   async newRound(id: string, changes: string): Promise<TaskView> {
     return this.act(id, async (record) => {
       this.refuseWhileStopping();
+      this.refuseIfDriven(record);
       if (!['proposal', 'failed', 'cancelled', 'interrupted'].includes(record.state)) throw new BriefstackError('task.wrongState', { id, state: record.state });
       const l = this.live.get(id) ?? this.adopt(record);
       const limit = await this.limit();
@@ -545,6 +556,7 @@ export class TaskManager {
   runChecks(id: string, shown: readonly string[]): Promise<TaskView> {
     return this.act(id, async (record) => {
       this.refuseWhileStopping();
+      this.refuseIfDriven(record);
       if (record.state !== 'proposal' || record.reviewed === undefined) throw new BriefstackError('task.wrongState', { id, state: record.state });
       const commands = (await this.options.checks?.commands(record)) ?? [];
       if (commands.length === 0) throw new BriefstackError('task.noChecks', { id, project: record.project });
@@ -581,6 +593,7 @@ export class TaskManager {
   cancelChecks(id: string): Promise<TaskView> {
     return this.act(id, async (record) => {
       this.refuseWhileStopping();
+      this.refuseIfDriven(record);
       const l = this.live.get(id);
       const abort = l?.checksAbort;
       if (l === undefined || abort === undefined || record.state !== 'checking' || record.reviewed === undefined) throw new BriefstackError('task.checksNotRunning', { id });
@@ -598,7 +611,20 @@ export class TaskManager {
 
   /** Approve on the proposal page: one commit on the default branch (BRIEF §3.5). */
   approve(id: string): Promise<TaskView> {
-    return this.act(id, async (record) => this.update(record.build !== undefined ? await this.applyToBuild(record) : await applyTask(record, await this.applyDeps())));
+    return this.act(id, async (record) => {
+      this.refuseIfDriven(record);
+      return this.update(record.build !== undefined ? await this.applyToBuild(record) : await applyTask(record, await this.applyDeps()));
+    });
+  }
+
+  /** The build's own apply of its task to the integration branch, when its rules hold (phase 9): `approve` without the refusal of a driven task. */
+  applyForBuild(id: string): Promise<TaskView> {
+    return this.act(id, async (record) => this.update(await this.applyToBuild(record)));
+  }
+
+  /** A build's task the build's loop drives now cannot be acted on by the user (phase 9; review of M2). */
+  private refuseIfDriven(record: TaskRecord): void {
+    if (record.build !== undefined && this.options.buildDrives?.(record.id) === true) throw new BriefstackError('task.heldByBuild', { id: record.id, build: record.build.id });
   }
 
   /**
@@ -638,6 +664,7 @@ export class TaskManager {
   /** Discard: the branch and the worktree go. Nothing allowed for the task is kept. */
   discard(id: string): Promise<TaskView> {
     return this.act(id, async (record) => {
+      this.refuseIfDriven(record);
       const view = await this.update(await discardTask(record, await this.applyDeps()));
       await this.live.get(id)?.approvals.clear();
       return view;

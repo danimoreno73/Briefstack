@@ -80,6 +80,7 @@ interface SetupOptions {
   others?: string[];
   maxActive?: number;
   checks?: TaskChecks;
+  usageRetryMs?: number;
 }
 
 function setup(options: SetupOptions = {}): Setup {
@@ -102,6 +103,7 @@ function setup(options: SetupOptions = {}): Setup {
     afterRound: afterRoundWith(),
     checks,
     buildOn: (slug) => holder.builds?.holder(slug),
+    buildDrives: (id) => holder.builds?.drives(id) ?? false,
     ...(others === undefined ? {} : { creations: { activeIds: () => others, folderHolder: () => undefined } }),
   });
   const planner = new FakeBuildPlanner(options.plan ?? PLAN);
@@ -116,7 +118,7 @@ function setup(options: SetupOptions = {}): Setup {
     thresholds: async () => ({ fiveHour: 80, week: 90 }),
     maxActive: () => maxActive,
     ...(options.usage === undefined ? {} : { usage: async () => readings.shift() ?? { kind: 'unavailable' } }),
-    usageRetryMs: 60_000,
+    usageRetryMs: options.usageRetryMs ?? 60_000,
     slotRetryMs: 20,
   });
   holder.builds = builds;
@@ -430,6 +432,260 @@ describe('stopping, the shared limit and an unstarted build (review of M3)', () 
     } finally {
       await after.builds.shutdown();
       await after.tasks.shutdown();
+    }
+  });
+});
+
+/** Every task writes its file after `ms`; nothing breaks. */
+const steady =
+  (ms: number): TaskFakeScript =>
+  (_round, prompt) => {
+    const title = /The task: (\w+)/.exec(prompt)?.[1] ?? 'X';
+    return { steps: [{ kind: 'wait', ms }, { kind: 'write', file: `${title.toUpperCase()}.md`, content: `${title}.\n` }, { kind: 'end', summary: `Wrote ${title}.` }] };
+  };
+
+const over = (resetsInMs?: number): UsageReading => ({ kind: 'ok', fiveHour: 95, sevenDay: 10, ...(resetsInMs === undefined ? {} : { fiveHourResetsAt: new Date(Date.now() + resetsInMs).toISOString() }) });
+const low: UsageReading = { kind: 'ok', fiveHour: 10, sevenDay: 10 };
+
+const states = async (s: Setup, id: string) => (await s.builds.get(id)).tasks.map((task) => task.state);
+
+describe('the loop (M4)', () => {
+  it('pauses at the usage threshold until the reading\'s reset time, then resumes by itself', async () => {
+    const s = setup({ script: steady(0), usage: [over(1500), low] });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN, { checks: [] }));
+      await until(async () => (await s.builds.get(id)).state === 'paused');
+      const paused = await s.builds.get(id);
+      expect(paused.pause).toMatchObject({ reason: 'usage', fiveHour: 95, sevenDay: 10 });
+      expect(Date.parse(paused.pause?.until ?? '')).toBeGreaterThan(Date.now() - 1000);
+      expect(paused.tasks.every((task) => task.state === 'queued')).toBe(true);
+      await until(async () => (await s.builds.get(id)).state === 'finished');
+      expect(await states(s, id)).toEqual(['applied', 'applied', 'applied']);
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('without a reset time it reads again after the interval; a failed reading pauses too; a login without limits never pauses', async () => {
+    const s = setup({ script: steady(0), usage: [over(), { kind: 'failed', message: 'no reading' }, { kind: 'unavailable' }, low], usageRetryMs: 150 });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN, { checks: [], limit: 2 }));
+      await until(async () => (await s.builds.get(id)).pause?.reason === 'usage');
+      const first = await s.builds.get(id);
+      expect(Date.parse(first.pause?.until ?? '') - Date.parse(first.pause?.at ?? '')).toBeLessThan(1000);
+      await until(async () => (await s.builds.get(id)).pause?.reason === 'usageUnread');
+      await until(async () => (await s.builds.get(id)).state === 'finished');
+      // The third reading (no limits for this login) let task 1 start; the fourth (low) let task 2.
+      expect(await states(s, id)).toEqual(['applied', 'applied', 'queued']);
+      expect(s.readings).toEqual([]);
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('the user pauses before the next task; Resume starts it without reading the usage', async () => {
+    // Before task 1: no limits; after the resume the reading is skipped once; before task 3: over, so it pauses again.
+    const s = setup({ script: steady(300), usage: [{ kind: 'unavailable' }, over(60_000)] });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN, { checks: [] }));
+      await until(() => s.tasks.activeIds().length === 1);
+      const pausing = await s.builds.pause(id);
+      expect(pausing.pausing).toBe(true);
+      await until(async () => (await s.builds.get(id)).state === 'paused');
+      const paused = await s.builds.get(id);
+      expect(paused.pause?.reason).toBe('user');
+      expect(paused.tasks.map((task) => task.state)).toEqual(['applied', 'queued', 'queued']);
+      await expect(s.builds.pause(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+      expect((await s.builds.resume(id)).state).toBe('running');
+      await until(async () => (await s.builds.get(id)).state === 'paused');
+      const again = await s.builds.get(id);
+      expect(again.pause?.reason).toBe('usage');
+      expect(again.tasks.map((task) => task.state)).toEqual(['applied', 'applied', 'queued']);
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('cancel during a round ends it at once (the task manager\'s cancel) and leaves the integration branch as it was', async () => {
+    const s = setup({ script: slow });
+    try {
+      const id = await planned(s);
+      const started = await s.builds.start(id, start(PLAN));
+      await until(() => s.tasks.activeIds().length === 1);
+      const before = await integrationHead(project, started.branch);
+      const at = Date.now();
+      expect((await s.builds.cancel(id)).cancelling).toBe(true);
+      await until(async () => (await s.builds.get(id)).state === 'cancelled');
+      expect(Date.now() - at).toBeLessThan(10_000);
+      const view = await s.builds.get(id);
+      expect(view.tasks.map((task) => task.state)).toEqual(['cancelled', 'queued', 'queued']);
+      expect(view.cancelling).toBeUndefined();
+      expect((await s.tasks.get(view.tasks[0]?.taskId as string)).state).toBe('cancelled');
+      expect(s.tasks.activeIds()).toEqual([]);
+      expect(await integrationHead(project, view.branch)).toBe(before);
+      await expect(s.builds.cancel(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('cancel during the checks ends them', async () => {
+    let began = false;
+    const blocking: TaskChecks = {
+      commands: async () => [],
+      run: (_worktree, commands, signal) =>
+        new Promise<CheckResult[]>((resolve) => {
+          began = true;
+          signal?.addEventListener('abort', () => resolve(commands.map((command) => ({ command, exitCode: null, timedOut: false, output: '', durationMs: 1 }))), { once: true });
+        }),
+    };
+    const s = setup({ checks: blocking });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN));
+      await until(() => began);
+      await s.builds.cancel(id);
+      await until(async () => (await s.builds.get(id)).state === 'cancelled');
+      expect((await s.builds.get(id)).tasks[0]?.state).toBe('cancelled');
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('cancel of a paused build needs no loop, and ends its usage pause', async () => {
+    const t = setup({ script: steady(0), usage: [over(60_000)] });
+    try {
+      const id = await planned(t);
+      await t.builds.start(id, start(PLAN));
+      await until(async () => (await t.builds.get(id)).state === 'paused');
+      expect((await t.builds.cancel(id)).state).toBe('cancelled');
+      expect((await t.builds.get(id)).pause).toBeUndefined();
+    } finally {
+      await t.builds.shutdown();
+      await t.tasks.shutdown();
+    }
+  });
+
+  it('while the build drives its task, the user cannot act on it; a waiting task is the user\'s', async () => {
+    const s = setup({ script: slow });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN, { limit: 1 }));
+      await until(async () => (await s.builds.get(id)).tasks[0]?.taskId !== undefined);
+      const taskId = (await s.builds.get(id)).tasks[0]?.taskId as string;
+      expect(s.builds.drives(taskId)).toBe(true);
+      expect(() => s.tasks.finishRound(taskId)).toThrow(expect.objectContaining({ code: 'task.heldByBuild' }));
+      await expect(s.tasks.approve(taskId)).rejects.toMatchObject({ code: 'task.heldByBuild' });
+      await expect(s.tasks.discard(taskId)).rejects.toMatchObject({ code: 'task.heldByBuild' });
+      await expect(s.tasks.newRound(taskId, 'More.')).rejects.toMatchObject({ code: 'task.heldByBuild' });
+      await s.builds.cancel(id);
+      await until(async () => (await s.builds.get(id)).state === 'cancelled');
+      expect(s.builds.drives(taskId)).toBe(false);
+      // Released: the user can handle it now (here, discard it).
+      expect((await s.tasks.discard(taskId)).state).toBe('discarded');
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('a waiting task the user fixes and approves is applied on resume, and its skipped dependent runs', async () => {
+    // Total leaves BROKEN in the build's rounds; the user's own round removes it.
+    const fixable: TaskFakeScript = (round, prompt) => {
+      if (prompt.includes('Remove BROKEN')) return { steps: [{ kind: 'delete', file: 'BROKEN' }, { kind: 'end', summary: 'Removed.' }] };
+      return script(round, prompt);
+    };
+    const s = setup({ script: fixable });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start());
+      await s.builds.idle(id);
+      expect(await states(s, id)).toEqual(['applied', 'waiting', 'skipped']);
+      const waiting = (await s.builds.get(id)).tasks[1]?.taskId as string;
+      // The user's own round is an ordinary one: its `rm` opens the dialog, which the user allows once.
+      await s.tasks.newRound(waiting, 'Remove BROKEN.');
+      await until(async () => (await s.tasks.get(waiting)).pending !== undefined);
+      s.tasks.answer(waiting, (await s.tasks.get(waiting)).pending?.id as string, 'once');
+      await until(async () => (await s.tasks.get(waiting)).awaitingReply !== undefined);
+      s.tasks.finishRound(waiting);
+      await until(async () => (await s.tasks.get(waiting)).state === 'proposal');
+      const approved = await s.tasks.approve(waiting);
+      expect(approved.state).toBe('applied');
+      await s.builds.resume(id);
+      await s.builds.idle(id);
+      const done = await s.builds.get(id);
+      expect(done.state).toBe('finished');
+      expect(done.tasks.map((task) => task.state)).toEqual(['applied', 'applied', 'applied']);
+      expect(done.tasks[1]?.commit).toBe(approved.applied?.commit);
+      const head = await integrationHead(project, done.branch);
+      expect((await gitIn(project, 'show', `${head as string}:REPORT.md`)).trim()).toBe('Report.');
+      await expect(gitIn(project, 'show', `${head as string}:BROKEN`)).rejects.toBeDefined();
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('after a restart the build is interrupted; Resume goes on with the tasks that do not depend on the interrupted one', async () => {
+    const s = setup({ script: slow });
+    const id = await planned(s);
+    await s.builds.start(id, start(PLAN, { checks: [] }));
+    await until(() => s.tasks.activeIds().length === 1);
+    s.builds.stop();
+    await s.tasks.shutdown();
+    await s.builds.shutdown();
+    const after = setup();
+    try {
+      await after.tasks.recover();
+      await after.builds.recover();
+      expect((await after.builds.get(id)).state).toBe('interrupted');
+      // Nothing resumes by itself.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect((await after.builds.get(id)).state).toBe('interrupted');
+      await after.builds.resume(id);
+      await after.builds.idle(id);
+      const done = await after.builds.get(id);
+      expect(done.state).toBe('finished');
+      expect(done.tasks.map((task) => [task.state, task.reason ?? null])).toEqual([
+        ['waiting', 'interrupted'],
+        ['applied', null],
+        ['applied', null],
+      ]);
+    } finally {
+      await after.builds.shutdown();
+      await after.tasks.shutdown();
+    }
+  });
+
+  it('the cap of rounds leaves the next task waiting and finishes the build', async () => {
+    const store = new BuildStore(buildsRoot(world.home));
+    const s = setup({ script: steady(400) });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN, { checks: [] }));
+      await until(async () => (await s.builds.get(id)).tasks[0]?.taskId !== undefined);
+      // While task 1 works (nothing is saved meanwhile), the cap is lowered to one round.
+      const record = await store.load(id);
+      await store.save({ ...(record as NonNullable<typeof record>), settings: { ...(record?.settings as NonNullable<NonNullable<typeof record>['settings']>), maxRounds: 1 } });
+      await s.builds.idle(id);
+      const done = await s.builds.get(id);
+      expect(done.state).toBe('finished');
+      expect(done.tasks.map((task) => [task.state, task.reason ?? null])).toEqual([
+        ['applied', null],
+        ['waiting', 'roundsCap'],
+        ['queued', null],
+      ]);
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
     }
   });
 });

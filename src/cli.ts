@@ -703,7 +703,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   try {
     // Tasks share the active-sessions limit with creations and with build planners (BRIEF-phase-9 §2; review of M3, I3).
     const sharing = { activeIds: () => [...creations.activeIds(), ...(builds?.activeIds() ?? [])], folderHolder: (dir: string) => creations.folderHolder(dir) };
-    tasks = await createWebTasks({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, runner: io.taskRunner, creations: sharing, codex, buildOn: async (slug) => builds?.holder(slug) });
+    tasks = await createWebTasks({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, runner: io.taskRunner, creations: sharing, codex, buildOn: async (slug) => builds?.holder(slug), buildDrives: (id) => builds?.drives(id) ?? false });
     // A server that died with a task running left it interrupted; its worktree stays for the user.
     await tasks.recover();
     // Builds (phase 9): a test's task runner never meets the real planner or plan reading.

@@ -98,6 +98,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'task.buildOnProject': 409,
   'task.inBuild': 409,
   'task.notInBuild': 409,
+  'task.heldByBuild': 409,
   'build.unavailable': 503,
   'build.notFound': 404,
   'build.wrongState': 409,

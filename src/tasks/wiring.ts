@@ -25,6 +25,8 @@ export interface WebTaskOptions {
   codex?: CodexService | undefined;
   /** The open build on a project (phase 9): it holds the project. */
   buildOn?: ((project: string) => Promise<string | undefined>) | undefined;
+  /** Whether a build's loop drives a task now (phase 9): the user's actions on it are refused meanwhile. */
+  buildDrives?: ((taskId: string) => boolean) | undefined;
 }
 
 /** The active usage profile's name and `work` entry, read when a task starts. */
@@ -62,5 +64,6 @@ export async function createWebTasks(options: WebTaskOptions): Promise<TaskManag
     checks: taskChecksWith({ libraryDir, home: paths.home }),
     ...(options.codex === undefined ? {} : { codex: () => (options.codex as CodexService).session() }),
     ...(options.buildOn === undefined ? {} : { buildOn: options.buildOn }),
+    ...(options.buildDrives === undefined ? {} : { buildDrives: options.buildDrives }),
   });
 }
