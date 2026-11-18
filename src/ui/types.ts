@@ -502,6 +502,8 @@ export interface BuildViewUi {
   error?: string;
   pausing?: true;
   cancelling?: true;
+  /** The shared limit of active sessions is full: the build waits for a free place. */
+  waitingSlot?: true;
 }
 
 export interface ProjectBuildsUi {

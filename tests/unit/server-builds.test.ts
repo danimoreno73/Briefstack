@@ -113,6 +113,16 @@ describe('build routes', () => {
     await builds.idle(id);
     expect((await call('GET', `/api/builds/${id}`)).json).toMatchObject({ state: 'finished', tasks: [{ state: 'applied' }] });
     expect(await call('GET', '/api/builds/nope')).toMatchObject({ status: 404, json: { code: 'build.notFound' } });
+    // A started build is not discarded by this route yet (only one that never started).
+    expect(await call('POST', `/api/builds/${id}/discard`, {})).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
+  });
+
+  it('discard a build that never started, which frees the project (review of M3, I4)', async () => {
+    await serve();
+    const id = (await call('POST', '/api/projects/garden/builds', {})).json.id as string;
+    await builds.idle(id);
+    expect(await call('POST', `/api/builds/${id}/discard`, {})).toMatchObject({ status: 200, json: { state: 'discarded' } });
+    expect((await call('GET', '/api/projects/garden/builds')).json).toMatchObject({ plan: { ok: true } });
   });
 
   it('warn about high plan usage before planning, unless forced', async () => {

@@ -68,5 +68,6 @@ export function buildRoutes(manager: BuildManager | undefined, options: BuildRou
         sendJson(res, 200, await need().start(id(params), { tasks: body.tasks as never, limit: body.limit, commands: body.commands, checks: body.checks, fixRounds: body.fixRounds, thresholds: body.thresholds }));
       },
     ],
+    ['POST /api/builds/:id/discard', async (_req, res, params) => sendJson(res, 200, await need().discard(id(params)))],
   ];
 }

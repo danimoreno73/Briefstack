@@ -70,7 +70,12 @@ export interface BuildManagerOptions {
   now?: () => Date;
   /** How long to wait to read the usage again when no reset time is known. Default 15 minutes. */
   usageRetryMs?: number;
+  /** How long to wait before trying again when the shared limit of active sessions is full. Default 30 seconds. */
+  slotRetryMs?: number;
 }
+
+/** How long a build waits for a free place in the shared limit before it tries again. */
+export const SLOT_RETRY_MS = 30_000;
 
 /** What only the server knows of a build while it runs. */
 interface Live {
@@ -85,11 +90,17 @@ interface Live {
   timer?: NodeJS.Timeout;
   planAbort?: AbortController;
   planning?: Promise<void>;
+  /** The shared limit is full: the build waits for a free place before its next round or checks. */
+  waitingSlot?: boolean;
+  /** Ends the current wait for a free place at once (a stop or a cancel). */
+  wake?: () => void;
 }
 
 export interface BuildView extends BuildRecord {
   pausing?: true;
   cancelling?: true;
+  /** The shared limit of active sessions is full: the build waits for a free place. */
+  waitingSlot?: true;
 }
 
 const clean = (text: string): string => hideAbsolutePaths(redactSecretLines(text)).slice(0, 2000);
@@ -136,6 +147,7 @@ export class BuildManager {
     const l = this.live.get(record.id);
     if (l?.pausing === true && record.state === 'running') view.pausing = true;
     if (l?.cancelling === true) view.cancelling = true;
+    if (l?.waitingSlot === true && record.state === 'running') view.waitingSlot = true;
     return view;
   }
 
@@ -239,7 +251,10 @@ export class BuildManager {
         delete l.planning;
         delete l.planAbort;
         await this.options.store.removePlanDir(id).catch(() => undefined);
-      });
+      })
+      // A failure to save the outcome must not reach the process as an unhandled rejection (review of M3, I6): the
+      // record stays `planning`, and the next start's `recover()` closes it.
+      .catch(() => undefined);
     return this.view(record);
   }
 
@@ -327,6 +342,27 @@ export class BuildManager {
     return this.view(next);
   }
 
+  /**
+   * Discards a build. Here only one that never started (`planned`, or
+   * `planFailed`): it has no branch and no task, so the record just becomes
+   * `discarded` and the project is free again (review of M3, I4). Runs in
+   * the same line as plans and starts, so it cannot pass a start.
+   */
+  discard(id: string): Promise<BuildView> {
+    const run = this.starting.then(() => this.discardNow(id));
+    this.starting = run.catch(() => undefined);
+    return run;
+  }
+
+  private async discardNow(id: string): Promise<BuildView> {
+    this.refuseWhileStopping();
+    const record = await this.load(id);
+    if (record.state !== 'planned' && record.state !== 'planFailed') throw new BriefstackError('build.wrongState', { id, state: record.state });
+    const next: BuildRecord = { ...record, state: 'discarded', updatedAt: this.now().toISOString() };
+    await this.save(next);
+    return this.view(next);
+  }
+
   // ---- the loop ---------------------------------------------------------------------------------
 
   private liveOf(id: string): Live {
@@ -344,12 +380,61 @@ export class BuildManager {
     if (l.loop !== undefined || this.stopping) return;
     l.loop = this.loop(id)
       .catch(async (error: unknown) => {
-        const record = await this.options.store.load(id);
-        if (record !== undefined && record.state === 'running' && !this.stopping) await this.save({ ...record, state: 'interrupted', error: await this.message(error), updatedAt: this.now().toISOString() });
+        // Something the loop did not expect: the build is interrupted, and the task it was at waits (review of M3, I2 and I6).
+        try {
+          const record = await this.options.store.load(id);
+          if (record === undefined || record.state !== 'running' || this.stopping) return;
+          const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'waiting' as const, reason: 'interrupted' as const } : task));
+          await this.save({ ...record, tasks, state: 'interrupted', error: await this.message(error), updatedAt: this.now().toISOString() });
+        } catch {
+          // Nothing more to record: the next start's `recover()` closes it.
+        }
       })
       .finally(() => {
         delete l.loop;
+        delete l.waitingSlot;
       });
+  }
+
+  /** Waits `ms`, or less when a stop or a cancel wakes it. */
+  private sleep(l: Live, ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        if (l.wake === done) delete l.wake;
+        resolve();
+      };
+      const timer = setTimeout(done, ms);
+      timer.unref();
+      l.wake = done;
+    });
+  }
+
+  /**
+   * Runs one call into the task manager, waiting for a free place while the
+   * shared limit of active sessions is full (`task.limit`), so a full limit
+   * pauses the queue instead of failing its tasks (review of M3, I2). Gives
+   * up, with the error, once a stop or a cancel began.
+   */
+  private async withSlot<T>(l: Live, call: () => Promise<T>): Promise<T> {
+    for (;;) {
+      try {
+        const result = await call();
+        delete l.waitingSlot;
+        return result;
+      } catch (error) {
+        if (!isBriefstackError(error) || error.code !== 'task.limit' || this.stopping || l.cancelling) {
+          delete l.waitingSlot;
+          throw error;
+        }
+        l.waitingSlot = true;
+        await this.sleep(l, this.options.slotRetryMs ?? SLOT_RETRY_MS);
+        if (this.stopping || l.cancelling) {
+          delete l.waitingSlot;
+          throw error;
+        }
+      }
+    }
   }
 
   private async loop(id: string): Promise<void> {
@@ -483,13 +568,21 @@ export class BuildManager {
     let task: TaskView;
     try {
       await this.updateTask(record.id, n, { state: 'running' });
-      task = await this.options.tasks.startForBuild(record.project, {
-        build: { id: record.id, n },
-        base: { branch: record.branch, commit: head },
-        description: `${item.title}\n\n${item.instruction}\n\nDone when: ${item.doneWhen}`,
-        round: round(),
-      });
+      task = await this.withSlot(l, () =>
+        this.options.tasks.startForBuild(record.project, {
+          build: { id: record.id, n },
+          base: { branch: record.branch, commit: head },
+          description: `${item.title}\n\n${item.instruction}\n\nDone when: ${item.doneWhen}`,
+          round: round(),
+        }),
+      );
     } catch (error) {
+      // A stop leaves the record as an abrupt stop does, for `recover()` (review of M3, B1).
+      if (this.stopping) return;
+      if (l.cancelling) {
+        await this.updateTask(record.id, n, { state: 'cancelled' });
+        return;
+      }
       await this.updateTask(record.id, n, { state: 'waiting', reason: 'notStarted', detail: await this.message(error) });
       return;
     }
@@ -507,17 +600,26 @@ export class BuildManager {
           return;
         }
         if (task.state !== 'proposal') {
-          await this.updateTask(record.id, n, { state: 'waiting', reason: task.state === 'interrupted' ? 'interrupted' : 'roundFailed', ...(task.error === undefined ? {} : { detail: task.error }) });
+          await this.updateTask(record.id, n, { state: 'waiting', reason: task.state === 'interrupted' ? 'interrupted' : 'roundFailed', ...(task.error === undefined ? {} : { detail: clean(task.error) }) });
           return;
         }
-        if (settings.checks.length > 0) task = await this.options.tasks.runBuildChecks(task.id, settings.checks);
+        if (settings.checks.length > 0) {
+          const id = task.id;
+          try {
+            task = await this.withSlot(l, () => this.options.tasks.runBuildChecks(id, settings.checks));
+          } catch (error) {
+            if (this.stopping) return;
+            await this.updateTask(record.id, n, l.cancelling ? { state: 'cancelled' } : { state: 'waiting', reason: 'roundFailed', detail: await this.message(error) });
+            return;
+          }
+        }
         if (this.stopping) return;
         if (l.cancelling) {
           await this.updateTask(record.id, n, { state: 'cancelled' });
           return;
         }
         if (task.state !== 'proposal') {
-          await this.updateTask(record.id, n, { state: 'waiting', reason: 'roundFailed', ...(task.error === undefined ? {} : { detail: task.error }) });
+          await this.updateTask(record.id, n, { state: 'waiting', reason: 'roundFailed', ...(task.error === undefined ? {} : { detail: clean(task.error) }) });
           return;
         }
         const blocking = (task.validations ?? []).filter((validation) => validation.level === 'error');
@@ -528,6 +630,7 @@ export class BuildManager {
             const applied = await this.options.tasks.approve(task.id);
             await this.updateTask(record.id, n, { state: 'applied', ...(applied.applied === undefined ? {} : { commit: applied.applied.commit }) });
           } catch (error) {
+            if (this.stopping) return;
             await this.updateTask(record.id, n, { state: 'waiting', reason: 'notApplied', detail: await this.message(error) });
           }
           return;
@@ -541,10 +644,12 @@ export class BuildManager {
         const failures = failureText({ checks: task.checks ?? [], denied, validations: task.validations ?? [] });
         denied.length = 0;
         const roundNumber = task.rounds.length + 1;
+        const id = task.id;
         try {
-          await this.options.tasks.newBuildRound(task.id, `Fix round ${roundNumber}`, round({ round: roundNumber, failures }));
+          await this.withSlot(l, () => this.options.tasks.newBuildRound(id, `Fix round ${roundNumber}`, round({ round: roundNumber, failures })));
         } catch (error) {
-          await this.updateTask(record.id, n, { state: 'waiting', reason, detail: await this.message(error) });
+          if (this.stopping) return;
+          await this.updateTask(record.id, n, l.cancelling ? { state: 'cancelled' } : { state: 'waiting', reason, detail: await this.message(error) });
           return;
         }
       }
@@ -570,7 +675,7 @@ export class BuildManager {
     let count = 0;
     for (const record of await this.options.store.list()) {
       if (record.state === 'planning') {
-        await this.save({ ...record, state: 'planFailed', error: 'briefstack stopped while the queue was being planned.', updatedAt: this.now().toISOString() });
+        await this.save({ ...record, state: 'planFailed', error: await this.message(new BriefstackError('build.planStopped', {})), updatedAt: this.now().toISOString() });
         count += 1;
       } else if (record.state === 'running' || record.state === 'paused') {
         const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'waiting' as const, reason: 'interrupted' as const } : task));
@@ -583,13 +688,25 @@ export class BuildManager {
     return count;
   }
 
-  /** Stops every loop and the planners: what was running is left as an abrupt stop leaves it, for `recover()`. */
-  async shutdown(): Promise<void> {
+  /**
+   * Begins the stop without waiting: nothing new starts, the planners are
+   * aborted, the pause timers and the waits for a free place end. The
+   * server calls it before the task manager's `shutdown()`, which ends the
+   * round or the checks a build's loop waits on; then `shutdown()` waits
+   * for the loops (review of M3, B1).
+   */
+  stop(): void {
     this.stopping = true;
     for (const l of this.live.values()) {
       if (l.timer !== undefined) clearTimeout(l.timer);
       l.planAbort?.abort();
+      l.wake?.();
     }
+  }
+
+  /** Stops every loop and the planners: what was running is left as an abrupt stop leaves it, for `recover()`. Call the task manager's `shutdown()` between `stop()` and this. */
+  async shutdown(): Promise<void> {
+    this.stop();
     await Promise.all([...this.live.values()].map(async (l) => {
       await l.planning?.catch(() => undefined);
       await l.loop?.catch(() => undefined);

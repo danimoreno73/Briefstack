@@ -182,6 +182,14 @@ export interface ErrorParams {
   'build.taskRunning': { id: string; task: string };
   /** A build's task the user allowed commands in: it gets no more unattended rounds. */
   'build.attendedTask': { id: string };
+  /** The planner was stopped, or briefstack stopped while it planned. */
+  'build.planStopped': Record<string, never>;
+  /** The planner session ended with an error result (its subtype). */
+  'build.planSession': { subtype: string };
+  /** The planner session ended without `structured_output`. */
+  'build.planNoOutput': Record<string, never>;
+  'build.planSchema': { issues: string[] };
+  'build.planLaterDependency': { n: number };
 }
 
 /** Why a skill link is refused. */

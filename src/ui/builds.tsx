@@ -351,14 +351,49 @@ function Progress({ build }: { build: BuildViewUi }) {
 
 // ---- one build -----------------------------------------------------------------------------------
 
+/** The start page once the Settings' default thresholds are loaded, so the form starts from them (review of M3, minor). */
+function PlannedStart({ build, onStarted }: { build: BuildViewUi; onStarted(): void }) {
+  const project = useLoad<ProjectBuildsUi>(`/api/projects/${encodeURIComponent(build.project)}/builds`);
+  return <LoadState loaded={project}>{(data) => <StartForm build={build} defaults={data.thresholds} onStarted={onStarted} />}</LoadState>;
+}
+
+/** Discarding a build that never started: nothing ran, the project is free again (review of M3, I4). */
+function DiscardUnstarted({ build, onDone }: { build: BuildViewUi; onDone(): void }) {
+  const { t } = useApp();
+  const send = useSend();
+  const action = useAction();
+  const [confirm, setConfirm] = useState(false);
+  return (
+    <>
+      {action.error !== undefined && <ErrorNote error={action.error} />}
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost" disabled={action.busy} onClick={() => setConfirm(true)} data-testid="build-discard">
+          {t.buildDiscard}
+        </button>
+      </div>
+      {confirm && (
+        <ConfirmModal
+          title={t.buildDiscardTitle}
+          body={t.buildDiscardUnstartedBody}
+          confirmLabel={t.buildDiscard}
+          cancelLabel={t.cancel}
+          onConfirm={() => {
+            setConfirm(false);
+            void action.run(() => send('POST', `/api/builds/${encodeURIComponent(build.id)}/discard`, {})).then((ok) => ok && onDone());
+          }}
+          onCancel={() => setConfirm(false)}
+        />
+      )}
+    </>
+  );
+}
+
 export function BuildPage({ id }: { id: string }) {
   const { t } = useApp();
   const loaded = useLoad<BuildViewUi>(`/api/builds/${encodeURIComponent(id)}`);
-  const project = useLoad<ProjectBuildsUi>(loaded.data === undefined ? `/api/builds/${encodeURIComponent(id)}` : `/api/projects/${encodeURIComponent(loaded.data.project)}/builds`);
   const build = loaded.data;
   useDocumentTitle(build === undefined ? t.buildTitle : `${t.buildTitle} · ${build.project}`);
   usePoll(loaded.reload, build !== undefined && (LIVE.has(build.state) || build.pausing === true || build.cancelling === true));
-  const defaults = (project.data as ProjectBuildsUi | undefined)?.thresholds ?? { fiveHour: 80, week: 90 };
   return (
     <LoadState loaded={loaded}>
       {(view) => (
@@ -386,7 +421,10 @@ export function BuildPage({ id }: { id: string }) {
                 {view.error}
               </Note>
             )}
-            {view.state === 'planned' && <StartForm build={view} defaults={defaults} onStarted={loaded.reload} />}
+            {view.state === 'discarded' && <Note tone="plain" testId="build-discarded">{t.buildDiscarded}</Note>}
+            {view.waitingSlot === true && <Note tone="plain" testId="build-waiting-slot">{t.buildWaitingSlot}</Note>}
+            {view.state === 'planned' && <PlannedStart build={view} onStarted={loaded.reload} />}
+            {(view.state === 'planned' || view.state === 'planFailed') && <DiscardUnstarted build={view} onDone={loaded.reload} />}
             {view.tasks.length > 0 && <Progress build={view} />}
           </div>
         </>

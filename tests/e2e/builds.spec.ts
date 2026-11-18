@@ -71,6 +71,18 @@ test.describe('builds', () => {
     await expect(page.getByTestId('build-state')).toHaveText('Ready to start');
   });
 
+  test('a planned build can be discarded, and the project offers Implement again', async ({ page, app }) => {
+    await codeProject(app, 'garden', 'Garden', { 'docs/BRIEF.md': BRIEF });
+    await plan(page, app);
+    await page.getByTestId('build-discard').click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Discard the build' }).click();
+    await expect(page.getByTestId('build-state')).toHaveText('Discarded');
+    await expect(page.getByTestId('build-discarded')).toBeVisible();
+    await expect(page.getByTestId('build-start-form')).toHaveCount(0);
+    await goTo(page, app, '#/projects/garden');
+    await expect(page.getByTestId('build-implement')).toBeVisible();
+  });
+
   test('a project without a brief cannot be planned; the page says why', async ({ page, app }) => {
     await codeProject(app, 'garden', 'Garden');
     await goTo(page, app, '#/projects/garden');

@@ -97,6 +97,7 @@ class FakeRun {
       requestCancel: () => {
         this.cancelled = true;
         this.codex?.stop();
+        this.cutSleep?.();
         this.poke();
       },
       sendMessage: (text) => {
@@ -110,6 +111,7 @@ class FakeRun {
       stop: async () => {
         this.stopped = true;
         this.codex?.stop();
+        this.cutSleep?.();
         this.poke();
         await this.done.catch(() => undefined);
       },
@@ -123,8 +125,21 @@ class FakeRun {
     wake?.();
   }
 
+  /** Ends the current `wait` step at once: a stop or a cancel cuts it short, as they end a real session's work. */
+  private cutSleep: (() => void) | undefined;
+
   private sleep(ms: number): Promise<void> {
-    return ms <= 0 ? Promise.resolve() : new Promise((resolve) => setTimeout(resolve, ms));
+    if (ms <= 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        if (this.cutSleep === done) this.cutSleep = undefined;
+        resolve();
+      };
+      const timer = setTimeout(done, ms);
+      if (this.stopped || this.cancelled) done();
+      else this.cutSleep = done;
+    });
   }
 
   private event(type: Parameters<typeof taskHookEvent>[1], fields: Parameters<typeof taskHookEvent>[2]): Promise<unknown> {

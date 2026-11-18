@@ -72,10 +72,24 @@ interface Setup {
   readings: UsageReading[];
 }
 
-function setup(options: { plan?: PlanOutput | Error; usage?: UsageReading[]; script?: TaskFakeScript } = {}): Setup {
+interface SetupOptions {
+  plan?: PlanOutput | Error;
+  usage?: UsageReading[];
+  script?: TaskFakeScript;
+  /** Other sessions holding places in the shared limit as the task manager sees it (creations), changed by the test. */
+  others?: string[];
+  maxActive?: number;
+  checks?: TaskChecks;
+}
+
+function setup(options: SetupOptions = {}): Setup {
   const holder: { builds?: BuildManager } = {};
   const runner = new TaskFakeRunner({ script: options.script ?? script });
-  const { checks, runs } = fileChecks();
+  const files = fileChecks();
+  const checks = options.checks ?? files.checks;
+  const runs = files.runs;
+  const others = options.others;
+  const maxActive = options.maxActive ?? 2;
   const tasks = new TaskManager({
     runner,
     store: world.store,
@@ -83,11 +97,12 @@ function setup(options: { plan?: PlanOutput | Error; usage?: UsageReading[]; scr
     locations: async () => ({ libraryDir: world.library, repoDir: world.repo }),
     lang: () => 'en',
     profile: async () => ({ name: 'saver', model: 'sonnet', effort: 'low' }),
-    maxActive: () => 2,
+    maxActive: () => maxActive,
     pollMs: 10,
     afterRound: afterRoundWith(),
     checks,
     buildOn: (slug) => holder.builds?.holder(slug),
+    ...(others === undefined ? {} : { creations: { activeIds: () => others, folderHolder: () => undefined } }),
   });
   const planner = new FakeBuildPlanner(options.plan ?? PLAN);
   const readings = [...(options.usage ?? [])];
@@ -99,9 +114,10 @@ function setup(options: { plan?: PlanOutput | Error; usage?: UsageReading[]; scr
     lang: () => 'en',
     profile: async () => ({ name: 'saver', model: 'sonnet', effort: 'low' }),
     thresholds: async () => ({ fiveHour: 80, week: 90 }),
-    maxActive: () => 2,
+    maxActive: () => maxActive,
     ...(options.usage === undefined ? {} : { usage: async () => readings.shift() ?? { kind: 'unavailable' } }),
     usageRetryMs: 60_000,
+    slotRetryMs: 20,
   });
   holder.builds = builds;
   return { builds, tasks, runner, planner, runs, readings };
@@ -266,6 +282,154 @@ describe('starting a build', () => {
     } finally {
       await s.builds.shutdown();
       await s.tasks.shutdown();
+    }
+  });
+});
+
+/** Polls until `check` holds, or fails after `ms`. */
+async function until(check: () => boolean | Promise<boolean>, ms = 10_000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!(await check())) {
+    if (Date.now() > end) throw new Error('timed out waiting');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+/** A round that works for a long time (a minute) before it ends: only a stop or a cancel ends it sooner. */
+const slow: TaskFakeScript = () => ({ steps: [{ kind: 'wait', ms: 60_000 }, { kind: 'write', file: 'SLOW.md', content: 'x\n' }, { kind: 'end', summary: 'Done.' }] });
+
+describe('stopping, the shared limit and an unstarted build (review of M3)', () => {
+  it('a server stop during a build\'s round ends the round at once and leaves the build for recover(): interrupted, its task waiting (B1)', async () => {
+    const s = setup({ script: slow });
+    const id = await planned(s);
+    await s.builds.start(id, start(PLAN, { limit: 1 }));
+    await until(() => s.tasks.activeIds().length === 1);
+    const began = Date.now();
+    // The server's order: the builds stop without waiting, the task manager ends the round, then the builds' loops are awaited.
+    s.builds.stop();
+    await s.tasks.shutdown();
+    await s.builds.shutdown();
+    expect(Date.now() - began).toBeLessThan(10_000);
+    const after = setup();
+    try {
+      expect(await after.builds.recover()).toBe(1);
+      const view = await after.builds.get(id);
+      expect(view.state).toBe('interrupted');
+      expect(view.tasks[0]).toMatchObject({ state: 'waiting', reason: 'interrupted' });
+      // Nothing new started after the stop.
+      await expect(s.builds.plan('garden')).rejects.toMatchObject({ code: 'task.stopping' });
+    } finally {
+      await after.builds.shutdown();
+      await after.tasks.shutdown();
+    }
+  });
+
+  it('a server stop during a build\'s checks ends them at once (B1)', async () => {
+    let began = false;
+    const blocking: TaskChecks = {
+      commands: async () => [],
+      run: (_worktree, commands, signal) =>
+        new Promise<CheckResult[]>((resolve) => {
+          began = true;
+          signal?.addEventListener('abort', () => resolve(commands.map((command) => ({ command, exitCode: null, timedOut: false, output: '', durationMs: 1 }))), { once: true });
+        }),
+    };
+    const s = setup({ checks: blocking });
+    const id = await planned(s);
+    await s.builds.start(id, start(PLAN, { limit: 1 }));
+    await until(() => began);
+    const at = Date.now();
+    s.builds.stop();
+    await s.tasks.shutdown();
+    await s.builds.shutdown();
+    expect(Date.now() - at).toBeLessThan(10_000);
+    // The record is left as an abrupt stop leaves it: running, for the next start's recover().
+    const view = await s.builds.get(id);
+    expect(view.state).toBe('running');
+    expect(view.tasks[0]?.state).toBe('running');
+  });
+
+  it('a full shared limit makes the build wait for a free place, not fail its tasks (I2)', async () => {
+    const others: string[] = [];
+    const s = setup({ others, maxActive: 1 });
+    try {
+      const id = await planned(s);
+      others.push('creation-1');
+      await s.builds.start(id, start(PLAN, { limit: 1 }));
+      await until(async () => (await s.builds.get(id)).waitingSlot === true);
+      let view = await s.builds.get(id);
+      expect(view.tasks[0]?.state).toBe('running');
+      expect(view.tasks[0]?.taskId).toBeUndefined();
+      others.length = 0;
+      await s.builds.idle(id);
+      view = await s.builds.get(id);
+      expect(view.waitingSlot).toBeUndefined();
+      expect(view.tasks[0]).toMatchObject({ state: 'applied' });
+      expect(view.state).toBe('finished');
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('a stop while the build waits for a free place ends the wait at once (I2, B1)', async () => {
+    const others: string[] = [];
+    const s = setup({ others, maxActive: 1 });
+    const id = await planned(s);
+    others.push('creation-1');
+    await s.builds.start(id, start(PLAN, { limit: 1 }));
+    await until(async () => (await s.builds.get(id)).waitingSlot === true);
+    s.builds.stop();
+    await s.tasks.shutdown();
+    await s.builds.shutdown();
+    expect((await s.builds.get(id)).tasks[0]?.state).toBe('running');
+  });
+
+  it('a build that never started can be discarded, and the project is free again; a started one cannot here (I4)', async () => {
+    const s = setup({ plan: new Error('no queue') });
+    try {
+      const failed = await s.builds.plan('garden');
+      await s.builds.idle(failed.id);
+      expect((await s.builds.get(failed.id)).state).toBe('planFailed');
+      expect(await s.builds.holder('garden')).toBe(failed.id);
+      expect((await s.builds.discard(failed.id)).state).toBe('discarded');
+      expect(await s.builds.holder('garden')).toBeUndefined();
+      await expect(s.builds.discard(failed.id)).rejects.toMatchObject({ code: 'build.wrongState' });
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+    const t = setup();
+    try {
+      const id = await planned(t);
+      expect((await t.builds.discard(id)).state).toBe('discarded');
+      const again = await planned(t);
+      await t.builds.start(again, start(PLAN, { limit: 1 }));
+      await expect(t.builds.discard(again)).rejects.toMatchObject({ code: 'build.wrongState' });
+      await t.builds.idle(again);
+    } finally {
+      await t.builds.shutdown();
+      await t.tasks.shutdown();
+    }
+  });
+
+  it('after a restart, a build left planning has failed with a message in the user\'s language', async () => {
+    const s = setup({ plan: PLAN });
+    const store = new BuildStore(buildsRoot(world.home));
+    const id = await planned(s);
+    await s.builds.shutdown();
+    await s.tasks.shutdown();
+    const record = await store.load(id);
+    await store.save({ ...(record as NonNullable<typeof record>), state: 'planning' });
+    const after = setup();
+    try {
+      expect(await after.builds.recover()).toBe(1);
+      const view = await after.builds.get(id);
+      expect(view.state).toBe('planFailed');
+      expect(view.error).toContain('The planner was stopped');
+    } finally {
+      await after.builds.shutdown();
+      await after.tasks.shutdown();
     }
   });
 });

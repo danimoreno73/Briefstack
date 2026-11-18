@@ -328,6 +328,11 @@ const errors = defineCatalogue<ErrorMessages>({
     'build.branchMoved': (p) => `The branch ${p.branch} moved outside briefstack, so the server does not touch it.`,
     'build.nothingToApply': (p) => `Build ${p.id} has nothing applied on its integration branch.`,
     'build.taskRunning': (p) => `Build ${p.id} has a task at work (${p.task}). Wait for it, or cancel the build.`,
+    'build.planStopped': () => 'The planner was stopped (briefstack stopped while the queue was being planned). Discard this build and plan again.',
+    'build.planSession': (p) => `The planner session ended without a queue (${p.subtype}). Discard this build and plan again.`,
+    'build.planNoOutput': () => 'The planner session ended without a structured answer. Discard this build and plan again.',
+    'build.planSchema': (p) => `The planner's answer does not match the queue's schema: ${p.issues.join('; ')}.`,
+    'build.planLaterDependency': (p) => `The planner's task ${p.n} depends on a task that is not earlier.`,
   },
   es: {
     'config.invalidJson': (p) =>
@@ -547,6 +552,11 @@ const errors = defineCatalogue<ErrorMessages>({
     'build.branchMoved': (p) => `La rama ${p.branch} se movió fuera de briefstack, así que el servidor no la toca.`,
     'build.nothingToApply': (p) => `El build ${p.id} no tiene nada aplicado en su rama de integración.`,
     'build.taskRunning': (p) => `El build ${p.id} tiene una tarea trabajando (${p.task}). Espera a que acabe o cancela el build.`,
+    'build.planStopped': () => 'El planificador se detuvo (briefstack se paró mientras se planificaba la cola). Descarta este build y planifica otra vez.',
+    'build.planSession': (p) => `La sesión del planificador terminó sin cola (${p.subtype}). Descarta este build y planifica otra vez.`,
+    'build.planNoOutput': () => 'La sesión del planificador terminó sin respuesta estructurada. Descarta este build y planifica otra vez.',
+    'build.planSchema': (p) => `La respuesta del planificador no cumple el esquema de la cola: ${p.issues.join('; ')}.`,
+    'build.planLaterDependency': (p) => `La tarea ${p.n} del planificador depende de una tarea que no es anterior.`,
   },
 });
 

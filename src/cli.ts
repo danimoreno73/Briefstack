@@ -701,7 +701,9 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   let improvements: ImprovementManager | undefined;
   let server;
   try {
-    tasks = await createWebTasks({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, runner: io.taskRunner, creations, codex, buildOn: async (slug) => builds?.holder(slug) });
+    // Tasks share the active-sessions limit with creations and with build planners (BRIEF-phase-9 §2; review of M3, I3).
+    const sharing = { activeIds: () => [...creations.activeIds(), ...(builds?.activeIds() ?? [])], folderHolder: (dir: string) => creations.folderHolder(dir) };
+    tasks = await createWebTasks({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, runner: io.taskRunner, creations: sharing, codex, buildOn: async (slug) => builds?.holder(slug) });
     // A server that died with a task running left it interrupted; its worktree stays for the user.
     await tasks.recover();
     // Builds (phase 9): a test's task runner never meets the real planner or plan reading.
@@ -747,8 +749,10 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   } catch (error) {
     await improvements?.shutdown();
     await chat?.shutdown();
-    await builds?.shutdown();
+    // The builds stop first without waiting, so the task manager's stop ends the round or checks a build waits on (review of M3, B1).
+    builds?.stop();
     await tasks?.shutdown();
+    await builds?.shutdown();
     await creations.shutdown();
     throw error;
   }
@@ -773,8 +777,10 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     // The chat and the creations first: a running creation is closed as interrupted before the server goes.
     await improvements.shutdown();
     await chat.shutdown();
-    await builds.shutdown();
+    // The builds stop first without waiting, so the task manager's stop ends the round or checks a build waits on (review of M3, B1).
+    builds.stop();
     await tasks.shutdown();
+    await builds.shutdown();
     await creations.shutdown();
     await server.close();
   } finally {
