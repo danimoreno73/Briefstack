@@ -1029,3 +1029,34 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
 - **Noted.** Commit `4bc9b3f` holds pause, resume and cancel together with
   the task manager's refusal of a driven task (an open item of the review
   of M2). Review of M4.
+- **For the user to decide.** An applied or reverted build cannot be
+  discarded, so its `briefstack/build-<id>` branch stays in the project's
+  repository (the brief's §3.5 says the per-task commits stay until the
+  build is discarded). Discarding an applied build would delete only its
+  branch. Review of M5.
+- **For the user to decide.** The "tokens" column of the build's page
+  shows only Codex's tokens, and a build's rounds offer no Codex, so it is
+  empty in practice; task records keep no count of Claude's own tokens
+  (the SDK's result message carries `usage`). Review of M5.
+- **Pending: minor.** If the server stops between landing the build's
+  commit and saving `applied`, the build stays `finished` with its change
+  on the default branch, and a new apply says `build.nothingToApply`
+  ("nothing applied on its integration branch"), which is misleading. A
+  code of its own would say it. Review of M5.
+- **Pending: minor.** A discard can stop halfway when the user acts on a
+  waiting task meanwhile (some tasks discarded, the branch kept; retrying
+  finishes it). A cancelled task whose discard fails during the apply
+  stays open, and approving it later would move the branch of a build
+  already applied: `applyToBuild` could refuse a build that no longer
+  holds the project. Reverting does not check whether another build holds
+  the project (it does not touch the user's folder). Review of M5.
+- **Pending: minor.** The build page: a waiting task the user approved or
+  discarded still reads "Waiting for you" until Resume or Apply; Apply
+  shows even when tasks wait (the server refuses with the reason); the
+  `error` of a build interrupted by an unexpected failure is not shown;
+  `diff()` does not catch a git failure (a 500). Review of M5.
+- **Pending: minor.** No e2e of the user's pause nor of a denied command
+  (unit tests cover both); the token sum of `GET /api/builds/:id` is tested
+  only at 0. Commit `a28d655` also holds the refactor of
+  `src/tasks/apply.ts` and two test-fixture fixes from M3 and M4. Review
+  of M5.

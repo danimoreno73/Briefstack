@@ -6986,3 +6986,26 @@ Choices made without the user, each the conservative reading:
   rounds on a waiting task.
 - **The page reads the build again every 5 seconds** while it is paused
   for usage, so it shows the resume it makes by itself.
+
+## Phase 9: review of M5, the fixes (2026-11-19)
+
+- **Apply takes in what the user approved** (I1): a waiting task the user
+  approved onto the integration branch since the build's loop ended counts
+  as applied in the build's commit message, its library line and its page
+  (as Resume already did).
+- **Apply lands only the change the page showed, made by briefstack**
+  (I2): `GET /api/builds/:id/diff` gives the integration head it shows,
+  the page sends it back with the apply, and the server refuses
+  (`build.branchMoved`) a head that is not that one or not a commit of one
+  of the build's applied tasks (a commit added to the branch outside
+  briefstack, which no validation of the server read). As a task's
+  approval refuses a branch that moved since the review.
+- **Apply, revert, discard and cancel take `{ "confirm": true }`** (I3),
+  as a task's approve, revert and discard do; apply also takes `head`.
+  Without them `400 web.invalidBody` and nothing changes.
+- **Tests of the final apply's refusals** (I4): a conflicting change on
+  the project's branch, a change that is combined, a branch moved or not
+  briefstack's, a user's round at work on a waiting task, a cancelled task
+  discarded with the apply, the library line, a dirty folder for revert.
+- **Discard never removes a branch the user checked out by hand**
+  (minor): refused with `build.branchMoved`.
