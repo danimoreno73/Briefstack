@@ -23,10 +23,16 @@ export const USAGE_RETRY_MS = 15 * 60_000;
 
 export type UsageDecision = { go: true } | { go: false; reason: 'usage' | 'usageUnread'; until: Date; fiveHour?: number | null; sevenDay?: number | null };
 
+/** The furthest reset time a build waits for: the weekly window plus a day. A later one is not believed (review of M4, I3). */
+export const MAX_RESET_WAIT_MS = 8 * 24 * 60 * 60_000;
+
+/** How long a reading may take before it counts as failed (review of M4, I2). */
+export const USAGE_READ_TIMEOUT_MS = 30_000;
+
 const resetTime = (value: string | undefined, now: Date): number | undefined => {
   if (value === undefined) return undefined;
   const at = Date.parse(value);
-  return Number.isFinite(at) && at > now.getTime() ? at : undefined;
+  return Number.isFinite(at) && at > now.getTime() && at - now.getTime() <= MAX_RESET_WAIT_MS ? at : undefined;
 };
 
 /**
@@ -49,13 +55,19 @@ export function decideUsage(reading: UsageReading, thresholds: { fiveHour: numbe
 }
 
 /** One reading from the user's own `claude`, never failing with an exception. */
-export async function readBuildUsage(options: { cwd: string; executable: string; env: Record<string, string | undefined>; query?: typeof sdkQuery }): Promise<UsageReading> {
+export async function readBuildUsage(options: { cwd: string; executable: string; env: Record<string, string | undefined>; query?: typeof sdkQuery; timeoutMs?: number }): Promise<UsageReading> {
   const neverSends: AsyncIterable<never> = { [Symbol.asyncIterator]: () => ({ next: () => new Promise<IteratorResult<never>>(() => undefined) }) };
   const run = options.query ?? sdkQuery;
   let q: ReturnType<typeof sdkQuery> | undefined;
+  let timer: NodeJS.Timeout | undefined;
   try {
     q = run({ prompt: neverSends, options: { cwd: options.cwd, pathToClaudeCodeExecutable: options.executable, env: options.env, settingSources: [] } });
-    const usage = await q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true });
+    // A `claude` that never answers counts as a failed reading; the session is closed in `finally`.
+    const late = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error('The plan usage reading took too long.')), options.timeoutMs ?? USAGE_READ_TIMEOUT_MS);
+      timer.unref();
+    });
+    const usage = await Promise.race([q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }), late]);
     if (!usage.rate_limits_available || usage.rate_limits === null) return { kind: 'unavailable' };
     const five = usage.rate_limits.five_hour;
     const seven = usage.rate_limits.seven_day;
@@ -69,6 +81,7 @@ export async function readBuildUsage(options: { cwd: string; executable: string;
   } catch (error) {
     return { kind: 'failed', message: error instanceof Error ? error.message : String(error) };
   } finally {
+    if (timer !== undefined) clearTimeout(timer);
     q?.close();
   }
 }

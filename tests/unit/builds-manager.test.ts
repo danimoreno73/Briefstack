@@ -69,15 +69,24 @@ interface Setup {
   runner: TaskFakeRunner;
   planner: FakeBuildPlanner;
   runs: string[];
-  readings: UsageReading[];
+  /** The readings not made yet. */
+  readings: Reading[];
+  /** When each reading was made (ms). */
+  readAt: number[];
 }
+
+/** A reading, or how to make it at the moment it is read (a reset time relative to then), or a promise the test settles. */
+type Reading = UsageReading | (() => UsageReading | Promise<UsageReading>);
 
 interface SetupOptions {
   plan?: PlanOutput | Error;
-  usage?: UsageReading[];
+  usage?: Reading[];
+  roundsCap?: number;
   script?: TaskFakeScript;
   /** Other sessions holding places in the shared limit as the task manager sees it (creations), changed by the test. */
   others?: string[];
+  /** A creation on the project's folder as the task manager sees it, changed by the test. */
+  folder?: { holder?: string };
   maxActive?: number;
   checks?: TaskChecks;
   usageRetryMs?: number;
@@ -104,10 +113,11 @@ function setup(options: SetupOptions = {}): Setup {
     checks,
     buildOn: (slug) => holder.builds?.holder(slug),
     buildDrives: (id) => holder.builds?.drives(id) ?? false,
-    ...(others === undefined ? {} : { creations: { activeIds: () => others, folderHolder: () => undefined } }),
+    ...(others === undefined && options.folder === undefined ? {} : { creations: { activeIds: () => others ?? [], folderHolder: () => options.folder?.holder } }),
   });
   const planner = new FakeBuildPlanner(options.plan ?? PLAN);
   const readings = [...(options.usage ?? [])];
+  const readAt: number[] = [];
   const builds = new BuildManager({
     store: new BuildStore(buildsRoot(world.home)),
     tasks,
@@ -117,12 +127,21 @@ function setup(options: SetupOptions = {}): Setup {
     profile: async () => ({ name: 'saver', model: 'sonnet', effort: 'low' }),
     thresholds: async () => ({ fiveHour: 80, week: 90 }),
     maxActive: () => maxActive,
-    ...(options.usage === undefined ? {} : { usage: async () => readings.shift() ?? { kind: 'unavailable' } }),
+    ...(options.usage === undefined
+      ? {}
+      : {
+          usage: async (): Promise<UsageReading> => {
+            readAt.push(Date.now());
+            const next = readings.shift() ?? { kind: 'unavailable' };
+            return typeof next === 'function' ? next() : next;
+          },
+        }),
+    ...(options.roundsCap === undefined ? {} : { roundsCap: options.roundsCap }),
     usageRetryMs: options.usageRetryMs ?? 60_000,
     slotRetryMs: 20,
   });
   holder.builds = builds;
-  return { builds, tasks, runner, planner, runs, readings };
+  return { builds, tasks, runner, planner, runs, readings, readAt };
 }
 
 const start = (plan: PlanOutput = PLAN, overrides: Partial<BuildStartInput> = {}): BuildStartInput => ({
@@ -288,8 +307,8 @@ describe('starting a build', () => {
   });
 });
 
-/** Polls until `check` holds, or fails after `ms`. */
-async function until(check: () => boolean | Promise<boolean>, ms = 10_000): Promise<void> {
+/** Polls until `check` holds, or fails after `ms` (under the 30 s test limit: a full parallel run on Windows is slow). */
+async function until(check: () => boolean | Promise<boolean>, ms = 25_000): Promise<void> {
   const end = Date.now() + ms;
   while (!(await check())) {
     if (Date.now() > end) throw new Error('timed out waiting');
@@ -444,7 +463,10 @@ const steady =
     return { steps: [{ kind: 'wait', ms }, { kind: 'write', file: `${title.toUpperCase()}.md`, content: `${title}.\n` }, { kind: 'end', summary: `Wrote ${title}.` }] };
   };
 
-const over = (resetsInMs?: number): UsageReading => ({ kind: 'ok', fiveHour: 95, sevenDay: 10, ...(resetsInMs === undefined ? {} : { fiveHourResetsAt: new Date(Date.now() + resetsInMs).toISOString() }) });
+/** Over the 5-hour threshold, its reset time counted from the moment of the reading (review of M4, M5). */
+const over =
+  (resetsInMs?: number) =>
+  (): UsageReading => ({ kind: 'ok', fiveHour: 95, sevenDay: 10, ...(resetsInMs === undefined ? {} : { fiveHourResetsAt: new Date(Date.now() + resetsInMs).toISOString() }) });
 const low: UsageReading = { kind: 'ok', fiveHour: 10, sevenDay: 10 };
 
 const states = async (s: Setup, id: string) => (await s.builds.get(id)).tasks.map((task) => task.state);
@@ -473,14 +495,14 @@ describe('the loop (M4)', () => {
     try {
       const id = await planned(s);
       await s.builds.start(id, start(PLAN, { checks: [], limit: 2 }));
-      await until(async () => (await s.builds.get(id)).pause?.reason === 'usage');
-      const first = await s.builds.get(id);
-      expect(Date.parse(first.pause?.until ?? '') - Date.parse(first.pause?.at ?? '')).toBeLessThan(1000);
-      await until(async () => (await s.builds.get(id)).pause?.reason === 'usageUnread');
       await until(async () => (await s.builds.get(id)).state === 'finished');
       // The third reading (no limits for this login) let task 1 start; the fourth (low) let task 2.
       expect(await states(s, id)).toEqual(['applied', 'applied', 'queued']);
       expect(s.readings).toEqual([]);
+      // Read when it was due: each pause (over with no reset time, then failed) waited the interval before the next reading.
+      expect(s.readAt).toHaveLength(4);
+      expect((s.readAt[1] as number) - (s.readAt[0] as number)).toBeGreaterThanOrEqual(140);
+      expect((s.readAt[2] as number) - (s.readAt[1] as number)).toBeGreaterThanOrEqual(140);
     } finally {
       await s.builds.shutdown();
       await s.tasks.shutdown();
@@ -665,20 +687,117 @@ describe('the loop (M4)', () => {
     }
   });
 
-  it('the cap of rounds leaves the next task waiting and finishes the build', async () => {
-    const store = new BuildStore(buildsRoot(world.home));
-    const s = setup({ script: steady(400) });
+  it('a cancel during a slow usage reading ends the build without a pause or a session (review of M4, B1)', async () => {
+    let answer: ((reading: UsageReading) => void) | undefined;
+    const slowReading = () => new Promise<UsageReading>((resolve) => (answer = resolve));
+    const s = setup({ script: steady(0), usage: [slowReading] });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN));
+      await until(() => answer !== undefined);
+      await s.builds.cancel(id);
+      await until(async () => (await s.builds.get(id)).state === 'cancelled');
+      // The reading answers "over" only now: nothing pauses, nothing resumes by itself, no session started.
+      answer?.(over(50)());
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const view = await s.builds.get(id);
+      expect(view.state).toBe('cancelled');
+      expect(view.pause).toBeUndefined();
+      expect(view.tasks.map((task) => task.state)).toEqual(['queued', 'queued', 'queued']);
+      expect(s.runner.started).toHaveLength(0);
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('a pause asked during the usage reading is the user\'s: no session starts, nothing resumes by itself', async () => {
+    let answer: ((reading: UsageReading) => void) | undefined;
+    const slowReading = () => new Promise<UsageReading>((resolve) => (answer = resolve));
+    const s = setup({ script: steady(0), usage: [slowReading] });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN));
+      await until(() => answer !== undefined);
+      await s.builds.pause(id);
+      answer?.({ kind: 'unavailable' });
+      await until(async () => (await s.builds.get(id)).state === 'paused');
+      expect((await s.builds.get(id)).pause?.reason).toBe('user');
+      expect(s.runner.started).toHaveLength(0);
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('a build paused for usage becomes the user\'s pause and no longer resumes by itself', async () => {
+    const s = setup({ script: steady(0), usage: [over(300)] });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN));
+      await until(async () => (await s.builds.get(id)).state === 'paused');
+      await s.builds.idle(id);
+      expect((await s.builds.pause(id)).pause?.reason).toBe('user');
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      expect((await s.builds.get(id)).state).toBe('paused');
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('a reset time beyond 8 days is not believed: the build reads again after the interval (I3)', async () => {
+    const t = setup({ script: steady(0), usage: [over(100 * 24 * 60 * 60_000)], usageRetryMs: 60_000 });
+    try {
+      const id = await planned(t);
+      await t.builds.start(id, start(PLAN));
+      await until(async () => (await t.builds.get(id)).state === 'paused');
+      const view = await t.builds.get(id);
+      // The interval, not the 100 days.
+      expect(Date.parse(view.pause?.until ?? '') - Date.parse(view.pause?.at ?? '')).toBeLessThanOrEqual(61_000);
+    } finally {
+      await t.builds.shutdown();
+      await t.tasks.shutdown();
+    }
+  });
+
+  it('a task that could not start waits without a task of its own; Resume queues it again (I4)', async () => {
+    const folder: { holder?: string } = { holder: 'a creation' };
+    const s = setup({ script: steady(0), folder });
     try {
       const id = await planned(s);
       await s.builds.start(id, start(PLAN, { checks: [] }));
-      await until(async () => (await s.builds.get(id)).tasks[0]?.taskId !== undefined);
-      // While task 1 works (nothing is saved meanwhile), the cap is lowered to one round.
-      const record = await store.load(id);
-      await store.save({ ...(record as NonNullable<typeof record>), settings: { ...(record?.settings as NonNullable<NonNullable<typeof record>['settings']>), maxRounds: 1 } });
+      await s.builds.idle(id);
+      const first = await s.builds.get(id);
+      expect(first.tasks[0]).toMatchObject({ state: 'waiting', reason: 'notStarted' });
+      expect(first.tasks[0]?.taskId).toBeUndefined();
+      delete folder.holder;
+      await s.builds.resume(id);
+      await s.builds.idle(id);
+      expect(await states(s, id)).toEqual(['applied', 'applied', 'applied']);
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('the cap of rounds leaves the next task waiting and finishes the build; Resume queues it again and the cap still holds', async () => {
+    const s = setup({ script: steady(0), roundsCap: 1 });
+    try {
+      const id = await planned(s);
+      const started = await s.builds.start(id, start(PLAN, { checks: [] }));
+      expect(started.settings?.maxRounds).toBe(1);
       await s.builds.idle(id);
       const done = await s.builds.get(id);
       expect(done.state).toBe('finished');
       expect(done.tasks.map((task) => [task.state, task.reason ?? null])).toEqual([
+        ['applied', null],
+        ['waiting', 'roundsCap'],
+        ['queued', null],
+      ]);
+      await s.builds.resume(id);
+      await s.builds.idle(id);
+      expect((await s.builds.get(id)).tasks.map((task) => [task.state, task.reason ?? null])).toEqual([
         ['applied', null],
         ['waiting', 'roundsCap'],
         ['queued', null],

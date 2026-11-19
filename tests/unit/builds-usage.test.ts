@@ -28,6 +28,9 @@ describe('decideUsage', () => {
     expect(decideUsage({ kind: 'ok', fiveHour: 95, sevenDay: 10 }, T, NOW)).toMatchObject({ go: false, reason: 'usage', until: retry });
     expect(decideUsage({ kind: 'ok', fiveHour: 95, sevenDay: 10, fiveHourResetsAt: 'not a time' }, T, NOW)).toMatchObject({ until: retry });
     expect(decideUsage({ kind: 'ok', fiveHour: 95, sevenDay: 10, fiveHourResetsAt: at(-5) }, T, NOW)).toMatchObject({ until: retry });
+    // Beyond 8 days (more than a weekly window): not believed (review of M4, I3).
+    expect(decideUsage({ kind: 'ok', fiveHour: 95, sevenDay: 10, fiveHourResetsAt: at(100 * 24 * 60) }, T, NOW)).toMatchObject({ until: retry });
+    expect(decideUsage({ kind: 'ok', fiveHour: 95, sevenDay: 10, fiveHourResetsAt: at(7 * 24 * 60) }, T, NOW)).toMatchObject({ until: new Date(at(7 * 24 * 60)) });
     // One window known and the other not: the interval, not the known time.
     expect(decideUsage({ kind: 'ok', fiveHour: 95, sevenDay: 95, fiveHourResetsAt: at(30) }, T, NOW, 1000)).toMatchObject({ until: new Date(NOW.getTime() + 1000) });
   });
@@ -67,5 +70,17 @@ describe('readBuildUsage', () => {
   it('tells a login without plan limits apart from a failed reading', async () => {
     expect(await read({ rate_limits_available: false, rate_limits: null }).reading).toEqual({ kind: 'unavailable' });
     expect(await read(new Error('no session')).reading).toEqual({ kind: 'failed', message: 'no session' });
+  });
+
+  it('a reading that never answers fails after its time limit, and the session is closed (review of M4, I2)', async () => {
+    let closed = false;
+    const query = (() => ({
+      usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: () => new Promise(() => undefined),
+      close: () => {
+        closed = true;
+      },
+    })) as never;
+    expect(await readBuildUsage({ cwd: '.', executable: 'claude', env: {}, query, timeoutMs: 50 })).toEqual({ kind: 'failed', message: 'The plan usage reading took too long.' });
+    expect(closed).toBe(true);
   });
 });

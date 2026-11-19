@@ -72,10 +72,14 @@ export interface BuildManagerOptions {
   usageRetryMs?: number;
   /** How long to wait before trying again when the shared limit of active sessions is full. Default 30 seconds. */
   slotRetryMs?: number;
+  /** The highest per-build cap on rounds. Default `MAX_ROUNDS_CAP`; tests lower it. */
+  roundsCap?: number;
 }
 
 /** How long a build waits for a free place in the shared limit before it tries again. */
 export const SLOT_RETRY_MS = 30_000;
+/** The longest delay `setTimeout` keeps (2^31 - 1 ms); Node runs a longer one at once. */
+const MAX_TIMER_MS = 2_147_483_647;
 
 /** What only the server knows of a build while it runs. */
 interface Live {
@@ -92,8 +96,10 @@ interface Live {
   planning?: Promise<void>;
   /** The shared limit is full: the build waits for a free place before its next round or checks. */
   waitingSlot?: boolean;
-  /** Ends the current wait for a free place at once (a stop or a cancel). */
+  /** Ends the current wait (for a free place, or for the usage reading) at once: a stop or a cancel. */
   wake?: () => void;
+  /** The end of the changes of state queued on the build (`serial`). */
+  chain: Promise<unknown>;
 }
 
 export interface BuildView extends BuildRecord {
@@ -331,7 +337,7 @@ export class BuildManager {
         commands: [...input.commands],
         checks: [...input.checks],
         fixRounds,
-        maxRounds: Math.min(MAX_ROUNDS_CAP, tasks.length * (1 + fixRounds)),
+        maxRounds: Math.min(this.options.roundsCap ?? MAX_ROUNDS_CAP, tasks.length * (1 + fixRounds)),
         thresholds: { ...input.thresholds },
       },
       startedAt: this.now().toISOString(),
@@ -354,13 +360,16 @@ export class BuildManager {
     return run;
   }
 
-  private async discardNow(id: string): Promise<BuildView> {
-    this.refuseWhileStopping();
-    const record = await this.load(id);
-    if (record.state !== 'planned' && record.state !== 'planFailed') throw new BriefstackError('build.wrongState', { id, state: record.state });
-    const next: BuildRecord = { ...record, state: 'discarded', updatedAt: this.now().toISOString() };
-    await this.save(next);
-    return this.view(next);
+  private discardNow(id: string): Promise<BuildView> {
+    const l = this.liveOf(id);
+    return this.serial(l, async () => {
+      this.refuseWhileStopping();
+      const record = await this.load(id);
+      if (record.state !== 'planned' && record.state !== 'planFailed') throw new BriefstackError('build.wrongState', { id, state: record.state });
+      const next: BuildRecord = { ...record, state: 'discarded', updatedAt: this.now().toISOString() };
+      await this.save(next);
+      return this.view(next);
+    });
   }
 
   // ---- pause, resume, cancel (M4) ---------------------------------------------------------------
@@ -371,14 +380,39 @@ export class BuildManager {
     return false;
   }
 
-  /** The user's pause: the build pauses before its next task; the task at work goes on to its end. */
-  async pause(id: string): Promise<BuildView> {
-    this.refuseWhileStopping();
-    const record = await this.load(id);
+  /**
+   * Runs `action` while no other change of the build's state runs: the
+   * user's pause, resume, cancel and discard, the timer's resume, and the
+   * loop's own changes of state (paused, finished, cancelled). Each action
+   * reads the record again when its turn comes (review of M4, I1).
+   */
+  private serial<T>(l: Live, action: () => Promise<T>): Promise<T> {
+    const run = l.chain.then(action);
+    l.chain = run.catch(() => undefined);
+    return run;
+  }
+
+  /**
+   * The user's pause: the build pauses before its next task; the task at
+   * work goes on to its end. A build paused for usage becomes paused by the
+   * user: it no longer resumes by itself.
+   */
+  pause(id: string): Promise<BuildView> {
     const l = this.liveOf(id);
-    if (record.state !== 'running' || l.cancelling) throw new BriefstackError('build.wrongState', { id, state: record.state });
-    l.pausing = true;
-    return this.view(record);
+    return this.serial(l, async () => {
+      this.refuseWhileStopping();
+      const record = await this.load(id);
+      if (record.state === 'paused' && record.pause?.reason !== 'user' && l.loop === undefined && !l.cancelling) {
+        if (l.timer !== undefined) clearTimeout(l.timer);
+        delete l.timer;
+        const next: BuildRecord = { ...record, pause: { reason: 'user', at: this.now().toISOString() }, updatedAt: this.now().toISOString() };
+        await this.save(next);
+        return this.view(next);
+      }
+      if (record.state !== 'running' || l.cancelling) throw new BriefstackError('build.wrongState', { id, state: record.state });
+      l.pausing = true;
+      return this.view(record);
+    });
   }
 
   /**
@@ -394,13 +428,26 @@ export class BuildManager {
     return run;
   }
 
-  private async resumeNow(id: string): Promise<BuildView> {
+  private resumeNow(id: string): Promise<BuildView> {
+    const l = this.liveOf(id);
+    return this.serial(l, () => this.resumeLocked(id, l));
+  }
+
+  private async resumeLocked(id: string, l: Live): Promise<BuildView> {
     this.refuseWhileStopping();
     const record = await this.load(id);
-    const l = this.liveOf(id);
     if (!['paused', 'interrupted', 'finished'].includes(record.state) || l.loop !== undefined || l.cancelling) throw new BriefstackError('build.wrongState', { id, state: record.state });
     const tasks: BuildTask[] = [];
     for (const item of record.tasks) {
+      // A task that could not start, or met the cap of rounds, has no task of its own to handle: it is queued again
+      // (the cap still holds; review of M4, I4).
+      if (item.state === 'waiting' && item.taskId === undefined && (item.reason === 'notStarted' || item.reason === 'roundsCap')) {
+        const queued: BuildTask = { ...item, state: 'queued' };
+        delete queued.reason;
+        delete queued.detail;
+        tasks.push(queued);
+        continue;
+      }
       if (item.state === 'waiting' && item.taskId !== undefined) {
         const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
         if (task?.state === 'applied') {
@@ -438,27 +485,31 @@ export class BuildManager {
    * ended; a wait for a free place or a usage pause ends. The build becomes
    * `cancelled` once its loop stopped; the integration branch stays.
    */
-  async cancel(id: string): Promise<BuildView> {
-    this.refuseWhileStopping();
-    const record = await this.load(id);
+  cancel(id: string): Promise<BuildView> {
     const l = this.liveOf(id);
-    if (record.state === 'paused' || record.state === 'interrupted') {
-      if (l.loop !== undefined) throw new BriefstackError('build.wrongState', { id, state: record.state });
-      if (l.timer !== undefined) clearTimeout(l.timer);
-      delete l.timer;
-      const next: BuildRecord = { ...record, state: 'cancelled', finishedAt: this.now().toISOString(), updatedAt: this.now().toISOString() };
-      delete next.pause;
-      await this.save(next);
-      return this.view(next);
-    }
-    if (record.state !== 'running') throw new BriefstackError('build.wrongState', { id, state: record.state });
-    if (!l.cancelling) {
-      l.cancelling = true;
-      l.pausing = false;
-      l.wake?.();
-      void this.finishCancel(id, l);
-    }
-    return this.view(record);
+    return this.serial(l, async () => {
+      this.refuseWhileStopping();
+      const record = await this.load(id);
+      if ((record.state === 'paused' || record.state === 'interrupted') && l.loop === undefined && !l.cancelling) {
+        if (l.timer !== undefined) clearTimeout(l.timer);
+        delete l.timer;
+        const next: BuildRecord = { ...record, state: 'cancelled', finishedAt: this.now().toISOString(), updatedAt: this.now().toISOString() };
+        delete next.pause;
+        await this.save(next);
+        return this.view(next);
+      }
+      // A loop at work (running, or just saving its pause): flag it and end what it runs; `finishCancel` records it.
+      if (record.state !== 'running' && !(record.state === 'paused' && l.loop !== undefined)) throw new BriefstackError('build.wrongState', { id, state: record.state });
+      if (!l.cancelling) {
+        l.cancelling = true;
+        l.pausing = false;
+        if (l.timer !== undefined) clearTimeout(l.timer);
+        delete l.timer;
+        l.wake?.();
+        void this.finishCancel(id, l);
+      }
+      return this.view(record);
+    });
   }
 
   /** Cancels the task's round, or ends its checks, when the build was asked to cancel. */
@@ -483,17 +534,24 @@ export class BuildManager {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     await loop?.catch(() => undefined);
-    try {
-      if (this.stopping) return;
-      const record = await this.load(id);
-      if (record.state !== 'running') return;
-      const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'cancelled' as const } : task));
-      await this.save({ ...record, tasks, state: 'cancelled', finishedAt: this.now().toISOString(), updatedAt: this.now().toISOString() });
-    } catch {
-      // Nothing more to record.
-    } finally {
-      l.cancelling = false;
-    }
+    await this.serial(l, async () => {
+      try {
+        if (this.stopping) return;
+        const record = await this.load(id);
+        // Running, or paused by the loop just before it saw the cancel: either way the user cancelled it (review of M4, B1).
+        if (record.state !== 'running' && record.state !== 'paused') return;
+        if (l.timer !== undefined) clearTimeout(l.timer);
+        delete l.timer;
+        const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'cancelled' as const } : task));
+        const next: BuildRecord = { ...record, tasks, state: 'cancelled', finishedAt: this.now().toISOString(), updatedAt: this.now().toISOString() };
+        delete next.pause;
+        await this.save(next);
+      } catch {
+        // Nothing more to record.
+      } finally {
+        l.cancelling = false;
+      }
+    });
   }
 
   // ---- the loop ---------------------------------------------------------------------------------
@@ -501,7 +559,7 @@ export class BuildManager {
   private liveOf(id: string): Live {
     let l = this.live.get(id);
     if (l === undefined) {
-      l = { pausing: false, cancelling: false, skipUsage: false };
+      l = { pausing: false, cancelling: false, skipUsage: false, chain: Promise.resolve() };
       this.live.set(id, l);
     }
     return l;
@@ -580,26 +638,49 @@ export class BuildManager {
       if (settings === undefined) return;
       if (l.cancelling) return;
       if (l.pausing) {
-        l.pausing = false;
-        await this.save({ ...record, state: 'paused', pause: { reason: 'user', at: this.now().toISOString() }, updatedAt: this.now().toISOString() });
+        // Under the build's lock, read again: a cancel that came meanwhile wins (review of M4, I1).
+        await this.serial(l, async () => {
+          const fresh = await this.load(id);
+          if (l.cancelling || this.stopping || fresh.state !== 'running') return;
+          l.pausing = false;
+          await this.save({ ...fresh, state: 'paused', pause: { reason: 'user', at: this.now().toISOString() }, updatedAt: this.now().toISOString() });
+        });
         return;
       }
       record = this.skipBlocked(record);
       const started = record.tasks.filter((task) => task.state !== 'queued' && task.state !== 'skipped').length;
       const next = record.tasks.find((task) => task.state === 'queued' && task.dependsOn.every((n) => record.tasks[n - 1]?.state === 'applied'));
-      if (next === undefined || started >= settings.limit) {
-        await this.save({ ...record, state: 'finished', finishedAt: this.now().toISOString(), updatedAt: this.now().toISOString() });
-        return;
-      }
-      if (record.roundsRun >= settings.maxRounds) {
-        await this.save(this.withTask({ ...record, state: 'finished', finishedAt: this.now().toISOString() }, next.n, { state: 'waiting', reason: 'roundsCap' }));
+      if (next === undefined || started >= settings.limit || record.roundsRun >= settings.maxRounds) {
+        const capped = next !== undefined && started < settings.limit;
+        const ended = record;
+        await this.serial(l, async () => {
+          if (l.cancelling || this.stopping) return;
+          const base: BuildRecord = { ...ended, state: 'finished', finishedAt: this.now().toISOString() };
+          await this.save(capped ? this.withTask(base, (next as BuildTask).n, { state: 'waiting', reason: 'roundsCap' }) : base);
+        });
         return;
       }
       // The plan usage before each task, unless the user just resumed it.
       if (l.skipUsage) l.skipUsage = false;
-      else if (await this.pausedForUsage(record)) return;
+      else if (await this.pausedForUsage(l, record)) return;
+      // A pause or a cancel asked during the reading is taken before the task starts (review of M4, B1).
+      if (l.cancelling || l.pausing || this.stopping) continue;
       await this.runTask(record, next.n);
     }
+  }
+
+  /** Waits for `promise`, or gives `undefined` at once when a stop or a cancel wakes the build. */
+  private whileAwake<T>(l: Live, promise: Promise<T>): Promise<T | undefined> {
+    return new Promise<T | undefined>((resolve) => {
+      const done = (value: T | undefined) => {
+        if (l.wake === interrupt) delete l.wake;
+        resolve(value);
+      };
+      const interrupt = () => done(undefined);
+      l.wake = interrupt;
+      if (this.stopping || l.cancelling) interrupt();
+      promise.then(done, () => done(undefined));
+    });
   }
 
   /** Marks queued tasks whose dependency did not apply as skipped (directly or not). */
@@ -622,28 +703,39 @@ export class BuildManager {
   }
 
   /** Reads the usage; at or above a threshold the build pauses and resumes by itself at the time the reading gives. */
-  private async pausedForUsage(record: BuildRecord): Promise<boolean> {
+  private async pausedForUsage(l: Live, record: BuildRecord): Promise<boolean> {
     const read = this.options.usage;
     const thresholds = record.settings?.thresholds;
     if (read === undefined || thresholds === undefined) return false;
-    const reading = await read().catch((error: unknown): UsageReading => ({ kind: 'failed', message: String(error) }));
+    // A stop or a cancel does not wait for the reading (review of M4, B1 and I2).
+    const reading = await this.whileAwake(l, read().catch((error: unknown): UsageReading => ({ kind: 'failed', message: String(error) })));
+    if (reading === undefined) return true;
     const decision = decideUsage(reading, thresholds, this.now(), this.options.usageRetryMs ?? USAGE_RETRY_MS);
     if (decision.go) return false;
-    const fresh = await this.load(record.id);
-    if (fresh.state !== 'running') return true;
-    await this.save({
-      ...fresh,
-      state: 'paused',
-      pause: {
-        reason: decision.reason,
-        at: this.now().toISOString(),
-        until: decision.until.toISOString(),
-        ...(decision.fiveHour === undefined ? {} : { fiveHour: decision.fiveHour }),
-        ...(decision.sevenDay === undefined ? {} : { sevenDay: decision.sevenDay }),
-      },
-      updatedAt: this.now().toISOString(),
+    await this.serial(l, async () => {
+      const fresh = await this.load(record.id);
+      // A cancel or a stop that came during the reading wins: no pause, no timer (review of M4, B1).
+      if (l.cancelling || this.stopping || fresh.state !== 'running') return;
+      // A pause the user asked during the reading: paused by the user, not resumed by itself.
+      if (l.pausing) {
+        l.pausing = false;
+        await this.save({ ...fresh, state: 'paused', pause: { reason: 'user', at: this.now().toISOString() }, updatedAt: this.now().toISOString() });
+        return;
+      }
+      await this.save({
+        ...fresh,
+        state: 'paused',
+        pause: {
+          reason: decision.reason,
+          at: this.now().toISOString(),
+          until: decision.until.toISOString(),
+          ...(decision.fiveHour === undefined ? {} : { fiveHour: decision.fiveHour }),
+          ...(decision.sevenDay === undefined ? {} : { sevenDay: decision.sevenDay }),
+        },
+        updatedAt: this.now().toISOString(),
+      });
+      this.wakeAt(record.id, decision.until);
     });
-    this.wakeAt(record.id, decision.until);
     return true;
   }
 
@@ -651,24 +743,26 @@ export class BuildManager {
   private wakeAt(id: string, until: Date): void {
     const l = this.liveOf(id);
     if (l.timer !== undefined) clearTimeout(l.timer);
-    l.timer = setTimeout(
-      () => {
-        delete l.timer;
-        void this.resumeFromPause(id).catch(() => undefined);
-      },
-      Math.max(0, until.getTime() - this.now().getTime()),
-    );
+    // Node runs a longer delay at once (review of M4, I3); `decideUsage` bounds `until` too.
+    const delay = Math.min(MAX_TIMER_MS, Math.max(0, until.getTime() - this.now().getTime()));
+    l.timer = setTimeout(() => {
+      delete l.timer;
+      void this.resumeFromPause(id).catch(() => undefined);
+    }, delay);
     l.timer.unref();
   }
 
-  private async resumeFromPause(id: string): Promise<void> {
-    if (this.stopping) return;
-    const record = await this.load(id);
-    if (record.state !== 'paused' || record.pause?.reason === 'user') return;
-    const next: BuildRecord = { ...record, state: 'running', updatedAt: this.now().toISOString() };
-    delete next.pause;
-    await this.save(next);
-    this.kick(id);
+  private resumeFromPause(id: string): Promise<void> {
+    const l = this.liveOf(id);
+    return this.serial(l, async () => {
+      if (this.stopping || l.cancelling || l.loop !== undefined) return;
+      const record = await this.load(id);
+      if (record.state !== 'paused' || record.pause?.reason === 'user') return;
+      const next: BuildRecord = { ...record, state: 'running', updatedAt: this.now().toISOString() };
+      delete next.pause;
+      await this.save(next);
+      this.kick(id);
+    });
   }
 
   private withTask(record: BuildRecord, n: number, change: Partial<BuildTask>): BuildRecord {
@@ -701,6 +795,11 @@ export class BuildManager {
     let task: TaskView;
     try {
       await this.updateTask(record.id, n, { state: 'running' });
+      // A cancel that came meanwhile starts no session (review of M4, B1).
+      if (l.cancelling) {
+        await this.updateTask(record.id, n, { state: 'cancelled' });
+        return;
+      }
       task = await this.withSlot(l, () =>
         this.options.tasks.startForBuild(record.project, {
           build: { id: record.id, n },
