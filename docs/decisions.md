@@ -6951,3 +6951,38 @@ Choices made without the user, each the conservative reading:
 - **Tests** read reset times at the moment of the reading, check the
   readings' times instead of a short pause, and lower the cap of rounds
   with an option (`roundsCap`) instead of rewriting the record.
+
+## Phase 9: M5, the build page and the final apply (2026-11-19)
+
+Choices made without the user, each the conservative reading:
+
+- **Applying the build reuses phase 7's apply** (`src/tasks/apply.ts`,
+  now exporting the folder checks as `assertLandingReady` and `land`, with
+  the same behaviour for tasks): one commit from the build's base to the
+  integration head, on the default branch the build started from, with
+  the same refusals (folder missing, not a repository, another branch
+  checked out, uncommitted files, merge drivers, a conflict, something at
+  work on the project). A line goes in the project's library note, as for
+  a task. Nothing is pushed.
+- **Apply waits for the user's waiting tasks** (`build.openTasks`): a
+  task left waiting holds work the user may still want, so the user
+  approves it onto the build's branch or discards it first; applying never
+  drops it silently. Tasks the build cancelled are discarded with the
+  apply (the user cancelled them). Refused while a task of the build runs
+  a round or checks (`build.taskRunning`), the user's own round included.
+- **After the apply** the build no longer holds the project, and the
+  integration branch stays (the brief's §3.5: the per-task commits stay
+  until the build is discarded); the page's diff is then the applied
+  commit's. Discard is offered before the apply (planned, failed plan,
+  paused, interrupted, cancelled, finished), not after; deleting an
+  applied build's branch is left to the user's git.
+- **Discard** discards every open task of the build (worktree and branch,
+  as a task's discard) and removes the integration branch; refused while a
+  task of the build works.
+- **Tokens on the build's page** are Codex's, counted as Codex counts them
+  (input without cache, plus output; phase 8, step 28). Task records keep
+  no token count of Claude's own sessions, so none is shown; and a build's
+  rounds offer no Codex, so the column fills only from the user's own
+  rounds on a waiting task.
+- **The page reads the build again every 5 seconds** while it is paused
+  for usage, so it shows the resume it makes by itself.
