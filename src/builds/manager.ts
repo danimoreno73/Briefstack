@@ -6,10 +6,13 @@ import type { Effort } from '../models.js';
 import { hideAbsolutePaths } from '../panel/project.js';
 import { checkTaskPreconditions } from '../tasks/preconditions.js';
 import type { TaskManager, TaskView } from '../tasks/manager.js';
+import { proposalDiff, type ProposalDiff } from '../tasks/proposal.js';
 import { newTaskId } from '../tasks/store.js';
+import { isActiveTask, type TaskState } from '../tasks/types.js';
 import { redactSecretLines } from '../validate/secrets.js';
+import { applyBuild, revertBuild } from './apply.js';
 import { approvedListProblems } from './commands.js';
-import { createIntegrationBranch, integrationHead } from './git.js';
+import { createIntegrationBranch, deleteIntegrationBranch, integrationHead } from './git.js';
 import { readPlanningInput, type BuildPlanner } from './planner.js';
 import { buildRoundPrompt, failureText } from './prompt.js';
 import type { BuildStore } from './store.js';
@@ -22,6 +25,7 @@ import {
   MAX_QUEUE,
   MAX_ROUNDS_CAP,
   queueItemSchema,
+  SETTLED_BUILD_STATES,
   type BuildRecord,
   type BuildTask,
   type QueueItem,
@@ -102,7 +106,23 @@ interface Live {
   chain: Promise<unknown>;
 }
 
-export interface BuildView extends BuildRecord {
+/** What the build's page shows of a task's own record (M5): its state, checks and Codex calls. */
+export interface BuildTaskSummary {
+  state: TaskState;
+  checks?: { command: string; exitCode: number | null; timedOut: boolean }[];
+  /** `delegate_to_codex` calls (only in the user's own rounds on a waiting task: a build's rounds offer no Codex). */
+  codexCalls: number;
+  /** Codex's tokens as Codex counts them: input without cache, plus output (decisions.md, phase 8, step 28). */
+  codexTokens: number;
+}
+
+export type BuildTaskView = BuildTask & { task?: BuildTaskSummary };
+
+/** Tasks still open for the user: a worktree and a branch are kept for them. */
+const OPEN_TASK_STATES: readonly TaskState[] = ['proposal', 'failed', 'cancelled', 'interrupted'];
+
+export interface BuildView extends Omit<BuildRecord, 'tasks'> {
+  tasks: BuildTaskView[];
   pausing?: true;
   cancelling?: true;
   /** The shared limit of active sessions is full: the build waits for a free place. */
@@ -132,10 +152,27 @@ export class BuildManager {
     return (await this.options.store.list()).map((record) => this.view(record));
   }
 
+  /** One build, each started task with what its own record says (state, checks, Codex calls). */
   async get(id: string): Promise<BuildView> {
     const record = await this.options.store.load(id);
     if (record === undefined) throw new BriefstackError('build.notFound', { id });
-    return this.view(record);
+    const view = this.view(record);
+    view.tasks = await Promise.all(
+      view.tasks.map(async (item): Promise<BuildTaskView> => {
+        if (item.taskId === undefined) return item;
+        const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
+        if (task === undefined) return item;
+        const calls = task.rounds.flatMap((round) => round.codex ?? []);
+        const summary: BuildTaskSummary = {
+          state: task.state,
+          codexCalls: calls.length,
+          codexTokens: calls.reduce((sum, call) => sum + (call.usage === undefined ? 0 : Math.max(0, call.usage.input - call.usage.cached) + call.usage.output), 0),
+          ...(task.checks === undefined ? {} : { checks: task.checks.map((check) => ({ command: check.command, exitCode: check.exitCode, timedOut: check.timedOut })) }),
+        };
+        return { ...item, task: summary };
+      }),
+    );
+    return view;
   }
 
   /** The open build on a project, if any: it holds the project (the task manager asks). */
@@ -365,11 +402,113 @@ export class BuildManager {
     return this.serial(l, async () => {
       this.refuseWhileStopping();
       const record = await this.load(id);
-      if (record.state !== 'planned' && record.state !== 'planFailed') throw new BriefstackError('build.wrongState', { id, state: record.state });
+      if (record.state === 'planned' || record.state === 'planFailed') {
+        const next: BuildRecord = { ...record, state: 'discarded', updatedAt: this.now().toISOString() };
+        await this.save(next);
+        return this.view(next);
+      }
+      // A started build (M5): its open tasks' worktrees and branches go, then its integration branch. Nothing reaches the project.
+      this.refuseUnlessSettled(record, l);
+      await this.refuseTaskAtWork(record);
+      for (const item of record.tasks) {
+        if (item.taskId === undefined) continue;
+        const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
+        if (task !== undefined && OPEN_TASK_STATES.includes(task.state)) await this.options.tasks.discard(item.taskId);
+      }
+      await deleteIntegrationBranch(record.projectDir, record.branch);
       const next: BuildRecord = { ...record, state: 'discarded', updatedAt: this.now().toISOString() };
+      delete next.pause;
       await this.save(next);
       return this.view(next);
     });
+  }
+
+  /** Apply, discard: only a build with no loop, no cancel under way, and in a settled state. */
+  private refuseUnlessSettled(record: BuildRecord, l: Live): void {
+    if (!SETTLED_BUILD_STATES.includes(record.state) || l.loop !== undefined || l.cancelling) throw new BriefstackError('build.wrongState', { id: record.id, state: record.state });
+  }
+
+  /** Refused while a task of the build runs a round or checks (the user's own round on a waiting task included). */
+  private async refuseTaskAtWork(record: BuildRecord): Promise<void> {
+    for (const item of record.tasks) {
+      if (item.taskId === undefined) continue;
+      const state = this.options.tasks.stateOf(item.taskId) ?? (await this.options.tasks.get(item.taskId).catch(() => undefined))?.state;
+      if (state !== undefined && isActiveTask(state)) throw new BriefstackError('build.taskRunning', { id: record.id, task: item.taskId });
+    }
+  }
+
+  // ---- apply, revert, the diff (M5) -------------------------------------------------------------
+
+  /**
+   * Applies the whole build to the project's default branch as one commit
+   * (PLAN §1.13), after the user's confirmation on the build's page. Refused
+   * while a task of the build works or waits for the user (approve it onto
+   * the build's branch, or discard it, first); a task the build cancelled is
+   * discarded with it. Nothing is pushed.
+   */
+  apply(id: string): Promise<BuildView> {
+    const l = this.liveOf(id);
+    return this.serial(l, async () => {
+      this.refuseWhileStopping();
+      const record = await this.load(id);
+      this.refuseUnlessSettled(record, l);
+      await this.refuseTaskAtWork(record);
+      const open: number[] = [];
+      const cancelled: string[] = [];
+      for (const item of record.tasks) {
+        if (item.taskId === undefined) continue;
+        const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
+        if (task === undefined || !OPEN_TASK_STATES.includes(task.state)) continue;
+        if (item.state === 'cancelled') cancelled.push(item.taskId);
+        else open.push(item.n);
+      }
+      if (open.length > 0) throw new BriefstackError('build.openTasks', { id, tasks: open });
+      const { libraryDir } = await this.options.locations();
+      const applied = await applyBuild(record, {
+        libraryDir,
+        busy: async () => (await this.options.tasks.list()).find((task) => task.project === record.project && isActiveTask(task.state))?.id,
+        now: this.now,
+      });
+      for (const taskId of cancelled) await this.options.tasks.discard(taskId).catch(() => undefined);
+      const next: BuildRecord = { ...record, state: 'applied', applied, updatedAt: this.now().toISOString() };
+      delete next.pause;
+      delete next.error;
+      await this.save(next);
+      return this.view(next);
+    });
+  }
+
+  /** Reverts an applied build with one commit, after the user's confirmation. */
+  revert(id: string): Promise<BuildView> {
+    const l = this.liveOf(id);
+    return this.serial(l, async () => {
+      this.refuseWhileStopping();
+      const record = await this.load(id);
+      if (record.state !== 'applied') throw new BriefstackError('build.wrongState', { id, state: record.state });
+      const { libraryDir } = await this.options.locations();
+      const reverted = await revertBuild(record, {
+        libraryDir,
+        busy: async () => (await this.options.tasks.list()).find((task) => task.project === record.project && isActiveTask(task.state))?.id,
+        now: this.now,
+      });
+      const next: BuildRecord = { ...record, state: 'reverted', reverted, updatedAt: this.now().toISOString() };
+      await this.save(next);
+      return this.view(next);
+    });
+  }
+
+  /**
+   * The whole change on the integration branch since the build's start
+   * (BRIEF §3.4): the applied build's commit once applied. `null` before
+   * the start, or when the branch is gone (discarded).
+   */
+  async diff(id: string): Promise<ProposalDiff | null> {
+    const record = await this.load(id);
+    if (record.baseCommit === undefined) return null;
+    if (record.applied !== undefined) return proposalDiff(record.projectDir, `${record.applied.commit}^1`, record.applied.commit);
+    const head = await integrationHead(record.projectDir, record.branch);
+    if (head === undefined) return null;
+    return proposalDiff(record.projectDir, record.baseCommit, head);
   }
 
   // ---- pause, resume, cancel (M4) ---------------------------------------------------------------

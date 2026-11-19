@@ -1,4 +1,4 @@
-import { access } from 'node:fs/promises';
+import { access, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { integrationHead } from '../../src/builds/git.js';
@@ -12,7 +12,7 @@ import type { TaskChecks } from '../../src/tasks/checks.js';
 import { TaskFakeRunner, type TaskFakeScript, type TaskFakeStep } from '../../src/tasks/fakeRunner.js';
 import { TaskManager } from '../../src/tasks/manager.js';
 import type { CheckResult } from '../../src/tasks/types.js';
-import { useHermeticGit } from '../helpers.js';
+import { useHermeticGit, writeTree } from '../helpers.js';
 import { gitIn, taskWorld, type TaskWorld } from '../taskWorld.js';
 
 // Builds (BRIEF-phase-9 §3; PLAN-phase-9 M3 and M4) over the fake planner and
@@ -802,6 +802,99 @@ describe('the loop (M4)', () => {
         ['waiting', 'roundsCap'],
         ['queued', null],
       ]);
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+});
+
+describe('the build page\'s actions (M5)', () => {
+  it('apply waits for the user\'s waiting tasks, then lands the whole build as one commit in the user\'s folder; revert undoes it', async () => {
+    const s = setup();
+    try {
+      const before = (await gitIn(project, 'rev-parse', 'HEAD')).trim();
+      const id = await planned(s);
+      expect(await s.builds.diff(id)).toBeNull();
+      await expect(s.builds.apply(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+      await s.builds.start(id, start());
+      await s.builds.idle(id);
+      const done = await s.builds.get(id);
+      expect(done.tasks.map((task) => task.state)).toEqual(['applied', 'waiting', 'skipped']);
+      // The page sees the waiting task's own checks.
+      expect(done.tasks[1]?.task).toMatchObject({ state: 'proposal', checks: [{ command: 'npm test', exitCode: 1, timedOut: false }], codexCalls: 0, codexTokens: 0 });
+      // The cumulative diff: task 1's file only.
+      expect((await s.builds.diff(id))?.files.map((file) => [file.path, file.status])).toEqual([['LIST.md', 'added']]);
+      // Task 2 waits for the user: no apply until it is approved or discarded.
+      await expect(s.builds.apply(id)).rejects.toMatchObject({ code: 'build.openTasks', params: { tasks: [2] } });
+      await s.tasks.discard(done.tasks[1]?.taskId as string);
+      // A dirty folder is refused, as for a task.
+      await writeTree(project, { 'DIRTY.md': 'x\n' });
+      await expect(s.builds.apply(id)).rejects.toMatchObject({ code: 'task.dirtyFolder' });
+      await rm(path.join(project, 'DIRTY.md'));
+      const applied = await s.builds.apply(id);
+      expect(applied.state).toBe('applied');
+      const commit = applied.applied?.commit as string;
+      expect((await gitIn(project, 'rev-parse', 'HEAD')).trim()).toBe(commit);
+      expect((await gitIn(project, 'rev-parse', 'HEAD^')).trim()).toBe(before);
+      expect((await gitIn(project, 'log', '-1', '--format=%B')).trim()).toContain(`Build ${id}: 1 task from the project's brief`);
+      expect(await readFile(path.join(project, 'LIST.md'), 'utf8')).toBe('List.\n');
+      expect(await gitIn(project, 'status', '--porcelain')).toBe('');
+      // Applied: the project is free again; the diff is the applied commit's.
+      expect(await s.builds.holder('garden')).toBeUndefined();
+      expect((await s.builds.diff(id))?.files.map((file) => file.path)).toEqual(['LIST.md']);
+      await expect(s.builds.apply(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+      const reverted = await s.builds.revert(id);
+      expect(reverted.state).toBe('reverted');
+      expect((await gitIn(project, 'rev-parse', 'HEAD^')).trim()).toBe(commit);
+      await expect(access(path.join(project, 'LIST.md'))).rejects.toBeDefined();
+      await expect(s.builds.revert(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('discard removes the integration branch and every open task of the build; nothing reaches the folder', async () => {
+    const s = setup();
+    try {
+      const before = (await gitIn(project, 'rev-parse', 'HEAD')).trim();
+      const id = await planned(s);
+      await s.builds.start(id, start());
+      await s.builds.idle(id);
+      const done = await s.builds.get(id);
+      const waiting = done.tasks[1]?.taskId as string;
+      expect(await integrationHead(project, done.branch)).toBeDefined();
+      const discarded = await s.builds.discard(id);
+      expect(discarded.state).toBe('discarded');
+      expect(await integrationHead(project, done.branch)).toBeUndefined();
+      expect((await s.tasks.get(waiting)).state).toBe('discarded');
+      expect(await s.builds.holder('garden')).toBeUndefined();
+      expect(await s.builds.diff(id)).toBeNull();
+      expect((await gitIn(project, 'rev-parse', 'HEAD')).trim()).toBe(before);
+      expect(await gitIn(project, 'status', '--porcelain')).toBe('');
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('apply, discard and revert are refused while the build runs or a task of it works', async () => {
+    const s = setup({ script: slow });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN, { limit: 1 }));
+      await until(() => s.tasks.activeIds().length === 1);
+      await expect(s.builds.apply(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+      await expect(s.builds.discard(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+      await expect(s.builds.revert(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+      await s.builds.cancel(id);
+      await until(async () => (await s.builds.get(id)).state === 'cancelled');
+      // Cancelled with nothing applied: nothing to apply; the cancelled task is discarded with the build.
+      await expect(s.builds.apply(id)).rejects.toMatchObject({ code: 'build.nothingToApply' });
+      const taskId = (await s.builds.get(id)).tasks[0]?.taskId as string;
+      expect((await s.builds.discard(id)).state).toBe('discarded');
+      expect((await s.tasks.get(taskId)).state).toBe('discarded');
     } finally {
       await s.builds.shutdown();
       await s.tasks.shutdown();

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ApiError } from './apiError.js';
+import { formatCount } from './codexData.js';
+import { Diff } from './improve.js';
 import { describeError } from './errors.js';
 import { formatWhen } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { ConfirmModal, ErrorNote, LoadState, Note, UsageWarningModal, usageWarningIn } from './kit.js';
 import { routeHash } from './route.js';
-import type { BuildViewUi, ProjectBuildsUi, QueueItemUi, UsageWarningView } from './types.js';
+import type { BuildViewUi, ProjectBuildsUi, QueueItemUi, TaskProposalUi, UsageWarningView } from './types.js';
 
 /**
  * Builds (BRIEF-phase-9 §3): the project page's section with the
@@ -291,7 +293,7 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
 // ---- the progress --------------------------------------------------------------------------------
 
 function Progress({ build }: { build: BuildViewUi }) {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   return (
     <section class="card" aria-labelledby="build-progress-title" data-testid="build-progress">
       <h2 class="t-2" id="build-progress-title">
@@ -305,6 +307,9 @@ function Progress({ build }: { build: BuildViewUi }) {
               <th scope="col">{t.buildColTask}</th>
               <th scope="col">{t.buildColState}</th>
               <th scope="col">{t.buildColRounds}</th>
+              <th scope="col">{t.buildColChecks}</th>
+              <th scope="col">{t.buildColCodex}</th>
+              <th scope="col">{t.buildColTokens}</th>
               <th scope="col">{t.buildColDetail}</th>
             </tr>
           </thead>
@@ -315,6 +320,13 @@ function Progress({ build }: { build: BuildViewUi }) {
                 <td>{task.title}</td>
                 <td data-testid="build-task-state">{t.buildTaskState(task.state)}</td>
                 <td class="td-mono">{task.rounds}</td>
+                <td class="t-small" data-testid="build-task-checks">
+                  {task.task?.checks === undefined || task.task.checks.length === 0
+                    ? '—'
+                    : t.buildChecksPassed(task.task.checks.filter((check) => check.exitCode === 0 && !check.timedOut).length, task.task.checks.length)}
+                </td>
+                <td class="td-mono">{task.task === undefined ? '—' : task.task.codexCalls}</td>
+                <td class="td-mono">{task.task === undefined || task.task.codexCalls === 0 ? '—' : formatCount(task.task.codexTokens, lang)}</td>
                 <td class="t-small">
                   {task.reason !== undefined && <span data-testid="build-task-reason">{t.buildWaitReason(task.reason)}</span>}
                   {task.skippedFor !== undefined && <span>{t.buildSkippedFor(task.skippedFor)}</span>}
@@ -350,6 +362,123 @@ function Progress({ build }: { build: BuildViewUi }) {
 }
 
 // ---- one build -----------------------------------------------------------------------------------
+
+/** Why the build is where it is: paused (by whom, until when), pausing, interrupted, cancelled, applied, reverted. */
+function StatusNotes({ build }: { build: BuildViewUi }) {
+  const { t, lang } = useApp();
+  const until = formatWhen(build.pause?.until, lang);
+  return (
+    <>
+      {build.state === 'paused' && build.pause?.reason === 'usage' && <Note tone="plain" testId="build-paused">{t.buildPausedUsage(until)}</Note>}
+      {build.state === 'paused' && build.pause?.reason === 'usageUnread' && <Note tone="plain" testId="build-paused">{t.buildPausedUnread(until)}</Note>}
+      {build.state === 'paused' && build.pause?.reason === 'user' && <Note tone="plain" testId="build-paused">{t.buildPausedUser}</Note>}
+      {build.pausing === true && <Note tone="plain" testId="build-pausing">{t.buildPausing}</Note>}
+      {build.cancelling === true && <Note tone="plain" testId="build-cancelling">{t.buildCancelling}</Note>}
+      {build.state === 'interrupted' && <Note tone="plain" testId="build-interrupted">{t.buildInterrupted}</Note>}
+      {build.state === 'cancelled' && <Note tone="plain" testId="build-cancelled">{t.buildCancelledNote}</Note>}
+      {build.applied !== undefined && <Note tone="plain" testId="build-applied">{t.buildAppliedAt(build.applied.commit.slice(0, 7))}</Note>}
+      {build.reverted !== undefined && <Note tone="plain" testId="build-reverted">{t.buildRevertedAt(build.reverted.commit.slice(0, 7))}</Note>}
+    </>
+  );
+}
+
+type BuildAction = 'pause' | 'resume' | 'cancel' | 'apply' | 'revert' | 'discard';
+
+/** The build's actions, each confirmed when it changes something that stays (BRIEF §3.4, §3.5). */
+function Actions({ build, onDone }: { build: BuildViewUi; onDone(): void }) {
+  const { t } = useApp();
+  const send = useSend();
+  const action = useAction();
+  const [confirm, setConfirm] = useState<BuildAction | undefined>(undefined);
+  const settled = ['paused', 'interrupted', 'cancelled', 'finished'].includes(build.state) && build.cancelling !== true;
+  const can: Record<BuildAction, boolean> = {
+    pause: (build.state === 'running' && build.pausing !== true && build.cancelling !== true) || (build.state === 'paused' && build.pause?.reason !== 'user'),
+    resume: ['paused', 'interrupted', 'finished'].includes(build.state) && build.cancelling !== true,
+    cancel: (build.state === 'running' && build.cancelling !== true) || build.state === 'paused' || build.state === 'interrupted',
+    apply: settled,
+    revert: build.state === 'applied',
+    discard: settled,
+  };
+  const run = (name: BuildAction) => void action.run(() => send('POST', `/api/builds/${encodeURIComponent(build.id)}/${name}`, {})).then((ok) => ok && onDone());
+  const dialogs: Partial<Record<BuildAction, { title: string; body: string; label: string; tone: 'normal' | 'danger' }>> = {
+    cancel: { title: t.buildCancelTitle, body: t.buildCancelBody, label: t.buildCancel, tone: 'danger' },
+    apply: { title: t.buildApplyTitle, body: `${t.buildApplyBody(build.baseBranch ?? '')} ${t.buildApplyHint}`, label: t.buildApply, tone: 'normal' },
+    revert: { title: t.buildRevertTitle, body: t.buildRevertBody, label: t.buildRevert, tone: 'normal' },
+    discard: { title: t.buildDiscardTitle, body: t.buildDiscardBody, label: t.buildDiscard, tone: 'danger' },
+  };
+  const labels: Record<BuildAction, string> = { pause: t.buildPause, resume: t.buildResume, cancel: t.buildCancel, apply: t.buildApply, revert: t.buildRevert, discard: t.buildDiscard };
+  const shown = (Object.keys(can) as BuildAction[]).filter((name) => can[name]);
+  if (shown.length === 0) return null;
+  const dialog = confirm === undefined ? undefined : dialogs[confirm];
+  return (
+    <section class="card stack-1" data-testid="build-actions">
+      {action.error !== undefined && <ErrorNote error={action.error} />}
+      <div class="btn-row">
+        {shown.map((name) => (
+          <button
+            key={name}
+            type="button"
+            class={name === 'apply' || name === 'resume' ? 'btn btn-primary' : 'btn btn-ghost'}
+            disabled={action.busy}
+            onClick={() => (dialogs[name] === undefined ? run(name) : setConfirm(name))}
+            data-testid={`build-${name}`}
+          >
+            {labels[name]}
+          </button>
+        ))}
+      </div>
+      {can.resume && <p class="t-small muted">{t.buildResumeHint}</p>}
+      {confirm !== undefined && dialog !== undefined && (
+        <ConfirmModal
+          title={dialog.title}
+          body={dialog.body}
+          confirmLabel={dialog.label}
+          cancelLabel={t.cancel}
+          tone={dialog.tone}
+          onConfirm={() => {
+            setConfirm(undefined);
+            run(confirm);
+          }}
+          onCancel={() => setConfirm(undefined)}
+        />
+      )}
+    </section>
+  );
+}
+
+/** The whole change on the build's branch since its start (the applied commit's, once applied). */
+function BuildDiff({ build }: { build: BuildViewUi }) {
+  const { t } = useApp();
+  const loaded = useLoad<{ diff: TaskProposalUi['diff'] }>(`/api/builds/${encodeURIComponent(build.id)}/diff`);
+  const { reload } = loaded;
+  // Read again when the build's state or its applied tasks change.
+  const applied = build.tasks.filter((task) => task.state === 'applied').length;
+  useEffect(() => reload(), [reload, build.state, applied]);
+  return (
+    <LoadState loaded={loaded}>
+      {(data) =>
+        data.diff === null ? null : (
+          <section class="card" aria-labelledby="build-diff-title" data-testid="build-diff">
+            <h2 class="t-2" id="build-diff-title">
+              {t.buildDiffTitle}
+            </h2>
+            {data.diff.files.length === 0 && <p class="muted">{t.buildDiffNone}</p>}
+            {data.diff.files.map((file) =>
+              file.shown ? (
+                <Diff key={file.path} hunks={file.hunks} file={{ path: file.path, added: file.added, removed: file.removed }} testId={`build-diff-${file.path}`} />
+              ) : (
+                <p key={file.path}>
+                  <code>{file.path}</code> — <span class="muted">{t.taskDiffNotShown}</span>
+                </p>
+              ),
+            )}
+            {data.diff.more > 0 && <p class="muted">{t.taskDiffMore(data.diff.more)}</p>}
+          </section>
+        )
+      }
+    </LoadState>
+  );
+}
 
 /** The start page once the Settings' default thresholds are loaded, so the form starts from them (review of M3, minor). */
 function PlannedStart({ build, onStarted }: { build: BuildViewUi; onStarted(): void }) {
@@ -393,7 +522,9 @@ export function BuildPage({ id }: { id: string }) {
   const loaded = useLoad<BuildViewUi>(`/api/builds/${encodeURIComponent(id)}`);
   const build = loaded.data;
   useDocumentTitle(build === undefined ? t.buildTitle : `${t.buildTitle} · ${build.project}`);
-  usePoll(loaded.reload, build !== undefined && (LIVE.has(build.state) || build.pausing === true || build.cancelling === true));
+  // A build paused for usage resumes by itself: the page keeps reading it (review of M3, minor).
+  const autoResume = build?.state === 'paused' && build.pause?.reason !== 'user';
+  usePoll(loaded.reload, build !== undefined && (LIVE.has(build.state) || build.pausing === true || build.cancelling === true || autoResume), autoResume ? 5000 : 1000);
   return (
     <LoadState loaded={loaded}>
       {(view) => (
@@ -423,9 +554,12 @@ export function BuildPage({ id }: { id: string }) {
             )}
             {view.state === 'discarded' && <Note tone="plain" testId="build-discarded">{t.buildDiscarded}</Note>}
             {view.waitingSlot === true && <Note tone="plain" testId="build-waiting-slot">{t.buildWaitingSlot}</Note>}
+            <StatusNotes build={view} />
             {view.state === 'planned' && <PlannedStart build={view} onStarted={loaded.reload} />}
             {(view.state === 'planned' || view.state === 'planFailed') && <DiscardUnstarted build={view} onDone={loaded.reload} />}
+            {view.tasks.length > 0 && <Actions build={view} onDone={loaded.reload} />}
             {view.tasks.length > 0 && <Progress build={view} />}
+            {view.tasks.length > 0 && view.state !== 'discarded' && <BuildDiff build={view} />}
           </div>
         </>
       )}

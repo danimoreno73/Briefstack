@@ -113,8 +113,6 @@ describe('build routes', () => {
     await builds.idle(id);
     expect((await call('GET', `/api/builds/${id}`)).json).toMatchObject({ state: 'finished', tasks: [{ state: 'applied' }] });
     expect(await call('GET', '/api/builds/nope')).toMatchObject({ status: 404, json: { code: 'build.notFound' } });
-    // A started build is not discarded by this route yet (only one that never started).
-    expect(await call('POST', `/api/builds/${id}/discard`, {})).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
   });
 
   it('pause, resume and cancel answer with the build, or 409 when its state does not allow it (M4)', async () => {
@@ -132,6 +130,27 @@ describe('build routes', () => {
     await builds.idle(id);
     expect((await call('GET', `/api/builds/${id}`)).json).toMatchObject({ state: 'finished' });
     expect(await call('POST', `/api/builds/nope/cancel`, {})).toMatchObject({ status: 404, json: { code: 'build.notFound' } });
+  });
+
+  it('show the whole change, apply the build, revert it; discard a started one (M5)', async () => {
+    await serve();
+    const id = (await call('POST', '/api/projects/garden/builds', {})).json.id as string;
+    await builds.idle(id);
+    expect(await call('GET', `/api/builds/${id}/diff`)).toMatchObject({ status: 200, json: { diff: null } });
+    await call('POST', `/api/builds/${id}/start`, { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true });
+    await builds.idle(id);
+    const diff = (await call('GET', `/api/builds/${id}/diff`)).json.diff as { files: { path: string }[] };
+    expect(diff.files.length).toBeGreaterThan(0);
+    expect(await call('POST', `/api/builds/${id}/revert`, {})).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
+    expect(await call('POST', `/api/builds/${id}/apply`, {})).toMatchObject({ status: 200, json: { state: 'applied' } });
+    expect(await call('POST', `/api/builds/${id}/apply`, {})).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
+    expect(await call('POST', `/api/builds/${id}/revert`, {})).toMatchObject({ status: 200, json: { state: 'reverted' } });
+
+    const other = (await call('POST', '/api/projects/garden/builds', {})).json.id as string;
+    await builds.idle(other);
+    await call('POST', `/api/builds/${other}/start`, { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true });
+    await builds.idle(other);
+    expect(await call('POST', `/api/builds/${other}/discard`, {})).toMatchObject({ status: 200, json: { state: 'discarded' } });
   });
 
   it('discard a build that never started, which frees the project (review of M3, I4)', async () => {

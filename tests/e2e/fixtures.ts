@@ -301,7 +301,7 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   await writeFile(codexLog, '', 'utf8');
   const codex = new CodexService({ pathEnv, locate: () => fakeCodex(codexLog, options.codexScenario) });
   const holderBuilds: { value?: BuildManager } = {};
-  const tasks = await createWebTasks({ pathEnv, repoDir, lang: 'en', runner: taskRunner, creations: manager, codex, buildOn: async (slug) => holderBuilds.value?.holder(slug) });
+  const tasks = await createWebTasks({ pathEnv, repoDir, lang: 'en', runner: taskRunner, creations: manager, codex, buildOn: async (slug) => holderBuilds.value?.holder(slug), buildDrives: (id) => holderBuilds.value?.drives(id) ?? false });
   holderTasks.value = tasks;
   // Builds (phase 9) over the fake planner; the plan readings are the test's, never a real one.
   const buildPlanner = new FakeBuildPlanner(options.buildPlan ?? BUILD_PLAN, 100);
@@ -350,8 +350,10 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   const stop = async () => {
     await app.improvements.shutdown();
     await app.chat.shutdown();
-    await app.builds.shutdown();
+    // The server's order (review of M3, B1): builds stop without waiting, tasks stop, then the builds' loops are awaited.
+    app.builds.stop();
     await app.tasks.shutdown();
+    await app.builds.shutdown();
     await manager.shutdown();
     await app.server.close();
     await gh.close();

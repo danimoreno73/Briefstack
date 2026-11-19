@@ -182,6 +182,8 @@ export interface ErrorParams {
   'build.branchMoved': { branch: string };
   'build.nothingToApply': { id: string };
   'build.taskRunning': { id: string; task: string };
+  /** Tasks of the build still wait for the user: approve them onto the build's branch, or discard them, before applying. */
+  'build.openTasks': { id: string; tasks: number[] };
   /** A build's task the user allowed commands in: it gets no more unattended rounds. */
   'build.attendedTask': { id: string };
   /** The planner was stopped, or briefstack stopped while it planned. */

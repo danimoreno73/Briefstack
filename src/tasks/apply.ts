@@ -32,16 +32,34 @@ const firstLine = (text: string): string => redactSecretLines(text.trim().split(
 const clip = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
 const short = (sha: string): string => sha.slice(0, 7);
 
+/** What moves the user's folder: a task, or a whole build (phase 9). */
+export interface Landing {
+  id: string;
+  project: string;
+  projectDir: string;
+  /** The branch that must be checked out in the user's folder. */
+  baseBranch: string;
+}
+
 /** The checks every move of the user's folder shares. */
 async function assertFolderReady(task: TaskRecord, store: TaskStore): Promise<string> {
+  return assertLandingReady(task, async () => (await store.list()).find((item) => item.id !== task.id && item.project === task.project && isActiveTask(item.state))?.id);
+}
+
+/**
+ * The checks before the user's folder moves: the folder is there, nothing
+ * else runs on the project (`busy` names it), it is the top of a git
+ * repository on `baseBranch`, clean, with no merge driver. Returns its head.
+ */
+export async function assertLandingReady(task: Landing, busy: () => Promise<string | undefined>): Promise<string> {
   const dir = task.projectDir;
   try {
     if (!(await stat(dir)).isDirectory()) throw new Error('not a folder');
   } catch {
     throw new BriefstackError('task.folderMissing', { project: task.project, dir });
   }
-  const other = (await store.list()).find((item) => item.id !== task.id && item.project === task.project && isActiveTask(item.state));
-  if (other !== undefined) throw new BriefstackError('task.projectBusy', { project: task.project, id: other.id });
+  const other = await busy();
+  if (other !== undefined) throw new BriefstackError('task.projectBusy', { project: task.project, id: other });
   const repo = await repoState(dir);
   if (!repo.inRepo || !repo.isTop || repo.head === undefined) throw new BriefstackError('task.notGitRepo', { project: task.project });
   if (repo.branch !== task.baseBranch) throw new BriefstackError('task.notOnBranch', { project: task.project, branch: task.baseBranch, current: repo.branch ?? 'HEAD' });
@@ -56,7 +74,7 @@ async function assertFolderReady(task: TaskRecord, store: TaskStore): Promise<st
  * Puts the change from `from` to `to` on top of the folder's branch as one
  * commit, and moves the branch and the files there. Returns the new commit.
  */
-async function land(task: TaskRecord, from: string, to: string, message: string, branchHead: string): Promise<string> {
+export async function land(task: Landing, from: string, to: string, message: string, branchHead: string): Promise<string> {
   const dir = task.projectDir;
   const commit = await withSafeGit(dir, async (git, run) => {
     const merged = await run(['merge-tree', '--write-tree', '--no-messages', '--merge-base', from, branchHead, to]);

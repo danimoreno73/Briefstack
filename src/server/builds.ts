@@ -72,5 +72,8 @@ export function buildRoutes(manager: BuildManager | undefined, options: BuildRou
     ['POST /api/builds/:id/pause', async (_req, res, params) => sendJson(res, 200, await need().pause(id(params)))],
     ['POST /api/builds/:id/resume', async (_req, res, params) => sendJson(res, 200, await need().resume(id(params)))],
     ['POST /api/builds/:id/cancel', async (_req, res, params) => sendJson(res, 200, await need().cancel(id(params)))],
+    ['POST /api/builds/:id/apply', async (_req, res, params) => sendJson(res, 200, await need().apply(id(params)))],
+    ['POST /api/builds/:id/revert', async (_req, res, params) => sendJson(res, 200, await need().revert(id(params)))],
+    ['GET /api/builds/:id/diff', async (_req, res, params) => sendJson(res, 200, { diff: await need().diff(id(params)) })],
   ];
 }

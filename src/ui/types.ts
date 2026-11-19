@@ -475,8 +475,8 @@ export interface BuildTaskUi extends QueueItemUi {
   commit?: string;
   denied?: { tool: string; text: string }[];
   rounds: number;
-  /** What the server adds from the task itself (M5): its checks and Codex calls. */
-  task?: { state: string; checks?: { command: string; exitCode: number | null; timedOut: boolean }[]; codexCalls?: number; tokens?: number };
+  /** What the server adds from the task itself (M5): its state, checks and Codex calls (tokens as Codex counts them). */
+  task?: { state: string; checks?: { command: string; exitCode: number | null; timedOut: boolean }[]; codexCalls: number; codexTokens: number };
 }
 
 /** A build, as `GET /api/builds/:id` gives it (phase 9). */

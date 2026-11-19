@@ -194,6 +194,7 @@ describe('error catalogue', () => {
     'build.nothingToApply': { id: 'abc123-0f0f' },
     'build.taskRunning': { id: 'abc123-0f0f', task: 'abc124-0f0f' },
     'build.attendedTask': { id: 'abc123-0f0f' },
+    'build.openTasks': { id: 'abc123-0a0a', tasks: [2, 3] },
     'build.planStopped': {},
     'build.planSession': { subtype: 'error_max_turns' },
     'build.planNoOutput': {},
