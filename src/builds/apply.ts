@@ -19,6 +19,8 @@ export interface BuildApplyDeps {
   /** Something else at work on the project (a task or the build's own), by id. */
   busy: () => Promise<string | undefined>;
   now?: () => Date;
+  /** The integration head the caller checked: it is what lands (the branch is read again only without it). */
+  head?: string;
 }
 
 const clip = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
@@ -40,7 +42,7 @@ export function buildCommitMessage(build: BuildRecord): string {
 /** Apply: one commit on the default branch with the integration branch's whole change. Returns the commit and when. */
 export async function applyBuild(build: BuildRecord, deps: BuildApplyDeps): Promise<{ commit: string; at: string }> {
   const target = landingOf(build);
-  const head = await integrationHead(build.projectDir, build.branch);
+  const head = deps.head ?? (await integrationHead(build.projectDir, build.branch));
   if (head === undefined) throw new BriefstackError('build.branchMoved', { branch: build.branch });
   if (head === build.baseCommit) throw new BriefstackError('build.nothingToApply', { id: build.id });
   const branchHead = await assertLandingReady(target, deps.busy);

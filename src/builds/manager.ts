@@ -13,7 +13,7 @@ import { isActiveTask, type TaskState } from '../tasks/types.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { applyBuild, revertBuild } from './apply.js';
 import { approvedListProblems } from './commands.js';
-import { createIntegrationBranch, deleteIntegrationBranch, integrationHead } from './git.js';
+import { commitsSince, createIntegrationBranch, deleteIntegrationBranch, integrationHead } from './git.js';
 import { readPlanningInput, type BuildPlanner } from './planner.js';
 import { buildRoundPrompt, failureText } from './prompt.js';
 import type { BuildStore } from './store.js';
@@ -458,10 +458,13 @@ export class BuildManager {
       await this.refuseTaskAtWork(loaded);
       // A waiting task the user approved since (onto the integration branch) counts as applied (review of M5, I1).
       const record: BuildRecord = { ...loaded, tasks: await this.takeInApproved(loaded.tasks) };
-      // What lands is the change the page showed, and only commits briefstack made on the branch (review of M5, I2).
+      // What lands is the change the page showed, and every commit on the branch since the start is one briefstack made
+      // for an applied task: a commit added by hand below a later task's is refused too (review of M5, I2; review of M6, I-1).
       const head = await integrationHead(record.projectDir, record.branch);
+      if (head === undefined || head !== shownHead) throw new BriefstackError('build.branchMoved', { branch: record.branch });
       const made = new Set(record.tasks.flatMap((task) => (task.state === 'applied' && task.commit !== undefined ? [task.commit] : [])));
-      if (head === undefined || head !== shownHead || (head !== record.baseCommit && !made.has(head))) throw new BriefstackError('build.branchMoved', { branch: record.branch });
+      const since = await commitsSince(record.projectDir, record.baseCommit, head);
+      if (since === undefined || since.some((commit) => !made.has(commit))) throw new BriefstackError('build.branchMoved', { branch: record.branch });
       const open: number[] = [];
       const cancelled: string[] = [];
       for (const item of record.tasks) {
@@ -473,10 +476,12 @@ export class BuildManager {
       }
       if (open.length > 0) throw new BriefstackError('build.openTasks', { id, tasks: open });
       const { libraryDir } = await this.options.locations();
+      // The head checked above is what lands, whatever the branch says by then (review of M6, I-1).
       const applied = await applyBuild(record, {
         libraryDir,
         busy: async () => (await this.options.tasks.list()).find((task) => task.project === record.project && isActiveTask(task.state))?.id,
         now: this.now,
+        head,
       });
       for (const taskId of cancelled) await this.options.tasks.discard(taskId).catch(() => undefined);
       const next: BuildRecord = { ...record, state: 'applied', applied, updatedAt: this.now().toISOString() };
@@ -521,11 +526,15 @@ export class BuildManager {
     return { diff: await proposalDiff(record.projectDir, record.baseCommit, head), head };
   }
 
-  /** A waiting task whose own task the user approved (onto the integration branch) becomes applied, with its commit. */
+  /**
+   * A waiting task whose own task the user approved (onto the integration
+   * branch) becomes applied, with its commit; so does a task the build
+   * cancelled after its round, approved by the user since (review of M6, I-1).
+   */
   private async takeInApproved(tasks: readonly BuildTask[]): Promise<BuildTask[]> {
     const out: BuildTask[] = [];
     for (const item of tasks) {
-      if (item.state === 'waiting' && item.taskId !== undefined) {
+      if ((item.state === 'waiting' || item.state === 'cancelled') && item.taskId !== undefined) {
         const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
         if (task?.state === 'applied') {
           const applied: BuildTask = { ...item, state: 'applied', ...(task.applied === undefined ? {} : { commit: task.applied.commit }) };

@@ -21,6 +21,21 @@ export async function createIntegrationBranch(projectDir: string, branch: string
   });
 }
 
+/**
+ * The commits reachable from `head` but not from `base` (the build's whole
+ * history on its branch), or `undefined` when git cannot say (no base, or
+ * `base` is not an ancestor of `head`).
+ */
+export async function commitsSince(projectDir: string, base: string | undefined, head: string): Promise<string[] | undefined> {
+  if (base === undefined) return undefined;
+  return withSafeGit(projectDir, async (_git, run) => {
+    if ((await run(['merge-base', '--is-ancestor', base, head])).code !== 0) return undefined;
+    const listed = await run(['rev-list', `${base}..${head}`]);
+    if (listed.code !== 0) return undefined;
+    return listed.stdout.split(/\r?\n/).filter((line) => line.trim() !== '').map((line) => line.trim());
+  });
+}
+
 /** The integration branch's head, or `undefined` when it is gone. */
 export function integrationHead(projectDir: string, branch: string): Promise<string | undefined> {
   return branchHead(projectDir, branch);

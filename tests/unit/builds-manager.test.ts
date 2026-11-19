@@ -874,6 +874,13 @@ describe('the build page\'s actions (M5)', () => {
       const done = await s.builds.get(id);
       const waiting = done.tasks[1]?.taskId as string;
       expect(await integrationHead(project, done.branch)).toBeDefined();
+      // The user checked the build's branch out by hand: discard refuses, and removes nothing (review of M5, minor).
+      const main = (await gitIn(project, 'rev-parse', '--abbrev-ref', 'HEAD')).trim();
+      await gitIn(project, 'checkout', '--quiet', done.branch);
+      await expect(s.builds.discard(id)).rejects.toMatchObject({ code: 'build.branchMoved' });
+      expect(await integrationHead(project, done.branch)).toBeDefined();
+      expect((await s.tasks.get(waiting)).state).not.toBe('discarded');
+      await gitIn(project, 'checkout', '--quiet', main);
       const discarded = await s.builds.discard(id);
       expect(discarded.state).toBe('discarded');
       expect(await integrationHead(project, done.branch)).toBeUndefined();
@@ -958,6 +965,75 @@ describe('the build page\'s actions (M5)', () => {
       await gitIn(project, 'update-ref', `refs/heads/${build.branch}`, foreign, head);
       expect((await s.builds.diff(id)).head).toBe(foreign);
       await expect(s.builds.apply(id, foreign)).rejects.toMatchObject({ code: 'build.branchMoved' });
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('apply refuses a commit added by hand below one briefstack made later (review of M6, I-1)', async () => {
+    const fixable: TaskFakeScript = (round, prompt) => {
+      if (prompt.includes('Remove BROKEN')) return { steps: [{ kind: 'delete', file: 'BROKEN' }, { kind: 'end', summary: 'Removed.' }] };
+      return script(round, prompt);
+    };
+    const s = setup({ script: fixable });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start());
+      await s.builds.idle(id);
+      const build = await s.builds.get(id);
+      const waiting = build.tasks[1]?.taskId as string;
+      // A commit by hand on the branch, then the user's approval of the waiting task lands on top of it.
+      const head = (await s.builds.diff(id)).head as string;
+      const tree = (await gitIn(project, 'rev-parse', `${head}^{tree}`)).trim();
+      const foreign = (await gitIn(project, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit-tree', tree, '-p', head, '-m', 'by hand')).trim();
+      await gitIn(project, 'update-ref', `refs/heads/${build.branch}`, foreign, head);
+      await s.tasks.newRound(waiting, 'Remove BROKEN.');
+      await until(async () => (await s.tasks.get(waiting)).pending !== undefined);
+      s.tasks.answer(waiting, (await s.tasks.get(waiting)).pending?.id as string, 'once');
+      await until(async () => (await s.tasks.get(waiting)).awaitingReply !== undefined);
+      s.tasks.finishRound(waiting);
+      await until(async () => (await s.tasks.get(waiting)).state === 'proposal');
+      await s.tasks.approve(waiting);
+      const top = (await s.builds.diff(id)).head as string;
+      // The head is briefstack's own commit, but the one below it is not.
+      expect((await gitIn(project, 'rev-parse', `${top}^1`)).trim()).toBe(foreign);
+      await expect(s.builds.apply(id, top)).rejects.toMatchObject({ code: 'build.branchMoved' });
+      expect((await s.builds.get(id)).state).toBe('finished');
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('a task the build cancelled after its round, approved by the user since, counts as applied (review of M6, I-1)', async () => {
+    let began = false;
+    const blocking: TaskChecks = {
+      commands: async () => [],
+      run: (_worktree, commands, signal) =>
+        new Promise<CheckResult[]>((resolve) => {
+          began = true;
+          signal?.addEventListener('abort', () => resolve(commands.map((command) => ({ command, exitCode: null, timedOut: false, output: '', durationMs: 1 }))), { once: true });
+        }),
+    };
+    const s = setup({ checks: blocking });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN));
+      await until(() => began);
+      await s.builds.cancel(id);
+      await until(async () => (await s.builds.get(id)).state === 'cancelled');
+      const build = await s.builds.get(id);
+      expect(build.tasks[0]?.state).toBe('cancelled');
+      const taskId = build.tasks[0]?.taskId as string;
+      // Its checks ended with the cancel: the task is back to its proposal.
+      await until(async () => (await s.tasks.get(taskId)).state === 'proposal');
+      // The build no longer drives it: the user approves it onto the integration branch.
+      await s.tasks.approve(taskId);
+      const applied = await s.builds.apply(id, (await s.builds.diff(id)).head as string);
+      expect(applied.state).toBe('applied');
+      expect(applied.tasks[0]?.state).toBe('applied');
+      expect(await readFile(path.join(project, 'LIST.md'), 'utf8')).toBe('List.\n');
     } finally {
       await s.builds.shutdown();
       await s.tasks.shutdown();

@@ -121,6 +121,8 @@ describe('build routes', () => {
     await builds.idle(id);
     expect(await call('POST', `/api/builds/${id}/pause`, {})).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
     expect(await call('POST', `/api/builds/${id}/resume`, {})).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
+    // Cancel says it was confirmed, or nothing is read (review of M6, minor).
+    expect(await call('POST', `/api/builds/${id}/cancel`, {})).toMatchObject({ status: 400, json: { code: 'web.invalidBody' } });
     expect(await call('POST', `/api/builds/${id}/cancel`, { confirm: true })).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
     await call('POST', `/api/builds/${id}/start`, { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true });
     await builds.idle(id);
