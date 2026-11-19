@@ -51,6 +51,22 @@ the next interview asks less.
   commands, its tokens and Codex's final message. The diff, the checks you
   run from the proposal page and your approval stay the control, whoever
   wrote the code.
+- **Builds** in your `claude-code` projects that have a `docs/BRIEF.md`:
+  press "Implement" on the project page and a planning session turns the
+  brief into a queue of tasks. You review and edit the queue, the exact
+  commands a session may run, the checks to run after each round, the fix
+  rounds and the plan-usage thresholds, and approve them **once**. Then
+  briefstack runs the tasks one after another **without asking again**, on
+  a branch of its own (`briefstack/build-<id>`) that is never checked out
+  in your folder. After each round the checks run; a task whose checks
+  pass and that needed no command outside the list is applied to the
+  build's branch, otherwise it waits for you and the tasks that depend on
+  it are skipped. Before each task the plan usage is read; at your
+  threshold the build pauses and resumes by itself after the reset. You
+  can pause, resume or cancel it, open a waiting task as an ordinary task,
+  and at the end apply the whole build to your branch as one commit
+  (revertable) or discard it. **A build runs code before you read it**:
+  see Security and Limitations.
 
 ## Requirements
 
@@ -213,6 +229,15 @@ improvements before you move anything.
   diff runs on it as on Claude's changes. What Codex writes back is shown
   as data, never followed as instructions. What its sandbox does and does
   not hold, as measured, is under Limitations.
+- **Builds decide at the start, then never ask.** A build's rounds use the
+  same guard as tasks, but no dialog opens: a shell command that is not
+  exactly one of the commands you approved (or a chain of them with `&&`,
+  `||` or `;`) is denied and recorded, and so is every web request. The
+  list holds exact commands only (no wildcards, no prefixes, plain
+  characters, nothing that looks like a secret). The planner session has
+  no tools: it reads the brief as data and answers with a queue you
+  review. A build's rounds never offer Codex. Nothing reaches your branch
+  until you apply the whole build; nothing is pushed.
 
 See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
@@ -250,6 +275,21 @@ See [SECURITY.md](SECURITY.md) to report a vulnerability.
   installed in your profile (for example with nvm). Codex in tasks was
   checked with the real Codex on Windows only; on macOS and Linux it is
   tested with a fake Codex in CI, and its sandbox there was not measured.
+- **A build runs code before you read it.** In a build, the commands you
+  approved at the start and the checks run after each round, on code the
+  session has just written, before anyone reads it: as you, with your
+  files, network proxies pointed nowhere (a program can ignore them) and a
+  10-minute limit per check. Native Windows has no sandbox for them. This
+  is the one place where checks run without a click on the change (for
+  ordinary tasks they still wait for you). Approve only commands you would
+  run on unread code, and review the whole build before applying it.
+- Builds plan only from a project's `docs/BRIEF.md` (projects made with
+  the `software` template have one). One build or task per project at a
+  time; builds share the active-sessions limit and wait for a free place.
+  A build paused for usage resumes by itself only while briefstack runs;
+  after a restart a build is interrupted and resumes only when you press
+  Resume. Task records keep no token count of Claude's own sessions, so a
+  build's page shows only Codex's tokens (none in a build's own rounds).
 - A task's copy has no `node_modules` or other ignored files: a check that
   needs dependencies must install them (`npm ci --offline` works from
   npm's cache), or the session can ask to run the install.

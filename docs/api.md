@@ -844,6 +844,132 @@ sandbox [-c windows.sandbox="<mode>"] -P :workspace -- whoami` (the mode
 on Windows only). It passes when all three end with exit code 0. Codex not
 on the PATH is `found: false`.
 
+## Builds (phase 9)
+
+Builds in `claude-code` projects (BRIEF-phase-9; PLAN-phase-9 §1;
+decisions.md, "Phase 9"). Only the pages use these routes: the chat has
+no tool to plan, start, apply or discard a build. Without a build manager
+every route answers `503 build.unavailable`. A build is an ordinary task
+for each queued item (`build: { id, n }` in the task record), run
+unattended on the integration branch `briefstack/build-<id>`.
+
+A build record (`GET /api/builds/:id`):
+`{ v, id, project, projectDir, state, profile, model, effort, createdAt,
+updatedAt, branch, baseBranch?, baseCommit?, plan?, tasks, settings?,
+roundsRun, pause?, startedAt?, finishedAt?, applied?, reverted?, error? }`.
+`state` is `planning`, `planned`, `planFailed`, `running`, `paused`,
+`interrupted`, `cancelled`, `finished`, `applied`, `reverted` or
+`discarded`. `plan` is the planner's proposal `{ tasks, commands, checks }`;
+`tasks` the queue the user started, each
+`{ n, title, instruction, doneWhen, dependsOn, state, taskId?, reason?,
+skippedFor?, detail?, commit?, denied?, rounds, task? }`, with `state`
+`queued`, `running`, `applied`, `waiting`, `skipped` or `cancelled`;
+`reason` (waiting) `checksFailed`, `denied`, `blocked`, `roundFailed`,
+`interrupted`, `notStarted`, `notApplied` or `roundsCap`; `task` (only on
+`GET /api/builds/:id`) the task's own `{ state, checks?, codexCalls,
+codexTokens }`. `settings` is what the start recorded
+`{ limit, commands, checks, fixRounds, maxRounds, thresholds }`; `pause`
+`{ reason: usage | usageUnread | user, at, until?, fiveHour?, sevenDay? }`.
+The live view adds `pausing`, `cancelling` and `waitingSlot` (the shared
+limit is full) when true. `detail` and `error` are redacted and without
+absolute paths.
+
+A build holds its project (no ordinary task, no other build) in every
+state but `applied`, `reverted` and `discarded`. While the build's loop
+drives one of its tasks, the task routes that act on it (approve,
+discard, changes, checks, answer, reply, finish) answer
+`409 task.heldByBuild`; cancel does not. After a restart, a build left
+`running` or `paused` is `interrupted` (its task waiting) and one left
+`planning` is `planFailed`; nothing resumes by itself.
+
+### `GET /api/projects/:slug/builds`
+
+`{ builds, plan, thresholds }`: the project's builds, whether one can be
+planned now (`{ ok: true }` or `{ ok: false, code, params, message }`,
+for example `build.noBrief` or `build.projectBusy`), and the default usage
+thresholds from Settings.
+
+### `POST /api/projects/:slug/builds`
+
+Body `{ "force"?: true }`. Checks the project as a task's start does (no
+open task or build, the shared limit, a clean `claude-code` project on its
+branch) and that `docs/BRIEF.md` exists at the default branch's head, then
+starts the planner session in the background and answers `201 { id }`
+with the build `planning`. High plan usage answers `409 usage.high` unless
+`force`. The planner has no tools but the one Claude Code adds to return
+structured output; the brief, `CLAUDE.md` and the `package.json` scripts
+are in its prompt as data.
+
+### `GET /api/builds/:id`
+
+The build, as above (`404 build.notFound`).
+
+### `POST /api/builds/:id/start`
+
+Body `{ tasks, limit, commands, checks, fixRounds, thresholds:
+{ fiveHour, week }, confirm: true }` (the page sends `confirm` after its
+dialog, which names the commands; without it `400 web.invalidBody`). Only
+a `planned` build (`409 build.wrongState`). Every rule is checked and each
+problem named in `400 build.invalidStart { issues }`: 1 to 20 tasks, each
+depending only on earlier ones; `limit` from 1 to the queue's length;
+commands and checks exact, one per line, plain characters only, no chain,
+wildcard or secret; `fixRounds` 0 to 2; thresholds 1 to 100. Then the
+integration branch is made at the default branch's head and the loop
+starts; nothing of the start changes afterwards.
+
+### `POST /api/builds/:id/pause`, `/resume`, `/cancel`
+
+Cancel takes `{ "confirm": true }` (without it `400 web.invalidBody`).
+Pause: a `running` build pauses before its next task (`pausing: true`
+until then); a build paused for usage becomes paused by the user and no
+longer resumes by itself. Resume: a `paused`, `interrupted` or `finished`
+build; a waiting task the user approved since is taken as applied, skipped
+tasks and waiting tasks with no task of their own are queued again, and
+the next task starts without reading the plan usage. Cancel: a `running`
+build ends the round or checks at work (process tree included) and
+becomes `cancelled` once its loop stopped; a `paused` or `interrupted`
+build is cancelled at once. The integration branch stays. Otherwise
+`409 build.wrongState`.
+
+### `GET /api/builds/:id/diff`
+
+`{ diff, head? }`: the whole change on the integration branch since the
+start, as a task's proposal diff (`{ files, more }`), and `head`, the
+integration commit it shows (the page sends it back to apply); or the
+applied commit's change once applied; `diff: null` before the start or
+once discarded.
+
+### `POST /api/builds/:id/apply`
+
+Body `{ "confirm": true, "head": "<sha>" }` (without them
+`400 web.invalidBody`). `head` must be the integration head the page
+showed and a commit of one of the build's applied tasks, otherwise
+`409 build.branchMoved` (the branch moved, or holds a commit briefstack did
+not make). A waiting task the user approved since counts as applied.
+A `paused`, `interrupted`, `cancelled` or `finished` build with no task at
+work (`409 build.taskRunning`) and none waiting for the user
+(`409 build.openTasks { tasks }`: approve each onto the build's branch, or
+discard it, first). One commit on the default branch with the integration
+branch's whole change, with a task's refusals (`task.dirtyFolder`,
+`task.notOnBranch`, `task.conflict`, `task.mergeDrivers`,
+`task.projectBusy`, ...); `409 build.nothingToApply` when the branch holds
+nothing new. Tasks the build cancelled are discarded with it. A line goes
+in the project's library note. Nothing is pushed.
+
+### `POST /api/builds/:id/revert`
+
+Body `{ "confirm": true }`. An `applied` build: one commit that undoes
+the build's commit, with the same refusals.
+
+### `POST /api/builds/:id/discard`
+
+Body `{ "confirm": true }`. A `planned` or `planFailed` build, or a started one that is `paused`,
+`interrupted`, `cancelled` or `finished` with no task at work: every open
+task of the build is discarded (its worktree and branch), the integration
+branch is deleted, and the build becomes `discarded`. Nothing reaches the
+project. Refused (`409 build.branchMoved`) when the user checked the
+integration branch out in the project folder by hand.
+
 ## CLI: `skills install`
 
 `briefstack skills install <project-dir> [--skill <name>] [--json]`. Without

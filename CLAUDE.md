@@ -5,11 +5,20 @@ each one.
 
 ## Current state
 
-Phase 8 is done: Codex in tasks (Claude may hand code writing in a task to
-Codex; off by default). Its brief, with what changed and the steps as
-done, is `docs/BRIEF-phase-8.md`; its decisions are in
-`docs/decisions.md`, "Phase 8" (the close: "Phase 8: closed"). Codex in
-the creation flow is next and has no brief yet.
+Phase 9 is in progress (tag `phase-9-start`): builds (from a project's
+brief, briefstack plans a queue of tasks and runs it unattended on an
+integration branch; the user applies the whole build at the end). Its
+brief is `docs/BRIEF-phase-9.md`, its plan with the Status
+`docs/PLAN-phase-9.md`, its decisions `docs/decisions.md`, "Phase 9".
+H0 to M6 are implemented; the real check `scripts/real/check-build.ts`
+waits for the user, and the phase is not done before the user runs and
+accepts it. What phase 9 leaves open is in `docs/IDEAS.md` §9.
+
+Phase 8 is done (tag `phase-8-done`): Codex in tasks (Claude may hand
+code writing in a task to Codex; off by default). Its brief, with what
+changed and the steps as done, is `docs/BRIEF-phase-8.md`; its decisions
+are in `docs/decisions.md`, "Phase 8" (the close: "Phase 8: closed").
+Codex in the creation flow has no brief yet.
 
 Phase 7 is done (tag `phase-7-done`): tasks in existing projects. Its
 brief, `docs/BRIEF-phase-7.md`, and its plan, with the Status,

@@ -7009,3 +7009,30 @@ Choices made without the user, each the conservative reading:
   discarded with the apply, the library line, a dirty folder for revert.
 - **Discard never removes a branch the user checked out by hand**
   (minor): refused with `build.branchMoved`.
+
+## Phase 9: M6, docs and the real check (2026-11-19)
+
+- **README**: builds under "What it does", "Builds decide at the start,
+  then never ask" under the security model, and "A build runs code before
+  you read it" with the builds' limits under Limitations (the brief's §4).
+  `docs/api.md`, "Builds (phase 9)", documents every route.
+- **`scripts/real/check-build.ts` is prepared, not run** (the brief's §5:
+  the user runs it). Same pattern as `check-codex-task.ts`: `--yes`, the
+  spend warning, a temp home with the saver profile, the real
+  `briefstack web` in-process with the real task runner tapped, a usage
+  gate before and after. It plans a two-deliverable brief of a tiny
+  library with the real planner, starts the queue (at most three tasks)
+  with one approved command that is also the check (`node --test`) and
+  one fix round, waits up to 45 minutes, prints every task, denial and
+  plan reading (with or without `resets_at`), discards any waiting task,
+  and applies the build as the page does (`{ confirm: true, head }`, the
+  head read from the diff). What it confirms that the fakes cannot: that
+  the planner gets `StructuredOutput` with `tools: []` and its schema is
+  accepted, that real unattended rounds end on the turn's end, and what
+  the login's plan reading gives. `tests/unit/real-scripts.test.ts`
+  checks it without a session (guards, sandbox, saver, the apply's body,
+  exit 2 without `--yes`).
+- **`briefstack web` takes `buildUsage`** (`CliIO`, like `buildPlanner`):
+  with a test's task runner the server reads no plan by default, so the
+  real check passes the real reader, tapped to print each reading. Tests
+  are unchanged.
