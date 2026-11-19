@@ -286,7 +286,7 @@ export interface Web {
  * this process on a free port, with the real task runner tapped. The
  * server, and any process left in the work folder, end with the check.
  */
-export async function startWeb(check: Check, box: Sandbox, tap: Tap): Promise<Web> {
+export async function startWeb(check: Check, box: Sandbox, tap: Tap, builds: Pick<CliIO, 'buildPlanner' | 'buildUsage'> = {}): Promise<Web> {
   await sandboxLibrary(box);
   // `sandbox()` set BRIEFSTACK_HOME in this process to the temp home: the server and the runner read it from here.
   const pathEnv = systemPathEnv();
@@ -309,6 +309,9 @@ export async function startWeb(check: Check, box: Sandbox, tap: Tap): Promise<We
     pathEnv,
     untilStopped: () => stopped,
     taskRunner: new TaskSdkRunner({ pathEnv, lang: 'en', query: tappedQuery(tap) }),
+    // Builds (phase 9): with a task runner given, the server uses no real planner or plan reading unless these are passed.
+    ...(builds.buildPlanner === undefined ? {} : { buildPlanner: builds.buildPlanner }),
+    ...(builds.buildUsage === undefined ? {} : { buildUsage: builds.buildUsage }),
   };
   const running = main(['web', '--port', '0'], io).catch((error: unknown) => {
     log.push(`web failed: ${error instanceof Error ? error.message : String(error)}`);

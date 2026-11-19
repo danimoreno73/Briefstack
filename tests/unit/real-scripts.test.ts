@@ -895,6 +895,55 @@ describe('phase 8 real check (check-codex-cancel): prepared, guarded, Codex chec
   });
 });
 
+describe('phase 9 real check (check-build): prepared, guarded, kept to a temp home, applying as the page does', { timeout: 60_000 }, () => {
+  const read = () => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-build.ts'), 'utf8');
+
+  it('asks for --yes, works in a temp sandbox on the saver profile, with the real planner and the real plan reading tapped', async () => {
+    const script = await read();
+    expect(script).toContain('requireConfirmation(');
+    expect(script).toMatch(/await sandbox\('build'\)/);
+    expect(script).toContain('check.add(() => box.cleanup())');
+    expect(script).not.toContain('bypassPermissions');
+    // startWeb sets the saver profile in the temp home; the build's planner and plan reading are the real ones.
+    expect(await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'tasks-common.ts'), 'utf8')).toContain("activeProfile: 'saver'");
+    expect(script).toContain('buildPlanner: new SdkBuildPlanner({ pathEnv })');
+    expect(script).toContain('buildUsageReader({ pathEnv, repoDir: PACKAGE_ROOT })');
+    // The usage gate runs before the planner session starts.
+    expect(script.indexOf("await usageGate(box, executable, 'before')")).toBeLessThan(script.indexOf('/api/projects/${project.slug}/builds'));
+  });
+
+  it('checks what only a real session shows: StructuredOutput reaching the planner, and resets_at said, not judged', async () => {
+    const script = await read();
+    expect(script).toContain('the planner answered with a queue (StructuredOutput reached it; the schema was accepted)');
+    expect(script).toContain("notControlled('resets_at for this login");
+    // One approved command, the same as the check, at most three tasks, one fix round, and a deadline on every wait.
+    expect(script).toContain("const COMMAND = 'node --test';");
+    expect(script).toContain('commands: [COMMAND], checks: [COMMAND], fixRounds: 1');
+    expect(script).toContain('Math.min(3, plan.plan.tasks.length)');
+    expect(script.match(/await waitBuild\(web, id, .+?, \d+ \* 60_000\)/g)?.length).toBe(2);
+    expect(script.match(/await waitBuild\(/g)?.length).toBe(2);
+  });
+
+  it('applies with the confirmation and the head the diff showed, as the page sends them', async () => {
+    const script = await read();
+    const page = await readFile(path.join(PACKAGE_ROOT, 'src', 'ui', 'builds.tsx'), 'utf8');
+    expect(page).toContain("name === 'apply' ? { confirm: true, head }");
+    expect(script).toContain("web.call('POST', `/api/builds/${id}/apply`, { confirm: true, head: shown.head })");
+    expect(script.indexOf("web.call('GET', `/api/builds/${id}/diff`)")).toBeLessThan(script.indexOf('/apply`'));
+  });
+
+  it('without --yes it exits with 2 and starts nothing', async () => {
+    const child = spawn(process.execPath, ['--import', 'tsx', path.join('scripts', 'real', 'check-build.ts')], { cwd: PACKAGE_ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    let err = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => (err += chunk));
+    const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
+    expect(code).toBe(2);
+    expect(err).toContain('Run it again with --yes');
+    expect(err).toContain('planner session');
+  });
+});
+
 describe('check-two-creations: acts on fresh state only', () => {
   it('reads each creation just before acting on it and skips finished ones', async () => {
     const script = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-two-creations.ts'), 'utf8');

@@ -66,6 +66,7 @@ import type { TaskRunner } from './tasks/runner.js';
 import { createWebTasks } from './tasks/wiring.js';
 import type { BuildManager } from './builds/manager.js';
 import { FakeBuildPlanner, type BuildPlanner } from './builds/planner.js';
+import type { UsageReading } from './builds/usage.js';
 import { createWebBuilds } from './builds/wiring.js';
 import { CodexService } from './codex/service.js';
 import { createWebCreations } from './creation/wiring.js';
@@ -129,6 +130,8 @@ export interface CliIO {
   taskRunner?: TaskRunner;
   /** The planner of builds (phase 9): the real one unless a test passes the fake one; with a test's task runner and none, a planner that refuses. */
   buildPlanner?: BuildPlanner;
+  /** The plan reading before each build task (phase 9): the real one by default; with a test's task runner and none, no reading. A real check passes the real one, tapped. */
+  buildUsage?: () => Promise<UsageReading>;
   improveVerifier?: Verifier;
   safetyReviewer?: SafetyReviewer;
   /** The model review of skills and the GitHub hosts: the real ones unless a test passes its own. */
@@ -715,7 +718,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       tasks,
       creations,
       planner: io.buildPlanner ?? (testRun ? new FakeBuildPlanner(new Error('No planner in this run.')) : undefined),
-      usage: testRun ? null : undefined,
+      usage: io.buildUsage ?? (testRun ? null : undefined),
     });
     // A server that died with a build running left it interrupted; nothing resumes by itself.
     await builds.recover();
