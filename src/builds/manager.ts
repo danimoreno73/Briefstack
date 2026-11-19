@@ -6,6 +6,7 @@ import type { Effort } from '../models.js';
 import { hideAbsolutePaths } from '../panel/project.js';
 import { checkTaskPreconditions } from '../tasks/preconditions.js';
 import type { TaskManager, TaskView } from '../tasks/manager.js';
+import { repoState } from '../tasks/git.js';
 import { proposalDiff, type ProposalDiff } from '../tasks/proposal.js';
 import { newTaskId } from '../tasks/store.js';
 import { isActiveTask, type TaskState } from '../tasks/types.js';
@@ -410,6 +411,8 @@ export class BuildManager {
       // A started build (M5): its open tasks' worktrees and branches go, then its integration branch. Nothing reaches the project.
       this.refuseUnlessSettled(record, l);
       await this.refuseTaskAtWork(record);
+      // A branch the user checked out by hand is never removed under their folder (review of M5, minor).
+      if ((await repoState(record.projectDir)).branch === record.branch) throw new BriefstackError('build.branchMoved', { branch: record.branch });
       for (const item of record.tasks) {
         if (item.taskId === undefined) continue;
         const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
@@ -446,13 +449,19 @@ export class BuildManager {
    * the build's branch, or discard it, first); a task the build cancelled is
    * discarded with it. Nothing is pushed.
    */
-  apply(id: string): Promise<BuildView> {
+  apply(id: string, shownHead: string): Promise<BuildView> {
     const l = this.liveOf(id);
     return this.serial(l, async () => {
       this.refuseWhileStopping();
-      const record = await this.load(id);
-      this.refuseUnlessSettled(record, l);
-      await this.refuseTaskAtWork(record);
+      const loaded = await this.load(id);
+      this.refuseUnlessSettled(loaded, l);
+      await this.refuseTaskAtWork(loaded);
+      // A waiting task the user approved since (onto the integration branch) counts as applied (review of M5, I1).
+      const record: BuildRecord = { ...loaded, tasks: await this.takeInApproved(loaded.tasks) };
+      // What lands is the change the page showed, and only commits briefstack made on the branch (review of M5, I2).
+      const head = await integrationHead(record.projectDir, record.branch);
+      const made = new Set(record.tasks.flatMap((task) => (task.state === 'applied' && task.commit !== undefined ? [task.commit] : [])));
+      if (head === undefined || head !== shownHead || (head !== record.baseCommit && !made.has(head))) throw new BriefstackError('build.branchMoved', { branch: record.branch });
       const open: number[] = [];
       const cancelled: string[] = [];
       for (const item of record.tasks) {
@@ -502,13 +511,33 @@ export class BuildManager {
    * (BRIEF §3.4): the applied build's commit once applied. `null` before
    * the start, or when the branch is gone (discarded).
    */
-  async diff(id: string): Promise<ProposalDiff | null> {
+  async diff(id: string): Promise<{ diff: ProposalDiff | null; head?: string }> {
     const record = await this.load(id);
-    if (record.baseCommit === undefined) return null;
-    if (record.applied !== undefined) return proposalDiff(record.projectDir, `${record.applied.commit}^1`, record.applied.commit);
+    if (record.baseCommit === undefined) return { diff: null };
+    if (record.applied !== undefined) return { diff: await proposalDiff(record.projectDir, `${record.applied.commit}^1`, record.applied.commit) };
     const head = await integrationHead(record.projectDir, record.branch);
-    if (head === undefined) return null;
-    return proposalDiff(record.projectDir, record.baseCommit, head);
+    if (head === undefined) return { diff: null };
+    // `head` is what the page sends back to apply: the change it showed (review of M5, I2).
+    return { diff: await proposalDiff(record.projectDir, record.baseCommit, head), head };
+  }
+
+  /** A waiting task whose own task the user approved (onto the integration branch) becomes applied, with its commit. */
+  private async takeInApproved(tasks: readonly BuildTask[]): Promise<BuildTask[]> {
+    const out: BuildTask[] = [];
+    for (const item of tasks) {
+      if (item.state === 'waiting' && item.taskId !== undefined) {
+        const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
+        if (task?.state === 'applied') {
+          const applied: BuildTask = { ...item, state: 'applied', ...(task.applied === undefined ? {} : { commit: task.applied.commit }) };
+          delete applied.reason;
+          delete applied.detail;
+          out.push(applied);
+          continue;
+        }
+      }
+      out.push(item);
+    }
+    return out;
   }
 
   // ---- pause, resume, cancel (M4) ---------------------------------------------------------------
@@ -577,7 +606,7 @@ export class BuildManager {
     const record = await this.load(id);
     if (!['paused', 'interrupted', 'finished'].includes(record.state) || l.loop !== undefined || l.cancelling) throw new BriefstackError('build.wrongState', { id, state: record.state });
     const tasks: BuildTask[] = [];
-    for (const item of record.tasks) {
+    for (const item of await this.takeInApproved(record.tasks)) {
       // A task that could not start, or met the cap of rounds, has no task of its own to handle: it is queued again
       // (the cap still holds; review of M4, I4).
       if (item.state === 'waiting' && item.taskId === undefined && (item.reason === 'notStarted' || item.reason === 'roundsCap')) {
@@ -586,16 +615,6 @@ export class BuildManager {
         delete queued.detail;
         tasks.push(queued);
         continue;
-      }
-      if (item.state === 'waiting' && item.taskId !== undefined) {
-        const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
-        if (task?.state === 'applied') {
-          const applied: BuildTask = { ...item, state: 'applied', ...(task.applied === undefined ? {} : { commit: task.applied.commit }) };
-          delete applied.reason;
-          delete applied.detail;
-          tasks.push(applied);
-          continue;
-        }
       }
       if (item.state === 'skipped') {
         const queued: BuildTask = { ...item, state: 'queued' };

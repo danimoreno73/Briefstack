@@ -13,7 +13,7 @@ import { TaskFakeRunner, type TaskFakeScript, type TaskFakeStep } from '../../sr
 import { TaskManager } from '../../src/tasks/manager.js';
 import type { CheckResult } from '../../src/tasks/types.js';
 import { useHermeticGit, writeTree } from '../helpers.js';
-import { gitIn, taskWorld, type TaskWorld } from '../taskWorld.js';
+import { commitAll, gitIn, taskWorld, type TaskWorld } from '../taskWorld.js';
 
 // Builds (BRIEF-phase-9 §3; PLAN-phase-9 M3 and M4) over the fake planner and
 // the fake task runner, on a temp git repository.
@@ -810,29 +810,33 @@ describe('the loop (M4)', () => {
 });
 
 describe('the build page\'s actions (M5)', () => {
-  it('apply waits for the user\'s waiting tasks, then lands the whole build as one commit in the user\'s folder; revert undoes it', async () => {
+  it('apply waits for the user\'s waiting tasks, then lands the whole build as one commit in the user\'s folder, with a line in the note; revert undoes it', async () => {
+    await world.initLibrary();
     const s = setup();
     try {
       const before = (await gitIn(project, 'rev-parse', 'HEAD')).trim();
       const id = await planned(s);
-      expect(await s.builds.diff(id)).toBeNull();
-      await expect(s.builds.apply(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+      expect(await s.builds.diff(id)).toEqual({ diff: null });
+      await expect(s.builds.apply(id, before)).rejects.toMatchObject({ code: 'build.wrongState' });
       await s.builds.start(id, start());
       await s.builds.idle(id);
       const done = await s.builds.get(id);
       expect(done.tasks.map((task) => task.state)).toEqual(['applied', 'waiting', 'skipped']);
       // The page sees the waiting task's own checks.
       expect(done.tasks[1]?.task).toMatchObject({ state: 'proposal', checks: [{ command: 'npm test', exitCode: 1, timedOut: false }], codexCalls: 0, codexTokens: 0 });
-      // The cumulative diff: task 1's file only.
-      expect((await s.builds.diff(id))?.files.map((file) => [file.path, file.status])).toEqual([['LIST.md', 'added']]);
+      // The cumulative diff: task 1's file only, and the head it shows.
+      const shown = await s.builds.diff(id);
+      expect(shown.diff?.files.map((file) => [file.path, file.status])).toEqual([['LIST.md', 'added']]);
+      expect(shown.head).toBe(done.tasks[0]?.commit);
+      const head = shown.head as string;
       // Task 2 waits for the user: no apply until it is approved or discarded.
-      await expect(s.builds.apply(id)).rejects.toMatchObject({ code: 'build.openTasks', params: { tasks: [2] } });
+      await expect(s.builds.apply(id, head)).rejects.toMatchObject({ code: 'build.openTasks', params: { tasks: [2] } });
       await s.tasks.discard(done.tasks[1]?.taskId as string);
       // A dirty folder is refused, as for a task.
       await writeTree(project, { 'DIRTY.md': 'x\n' });
-      await expect(s.builds.apply(id)).rejects.toMatchObject({ code: 'task.dirtyFolder' });
+      await expect(s.builds.apply(id, head)).rejects.toMatchObject({ code: 'task.dirtyFolder' });
       await rm(path.join(project, 'DIRTY.md'));
-      const applied = await s.builds.apply(id);
+      const applied = await s.builds.apply(id, head);
       expect(applied.state).toBe('applied');
       const commit = applied.applied?.commit as string;
       expect((await gitIn(project, 'rev-parse', 'HEAD')).trim()).toBe(commit);
@@ -840,10 +844,15 @@ describe('the build page\'s actions (M5)', () => {
       expect((await gitIn(project, 'log', '-1', '--format=%B')).trim()).toContain(`Build ${id}: 1 task from the project's brief`);
       expect(await readFile(path.join(project, 'LIST.md'), 'utf8')).toBe('List.\n');
       expect(await gitIn(project, 'status', '--porcelain')).toBe('');
+      expect(await readFile(path.join(world.library, 'projects', 'garden.md'), 'utf8')).toContain(`Build applied: 1 task (commit ${commit.slice(0, 7)}, build ${id}).`);
       // Applied: the project is free again; the diff is the applied commit's.
       expect(await s.builds.holder('garden')).toBeUndefined();
-      expect((await s.builds.diff(id))?.files.map((file) => file.path)).toEqual(['LIST.md']);
-      await expect(s.builds.apply(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+      expect((await s.builds.diff(id)).diff?.files.map((file) => file.path)).toEqual(['LIST.md']);
+      await expect(s.builds.apply(id, head)).rejects.toMatchObject({ code: 'build.wrongState' });
+      // Revert has the same refusals.
+      await writeTree(project, { 'DIRTY.md': 'x\n' });
+      await expect(s.builds.revert(id)).rejects.toMatchObject({ code: 'task.dirtyFolder' });
+      await rm(path.join(project, 'DIRTY.md'));
       const reverted = await s.builds.revert(id);
       expect(reverted.state).toBe('reverted');
       expect((await gitIn(project, 'rev-parse', 'HEAD^')).trim()).toBe(commit);
@@ -870,7 +879,7 @@ describe('the build page\'s actions (M5)', () => {
       expect(await integrationHead(project, done.branch)).toBeUndefined();
       expect((await s.tasks.get(waiting)).state).toBe('discarded');
       expect(await s.builds.holder('garden')).toBeUndefined();
-      expect(await s.builds.diff(id)).toBeNull();
+      expect(await s.builds.diff(id)).toEqual({ diff: null });
       expect((await gitIn(project, 'rev-parse', 'HEAD')).trim()).toBe(before);
       expect(await gitIn(project, 'status', '--porcelain')).toBe('');
     } finally {
@@ -885,16 +894,140 @@ describe('the build page\'s actions (M5)', () => {
       const id = await planned(s);
       await s.builds.start(id, start(PLAN, { limit: 1 }));
       await until(() => s.tasks.activeIds().length === 1);
-      await expect(s.builds.apply(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+      const base = (await s.builds.get(id)).baseCommit as string;
+      await expect(s.builds.apply(id, base)).rejects.toMatchObject({ code: 'build.wrongState' });
       await expect(s.builds.discard(id)).rejects.toMatchObject({ code: 'build.wrongState' });
       await expect(s.builds.revert(id)).rejects.toMatchObject({ code: 'build.wrongState' });
       await s.builds.cancel(id);
       await until(async () => (await s.builds.get(id)).state === 'cancelled');
       // Cancelled with nothing applied: nothing to apply; the cancelled task is discarded with the build.
-      await expect(s.builds.apply(id)).rejects.toMatchObject({ code: 'build.nothingToApply' });
+      await expect(s.builds.apply(id, base)).rejects.toMatchObject({ code: 'build.nothingToApply' });
       const taskId = (await s.builds.get(id)).tasks[0]?.taskId as string;
       expect((await s.builds.discard(id)).state).toBe('discarded');
       expect((await s.tasks.get(taskId)).state).toBe('discarded');
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('a waiting task the user approved counts in the applied build: its commit message and the page (review of M5, I1)', async () => {
+    const fixable: TaskFakeScript = (round, prompt) => {
+      if (prompt.includes('Remove BROKEN')) return { steps: [{ kind: 'delete', file: 'BROKEN' }, { kind: 'end', summary: 'Removed.' }] };
+      return script(round, prompt);
+    };
+    const s = setup({ script: fixable });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start());
+      await s.builds.idle(id);
+      const waiting = (await s.builds.get(id)).tasks[1]?.taskId as string;
+      await s.tasks.newRound(waiting, 'Remove BROKEN.');
+      await until(async () => (await s.tasks.get(waiting)).pending !== undefined);
+      s.tasks.answer(waiting, (await s.tasks.get(waiting)).pending?.id as string, 'once');
+      await until(async () => (await s.tasks.get(waiting)).awaitingReply !== undefined);
+      s.tasks.finishRound(waiting);
+      await until(async () => (await s.tasks.get(waiting)).state === 'proposal');
+      await s.tasks.approve(waiting);
+      const head = (await s.builds.diff(id)).head as string;
+      const applied = await s.builds.apply(id, head);
+      expect(applied.tasks.map((task) => task.state)).toEqual(['applied', 'applied', 'skipped']);
+      const message = (await gitIn(project, 'log', '-1', '--format=%B')).trim();
+      expect(message).toContain(`Build ${id}: 2 tasks from the project's brief`);
+      expect(message).toContain('- Total');
+      expect((await gitIn(project, 'show', 'HEAD:TOTAL.md')).trim()).toBe('Total.');
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('apply refuses a branch that is not the one the page showed, or that holds a commit briefstack did not make (review of M5, I2)', async () => {
+    const s = setup();
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN, { limit: 1 }));
+      await s.builds.idle(id);
+      const build = await s.builds.get(id);
+      const head = (await s.builds.diff(id)).head as string;
+      // The page showed an older head (the base).
+      await expect(s.builds.apply(id, build.baseCommit as string)).rejects.toMatchObject({ code: 'build.branchMoved' });
+      // Someone added a commit to the branch outside briefstack: the page would show it, but briefstack did not make it.
+      const tree = (await gitIn(project, 'rev-parse', `${head}^{tree}`)).trim();
+      const foreign = (await gitIn(project, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit-tree', tree, '-p', head, '-m', 'by hand')).trim();
+      await gitIn(project, 'update-ref', `refs/heads/${build.branch}`, foreign, head);
+      expect((await s.builds.diff(id)).head).toBe(foreign);
+      await expect(s.builds.apply(id, foreign)).rejects.toMatchObject({ code: 'build.branchMoved' });
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('when the project\'s branch moved: a conflicting change is refused; another change is combined (three-way)', async () => {
+    const s = setup();
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN, { limit: 1 }));
+      await s.builds.idle(id);
+      const head = (await s.builds.diff(id)).head as string;
+      // The user committed LIST.md with other content on main meanwhile: a conflict.
+      await writeTree(project, { 'LIST.md': 'Mine.\n' });
+      await commitAll(project, 'my list');
+      await expect(s.builds.apply(id, head)).rejects.toMatchObject({ code: 'task.conflict' });
+      expect((await s.builds.get(id)).state).toBe('finished');
+      // Undone, and another file committed instead: the build lands on top of it.
+      await gitIn(project, 'reset', '--hard', '--quiet', 'HEAD~1');
+      await writeTree(project, { 'OTHER.md': 'Other.\n' });
+      const mine = await commitAll(project, 'other file');
+      const applied = await s.builds.apply(id, head);
+      expect(applied.state).toBe('applied');
+      expect((await gitIn(project, 'rev-parse', 'HEAD^')).trim()).toBe(mine);
+      expect(await readFile(path.join(project, 'OTHER.md'), 'utf8')).toBe('Other.\n');
+      expect(await readFile(path.join(project, 'LIST.md'), 'utf8')).toBe('List.\n');
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('apply and discard wait while the user\'s own round on a waiting task works (build.taskRunning)', async () => {
+    const asking: TaskFakeScript = (round, prompt) => (prompt.includes('Look again') ? { steps: [{ kind: 'shell', command: 'npm test' }, { kind: 'end', summary: 'Looked.' }] } : script(round, prompt));
+    const s = setup({ script: asking });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start());
+      await s.builds.idle(id);
+      const waiting = (await s.builds.get(id)).tasks[1]?.taskId as string;
+      const head = (await s.builds.diff(id)).head as string;
+      // The user's round asks a command: it waits on the dialog, running.
+      await s.tasks.newRound(waiting, 'Look again.');
+      await until(async () => (await s.tasks.get(waiting)).pending !== undefined);
+      await expect(s.builds.apply(id, head)).rejects.toMatchObject({ code: 'build.taskRunning', params: { task: waiting } });
+      await expect(s.builds.discard(id)).rejects.toMatchObject({ code: 'build.taskRunning' });
+      s.tasks.cancel(waiting);
+      await until(async () => (await s.tasks.get(waiting)).state === 'cancelled');
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('a task the build cancelled is discarded with the apply', async () => {
+    const slowTotal: TaskFakeScript = (round, prompt) => (/The task: Total/.test(prompt) ? slow(round, prompt) : script(round, prompt));
+    const s = setup({ script: slowTotal });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN, { limit: 2, checks: [] }));
+      await until(async () => (await s.builds.get(id)).tasks[1]?.taskId !== undefined);
+      await s.builds.cancel(id);
+      await until(async () => (await s.builds.get(id)).state === 'cancelled');
+      const build = await s.builds.get(id);
+      expect(build.tasks.map((task) => task.state)).toEqual(['applied', 'cancelled', 'queued']);
+      const cancelled = build.tasks[1]?.taskId as string;
+      expect((await s.tasks.get(cancelled)).state).toBe('cancelled');
+      expect((await s.builds.apply(id, (await s.builds.diff(id)).head as string)).state).toBe('applied');
+      expect((await s.tasks.get(cancelled)).state).toBe('discarded');
     } finally {
       await s.builds.shutdown();
       await s.tasks.shutdown();

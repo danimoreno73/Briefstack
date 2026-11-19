@@ -121,7 +121,7 @@ describe('build routes', () => {
     await builds.idle(id);
     expect(await call('POST', `/api/builds/${id}/pause`, {})).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
     expect(await call('POST', `/api/builds/${id}/resume`, {})).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
-    expect(await call('POST', `/api/builds/${id}/cancel`, {})).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
+    expect(await call('POST', `/api/builds/${id}/cancel`, { confirm: true })).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
     await call('POST', `/api/builds/${id}/start`, { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true });
     await builds.idle(id);
     expect((await call('GET', `/api/builds/${id}`)).json).toMatchObject({ state: 'finished' });
@@ -129,7 +129,7 @@ describe('build routes', () => {
     expect(await call('POST', `/api/builds/${id}/resume`, {})).toMatchObject({ status: 200, json: { state: 'running' } });
     await builds.idle(id);
     expect((await call('GET', `/api/builds/${id}`)).json).toMatchObject({ state: 'finished' });
-    expect(await call('POST', `/api/builds/nope/cancel`, {})).toMatchObject({ status: 404, json: { code: 'build.notFound' } });
+    expect(await call('POST', `/api/builds/nope/cancel`, { confirm: true })).toMatchObject({ status: 404, json: { code: 'build.notFound' } });
   });
 
   it('show the whole change, apply the build, revert it; discard a started one (M5)', async () => {
@@ -139,25 +139,32 @@ describe('build routes', () => {
     expect(await call('GET', `/api/builds/${id}/diff`)).toMatchObject({ status: 200, json: { diff: null } });
     await call('POST', `/api/builds/${id}/start`, { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true });
     await builds.idle(id);
-    const diff = (await call('GET', `/api/builds/${id}/diff`)).json.diff as { files: { path: string }[] };
-    expect(diff.files.length).toBeGreaterThan(0);
-    expect(await call('POST', `/api/builds/${id}/revert`, {})).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
-    expect(await call('POST', `/api/builds/${id}/apply`, {})).toMatchObject({ status: 200, json: { state: 'applied' } });
-    expect(await call('POST', `/api/builds/${id}/apply`, {})).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
-    expect(await call('POST', `/api/builds/${id}/revert`, {})).toMatchObject({ status: 200, json: { state: 'reverted' } });
+    const shown = (await call('GET', `/api/builds/${id}/diff`)).json as { diff: { files: { path: string }[] }; head: string };
+    expect(shown.diff.files.length).toBeGreaterThan(0);
+    expect(shown.head).toMatch(/^[0-9a-f]{40}$/);
+    // Without the confirmation, or without the head the page showed, nothing changes (review of M5, I2 and I3).
+    expect(await call('POST', `/api/builds/${id}/apply`, {})).toMatchObject({ status: 400 });
+    expect(await call('POST', `/api/builds/${id}/apply`, { confirm: true })).toMatchObject({ status: 400 });
+    expect(await call('POST', `/api/builds/${id}/revert`, { confirm: true })).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
+    expect(await call('POST', `/api/builds/${id}/apply`, { confirm: true, head: shown.head })).toMatchObject({ status: 200, json: { state: 'applied' } });
+    expect(await call('POST', `/api/builds/${id}/apply`, { confirm: true, head: shown.head })).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
+    expect(await call('POST', `/api/builds/${id}/revert`, {})).toMatchObject({ status: 400 });
+    expect(await call('POST', `/api/builds/${id}/revert`, { confirm: true })).toMatchObject({ status: 200, json: { state: 'reverted' } });
 
     const other = (await call('POST', '/api/projects/garden/builds', {})).json.id as string;
     await builds.idle(other);
     await call('POST', `/api/builds/${other}/start`, { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true });
     await builds.idle(other);
-    expect(await call('POST', `/api/builds/${other}/discard`, {})).toMatchObject({ status: 200, json: { state: 'discarded' } });
+    expect(await call('POST', `/api/builds/${other}/discard`, {})).toMatchObject({ status: 400 });
+    expect((await call('GET', `/api/builds/${other}`)).json).toMatchObject({ state: 'finished' });
+    expect(await call('POST', `/api/builds/${other}/discard`, { confirm: true })).toMatchObject({ status: 200, json: { state: 'discarded' } });
   });
 
   it('discard a build that never started, which frees the project (review of M3, I4)', async () => {
     await serve();
     const id = (await call('POST', '/api/projects/garden/builds', {})).json.id as string;
     await builds.idle(id);
-    expect(await call('POST', `/api/builds/${id}/discard`, {})).toMatchObject({ status: 200, json: { state: 'discarded' } });
+    expect(await call('POST', `/api/builds/${id}/discard`, { confirm: true })).toMatchObject({ status: 200, json: { state: 'discarded' } });
     expect((await call('GET', '/api/projects/garden/builds')).json).toMatchObject({ plan: { ok: true } });
   });
 

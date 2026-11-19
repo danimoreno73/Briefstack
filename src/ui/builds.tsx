@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { ApiError } from './apiError.js';
 import { formatCount } from './codexData.js';
 import { Diff } from './improve.js';
@@ -385,7 +385,7 @@ function StatusNotes({ build }: { build: BuildViewUi }) {
 type BuildAction = 'pause' | 'resume' | 'cancel' | 'apply' | 'revert' | 'discard';
 
 /** The build's actions, each confirmed when it changes something that stays (BRIEF §3.4, §3.5). */
-function Actions({ build, onDone }: { build: BuildViewUi; onDone(): void }) {
+function Actions({ build, head, onDone }: { build: BuildViewUi; head: string | undefined; onDone(): void }) {
   const { t } = useApp();
   const send = useSend();
   const action = useAction();
@@ -395,11 +395,13 @@ function Actions({ build, onDone }: { build: BuildViewUi; onDone(): void }) {
     pause: (build.state === 'running' && build.pausing !== true && build.cancelling !== true) || (build.state === 'paused' && build.pause?.reason !== 'user'),
     resume: ['paused', 'interrupted', 'finished'].includes(build.state) && build.cancelling !== true,
     cancel: (build.state === 'running' && build.cancelling !== true) || build.state === 'paused' || build.state === 'interrupted',
-    apply: settled,
+    apply: settled && head !== undefined,
     revert: build.state === 'applied',
     discard: settled,
   };
-  const run = (name: BuildAction) => void action.run(() => send('POST', `/api/builds/${encodeURIComponent(build.id)}/${name}`, {})).then((ok) => ok && onDone());
+  // Confirmed actions say so in the body; apply also names the change the page shows (review of M5, I2 and I3).
+  const body = (name: BuildAction): Record<string, unknown> => (name === 'apply' ? { confirm: true, head } : dialogs[name] === undefined ? {} : { confirm: true });
+  const run = (name: BuildAction) => void action.run(() => send('POST', `/api/builds/${encodeURIComponent(build.id)}/${name}`, body(name))).then((ok) => ok && onDone());
   const dialogs: Partial<Record<BuildAction, { title: string; body: string; label: string; tone: 'normal' | 'danger' }>> = {
     cancel: { title: t.buildCancelTitle, body: t.buildCancelBody, label: t.buildCancel, tone: 'danger' },
     apply: { title: t.buildApplyTitle, body: `${t.buildApplyBody(build.baseBranch ?? '')} ${t.buildApplyHint}`, label: t.buildApply, tone: 'normal' },
@@ -447,13 +449,32 @@ function Actions({ build, onDone }: { build: BuildViewUi; onDone(): void }) {
 }
 
 /** The whole change on the build's branch since its start (the applied commit's, once applied). */
-function BuildDiff({ build }: { build: BuildViewUi }) {
-  const { t } = useApp();
-  const loaded = useLoad<{ diff: TaskProposalUi['diff'] }>(`/api/builds/${encodeURIComponent(build.id)}/diff`);
+interface BuildDiffUi {
+  diff: TaskProposalUi['diff'];
+  /** The integration head the diff shows: apply sends it back. */
+  head?: string;
+}
+
+/** The build's diff, read again when its state or its applied tasks change. */
+function useBuildDiff(build: BuildViewUi | undefined, id: string) {
+  const loaded = useLoad<BuildDiffUi>(`/api/builds/${encodeURIComponent(id)}/diff`);
   const { reload } = loaded;
-  // Read again when the build's state or its applied tasks change.
-  const applied = build.tasks.filter((task) => task.state === 'applied').length;
-  useEffect(() => reload(), [reload, build.state, applied]);
+  const applied = build?.tasks.filter((task) => task.state === 'applied').length ?? 0;
+  const state = build?.state;
+  const first = useRef(true);
+  useEffect(() => {
+    // The first load is `useLoad`'s own.
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    reload();
+  }, [reload, state, applied]);
+  return loaded;
+}
+
+function BuildDiff({ loaded }: { loaded: ReturnType<typeof useBuildDiff> }) {
+  const { t } = useApp();
   return (
     <LoadState loaded={loaded}>
       {(data) =>
@@ -508,7 +529,7 @@ function DiscardUnstarted({ build, onDone }: { build: BuildViewUi; onDone(): voi
           cancelLabel={t.cancel}
           onConfirm={() => {
             setConfirm(false);
-            void action.run(() => send('POST', `/api/builds/${encodeURIComponent(build.id)}/discard`, {})).then((ok) => ok && onDone());
+            void action.run(() => send('POST', `/api/builds/${encodeURIComponent(build.id)}/discard`, { confirm: true })).then((ok) => ok && onDone());
           }}
           onCancel={() => setConfirm(false)}
         />
@@ -525,6 +546,7 @@ export function BuildPage({ id }: { id: string }) {
   // A build paused for usage resumes by itself: the page keeps reading it (review of M3, minor).
   const autoResume = build?.state === 'paused' && build.pause?.reason !== 'user';
   usePoll(loaded.reload, build !== undefined && (LIVE.has(build.state) || build.pausing === true || build.cancelling === true || autoResume), autoResume ? 5000 : 1000);
+  const diff = useBuildDiff(build, id);
   return (
     <LoadState loaded={loaded}>
       {(view) => (
@@ -557,9 +579,9 @@ export function BuildPage({ id }: { id: string }) {
             <StatusNotes build={view} />
             {view.state === 'planned' && <PlannedStart build={view} onStarted={loaded.reload} />}
             {(view.state === 'planned' || view.state === 'planFailed') && <DiscardUnstarted build={view} onDone={loaded.reload} />}
-            {view.tasks.length > 0 && <Actions build={view} onDone={loaded.reload} />}
+            {view.tasks.length > 0 && <Actions build={view} head={diff.data?.head} onDone={loaded.reload} />}
             {view.tasks.length > 0 && <Progress build={view} />}
-            {view.tasks.length > 0 && view.state !== 'discarded' && <BuildDiff build={view} />}
+            {view.tasks.length > 0 && view.state !== 'discarded' && <BuildDiff loaded={diff} />}
           </div>
         </>
       )}

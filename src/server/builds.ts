@@ -25,6 +25,11 @@ const startBody = z.strictObject({
   confirm: z.literal(true),
 });
 
+/** The page's confirmation of an action that stays (discard, cancel, revert). */
+const confirmBody = z.strictObject({ confirm: z.literal(true) });
+/** Apply also names the integration head the page showed (`GET /api/builds/:id/diff`). */
+const applyBody = z.strictObject({ confirm: z.literal(true), head: z.string().regex(/^[0-9a-f]{40,64}$/) });
+
 export interface BuildRouteOptions {
   usage?: UsageCheck | undefined;
 }
@@ -68,12 +73,37 @@ export function buildRoutes(manager: BuildManager | undefined, options: BuildRou
         sendJson(res, 200, await need().start(id(params), { tasks: body.tasks as never, limit: body.limit, commands: body.commands, checks: body.checks, fixRounds: body.fixRounds, thresholds: body.thresholds }));
       },
     ],
-    ['POST /api/builds/:id/discard', async (_req, res, params) => sendJson(res, 200, await need().discard(id(params)))],
+    // Actions the page confirms first say so in the body; without it nothing changes, as for tasks (review of M5, I3).
+    [
+      'POST /api/builds/:id/discard',
+      async (req, res, params) => {
+        await readJsonBody(req, confirmBody);
+        sendJson(res, 200, await need().discard(id(params)));
+      },
+    ],
     ['POST /api/builds/:id/pause', async (_req, res, params) => sendJson(res, 200, await need().pause(id(params)))],
     ['POST /api/builds/:id/resume', async (_req, res, params) => sendJson(res, 200, await need().resume(id(params)))],
-    ['POST /api/builds/:id/cancel', async (_req, res, params) => sendJson(res, 200, await need().cancel(id(params)))],
-    ['POST /api/builds/:id/apply', async (_req, res, params) => sendJson(res, 200, await need().apply(id(params)))],
-    ['POST /api/builds/:id/revert', async (_req, res, params) => sendJson(res, 200, await need().revert(id(params)))],
-    ['GET /api/builds/:id/diff', async (_req, res, params) => sendJson(res, 200, { diff: await need().diff(id(params)) })],
+    [
+      'POST /api/builds/:id/cancel',
+      async (req, res, params) => {
+        await readJsonBody(req, confirmBody);
+        sendJson(res, 200, await need().cancel(id(params)));
+      },
+    ],
+    [
+      'POST /api/builds/:id/apply',
+      async (req, res, params) => {
+        const { head } = await readJsonBody(req, applyBody);
+        sendJson(res, 200, await need().apply(id(params), head));
+      },
+    ],
+    [
+      'POST /api/builds/:id/revert',
+      async (req, res, params) => {
+        await readJsonBody(req, confirmBody);
+        sendJson(res, 200, await need().revert(id(params)));
+      },
+    ],
+    ['GET /api/builds/:id/diff', async (_req, res, params) => sendJson(res, 200, await need().diff(id(params)))],
   ];
 }
