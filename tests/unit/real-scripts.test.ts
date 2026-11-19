@@ -916,6 +916,12 @@ describe('phase 9 real check (check-build): prepared, guarded, kept to a temp ho
     const script = await read();
     expect(script).toContain('the planner answered with a queue (StructuredOutput reached it; the schema was accepted)');
     expect(script).toContain("notControlled('resets_at for this login");
+    // The sessions' own messages: every shell call against the approved list, and no Codex offered (review of M6, I-2).
+    expect(script).toContain('tap.calls.filter((call) => SHELL_TOOLS.includes(call.name))');
+    expect(script).toContain('every shell command outside the approved list came back refused (none ran)');
+    expect(script).toContain('!init.tools.includes(CODEX_TOOL_ID)');
+    // Only a finished build is applied: a paused one keeps its resume timer.
+    expect(script).toContain("if (done.state === 'finished' && applied.length >= 1) {");
     // One approved command, the same as the check, at most three tasks, one fix round, and a deadline on every wait.
     expect(script).toContain("const COMMAND = 'node --test';");
     expect(script).toContain('commands: [COMMAND], checks: [COMMAND], fixRounds: 1');

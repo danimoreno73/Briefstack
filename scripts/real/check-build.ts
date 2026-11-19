@@ -6,9 +6,13 @@
 //     schema in draft-07) answers with a queue at all (decisions.md, "Phase
 //     9: the planner and structured output": whether `tools: []` keeps
 //     `StructuredOutput` was not verifiable without a real session);
-//   - that real unattended rounds finish on the turn's end, run only the
-//     approved commands (anything else denied without a dialog), and that
-//     a task is applied to the integration branch when its checks pass;
+//   - that real unattended rounds come to an end by themselves (the build
+//     reaches `finished` with no one answering), that every shell command
+//     a session tried outside the approved list came back refused (read
+//     from the sessions' own messages; that no dialog opened is not
+//     observable here and is said so), that no task session offered Codex,
+//     and that a task is applied to the integration branch when its checks
+//     pass;
 //   - what the real plan reading gives before each task: whether the login
 //     fills `resets_at` (decisions.md, "Phase 9: H0", 2);
 //   - the final apply: one commit on `main` in the project folder.
@@ -24,7 +28,9 @@
 
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { isApprovedCommand } from '../../src/builds/commands.js';
 import { SdkBuildPlanner } from '../../src/builds/planner.js';
+import { CODEX_TOOL_ID } from '../../src/codex/toolNames.js';
 import { buildUsageReader, type UsageReading } from '../../src/builds/usage.js';
 import { systemPathEnv } from '../../src/config/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
@@ -73,6 +79,8 @@ const BRIEF = [
 ].join('\n');
 
 const COMMAND = 'node --test';
+/** The tools a session runs shell commands with (Bash, and PowerShell on Windows). */
+const SHELL_TOOLS = ['Bash', 'PowerShell'];
 const TERMINAL = ['finished', 'paused', 'interrupted', 'cancelled'];
 
 const check = startCheck();
@@ -165,7 +173,25 @@ try {
   verdict('nothing reached main before the apply: same HEAD, clean folder', (await g(['rev-parse', 'HEAD'])) === project.base && (await g(['status', '--porcelain'])) === '', '');
   const deniedAll = done.tasks.flatMap((task) => task.denied ?? []);
   console.log(`   commands denied in the build: ${deniedAll.length === 0 ? 'none' : deniedAll.map((entry) => `${entry.tool}: ${entry.text}`).join(' | ')}`);
-  notControlled('every denial happened without a dialog', 'a build round has no dialog to open; the unit tests show it, and this run prints the denied list above');
+  // What the real task sessions did, read from their own messages (the tap): every shell call against the approved list.
+  const shellCalls = tap.calls.filter((call) => SHELL_TOOLS.includes(call.name));
+  for (const call of shellCalls) {
+    const command = typeof call.input.command === 'string' ? call.input.command : JSON.stringify(call.input);
+    const result = tap.results.get(call.id);
+    console.log(`   ${call.name} ${JSON.stringify(command.slice(0, 200))}: ${isApprovedCommand(command, [COMMAND]) ? 'on the list' : 'NOT on the list'}, ${result === undefined ? 'no result seen' : result.error ? `refused or failed: ${result.text.slice(0, 160)}` : 'ran'}`);
+  }
+  const offList = shellCalls.filter((call) => !isApprovedCommand(typeof call.input.command === 'string' ? call.input.command : '', [COMMAND]));
+  verdict(
+    'every shell command outside the approved list came back refused (none ran)',
+    offList.every((call) => tap.results.get(call.id)?.error === true),
+    `${shellCalls.length} shell call(s), ${offList.length} off the list, ${deniedAll.length} recorded as denied`,
+  );
+  verdict(
+    'the task sessions were seen, and none offered Codex (builds never do)',
+    tap.inits.length >= 1 && tap.inits.every((init) => !init.tools.includes(CODEX_TOOL_ID)),
+    `${tap.inits.length} task session(s); Claude Code ${tap.inits[0]?.claudeCodeVersion ?? '?'}`,
+  );
+  notControlled('every denial happened without a dialog', 'a build round has no dialog to open; the unit tests show it, and this run prints each shell call and its result above');
 
   // 4. The plan readings before each task.
   for (const { at, reading } of readings) console.log(`   reading at ${at}: ${JSON.stringify(reading)}`);
@@ -175,8 +201,9 @@ try {
   if (okReadings.length === 0) notControlled('resets_at for this login', `no reading with plan limits (${readings.map((entry) => entry.reading.kind).join(', ') || 'none'})`);
   else notControlled('resets_at for this login (informative, H0 point 2)', `${withReset.length} of ${okReadings.length} reading(s) carried a reset time`);
 
-  // 5. The final apply: tasks still waiting are discarded first (the build refuses to drop them).
-  if (applied.length >= 1) {
+  // 5. The final apply: tasks still waiting are discarded first (the build refuses to drop them). Only a finished build:
+  // a paused one keeps its resume timer, and the run already failed above.
+  if (done.state === 'finished' && applied.length >= 1) {
     for (const task of done.tasks) {
       if (task.taskId === undefined || task.state === 'applied') continue;
       if (task.task !== undefined && ['proposal', 'failed', 'cancelled', 'interrupted'].includes(task.task.state)) {
@@ -196,7 +223,7 @@ try {
     verdict('src/greet.js is in the project', await exists(path.join(project.dir, 'src', 'greet.js')), (await readFile(path.join(project.dir, 'src', 'greet.js'), 'utf8').catch(() => '(missing)')).slice(0, 300));
     verdict('no remote: nothing could be pushed', (await g(['remote'])) === '', (await g(['remote'])) || 'none');
   } else {
-    notControlled('the final apply', 'no task was applied');
+    notControlled('the final apply', done.state === 'finished' ? 'no task was applied' : `the build is ${done.state}, not finished`);
   }
 
   await web.stop();
