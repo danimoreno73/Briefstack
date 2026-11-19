@@ -914,8 +914,9 @@ problem named in `400 build.invalidStart { issues }`: 1 to 20 tasks, each
 depending only on earlier ones; `limit` from 1 to the queue's length;
 commands and checks exact, one per line, plain characters only, no chain,
 wildcard or secret; `fixRounds` 0 to 2; thresholds 1 to 100. Then the
-integration branch is made at the default branch's head and the loop
-starts; nothing of the start changes afterwards.
+integration branch is made at the default branch's head (`409
+build.branchExists` when a branch of that name is already there) and the
+loop starts; nothing of the start changes afterwards.
 
 ### `POST /api/builds/:id/pause`, `/resume`, `/cancel`
 
@@ -943,9 +944,13 @@ once discarded.
 
 Body `{ "confirm": true, "head": "<sha>" }` (without them
 `400 web.invalidBody`). `head` must be the integration head the page
-showed and a commit of one of the build's applied tasks, otherwise
-`409 build.branchMoved` (the branch moved, or holds a commit briefstack did
-not make). A waiting task the user approved since counts as applied.
+showed, and every commit on the branch since the start must be one
+briefstack made for an applied task, otherwise `409 build.branchMoved`
+(the branch moved since the page read it, or holds a commit briefstack
+did not make); that head is what lands. A head still at the start is
+`409 build.nothingToApply`. A waiting task the user approved since, or a
+task the build cancelled after its round and the user approved since,
+counts as applied.
 A `paused`, `interrupted`, `cancelled` or `finished` build with no task at
 work (`409 build.taskRunning`) and none waiting for the user
 (`409 build.openTasks { tasks }`: approve each onto the build's branch, or

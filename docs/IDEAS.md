@@ -1060,3 +1060,16 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   only at 0. Commit `a28d655` also holds the refactor of
   `src/tasks/apply.ts` and two test-fixture fixes from M3 and M4. Review
   of M5.
+- **Pending: minor.** After a refused action the build page does not read
+  the diff again (`onDone` runs only on success), so a second Apply with
+  a stale head is refused the same way until the page is reloaded (the
+  message now says to reload). `useBuildDiff` loads twice on mount
+  (harmless). Review of M6.
+- **Pending: minor.** `scripts/real/check-build.ts`: the planner session
+  is not tapped (that `StructuredOutput` reached it is seen from the
+  outcome only, and its `init.tools` is not printed); `web.call` and
+  `web.stop()` have no deadline of their own, and no process count is
+  taken after the stop (only `startWeb`'s last-resort cleanup). Review of
+  M6.
+- **Noted.** Commit `26f52cc` holds the four fixes of the review of M5
+  together, as earlier review fixes in this repository did. Review of M6.

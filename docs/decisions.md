@@ -7025,14 +7025,46 @@ Choices made without the user, each the conservative reading:
   with one approved command that is also the check (`node --test`) and
   one fix round, waits up to 45 minutes, prints every task, denial and
   plan reading (with or without `resets_at`), discards any waiting task,
-  and applies the build as the page does (`{ confirm: true, head }`, the
-  head read from the diff). What it confirms that the fakes cannot: that
-  the planner gets `StructuredOutput` with `tools: []` and its schema is
-  accepted, that real unattended rounds end on the turn's end, and what
-  the login's plan reading gives. `tests/unit/real-scripts.test.ts`
-  checks it without a session (guards, sandbox, saver, the apply's body,
-  exit 2 without `--yes`).
+  and applies a finished build as the page does (`{ confirm: true, head }`,
+  the head read from the diff). What it confirms that the fakes cannot:
+  that the planner answers with a queue (so `StructuredOutput` reached it
+  with `tools: []` and its schema was accepted; seen from the outcome, the
+  planner's own messages are not tapped), that real unattended rounds come
+  to an end with no one answering, that every shell command a task
+  session tried outside the approved list came back refused and that no
+  task session offered Codex (both read from the sessions' messages), and
+  what the login's plan reading gives. That no dialog opened is not
+  observable from outside and is printed as not controlled.
+  `tests/unit/real-scripts.test.ts` checks it without a session (guards,
+  sandbox, saver, the verdicts, the apply's body, exit 2 without `--yes`).
 - **`briefstack web` takes `buildUsage`** (`CliIO`, like `buildPlanner`):
   with a test's task runner the server reads no plan by default, so the
   real check passes the real reader, tapped to print each reading. Tests
   are unchanged.
+
+## Phase 9: review of M6, the fixes (2026-11-19)
+
+The review covered the fixes of the review of M5 and M6 (`086850b..644d0fc`).
+
+- **Apply checks the branch's whole history, not only its head** (I-1):
+  every commit from the build's base to the head the page showed must be
+  one briefstack made for an applied task (`git rev-list`, after
+  `merge-base --is-ancestor`), or `build.branchMoved`. A commit added by
+  hand below a later task's commit (the next task starts from the
+  branch's head) was let through before.
+- **A task the build cancelled after its round counts as applied once the
+  user approves it** (I-1): the cancel left its own task a proposal the
+  user may still approve onto the integration branch; apply refused that
+  branch for good (a cancelled build cannot resume) until it was taken in
+  as a waiting one is.
+- **The head checked is the head that lands** (I-1): `applyBuild` takes
+  the head the manager checked instead of reading the branch again.
+- **The real check reads what the task sessions did** (I-2): a verdict on
+  every shell call (Bash or PowerShell) against the approved list, read
+  from the sessions' own messages, and one that no task session offered
+  Codex; its header and "Phase 9: M6" no longer claim more. It applies
+  only a finished build (a paused one keeps its resume timer).
+- **Minors fixed because cheap**: tests of cancel without `confirm` and of
+  discard with the build's branch checked out by hand; `docs/api.md`
+  (`build.branchExists` on start, `build.nothingToApply` for a head at the
+  base); the README on where a brief comes from. The rest is in IDEAS §9.

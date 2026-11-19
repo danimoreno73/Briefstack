@@ -283,8 +283,9 @@ See [SECURITY.md](SECURITY.md) to report a vulnerability.
   is the one place where checks run without a click on the change (for
   ordinary tasks they still wait for you). Approve only commands you would
   run on unread code, and review the whole build before applying it.
-- Builds plan only from a project's `docs/BRIEF.md` (projects made with
-  the `software` template have one). One build or task per project at a
+- Builds plan only from a project's `docs/BRIEF.md` committed on its
+  branch (the `claude-code` templates point their `CLAUDE.md` there);
+  without one, "Implement" says so. One build or task per project at a
   time; builds share the active-sessions limit and wait for a free place.
   A build paused for usage resumes by itself only while briefstack runs;
   after a restart a build is interrupted and resumes only when you press
