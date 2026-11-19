@@ -1017,3 +1017,15 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
 - **Pending: minor.** The build page polls only while `planning` or
   `running`: a build paused for usage does not refresh when it resumes by
   itself. Review of M3.
+- **Pending: minor.** A cancel followed at once by a server stop is not
+  recorded: the build stays `running`, `recover()` makes it `interrupted`,
+  and the user could resume a build they cancelled; likewise when the loop
+  fails during a cancel. Keeping "cancel asked" in the record would close
+  it. Review of M4.
+- **Pending: minor.** No test of a transitive skip (a task skipped for a
+  skipped one), nor of a task queued again by Resume and skipped again;
+  "cancel kills the tree" is shown with the fake runner and rests on phase
+  7's tests of the task manager's cancel. Review of M4.
+- **Noted.** Commit `4bc9b3f` holds pause, resume and cancel together with
+  the task manager's refusal of a driven task (an open item of the review
+  of M2). Review of M4.

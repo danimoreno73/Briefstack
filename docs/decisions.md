@@ -6922,3 +6922,32 @@ Choices made without the user, each the conservative reading:
   still allowed: it is a safety action, and the build then leaves the task
   waiting. The build applies its task through `applyForBuild`, which skips
   that refusal; `approve` is the user's.
+
+## Phase 9: review of M4, the fixes (2026-11-18)
+
+- **One lock per build for every change of its state** (B1, I1): the
+  user's pause, resume, cancel and discard, the timer's resume after a
+  usage pause, and the loop's own changes of state (paused by the user or
+  the usage, finished) run one at a time and read the record again in
+  their turn. A cancel that comes while the usage is read wins: the loop
+  saves no pause and sets no timer, the reading is not waited for, and
+  `finishCancel` records `cancelled` also when the loop had just paused.
+  A pause or a cancel asked during the reading is taken before the next
+  task starts, and a cancel that comes while a task is about to start
+  starts no session. Before, a cancel during the reading was lost and the
+  build resumed by itself at the reset.
+- **The usage reading has a time limit** of 30 seconds (I2): past it the
+  reading fails (the build pauses and reads again on the interval) and the
+  session is closed; a stop or a cancel does not wait for it at all.
+- **A reset time more than 8 days ahead is not believed** (I3): the build
+  reads again on the interval, and the timer's delay is bounded by what
+  `setTimeout` keeps (2^31 - 1 ms; Node runs a longer one at once).
+- **Resume queues again a waiting task with no task of its own** (I4):
+  `notStarted` (a passing failure such as a creation on the folder) and
+  `roundsCap` (the cap still holds, so the loop leaves it waiting again).
+- **A build paused for usage can be paused by the user**: it then no
+  longer resumes by itself; a pause asked during the reading is the
+  user's pause.
+- **Tests** read reset times at the moment of the reading, check the
+  readings' times instead of a short pause, and lower the cap of rounds
+  with an option (`roundsCap`) instead of rewriting the record.
