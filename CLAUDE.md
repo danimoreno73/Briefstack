@@ -10,8 +10,10 @@ brief, briefstack plans a queue of tasks and runs it unattended on an
 integration branch; the user applies the whole build at the end). Its
 brief is `docs/BRIEF-phase-9.md`, its plan with the Status
 `docs/PLAN-phase-9.md`, its decisions `docs/decisions.md`, "Phase 9".
-H0 to M6 are implemented; the real check `scripts/real/check-build.ts`
-waits for the user, and the phase is not done before the user runs and
+H0 to M6 are implemented; the user ran the real check
+`scripts/real/check-build.ts`, and the second one,
+`scripts/real/check-build-deny.ts` (a denied command, a fix round, a
+waiting task), waits for the user, and the phase is not done before the user runs and
 accepts it. What phase 9 leaves open is in `docs/IDEAS.md` §9.
 
 Phase 8 is done (tag `phase-8-done`): Codex in tasks (Claude may hand

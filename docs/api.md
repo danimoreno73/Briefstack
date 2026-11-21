@@ -778,7 +778,11 @@ A task (`TaskView`) is its record (`src/tasks/types.ts`: `id`, `project`,
 `applied?`, `reverted?`, `error?`) plus what the server knows live: `pending?` (an
 `approval` with the command as shown, or a `question`), `awaitingReply?`,
 `cancelling?`, `uncommitted?` (paths left out at the start), `warnings?`,
-`allowedForTask?`, `codexWorking?`. Each validation is `{ kind, level, file, detail? }`;
+`allowedForTask?`, `codexWorking?`. Each round may carry `codex?` (its
+Codex calls) and `claude?` `{ input, output, cacheRead, cacheCreation }`:
+Claude's own tokens in the round, from the SDK's result message
+(`modelUsage` summed over its models; rounds before phase 9's step 33 have
+none). Each validation is `{ kind, level, file, detail? }`;
 `level: "error"` stops the approval (`outsideWorktree`, `settingsOrHooks`,
 `hiddenLine`), `"warning"` is shown (`secret`, `personalPath`, and
 `notShown` for a file the page lists by name only: `detail` `large`, over
@@ -867,7 +871,10 @@ skippedFor?, detail?, commit?, denied?, rounds, task? }`, with `state`
 `reason` (waiting) `checksFailed`, `denied`, `blocked`, `roundFailed`,
 `interrupted`, `notStarted`, `notApplied` or `roundsCap`; `task` (only on
 `GET /api/builds/:id`) the task's own `{ state, checks?, codexCalls,
-codexTokens }`. `settings` is what the start recorded
+codexTokens, claudeTokens? }`, where `claudeTokens` `{ noCache, withCache,
+rounds }` sums Claude's tokens over the task's rounds that have a reading:
+`noCache` is input plus output (the page's main figure), `withCache` adds
+the prompt cache's reads and writes (in brackets on the page). `settings` is what the start recorded
 `{ limit, commands, checks, fixRounds, maxRounds, thresholds }`; `pause`
 `{ reason: usage | usageUnread | user, at, until?, fiveHour?, sevenDay? }`.
 The live view adds `pausing`, `cancelling` and `waitingSlot` (the shared
@@ -972,8 +979,12 @@ Body `{ "confirm": true }`. A `planned` or `planFailed` build, or a started one 
 `interrupted`, `cancelled` or `finished` with no task at work: every open
 task of the build is discarded (its worktree and branch), the integration
 branch is deleted, and the build becomes `discarded`. Nothing reaches the
-project. Refused (`409 build.branchMoved`) when the user checked the
-integration branch out in the project folder by hand.
+project. An `applied` or `reverted` build loses only its integration
+branch (the user's decision, phase 9 step 33): its commits on the default
+branch and its record stay, and it becomes `discarded`. The integration
+branch otherwise stays after an apply or a revert. Refused
+(`409 build.branchMoved`) when the user checked the integration branch out
+in the project folder by hand.
 
 ## CLI: `skills install`
 

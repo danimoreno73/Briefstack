@@ -6821,6 +6821,38 @@ recorded here; the design decisions are in
   the approved list. Ordinary tasks are unchanged, and a waiting task the
   user opens and runs as an ordinary task still offers Codex when the
   switch is on. The start page says so in one line (`buildNoCodex`).
+- **1. The integration branch stays after an apply or a revert; discarding
+  an applied or reverted build deletes only its branch** (source: the
+  user, 2026-11-19, step 33; an open question of the review of M5).
+  `BuildManager.discard` on an `applied` or `reverted` build removes
+  `briefstack/build-<id>` (refused while the user's folder has it checked
+  out) and records `discarded`, keeping `applied` and `reverted`; the
+  commits on the default branch are not touched. The build page offers
+  Discard on those builds with its own text (`buildDiscardAppliedBody`).
+- **2. The build page shows Claude's tokens per task** (source: the user,
+  2026-11-19, step 33; the review of M5 found the column empty in
+  practice, Codex only). Each task round keeps `claude` `{ input, output,
+  cacheRead, cacheCreation }` from the SDK's result message. Verified in
+  the SDK's types (`sdk.d.ts`, 0.3.286, `SDKResultSuccess` and
+  `SDKResultError`): `usage` is "MAIN AGENT LOOP ONLY — excludes Task
+  subagent, sidechain, and auxiliary model calls, and is per-turn in
+  streaming-input sessions. Prefer modelUsage for token/cost accounting";
+  `modelUsage` is per model, "cumulative across turns in streaming-input
+  sessions: each result carries the running total so far, so read the
+  latest result rather than summing across results", with `inputTokens`,
+  `outputTokens`, `cacheReadInputTokens` and `cacheCreationInputTokens`.
+  So the runner sums `modelUsage` over its models and the round keeps the
+  last result's total (it falls back to `usage` when `modelUsage` is
+  absent or empty). The SDK tells the cache apart, so Codex's criterion
+  applies: the main figure is input plus output, and in brackets the total
+  with the cache's reads and writes. The count is kept in memory with the
+  round and saved with the round's end, not on its own (a save outside the
+  round's order could put an older state on disk); a server stop in the
+  middle of a round loses that round's count. The fake runner reports
+  `FAKE_USAGE` per turn so the e2e tests show figures.
+- **3. A second real check before accepting the phase** (source: the user,
+  2026-11-21, step 33): `scripts/real/check-build-deny.ts`, prepared by
+  the agent and run by the user.
 
 ## Phase 9: the planner and structured output (2026-11-18, SDK 0.3.286)
 

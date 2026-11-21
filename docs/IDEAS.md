@@ -1029,12 +1029,14 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
 - **Noted.** Commit `4bc9b3f` holds pause, resume and cancel together with
   the task manager's refusal of a driven task (an open item of the review
   of M2). Review of M4.
-- **For the user to decide.** An applied or reverted build cannot be
+- **Done (step 33, the user's decision 1).** Discarding an applied or
+  reverted build deletes only its branch. Was: an applied or reverted build cannot be
   discarded, so its `briefstack/build-<id>` branch stays in the project's
   repository (the brief's §3.5 says the per-task commits stay until the
   build is discarded). Discarding an applied build would delete only its
   branch. Review of M5.
-- **For the user to decide.** The "tokens" column of the build's page
+- **Done (step 33, the user's decision 2).** The build page shows Claude's
+  tokens per task, from each round's result message. Was: the "tokens" column of the build's page
   shows only Codex's tokens, and a build's rounds offer no Codex, so it is
   empty in practice; task records keep no count of Claude's own tokens
   (the SDK's result message carries `usage`). Review of M5.
@@ -1067,12 +1069,26 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   (harmless). Review of M6.
 - **Done (step 33).** The planner session is tapped and its `init.tools`
   printed, `web.call` and `web.stop()` have deadlines, and the sandbox's
-  processes are counted after the stop, in `check-build.ts` and the second
-  real check `check-build-deny.ts`. Was: `scripts/real/check-build.ts`: the planner session
-  is not tapped (that `StructuredOutput` reached it is seen from the
+  processes are counted after the stop, in `check-build.ts` and the
+  second real check `check-build-deny.ts`. Was:
+  `scripts/real/check-build.ts`: the planner session is not tapped (that `StructuredOutput` reached it is seen from the
   outcome only, and its `init.tools` is not printed); `web.call` and
   `web.stop()` have no deadline of their own, and no process count is
   taken after the stop (only `startWeb`'s last-resort cleanup). Review of
   M6.
 - **Noted.** Commit `26f52cc` holds the four fixes of the review of M5
   together, as earlier review fixes in this repository did. Review of M6.
+- **Pending: minor.** `check-build-deny.ts` reads the first round's red
+  check from the outcome (a fix round ran, the check's own count is 2 or
+  more, no command denied): the task keeps only its last checks, and a
+  blocking validation in round 1 would also give a fix round. Task 1's fix
+  round may deny the command again and leave it waiting (no verdict
+  depends on it). How Claude Code words a hook's refusal to the model is
+  printed, not judged. Review of step 33, part D.
+- **Pending: minor.** The tests of the real scripts are mostly text
+  matches; the fixed queue is not checked against `queueItemSchema` and
+  the regex that rebuilds the check script skips lines it does not match.
+  Review of step 33, part D.
+- **Noted.** Commit `97f5d32` holds the second real check, the moved build
+  helpers, the deadlines and the minors of `check-build.ts` together.
+  Review of step 33, part D.
