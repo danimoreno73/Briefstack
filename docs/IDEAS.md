@@ -1065,7 +1065,10 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   a stale head is refused the same way until the page is reloaded (the
   message now says to reload). `useBuildDiff` loads twice on mount
   (harmless). Review of M6.
-- **Pending: minor.** `scripts/real/check-build.ts`: the planner session
+- **Done (step 33).** The planner session is tapped and its `init.tools`
+  printed, `web.call` and `web.stop()` have deadlines, and the sandbox's
+  processes are counted after the stop, in `check-build.ts` and the second
+  real check `check-build-deny.ts`. Was: `scripts/real/check-build.ts`: the planner session
   is not tapped (that `StructuredOutput` reached it is seen from the
   outcome only, and its `init.tools` is not printed); `web.call` and
   `web.stop()` have no deadline of their own, and no process count is
