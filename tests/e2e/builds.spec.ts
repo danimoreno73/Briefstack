@@ -1,3 +1,5 @@
+import { writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import type { Page } from '@playwright/test';
 import type { TaskFakeScript } from '../../src/tasks/fakeRunner.js';
 import { testGit } from '../improveWorld.js';
@@ -26,6 +28,8 @@ async function plan(page: Page, app: App): Promise<void> {
   await goTo(page, app, '#/projects/garden');
   await page.getByTestId('build-implement').click();
   await expect(page.getByTestId('build-start-form')).toBeVisible(SLOW);
+  // The fake planner proposes no checks: the page asks the user to confirm a start without them (step 33).
+  if (await page.getByTestId('build-no-checks').isVisible()) await page.getByTestId('build-no-checks-confirm').check();
 }
 
 test.describe('builds', () => {
@@ -39,6 +43,8 @@ test.describe('builds', () => {
     await expect(page.getByTestId('build-queue-item')).toHaveCount(2);
     await expect(page.getByTestId('build-warning')).toContainText('A build runs code before you read it');
     await expect(page.getByTestId('build-no-codex')).toContainText('A build never hands work to Codex');
+    // The list limits command lines, not code (review of step 32).
+    await expect(page.getByText('The list limits command lines, not code', { exact: false })).toBeVisible();
     // Edit: a clearer title for the first task, one command more, then remove the second task.
     await page.getByTestId('build-item-title').first().fill('Notes');
     await page.getByTestId('build-commands').fill('npm test\nnpm run lint');
@@ -61,14 +67,36 @@ test.describe('builds', () => {
     expect(await testGit(dir, ['status', '--porcelain'])).toBe('');
   });
 
-  test('a start with a command the list cannot hold is refused, with nothing started', async ({ page, app }) => {
+  test('a start with a command the list cannot hold is refused, with nothing started, and the page names the problem', async ({ page, app }) => {
     await codeProject(app, 'garden', 'Garden', { 'docs/BRIEF.md': BRIEF });
     await plan(page, app);
     await page.getByTestId('build-commands').fill('npm test && rm -rf .');
     await page.getByTestId('build-start').click();
     await page.getByRole('dialog').getByRole('button', { name: 'Start the build' }).click();
-    await expect(page.getByRole('alert').or(page.locator('.note-danger')).filter({ hasText: 'cannot start with these settings' })).toBeVisible();
+    // Each problem in the page's language, from its code (step 33).
+    await expect(page.getByText('The build cannot start: approved commands, line 1: it is more than one command')).toBeVisible();
     await expect(page.getByTestId('build-state')).toHaveText('Ready to start');
+  });
+
+  test('with no checks the page warns, and the start waits for an explicit confirmation; removing tasks lowers how many to run', async ({ page, app }) => {
+    await codeProject(app, 'garden', 'Garden', { 'docs/BRIEF.md': BRIEF });
+    await goTo(page, app, '#/projects/garden');
+    await page.getByTestId('build-implement').click();
+    await expect(page.getByTestId('build-start-form')).toBeVisible(SLOW);
+    await expect(page.getByTestId('build-no-checks')).toContainText('every task with no denied command is applied');
+    await expect(page.getByTestId('build-start')).toBeDisabled();
+    // A check removes the warning; emptying it brings it back.
+    await page.getByTestId('build-checks').fill('npm test');
+    await expect(page.getByTestId('build-no-checks')).toHaveCount(0);
+    await expect(page.getByTestId('build-start')).toBeEnabled();
+    await page.getByTestId('build-checks').fill('');
+    await expect(page.getByTestId('build-start')).toBeDisabled();
+    await page.getByTestId('build-no-checks-confirm').check();
+    await expect(page.getByTestId('build-start')).toBeEnabled();
+    // "How many tasks to run" follows the queue down (review of M3, minor).
+    await expect(page.getByTestId('build-limit')).toHaveValue('2');
+    await page.getByTestId('build-item-remove').nth(1).click();
+    await expect(page.getByTestId('build-limit')).toHaveValue('1');
   });
 
   test('a planned build can be discarded, and the project offers Implement again', async ({ page, app }) => {
@@ -118,6 +146,30 @@ test.describe('builds', () => {
     await expect(page.getByTestId('build-state')).toHaveText('Discarded', SLOW);
     expect(await testGit(dir, ['branch', '--list', branch])).toBe('');
     expect((await testGit(dir, ['rev-parse', 'HEAD'])).trim()).toBe(head);
+  });
+
+  test('a refused apply reads the build\'s diff again (review of M6, minor; step 33)', async ({ page, app }) => {
+    const dir = await codeProject(app, 'garden', 'Garden', { 'docs/BRIEF.md': BRIEF });
+    await plan(page, app);
+    await page.getByTestId('build-start').click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Start the build' }).click();
+    await expect(page.getByTestId('build-state')).toHaveText('Finished', SLOW);
+    await expect(page.getByTestId('build-diff')).toContainText('NOTES.md');
+    // A commit added by hand on the build's branch, through a worktree that is gone again.
+    const id = decodeURIComponent(new URL(page.url()).hash.replace(/^#\/builds\//, ''));
+    const branch = (await app.builds.get(id)).branch;
+    const side = `${dir}-by-hand`;
+    await testGit(dir, ['worktree', 'add', '--quiet', side, branch]);
+    await writeFile(path.join(side, 'BYHAND.md'), 'By hand.\n', 'utf8');
+    await testGit(side, ['add', '-A']);
+    await testGit(side, ['commit', '--quiet', '--no-verify', '-m', 'By hand']);
+    await testGit(dir, ['worktree', 'remove', '--force', side]);
+    await page.getByTestId('build-apply').click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Apply the build' }).click();
+    await expect(page.getByTestId('build-actions').getByRole('alert')).toContainText('not as briefstack left it');
+    // The page read the diff again: it shows the commit added by hand.
+    await expect(page.getByTestId('build-diff')).toContainText('BYHAND.md', SLOW);
+    await expect(page.getByTestId('build-state')).toHaveText('Finished');
   });
 
   test('a discard removes the build\'s branch; nothing reaches the project', async ({ page, app }) => {

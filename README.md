@@ -77,7 +77,7 @@ the next interview asks less.
   `claude` it finds on `PATH` or in `~/.local/bin`; on Windows it must be
   the native `claude.exe` (not an npm `claude.cmd` shim).
 - **git**, recommended: the library and the improvements use it. Tasks
-  need git 2.38 or later.
+  need git 2.40 or later.
 - **A current browser** for the web app: Chrome or Edge 123, Firefox 121,
   Safari 17.5 or later.
 - **Operating systems:** Windows (native), macOS and Linux. The CI runs on
@@ -283,14 +283,22 @@ See [SECURITY.md](SECURITY.md) to report a vulnerability.
   is the one place where checks run without a click on the change (for
   ordinary tasks they still wait for you). Approve only commands you would
   run on unread code, and review the whole build before applying it.
+- **The list limits command lines, not code.** An approved command runs
+  whatever the project makes of it, and the session can change that
+  before it runs: `npm test` runs the `test` script of `package.json`, and
+  the session may rewrite that script, or a test file, or anything the
+  command loads. The list stops other command lines, not what an approved
+  one does.
 - Builds plan only from a project's `docs/BRIEF.md` committed on its
   branch (the `claude-code` templates point their `CLAUDE.md` there);
   without one, "Implement" says so. One build or task per project at a
   time; builds share the active-sessions limit and wait for a free place.
   A build paused for usage resumes by itself only while briefstack runs;
   after a restart a build is interrupted and resumes only when you press
-  Resume. Task records keep no token count of Claude's own sessions, so a
-  build's page shows only Codex's tokens (none in a build's own rounds).
+  Resume. The build's page shows Claude's tokens per task (input and
+  output, and in brackets with the prompt cache); rounds from before
+  this count have none. Discarding an applied or reverted build deletes
+  only its branch.
 - A task's copy has no `node_modules` or other ignored files: a check that
   needs dependencies must install them (`npm ci --offline` works from
   npm's cache), or the session can ask to run the install.

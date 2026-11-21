@@ -11,13 +11,37 @@ import { branchHead, withSafeGit } from '../tasks/git.js';
  * Git runs as the task's git does: no hooks, no filters, no monitor.
  */
 
+/**
+ * Whether any worktree of the project's repository (its own folder
+ * included) has `branch` checked out. `update-ref` does not look: moving
+ * or removing a branch a worktree has checked out would change or break
+ * that folder (review of M1, minor; step 33). Unknown counts as checked out.
+ */
+export async function branchCheckedOut(projectDir: string, branch: string): Promise<boolean> {
+  return withSafeGit(projectDir, async (_git, run) => {
+    const listed = await run(['worktree', 'list', '--porcelain']);
+    if (listed.code !== 0) return true;
+    return listed.stdout.split(/\r?\n/).some((line) => line.trim() === `branch refs/heads/${branch}`);
+  });
+}
+
+/** Refuses with `build.branchCheckedOut` when a worktree has the integration branch checked out. */
+async function refuseCheckedOut(projectDir: string, branch: string): Promise<void> {
+  if (await branchCheckedOut(projectDir, branch)) throw new BriefstackError('build.branchCheckedOut', { branch });
+}
+
 /** Makes `refs/heads/<branch>` at `base`; refused when the branch already exists. */
 export async function createIntegrationBranch(projectDir: string, branch: string, base: string): Promise<void> {
   await withSafeGit(projectDir, async (git, run) => {
     await git(['check-ref-format', '--branch', branch]);
+    // A base that is not a commit is a failure of its own, not "the branch exists" (review of M1, minor; step 33).
+    if ((await run(['rev-parse', '--verify', '--quiet', `${base}^{commit}`])).code !== 0) throw new Error(`The build's base ${base.slice(0, 12)} is not a commit of the project's repository.`);
     // An empty old value: the ref must not exist (whatever the repository's hash format).
     const result = await run(['update-ref', `refs/heads/${branch}`, base, '']);
-    if (result.code !== 0) throw new BriefstackError('build.branchExists', { branch });
+    if (result.code !== 0) {
+      if ((await branchHead(projectDir, branch)) !== undefined) throw new BriefstackError('build.branchExists', { branch });
+      throw new Error(`git update-ref failed: ${result.stderr.trim().slice(0, 300)}`);
+    }
   });
 }
 
@@ -61,6 +85,7 @@ export async function landOnIntegration(
     if (tree === current) throw new BriefstackError('task.noChanges', { id: params.id });
     const identity = await identityArgs(projectDir);
     const commit = (await git([...identity, 'commit-tree', '--no-gpg-sign', tree, '-p', params.expected], params.message)).trim();
+    await refuseCheckedOut(projectDir, params.branch);
     const moved = await run(['update-ref', `refs/heads/${params.branch}`, commit, params.expected]);
     if (moved.code !== 0) throw new BriefstackError('build.branchMoved', { branch: params.branch });
     return commit;
@@ -72,6 +97,7 @@ export async function deleteIntegrationBranch(projectDir: string, branch: string
   await withSafeGit(projectDir, async (_git, run) => {
     const head = await branchHead(projectDir, branch);
     if (head === undefined) return;
+    await refuseCheckedOut(projectDir, branch);
     const result = await run(['update-ref', '-d', `refs/heads/${branch}`, expected ?? head]);
     if (result.code !== 0) throw new BriefstackError('build.branchMoved', { branch });
   });

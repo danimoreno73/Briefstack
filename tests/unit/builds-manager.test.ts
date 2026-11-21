@@ -5,7 +5,7 @@ import { integrationHead } from '../../src/builds/git.js';
 import { BuildManager, type BuildStartInput } from '../../src/builds/manager.js';
 import { FakeBuildPlanner } from '../../src/builds/planner.js';
 import { BuildStore, buildsRoot } from '../../src/builds/store.js';
-import type { PlanOutput } from '../../src/builds/types.js';
+import { capDenied, MAX_DENIED_KEPT, type PlanOutput } from '../../src/builds/types.js';
 import type { UsageReading } from '../../src/builds/usage.js';
 import { afterRoundWith } from '../../src/tasks/afterRound.js';
 import type { TaskChecks } from '../../src/tasks/checks.js';
@@ -151,6 +151,8 @@ const start = (plan: PlanOutput = PLAN, overrides: Partial<BuildStartInput> = {}
   checks: plan.checks,
   fixRounds: 1,
   thresholds: { fiveHour: 80, week: 90 },
+  // A start with no checks says so (step 33); harmless with checks.
+  noChecks: true,
   ...overrides,
 });
 
@@ -236,6 +238,12 @@ describe('starting a build', () => {
       ]);
       expect((await s.builds.get(id)).state).toBe('planned');
       expect(await integrationHead(project, `briefstack/build-${id}`)).toBeUndefined();
+      // Each issue also as a code the page translates (step 33).
+      expect((error.params as { items?: { key: string }[] }).items?.map((item) => item.key)).toEqual(['laterDependency', 'limit', 'listLine', 'listLine', 'listDuplicate', 'fixRounds', 'threshold']);
+      // No checks and no confirmation of it: refused, with its own issue (review of M3, minor; step 33).
+      const unchecked = (await s.builds.start(id, start(PLAN, { checks: [], noChecks: false })).catch((failure: unknown) => failure)) as { code: string; params: { items: { key: string }[] } };
+      expect(unchecked).toMatchObject({ code: 'build.invalidStart', params: { items: [{ key: 'noChecks' }] } });
+      expect((await s.builds.get(id)).state).toBe('planned');
     } finally {
       await s.builds.shutdown();
       await s.tasks.shutdown();
@@ -299,7 +307,29 @@ describe('starting a build', () => {
         ['queued', null],
       ]);
       expect(done.tasks[0]?.denied).toEqual([{ tool: 'Bash', text: 'curl https://example.com' }]);
+      expect(done.tasks[0]?.deniedOmitted).toBeUndefined();
       expect(done.state).toBe('finished');
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('a task\'s denied list is capped in build.json; the rest are counted (review of M3, minor; step 33)', async () => {
+    const many = MAX_DENIED_KEPT + 7;
+    const denying: TaskFakeScript = () => ({
+      steps: [...Array.from({ length: many }, (_, i): TaskFakeStep => ({ kind: 'shell', command: `curl https://example.com/${i}` })), { kind: 'write', file: 'A.md', content: 'x\n' }, { kind: 'end', summary: 'Done.' }],
+    });
+    const s = setup({ script: denying });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN, { limit: 1, fixRounds: 0 }));
+      await s.builds.idle(id);
+      const done = await s.builds.get(id);
+      expect(done.tasks[0]?.denied).toHaveLength(MAX_DENIED_KEPT);
+      expect(done.tasks[0]?.denied?.[0]?.text).toBe('curl https://example.com/0');
+      expect(done.tasks[0]?.deniedOmitted).toBe(7);
+      expect(capDenied(done.tasks[0]?.denied ?? [], 7, [{ tool: 'Bash', text: 'x' }])).toMatchObject({ deniedOmitted: 8 });
     } finally {
       await s.builds.shutdown();
       await s.tasks.shutdown();
@@ -339,6 +369,31 @@ describe('stopping, the shared limit and an unstarted build (review of M3)', () 
       expect(view.tasks[0]).toMatchObject({ state: 'waiting', reason: 'interrupted' });
       // Nothing new started after the stop.
       await expect(s.builds.plan('garden')).rejects.toMatchObject({ code: 'task.stopping' });
+    } finally {
+      await after.builds.shutdown();
+      await after.tasks.shutdown();
+    }
+  });
+
+  it('a cancel followed at once by a server stop is kept: recover() makes the build cancelled, not resumable (step 33)', async () => {
+    const s = setup({ script: slow });
+    const id = await planned(s);
+    await s.builds.start(id, start(PLAN, { limit: 1 }));
+    await until(() => s.tasks.activeIds().length === 1);
+    // The cancel is asked, and the server stops before the loop records it.
+    const asked = await s.builds.cancel(id);
+    expect(asked.cancelling).toBe(true);
+    s.builds.stop();
+    await s.tasks.shutdown();
+    await s.builds.shutdown();
+    const after = setup();
+    try {
+      expect(await after.builds.recover()).toBe(1);
+      const view = await after.builds.get(id);
+      expect(view.state).toBe('cancelled');
+      expect(view.cancelAsked).toBeUndefined();
+      expect(view.tasks[0]?.state).toBe('cancelled');
+      await expect(after.builds.resume(id)).rejects.toMatchObject({ code: 'build.wrongState' });
     } finally {
       await after.builds.shutdown();
       await after.tasks.shutdown();
@@ -897,16 +952,24 @@ describe('the build page\'s actions (M5)', () => {
       const applied = await s.builds.apply(id, head as string);
       const commit = applied.applied?.commit as string;
       expect(await integrationHead(project, done.branch)).toBe(head);
-      // The build's branch checked out in the user's folder: discard refuses and removes nothing.
-      await gitIn(project, 'checkout', '--quiet', done.branch);
-      await expect(s.builds.discard(id)).rejects.toMatchObject({ code: 'build.branchMoved' });
+      // The build's branch checked out in another worktree of the repository: discard refuses and removes nothing (step 33).
+      const other = path.join(world.dir, 'other-worktree');
+      await gitIn(project, 'worktree', 'add', '--quiet', other, done.branch);
+      await expect(s.builds.discard(id)).rejects.toMatchObject({ code: 'build.branchCheckedOut' });
       expect(await integrationHead(project, done.branch)).toBe(head);
-      await gitIn(project, 'checkout', '--quiet', 'main');
+      await gitIn(project, 'worktree', 'remove', '--force', other);
       const gone = await s.builds.discard(id);
       expect(gone).toMatchObject({ state: 'discarded', applied: { commit } });
       expect(await integrationHead(project, done.branch)).toBeUndefined();
       expect((await gitIn(project, 'rev-parse', 'HEAD')).trim()).toBe(commit);
       expect(await readFile(path.join(project, 'LIST.md'), 'utf8')).toBe('List.\n');
+      // Still revertable: the revert needs only the applied commit (review of step 33, A, I-1). The build stays discarded.
+      expect((await s.builds.diff(id)).diff?.files.map((file) => file.path)).toEqual(['LIST.md']);
+      const reverted = await s.builds.revert(id);
+      expect(reverted).toMatchObject({ state: 'discarded', applied: { commit } });
+      expect(reverted.reverted?.commit).toBe((await gitIn(project, 'rev-parse', 'HEAD')).trim());
+      await expect(access(path.join(project, 'LIST.md'))).rejects.toBeDefined();
+      await expect(s.builds.revert(id)).rejects.toMatchObject({ code: 'build.wrongState' });
     } finally {
       await s.builds.shutdown();
       await s.tasks.shutdown();
@@ -926,7 +989,7 @@ describe('the build page\'s actions (M5)', () => {
       // The user checked the build's branch out by hand: discard refuses, and removes nothing (review of M5, minor).
       const main = (await gitIn(project, 'rev-parse', '--abbrev-ref', 'HEAD')).trim();
       await gitIn(project, 'checkout', '--quiet', done.branch);
-      await expect(s.builds.discard(id)).rejects.toMatchObject({ code: 'build.branchMoved' });
+      await expect(s.builds.discard(id)).rejects.toMatchObject({ code: 'build.branchCheckedOut' });
       expect(await integrationHead(project, done.branch)).toBeDefined();
       expect((await s.tasks.get(waiting)).state).not.toBe('discarded');
       await gitIn(project, 'checkout', '--quiet', main);
@@ -938,6 +1001,54 @@ describe('the build page\'s actions (M5)', () => {
       expect(await s.builds.diff(id)).toEqual({ diff: null });
       expect((await gitIn(project, 'rev-parse', 'HEAD')).trim()).toBe(before);
       expect(await gitIn(project, 'status', '--porcelain')).toBe('');
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('a skip carries over: a task skipped for a skipped one is skipped too, and Resume skips both again (review of M4, minor; step 33)', async () => {
+    const chain: PlanOutput = { ...PLAN, tasks: [...PLAN.tasks, { title: 'Final', instruction: 'Write FINAL.md from the report.', doneWhen: 'FINAL.md exists.', dependsOn: [3] }] };
+    const s = setup({ plan: chain });
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(chain, { fixRounds: 0 }));
+      await s.builds.idle(id);
+      const done = await s.builds.get(id);
+      expect(done.tasks.map((task) => [task.state, task.skippedFor ?? null])).toEqual([
+        ['applied', null],
+        ['waiting', null],
+        ['skipped', 2],
+        ['skipped', 3],
+      ]);
+      await s.builds.resume(id);
+      await s.builds.idle(id);
+      const again = await s.builds.get(id);
+      expect(again.state).toBe('finished');
+      expect(again.tasks.map((task) => [task.state, task.skippedFor ?? null])).toEqual([
+        ['applied', null],
+        ['waiting', null],
+        ['skipped', 2],
+        ['skipped', 3],
+      ]);
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('a change already on the default branch says so with its own code, not "nothing to apply" (review of M5, minor; step 33)', async () => {
+    await world.initLibrary();
+    const s = setup();
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start(PLAN, { limit: 1 }));
+      await s.builds.idle(id);
+      const { head } = await s.builds.diff(id);
+      // As if a server stop had come after the change landed on main and before `applied` was saved.
+      await gitIn(project, 'merge', '--ff-only', '--quiet', head as string);
+      await expect(s.builds.apply(id, head as string)).rejects.toMatchObject({ code: 'build.alreadyOnBranch', params: { branch: 'main' } });
+      expect((await s.builds.get(id)).state).toBe('finished');
     } finally {
       await s.builds.shutdown();
       await s.tasks.shutdown();

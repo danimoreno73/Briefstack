@@ -255,6 +255,8 @@ describe('TaskSdkRunner: tool calls', () => {
     expect(claudeUsageOf({ usage: { input_tokens: 10, output_tokens: 3 } })).toEqual({ input: 10, output: 3, cacheRead: 0, cacheCreation: 0 });
     expect(claudeUsageOf({ modelUsage: {}, usage: { input_tokens: 4, output_tokens: 1 } })).toEqual({ input: 4, output: 1, cacheRead: 0, cacheCreation: 0 });
     expect(claudeUsageOf({ modelUsage: { m: { inputTokens: 'x', outputTokens: 1 } } })).toBeUndefined();
+    // A malformed modelUsage falls back to usage.
+    expect(claudeUsageOf({ modelUsage: { m: { inputTokens: 'x', outputTokens: 1 } }, usage: { input_tokens: 2, output_tokens: 1 } })).toEqual({ input: 2, output: 1, cacheRead: 0, cacheCreation: 0 });
     expect(claudeUsageOf({ usage: { input_tokens: -1, output_tokens: 1 } })).toBeUndefined();
     expect(claudeUsageOf({ type: 'result' })).toBeUndefined();
     expect(claudeUsageOf(null)).toBeUndefined();

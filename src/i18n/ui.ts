@@ -17,6 +17,44 @@ export interface TaskErrorFacts {
   required: string;
 }
 
+/**
+ * One problem of a build's start, as the page may show it (step 33): its
+ * code and only numbers or names from fixed sets, never the server's text.
+ * `undefined` when the item is not one the page knows.
+ */
+export interface StartIssueFacts {
+  key: 'emptyQueue' | 'tooManyTasks' | 'taskInvalid' | 'laterDependency' | 'limit' | 'listTooLong' | 'listLine' | 'listDuplicate' | 'fixRounds' | 'threshold' | 'noChecks';
+  n: number;
+  max: number;
+  line: number;
+  checks: boolean;
+  fields: ('title' | 'instruction' | 'doneWhen' | 'dependsOn')[];
+  problem: 'empty' | 'spaces' | 'lines' | 'long' | 'secret' | 'invisible' | 'compound' | 'wildcard' | 'chars' | 'quote' | undefined;
+  threshold: 'fiveHour' | 'week' | undefined;
+}
+
+const START_ISSUE_KEYS = new Set(['emptyQueue', 'tooManyTasks', 'taskInvalid', 'laterDependency', 'limit', 'listTooLong', 'listLine', 'listDuplicate', 'fixRounds', 'threshold', 'noChecks']);
+const START_ISSUE_FIELDS = new Set(['title', 'instruction', 'doneWhen', 'dependsOn']);
+const START_ISSUE_PROBLEMS = new Set(['empty', 'spaces', 'lines', 'long', 'secret', 'invisible', 'compound', 'wildcard', 'chars', 'quote']);
+
+/** Reads one item of `build.invalidStart`'s `items` into what the page may show. */
+export function startIssueFacts(value: unknown): StartIssueFacts | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const item = value as Record<string, unknown>;
+  if (typeof item.key !== 'string' || !START_ISSUE_KEYS.has(item.key)) return undefined;
+  const count = (field: unknown) => (typeof field === 'number' && Number.isInteger(field) && field >= 0 && field < 10_000 ? field : 0);
+  return {
+    key: item.key as StartIssueFacts['key'],
+    n: count(item.n),
+    max: count(item.max),
+    line: count(item.line),
+    checks: item.what === 'checks',
+    fields: Array.isArray(item.fields) ? (item.fields.filter((field) => typeof field === 'string' && START_ISSUE_FIELDS.has(field)) as StartIssueFacts['fields']) : [],
+    problem: typeof item.problem === 'string' && START_ISSUE_PROBLEMS.has(item.problem) ? (item.problem as StartIssueFacts['problem']) : undefined,
+    threshold: item.name === 'fiveHour' || item.name === 'week' ? item.name : undefined,
+  };
+}
+
 /** Strings of the web UI. Pure module: the browser imports it directly. */
 export const uiMessages = defineCatalogue({
   en: {
@@ -106,7 +144,9 @@ export const uiMessages = defineCatalogue({
         'build.invalidStart': 'The build cannot start with these settings. Check the queue, the commands (exact, one per line, plain characters only) and the numbers.',
         'build.branchExists': 'The build’s branch already exists in the project’s repository.',
         'build.branchMoved': 'The build’s branch is not as briefstack left it or as the page showed it (it changed since, holds a commit briefstack did not make, or is checked out in the project folder), so the server does not touch it. Reload the page.',
+        'build.branchCheckedOut': 'The build’s branch is checked out in a folder of the project’s repository (the project folder or another worktree), so the server does not move or delete it. Switch that folder to another branch first.',
         'build.nothingToApply': 'Nothing is on the build’s branch yet.',
+        'build.alreadyOnBranch': 'The build’s whole change is already on the project’s branch: there is nothing more to apply.',
         'build.taskRunning': 'A task of the build is at work. Wait for it, or cancel the build.',
         'build.attendedTask': 'You allowed commands in this task, so the build runs no more rounds of it.',
         'build.openTasks': 'Some tasks of the build wait for you. Approve each onto the build’s branch, or discard it, before applying the build.',
@@ -455,7 +495,52 @@ export const uiMessages = defineCatalogue({
     buildTaskRemove: 'Remove',
     buildLimitLabel: 'How many tasks to run',
     buildCommandsLabel: 'Approved commands (one per line, exact)',
-    buildCommandsHint: 'A session may run only these commands, exactly as written, or a chain of them with &&, || or ;. Anything else is denied without asking you.',
+    buildCommandsHint:
+      'A session may run only these commands, exactly as written, or a chain of them with &&, || or ;. Anything else is denied without asking you. The list limits command lines, not code: the session can change what an approved command runs (for example the test script in package.json, or a test file).',
+    buildNoChecksTitle: 'No checks',
+    buildNoChecksBody: 'With no checks, every task with no denied command is applied to the build’s branch without anything run on it. Add a check (usually the tests), or confirm below.',
+    buildNoChecksConfirm: 'Start without checks: apply every task with no denied command',
+    buildInvalidStartLead: 'The build cannot start:',
+    buildStartIssue: (i: StartIssueFacts): string => {
+      const list = i.checks ? 'checks' : 'approved commands';
+      const fields: Record<StartIssueFacts['fields'][number], string> = { title: 'title', instruction: 'instruction', doneWhen: '“done when”', dependsOn: 'depends on' };
+      const problems: Record<NonNullable<StartIssueFacts['problem']>, string> = {
+        empty: 'it is empty',
+        spaces: 'it has spaces at the start or end',
+        lines: 'it has more than one line',
+        long: 'it is too long',
+        secret: 'part of it looks like a secret',
+        invisible: 'it has an invisible character',
+        compound: 'it is more than one command (list each part on its own line)',
+        wildcard: 'it has a wildcard',
+        chars: 'it has a character other than letters, digits, spaces, quotes and - _ . / : = @ + ,',
+        quote: 'a quote is not closed',
+      };
+      switch (i.key) {
+        case 'emptyQueue':
+          return 'the queue is empty';
+        case 'tooManyTasks':
+          return `the queue may hold at most ${i.max} tasks`;
+        case 'taskInvalid':
+          return `task ${i.n} has a field that is empty or too long${i.fields.length === 0 ? '' : ` (${i.fields.map((field) => fields[field]).join(', ')})`}`;
+        case 'laterDependency':
+          return `task ${i.n} may depend only on earlier tasks`;
+        case 'limit':
+          return '“how many tasks to run” must be from 1 to the number of tasks in the queue';
+        case 'listTooLong':
+          return `at most ${i.max} ${list}`;
+        case 'listLine':
+          return `${list}, line ${i.line}: ${i.problem === undefined ? 'it cannot be approved' : problems[i.problem]}`;
+        case 'listDuplicate':
+          return `the same command is twice in the ${list}`;
+        case 'fixRounds':
+          return `fix rounds must be from 0 to ${i.max}`;
+        case 'threshold':
+          return `the ${i.threshold === 'week' ? 'weekly' : '5-hour'} usage threshold must be from 1 to 100`;
+        case 'noChecks':
+          return 'there are no checks: confirm that tasks are applied without them';
+      }
+    },
     buildChecksLabel: 'Checks after each round (one per line)',
     buildChecksHint: 'They run after each round, before you see the change. A task is applied to the build’s branch only if they all pass and no command was denied.',
     buildFixRoundsLabel: 'Fix rounds when a check fails',
@@ -475,6 +560,7 @@ export const uiMessages = defineCatalogue({
     buildColDetail: 'Detail',
     buildOpenTask: 'Open the task',
     buildDeniedTitle: 'Denied commands',
+    buildDeniedMore: (n: number) => `And ${n} more, not kept.`,
     buildPausedUsage: (until: string) => `Paused: the plan usage is at or above its threshold. It resumes by itself at ${until} while briefstack runs.`,
     buildPausedUnread: (until: string) => `Paused: the plan usage could not be read. It reads it again at ${until}.`,
     buildPausedUser: 'Paused by you. It resumes when you press Resume.',
@@ -499,9 +585,9 @@ export const uiMessages = defineCatalogue({
     buildDiscardTitle: 'Discard this build?',
     buildDiscardBody: 'Its branch and the copies of its open tasks are deleted. Nothing reaches the project.',
     buildDiscardUnstartedBody: 'Nothing has run: the planned queue is dropped and the project is free for another build or a task.',
-    buildDiscardAppliedBody: 'Only the build’s branch is deleted. Its commit on the project’s branch, and the revert if there is one, stay as they are.',
+    buildDiscardAppliedBody: 'Only the build’s branch is deleted. Its commit on the project’s branch, and the revert if there is one, stay as they are; an applied build can still be reverted from this page.',
     buildColChecks: 'Checks',
-    buildColCodex: 'Codex calls',
+    buildColCodex: 'Codex (calls · tokens)',
     buildColTokens: 'Claude tokens',
     buildTokensHint: 'Claude tokens per task: input and output; in brackets, also the prompt cache’s reads and writes.',
     buildChecksPassed: (passed: number, total: number) => `${passed} of ${total} passed`,
@@ -1304,7 +1390,9 @@ export const uiMessages = defineCatalogue({
         'build.invalidStart': 'El build no puede empezar con estos ajustes. Revisa la cola, los comandos (exactos, uno por línea, solo caracteres sencillos) y los números.',
         'build.branchExists': 'La rama del build ya existe en el repositorio del proyecto.',
         'build.branchMoved': 'La rama del build no está como la dejó briefstack o como la mostró la página (cambió desde entonces, tiene un commit que briefstack no hizo o está sacada en la carpeta del proyecto), así que el servidor no la toca. Recarga la página.',
+        'build.branchCheckedOut': 'La rama del build está sacada en una carpeta del repositorio del proyecto (la del proyecto u otro worktree), así que el servidor no la mueve ni la borra. Cambia antes esa carpeta a otra rama.',
         'build.nothingToApply': 'Todavía no hay nada en la rama del build.',
+        'build.alreadyOnBranch': 'Todo el cambio del build ya está en la rama del proyecto: no queda nada que aplicar.',
         'build.taskRunning': 'Una tarea del build está trabajando. Espera a que acabe o cancela el build.',
         'build.attendedTask': 'Permitiste comandos en esta tarea, así que el build no ejecuta más rondas suyas.',
         'build.openTasks': 'Hay tareas del build esperándote. Aprueba cada una en la rama del build, o descártala, antes de aplicar el build.',
@@ -1653,7 +1741,52 @@ export const uiMessages = defineCatalogue({
     buildTaskRemove: 'Quitar',
     buildLimitLabel: 'Cuántas tareas ejecutar',
     buildCommandsLabel: 'Comandos aprobados (uno por línea, exactos)',
-    buildCommandsHint: 'Una sesión solo puede ejecutar estos comandos, tal cual, o una cadena de ellos con &&, || o ;. Todo lo demás se deniega sin preguntarte.',
+    buildCommandsHint:
+      'Una sesión solo puede ejecutar estos comandos, tal cual, o una cadena de ellos con &&, || o ;. Todo lo demás se deniega sin preguntarte. La lista limita líneas de órdenes, no código: la sesión puede cambiar lo que ejecuta un comando aprobado (por ejemplo el script de test de package.json, o un fichero de test).',
+    buildNoChecksTitle: 'Sin comprobaciones',
+    buildNoChecksBody: 'Sin comprobaciones, cada tarea sin comandos denegados se aplica a la rama del build sin que se ejecute nada sobre ella. Añade una comprobación (normalmente los tests) o confírmalo abajo.',
+    buildNoChecksConfirm: 'Empezar sin comprobaciones: aplicar cada tarea sin comandos denegados',
+    buildInvalidStartLead: 'El build no puede empezar:',
+    buildStartIssue: (i: StartIssueFacts): string => {
+      const list = i.checks ? 'las comprobaciones' : 'los comandos aprobados';
+      const fields: Record<StartIssueFacts['fields'][number], string> = { title: 'título', instruction: 'instrucción', doneWhen: '«hecha cuando»', dependsOn: 'depende de' };
+      const problems: Record<NonNullable<StartIssueFacts['problem']>, string> = {
+        empty: 'está vacía',
+        spaces: 'tiene espacios al principio o al final',
+        lines: 'tiene más de una línea',
+        long: 'es demasiado larga',
+        secret: 'una parte parece un secreto',
+        invisible: 'tiene un carácter invisible',
+        compound: 'es más de un comando (pon cada parte en su línea)',
+        wildcard: 'tiene un comodín',
+        chars: 'tiene un carácter que no es letra, dígito, espacio, comilla ni - _ . / : = @ + ,',
+        quote: 'una comilla no se cierra',
+      };
+      switch (i.key) {
+        case 'emptyQueue':
+          return 'la cola está vacía';
+        case 'tooManyTasks':
+          return `la cola admite como mucho ${i.max} tareas`;
+        case 'taskInvalid':
+          return `la tarea ${i.n} tiene un campo vacío o demasiado largo${i.fields.length === 0 ? '' : ` (${i.fields.map((field) => fields[field]).join(', ')})`}`;
+        case 'laterDependency':
+          return `la tarea ${i.n} solo puede depender de tareas anteriores`;
+        case 'limit':
+          return '«cuántas tareas ejecutar» debe ir de 1 al número de tareas de la cola';
+        case 'listTooLong':
+          return `como mucho ${i.max} en ${list}`;
+        case 'listLine':
+          return `${list}, línea ${i.line}: ${i.problem === undefined ? 'no se puede aprobar' : problems[i.problem]}`;
+        case 'listDuplicate':
+          return `el mismo comando está dos veces en ${list}`;
+        case 'fixRounds':
+          return `las rondas de arreglo deben ir de 0 a ${i.max}`;
+        case 'threshold':
+          return `el umbral de uso ${i.threshold === 'week' ? 'semanal' : 'de 5 horas'} debe ir de 1 a 100`;
+        case 'noChecks':
+          return 'no hay comprobaciones: confirma que las tareas se aplican sin ellas';
+      }
+    },
     buildChecksLabel: 'Comprobaciones tras cada ronda (una por línea)',
     buildChecksHint: 'Se ejecutan tras cada ronda, antes de que veas el cambio. Una tarea se aplica a la rama del build solo si pasan todas y no se denegó ningún comando.',
     buildFixRoundsLabel: 'Rondas de arreglo si falla una comprobación',
@@ -1673,6 +1806,7 @@ export const uiMessages = defineCatalogue({
     buildColDetail: 'Detalle',
     buildOpenTask: 'Abrir la tarea',
     buildDeniedTitle: 'Comandos denegados',
+    buildDeniedMore: (n: number) => `Y ${n} más, sin guardar.`,
     buildPausedUsage: (until: string) => `En pausa: el uso del plan está en su umbral o por encima. Se reanuda solo a las ${until} mientras briefstack esté en marcha.`,
     buildPausedUnread: (until: string) => `En pausa: no se pudo leer el uso del plan. Lo vuelve a leer a las ${until}.`,
     buildPausedUser: 'En pausa por ti. Se reanuda cuando pulses Reanudar.',
@@ -1697,9 +1831,9 @@ export const uiMessages = defineCatalogue({
     buildDiscardTitle: '¿Descartar este build?',
     buildDiscardBody: 'Se borran su rama y las copias de sus tareas abiertas. No llega nada al proyecto.',
     buildDiscardUnstartedBody: 'No se ha ejecutado nada: la cola planificada se descarta y el proyecto queda libre para otro build o una tarea.',
-    buildDiscardAppliedBody: 'Solo se borra la rama del build. Su commit en la rama del proyecto, y la reversión si la hay, se quedan como están.',
+    buildDiscardAppliedBody: 'Solo se borra la rama del build. Su commit en la rama del proyecto, y la reversión si la hay, se quedan como están; un build aplicado aún se puede revertir desde esta página.',
     buildColChecks: 'Comprobaciones',
-    buildColCodex: 'Llamadas a Codex',
+    buildColCodex: 'Codex (llamadas · tokens)',
     buildColTokens: 'Tokens de Claude',
     buildTokensHint: 'Tokens de Claude por tarea: entrada y salida; entre paréntesis, también las lecturas y escrituras de la caché de prompts.',
     buildChecksPassed: (passed: number, total: number) => `${passed} de ${total} pasaron`,

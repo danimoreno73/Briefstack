@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createIntegrationBranch, deleteIntegrationBranch, integrationHead, landOnIntegration } from '../../src/builds/git.js';
+import { branchCheckedOut, createIntegrationBranch, deleteIntegrationBranch, integrationHead, landOnIntegration } from '../../src/builds/git.js';
 import { isBriefstackError } from '../../src/errors.js';
 import { createTaskWorktree, removeTaskWorktree } from '../../src/tasks/git.js';
 import { useHermeticGit, writeTree } from '../helpers.js';
@@ -50,6 +50,9 @@ describe('the integration branch', () => {
     await createIntegrationBranch(project, BRANCH, before.head);
     expect(await integrationHead(project, BRANCH)).toBe(before.head);
     await expect(createIntegrationBranch(project, BRANCH, before.head)).rejects.toSatisfy((error) => isBriefstackError(error) && error.code === 'build.branchExists');
+    // A base that is not a commit is not reported as an existing branch (review of M1, minor; step 33).
+    await expect(createIntegrationBranch(project, 'briefstack/build-mabc12-0a0c', 'c'.repeat(40))).rejects.toSatisfy((error) => !isBriefstackError(error) && String(error).includes('is not a commit'));
+    expect(await integrationHead(project, 'briefstack/build-mabc12-0a0c')).toBeUndefined();
 
     const first = await taskOn(before.head, 1, { 'a.txt': 'A\n' });
     const commit = await landOnIntegration(project, { branch: BRANCH, expected: before.head, from: before.head, to: first.head, message: 'Task 1', project: 'garden', id: 't1' });
@@ -102,6 +105,24 @@ describe('the integration branch', () => {
     );
     expect(await integrationHead(project, BRANCH)).toBe(c1);
     for (const task of [one, other]) await removeTaskWorktree(project, task.worktree, task.branch);
+  });
+
+  it('is never moved or removed while a worktree has it checked out (review of M1, minor; step 33)', async () => {
+    const base = (await gitIn(project, 'rev-parse', 'HEAD')).trim();
+    await createIntegrationBranch(project, BRANCH, base);
+    const one = await taskOn(base, 1, { 'NOTES.md': 'Notes.\n' });
+    const other = path.join(world.dir, 'by-hand');
+    await gitIn(project, 'worktree', 'add', '--quiet', other, BRANCH);
+    expect(await branchCheckedOut(project, BRANCH)).toBe(true);
+    const checkedOut = (error: unknown) => isBriefstackError(error) && error.code === 'build.branchCheckedOut';
+    await expect(landOnIntegration(project, { branch: BRANCH, expected: base, from: base, to: one.head, message: 'Task 1', project: 'garden', id: 't1' })).rejects.toSatisfy(checkedOut);
+    await expect(deleteIntegrationBranch(project, BRANCH)).rejects.toSatisfy(checkedOut);
+    expect(await integrationHead(project, BRANCH)).toBe(base);
+    await gitIn(project, 'worktree', 'remove', '--force', other);
+    expect(await branchCheckedOut(project, BRANCH)).toBe(false);
+    const landed = await landOnIntegration(project, { branch: BRANCH, expected: base, from: base, to: one.head, message: 'Task 1', project: 'garden', id: 't1' });
+    expect(await integrationHead(project, BRANCH)).toBe(landed);
+    await removeTaskWorktree(project, one.worktree, one.branch);
   });
 
   it('is removed only at the head it was read at; gone already is fine', async () => {

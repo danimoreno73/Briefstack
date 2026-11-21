@@ -163,7 +163,14 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
       if (item !== undefined) next.splice(index + delta, 0, item);
       return next;
     });
-  const remove = (key: number) => setItems((current) => current.filter((item) => item.key !== key).map((item) => ({ ...item, deps: item.deps.filter((dep) => dep !== key) })));
+  const remove = (key: number) => {
+    const left = items.filter((item) => item.key !== key).length;
+    setItems((current) => current.filter((item) => item.key !== key).map((item) => ({ ...item, deps: item.deps.filter((dep) => dep !== key) })));
+    // "How many tasks to run" never stays above the queue's length (review of M3, minor; step 33).
+    setLimit((current) => String(Math.max(1, Math.min(Number(current) || left, left))));
+  };
+  const noChecks = lines(checks).length === 0;
+  const [noChecksConfirmed, setNoChecksConfirmed] = useState(false);
   const queue = (): QueueItemUi[] => items.map((item) => ({ title: item.title, instruction: item.instruction, doneWhen: item.doneWhen, dependsOn: item.deps.map(position).filter((n) => n > 0) }));
 
   const start = () =>
@@ -177,6 +184,7 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
           fixRounds: Number(fixRounds),
           thresholds: { fiveHour: Number(fiveHour), week: Number(week) },
           confirm: true,
+          ...(noChecks && noChecksConfirmed ? { noChecks: true } : {}),
         }),
       )
       .then((ok) => ok && onStarted());
@@ -244,6 +252,15 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
         <textarea class="textarea mono" rows={3} value={checks} onInput={(event) => setChecks((event.target as HTMLTextAreaElement).value)} data-testid="build-checks" />
       </label>
       <p class="t-small muted">{t.buildChecksHint}</p>
+      {noChecks && (
+        <Note tone="danger" title={t.buildNoChecksTitle} testId="build-no-checks">
+          {t.buildNoChecksBody}
+          <label class="check-line">
+            <input type="checkbox" checked={noChecksConfirmed} onChange={(event) => setNoChecksConfirmed((event.target as HTMLInputElement).checked)} data-testid="build-no-checks-confirm" />{' '}
+            {t.buildNoChecksConfirm}
+          </label>
+        </Note>
+      )}
       <label class="label">
         {t.buildFixRoundsLabel}
         <input class="input" type="number" min={0} max={2} value={fixRounds} onInput={(event) => setFixRounds((event.target as HTMLInputElement).value)} data-testid="build-fix-rounds" />
@@ -267,7 +284,7 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
       </Note>
       {action.error !== undefined && <ErrorNote error={action.error} />}
       <div class="btn-row">
-        <button type="button" class="btn btn-primary" disabled={action.busy || items.length === 0} onClick={() => setConfirm(true)} data-testid="build-start">
+        <button type="button" class="btn btn-primary" disabled={action.busy || items.length === 0 || (noChecks && !noChecksConfirmed)} onClick={() => setConfirm(true)} data-testid="build-start">
           {t.buildStart}
         </button>
       </div>
@@ -351,6 +368,7 @@ function Progress({ build }: { build: BuildViewUi }) {
                           </li>
                         ))}
                       </ul>
+                      {(task.deniedOmitted ?? 0) > 0 && <p class="t-small muted" data-testid="build-denied-more">{t.buildDeniedMore(task.deniedOmitted ?? 0)}</p>}
                     </details>
                   )}
                 </td>
@@ -377,7 +395,13 @@ function StatusNotes({ build }: { build: BuildViewUi }) {
       {build.state === 'paused' && build.pause?.reason === 'user' && <Note tone="plain" testId="build-paused">{t.buildPausedUser}</Note>}
       {build.pausing === true && <Note tone="plain" testId="build-pausing">{t.buildPausing}</Note>}
       {build.cancelling === true && <Note tone="plain" testId="build-cancelling">{t.buildCancelling}</Note>}
-      {build.state === 'interrupted' && <Note tone="plain" testId="build-interrupted">{t.buildInterrupted}</Note>}
+      {build.state === 'interrupted' && (
+        <Note tone="plain" testId="build-interrupted">
+          {t.buildInterrupted}
+          {/* An unexpected failure says what it was (redacted, no paths; review of M5, minor; step 33). */}
+          {build.error !== undefined && <span data-testid="build-interrupted-error"> {build.error}</span>}
+        </Note>
+      )}
       {build.state === 'cancelled' && <Note tone="plain" testId="build-cancelled">{t.buildCancelledNote}</Note>}
       {build.applied !== undefined && <Note tone="plain" testId="build-applied">{t.buildAppliedAt(build.applied.commit.slice(0, 7))}</Note>}
       {build.reverted !== undefined && <Note tone="plain" testId="build-reverted">{t.buildRevertedAt(build.reverted.commit.slice(0, 7))}</Note>}
@@ -388,7 +412,7 @@ function StatusNotes({ build }: { build: BuildViewUi }) {
 type BuildAction = 'pause' | 'resume' | 'cancel' | 'apply' | 'revert' | 'discard';
 
 /** The build's actions, each confirmed when it changes something that stays (BRIEF §3.4, §3.5). */
-function Actions({ build, head, onDone }: { build: BuildViewUi; head: string | undefined; onDone(): void }) {
+function Actions({ build, head, onDone, onRefused }: { build: BuildViewUi; head: string | undefined; onDone(): void; onRefused(): void }) {
   const { t } = useApp();
   const send = useSend();
   const action = useAction();
@@ -399,14 +423,16 @@ function Actions({ build, head, onDone }: { build: BuildViewUi; head: string | u
     resume: ['paused', 'interrupted', 'finished'].includes(build.state) && build.cancelling !== true,
     cancel: (build.state === 'running' && build.cancelling !== true) || build.state === 'paused' || build.state === 'interrupted',
     apply: settled && head !== undefined,
-    revert: build.state === 'applied',
+    // Also once discarded: discarding deleted only the branch, which a revert does not need (review of step 33, A, I-1).
+    revert: build.applied !== undefined && build.reverted === undefined && (build.state === 'applied' || build.state === 'discarded'),
     // An applied or reverted build loses only its branch (the user's decision, step 33).
     discard: settled || build.state === 'applied' || build.state === 'reverted',
   };
   const landed = build.state === 'applied' || build.state === 'reverted';
   // Confirmed actions say so in the body; apply also names the change the page shows (review of M5, I2 and I3).
   const body = (name: BuildAction): Record<string, unknown> => (name === 'apply' ? { confirm: true, head } : dialogs[name] === undefined ? {} : { confirm: true });
-  const run = (name: BuildAction) => void action.run(() => send('POST', `/api/builds/${encodeURIComponent(build.id)}/${name}`, body(name))).then((ok) => ok && onDone());
+  // A refused action reads the build and its diff again, so a second Apply sends the head the page now shows (review of M6, minor; step 33).
+  const run = (name: BuildAction) => void action.run(() => send('POST', `/api/builds/${encodeURIComponent(build.id)}/${name}`, body(name))).then((ok) => (ok ? onDone() : onRefused()));
   const dialogs: Partial<Record<BuildAction, { title: string; body: string; label: string; tone: 'normal' | 'danger' }>> = {
     cancel: { title: t.buildCancelTitle, body: t.buildCancelBody, label: t.buildCancel, tone: 'danger' },
     apply: { title: t.buildApplyTitle, body: `${t.buildApplyBody(build.baseBranch ?? '')} ${t.buildApplyHint}`, label: t.buildApply, tone: 'normal' },
@@ -584,9 +610,19 @@ export function BuildPage({ id }: { id: string }) {
             <StatusNotes build={view} />
             {view.state === 'planned' && <PlannedStart build={view} onStarted={loaded.reload} />}
             {(view.state === 'planned' || view.state === 'planFailed') && <DiscardUnstarted build={view} onDone={loaded.reload} />}
-            {view.tasks.length > 0 && <Actions build={view} head={diff.data?.head} onDone={loaded.reload} />}
+            {view.tasks.length > 0 && (
+              <Actions
+                build={view}
+                head={diff.data?.head}
+                onDone={loaded.reload}
+                onRefused={() => {
+                  loaded.reload();
+                  diff.reload();
+                }}
+              />
+            )}
             {view.tasks.length > 0 && <Progress build={view} />}
-            {view.tasks.length > 0 && view.state !== 'discarded' && <BuildDiff loaded={diff} />}
+            {view.tasks.length > 0 && (view.state !== 'discarded' || view.applied !== undefined) && <BuildDiff loaded={diff} />}
           </div>
         </>
       )}

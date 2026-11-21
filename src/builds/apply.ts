@@ -3,7 +3,7 @@ import { assertLandingReady, land, recordInNote, type Landing } from '../tasks/a
 import { runGit } from '../tasks/git.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { integrationHead } from './git.js';
-import type { BuildRecord } from './types.js';
+import { isRevertable, type BuildRecord } from './types.js';
 
 /**
  * Applying and reverting a whole build (BRIEF-phase-9 §2, 10 and §3.5;
@@ -50,8 +50,9 @@ export async function applyBuild(build: BuildRecord, deps: BuildApplyDeps): Prom
   try {
     commit = await land(target, build.baseCommit as string, head, buildCommitMessage(build), branchHead);
   } catch (error) {
-    // The change is already all on the default branch.
-    if (isBriefstackError(error) && error.code === 'task.noChanges') throw new BriefstackError('build.nothingToApply', { id: build.id });
+    // The change is already all on the default branch (a server stop after landing it, before `applied` was saved, say):
+    // its own code, not "nothing on the branch" (review of M5, minor; step 33).
+    if (isBriefstackError(error) && error.code === 'task.noChanges') throw new BriefstackError('build.alreadyOnBranch', { id: build.id, branch: build.baseBranch ?? '' });
     throw error;
   }
   const now = (deps.now ?? (() => new Date()))();
@@ -62,7 +63,7 @@ export async function applyBuild(build: BuildRecord, deps: BuildApplyDeps): Prom
 
 /** Revert: one commit that undoes the applied build's commit, under the same rules. */
 export async function revertBuild(build: BuildRecord, deps: BuildApplyDeps): Promise<{ commit: string; at: string }> {
-  if (build.state !== 'applied' || build.applied === undefined) throw new BriefstackError('build.wrongState', { id: build.id, state: build.state });
+  if (!isRevertable(build) || build.applied === undefined) throw new BriefstackError('build.wrongState', { id: build.id, state: build.state });
   const target = landingOf(build);
   const branchHead = await assertLandingReady(target, deps.busy);
   const applied = build.applied.commit;

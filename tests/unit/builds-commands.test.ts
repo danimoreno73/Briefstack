@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { approvedCommandProblem, approvedListProblems, chainParts, isApprovedCommand } from '../../src/builds/commands.js';
+import { approvedCommandProblem, approvedListIssues, approvedListProblems, chainParts, COMMAND_PROBLEMS, isApprovedCommand, startIssueText, type StartIssue } from '../../src/builds/commands.js';
+import { startIssueFacts, uiMessages } from '../../src/i18n/ui.js';
 import { buildRoundPrompt, failureText } from '../../src/builds/prompt.js';
 
 // The exact list of a build (BRIEF-phase-9 §2, 6 and §4).
@@ -123,5 +124,48 @@ describe('the round prompt', () => {
     expect(text).toContain('Denied (Bash): curl https://example.com');
     expect(text).toContain('The server refused config.js (secret).');
     expect(text).not.toContain('big.bin');
+  });
+});
+
+describe('the issues of a start, as codes the page translates (step 33)', () => {
+  const every: StartIssue[] = [
+    { key: 'emptyQueue' },
+    { key: 'tooManyTasks', max: 20 },
+    { key: 'taskInvalid', n: 2, fields: ['title', 'doneWhen'], detail: 'title Too small' },
+    { key: 'laterDependency', n: 3 },
+    { key: 'limit' },
+    { key: 'listTooLong', what: 'checks', max: 10 },
+    ...COMMAND_PROBLEMS.map((problem): StartIssue => ({ key: 'listLine', what: 'commands', line: 4, problem })),
+    { key: 'listDuplicate', what: 'commands' },
+    { key: 'fixRounds', max: 2 },
+    { key: 'threshold', name: 'week' },
+    { key: 'noChecks' },
+  ];
+
+  it('the English text is what the server said before (approvedListProblems unchanged)', () => {
+    expect(approvedListProblems(['npm test', 'rm -rf *', 'npm test'], 'commands')).toEqual(['commands line 2: a wildcard', 'commands: the same command twice']);
+    expect(approvedListIssues(['npm ci && npm test'], 'checks')).toEqual([{ key: 'listLine', what: 'checks', line: 1, problem: 'compound' }]);
+  });
+
+  it('every issue has its own text in English and Spanish, with no server text in it', () => {
+    for (const lang of ['en', 'es'] as const) {
+      const said = every.map((issue) => {
+        const facts = startIssueFacts(issue);
+        expect(facts, JSON.stringify(issue)).toBeDefined();
+        return uiMessages[lang].buildStartIssue(facts!);
+      });
+      expect(said.every((text) => text.trim() !== '')).toBe(true);
+      expect(new Set(said).size).toBe(said.length);
+      // The zod detail is the server's English: never on the page.
+      expect(said.join(' ')).not.toContain('Too small');
+    }
+    expect(startIssueText(every[2] as StartIssue)).toBe('task 2: title Too small');
+  });
+
+  it('an item the page does not know, or with odd fields, is left out or kept to fixed sets', () => {
+    expect(startIssueFacts({ key: 'rm -rf' })).toBeUndefined();
+    expect(startIssueFacts(null)).toBeUndefined();
+    expect(startIssueFacts({ key: 'taskInvalid', n: 1, fields: ['title', '<script>'] })?.fields).toEqual(['title']);
+    expect(startIssueFacts({ key: 'listLine', line: 1, problem: 'other', what: 'commands' })?.problem).toBeUndefined();
   });
 });

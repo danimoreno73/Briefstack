@@ -13,8 +13,12 @@ import { identityArgs } from '../library/git.js';
  * 260 characters and still exits 0: decisions.md, "Phase 7: H0", 4).
  */
 
-/** `git merge-tree --write-tree` came in git 2.38. */
-export const MIN_GIT_VERSION = [2, 38] as const;
+/**
+ * `git merge-tree --write-tree` came in git 2.38, its `--merge-base` option
+ * (used to apply tasks and to land on a build's branch) in 2.40
+ * (decisions.md, "Phase 9: step 33, the minimum git version").
+ */
+export const MIN_GIT_VERSION = [2, 40] as const;
 
 /** The project files a task's worktree never holds (PLAN-phase-7 §1, 1): hidden with `--skip-worktree`. */
 export const HIDDEN_SETTINGS_FILES = ['.claude/settings.json', '.claude/settings.local.json'] as const;

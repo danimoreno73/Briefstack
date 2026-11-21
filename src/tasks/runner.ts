@@ -74,7 +74,8 @@ export function claudeUsageOf(message: unknown): ClaudeUsage | undefined {
   if (typeof message !== 'object' || message === null) return undefined;
   const count = (value: unknown): number | undefined => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : undefined);
   const { modelUsage, usage } = message as { modelUsage?: unknown; usage?: unknown };
-  if (typeof modelUsage === 'object' && modelUsage !== null && Object.keys(modelUsage).length > 0) {
+  const fromModels = (): ClaudeUsage | undefined => {
+    if (typeof modelUsage !== 'object' || modelUsage === null || Object.keys(modelUsage).length === 0) return undefined;
     const total: ClaudeUsage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
     for (const entry of Object.values(modelUsage as Record<string, unknown>)) {
       if (typeof entry !== 'object' || entry === null) return undefined;
@@ -88,7 +89,11 @@ export function claudeUsageOf(message: unknown): ClaudeUsage | undefined {
       total.cacheCreation += count(fields.cacheCreationInputTokens) ?? 0;
     }
     return total;
-  }
+  };
+  const models = fromModels();
+  if (models !== undefined) return models;
+  // Without a usable `modelUsage`: the main loop's `usage`, which the SDK gives per turn (so a round with several
+  // turns counts only its last one; review of step 33, part A).
   if (typeof usage === 'object' && usage !== null) {
     const fields = usage as Record<string, unknown>;
     const input = count(fields.input_tokens);
@@ -105,7 +110,7 @@ export function claudeTokens(usage: ClaudeUsage): { noCache: number; withCache: 
   return { noCache, withCache: noCache + usage.cacheRead + usage.cacheCreation };
 }
 
-export type TaskRunnerOutcome ={ kind: 'ended'; summary?: string } | { kind: 'stopped' } | { kind: 'failed'; error: string };
+export type TaskRunnerOutcome = { kind: 'ended'; summary?: string } | { kind: 'stopped' } | { kind: 'failed'; error: string };
 
 export interface TaskRunnerHandle {
   /** Resolves once the Claude Code session id is known. */

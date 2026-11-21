@@ -1,4 +1,4 @@
-import type { TaskErrorFacts, uiMessages } from '../i18n/ui.js';
+import { startIssueFacts, type StartIssueFacts, type TaskErrorFacts, type uiMessages } from '../i18n/ui.js';
 import { ApiError } from './apiError.js';
 
 type Messages = (typeof uiMessages)['en'];
@@ -134,6 +134,12 @@ export function describeError(error: unknown, t: Messages): string {
         typeof error.params.sevenDay === 'number' ? error.params.sevenDay : null,
         Number(error.params.warnWeek),
       );
+    case 'build.invalidStart': {
+      // Each problem in the user's language, from its code and numbers (step 33); the server's English is never shown.
+      const items = (Array.isArray(error.params.items) ? error.params.items : []).map(startIssueFacts).filter((item): item is StartIssueFacts => item !== undefined);
+      if (items.length > 0) return `${t.buildInvalidStartLead} ${items.map((item) => t.buildStartIssue(item)).join('; ')}.`;
+      return t.errTask(error.code, taskFacts(error.params, t)) ?? t.errGeneric(error.code);
+    }
     default:
       return (error.code.startsWith('task.') || error.code.startsWith('build.') ? t.errTask(error.code, taskFacts(error.params, t)) : undefined) ?? t.errGeneric(error.code);
   }

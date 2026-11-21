@@ -1,3 +1,4 @@
+import type { StartIssue } from './builds/commands.js';
 import type { SpecIssue } from './spec/index.js';
 
 /** What a config field should have been; rendered by the i18n catalogue. */
@@ -177,10 +178,15 @@ export interface ErrorParams {
   'build.wrongState': { id: string; state: string };
   'build.noBrief': { project: string };
   'build.projectBusy': { project: string; id: string };
-  'build.invalidStart': { issues: string[] };
+  /** `issues` in English; `items` the same as codes, for the page to translate (step 33). */
+  'build.invalidStart': { issues: string[]; items?: StartIssue[] };
   'build.branchExists': { branch: string };
   'build.branchMoved': { branch: string };
+  /** A worktree (the project folder or another) has the integration branch checked out: it is not moved or removed (step 33). */
+  'build.branchCheckedOut': { branch: string };
   'build.nothingToApply': { id: string };
+  /** The build's whole change is already on the default branch (step 33). */
+  'build.alreadyOnBranch': { id: string; branch: string };
   'build.taskRunning': { id: string; task: string };
   /** Tasks of the build still wait for the user: approve them onto the build's branch, or discard them, before applying. */
   'build.openTasks': { id: string; tasks: number[] };

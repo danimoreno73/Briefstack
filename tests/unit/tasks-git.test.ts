@@ -9,6 +9,7 @@ import {
   gitVersion,
   initRepoWithCommit,
   INIT_COMMIT_MESSAGE,
+  MIN_GIT_VERSION,
   removeTaskWorktree,
   repoState,
   uncommittedPaths,
@@ -55,12 +56,14 @@ beforeEach(async () => {
 afterEach(() => cleanup());
 
 describe('git for tasks', () => {
-  it('finds a git recent enough for merge-tree --write-tree', async () => {
+  it('finds a git recent enough for merge-tree --write-tree --merge-base (git 2.40; step 33)', async () => {
     const version = await gitVersion();
     expect(version).toBeDefined();
     expect(gitIsRecentEnough(version!)).toBe(true);
     expect(gitIsRecentEnough({ major: 2, minor: 37, text: '2.37' })).toBe(false);
-    expect(gitIsRecentEnough({ major: 2, minor: 38, text: '2.38' })).toBe(true);
+    expect(gitIsRecentEnough({ major: 2, minor: 39, text: '2.39' })).toBe(false);
+    expect(gitIsRecentEnough({ major: 2, minor: 40, text: '2.40' })).toBe(true);
+    expect(MIN_GIT_VERSION.join('.')).toBe('2.40');
     expect(gitIsRecentEnough({ major: 3, minor: 0, text: '3.0' })).toBe(true);
   });
 

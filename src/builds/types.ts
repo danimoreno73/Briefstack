@@ -25,6 +25,14 @@ export const MAX_FIX_ROUNDS = 2;
 export const DEFAULT_FIX_ROUNDS = 1;
 /** The highest per-build cap on rounds. */
 export const MAX_ROUNDS_CAP = 40;
+/** How many denied commands a task of the build keeps in `build.json`; the rest are only counted (review of M3, minor; step 33). */
+export const MAX_DENIED_KEPT = 50;
+
+/** A task's denied list with `more` added, capped: the first ones kept, the others counted in `omitted`. */
+export function capDenied(kept: readonly { tool: string; text: string }[], omitted: number, more: readonly { tool: string; text: string }[]): { denied: { tool: string; text: string }[]; deniedOmitted: number } {
+  const all = [...kept, ...more];
+  return { denied: all.slice(0, MAX_DENIED_KEPT), deniedOmitted: omitted + Math.max(0, all.length - MAX_DENIED_KEPT) };
+}
 
 /**
  * - `planning`: the planner session runs.
@@ -47,6 +55,14 @@ export const SETTLED_BUILD_STATES: readonly BuildState[] = ['paused', 'interrupt
 export const OPEN_BUILD_STATES: readonly BuildState[] = ['planning', 'planned', 'running', 'paused', 'interrupted', 'cancelled', 'finished', 'planFailed'];
 
 export const isOpenBuild = (state: BuildState): boolean => OPEN_BUILD_STATES.includes(state);
+
+/**
+ * Whether the build's applied commit can be reverted: applied and not yet
+ * reverted, also once discarded (discarding deletes only the integration
+ * branch, which a revert does not need; review of step 33, part A, I-1).
+ */
+export const isRevertable = (record: { state: BuildState; applied?: unknown; reverted?: unknown }): boolean =>
+  record.applied !== undefined && record.reverted === undefined && (record.state === 'applied' || record.state === 'discarded');
 
 /** One item of a queue, as the planner proposes it and the user edits it. `dependsOn`: 1-based positions of earlier items. */
 export const queueItemSchema = z.strictObject({
@@ -99,8 +115,10 @@ const buildTaskSchema = z.object({
   detail: z.string().optional(),
   /** The commit on the integration branch. */
   commit: z.string().optional(),
-  /** Commands and addresses denied in its rounds, as shown (redacted). */
+  /** Commands and addresses denied in its rounds, as shown (redacted); at most `MAX_DENIED_KEPT`. */
   denied: z.array(z.object({ tool: z.string(), text: z.string() })).optional(),
+  /** How many denials were not kept past `MAX_DENIED_KEPT` (step 33). */
+  deniedOmitted: z.int().min(0).optional(),
   /** Rounds the build ran for it (the first and fix rounds). */
   rounds: z.int().min(0),
 });
@@ -163,6 +181,12 @@ export const buildRecordSchema = z.object({
   reverted: z.object({ commit: z.string(), at: z.string() }).optional(),
   /** Why the last action or the planner failed, redacted, without absolute paths. */
   error: z.string().optional(),
+  /**
+   * The user asked to cancel, and the loop has not recorded it yet: a
+   * server stop meanwhile leaves the build cancelled, never resumable
+   * (step 33; review of M4, minor). Only on a running or paused record.
+   */
+  cancelAsked: z.string().optional(),
 })
   // A record never names another branch: an edited `build.json` cannot point the server's git at `main` (review of M1).
   .refine((record) => record.branch === buildBranchOf(record.id), { path: ['branch'], message: 'must be briefstack/build-<id>' });

@@ -474,6 +474,8 @@ export interface BuildTaskUi extends QueueItemUi {
   detail?: string;
   commit?: string;
   denied?: { tool: string; text: string }[];
+  /** Denials past the kept ones, only counted (step 33). */
+  deniedOmitted?: number;
   rounds: number;
   /** What the server adds from the task itself (M5): its state, checks and Codex calls (tokens as Codex counts them). */
   task?: {

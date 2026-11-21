@@ -13,7 +13,7 @@ import { isOpenTask, type TaskRecord } from './types.js';
  * The checks before a task starts (BRIEF-phase-7 §3.1), in this order, each
  * refused with its own coded error: the project is registered and created
  * by briefstack, `claude-code`, not archived, its folder exists and is out
- * of briefstack's own folders; git 2.38 or later; the folder is the top of
+ * of briefstack's own folders; git 2.40 or later; the folder is the top of
  * a git repository with a commit and a branch checked out; no other open
  * task on the project; no creation targets its folder; the active-sessions
  * limit allows one more.

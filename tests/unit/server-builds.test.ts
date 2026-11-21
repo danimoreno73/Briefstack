@@ -107,8 +107,14 @@ describe('build routes', () => {
 
     const body = { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 1, thresholds: { fiveHour: 80, week: 90 } };
     expect((await call('POST', `/api/builds/${id}/start`, body)).status).toBe(400);
-    expect(await call('POST', `/api/builds/${id}/start`, { ...body, commands: ['npm test; rm -rf .'], confirm: true })).toMatchObject({ status: 400, json: { code: 'build.invalidStart' } });
-    const started = await call('POST', `/api/builds/${id}/start`, { ...body, confirm: true });
+    expect(await call('POST', `/api/builds/${id}/start`, { ...body, commands: ['npm test; rm -rf .'], confirm: true, noChecks: true })).toMatchObject({
+      status: 400,
+      json: { code: 'build.invalidStart', params: { items: [{ key: 'listLine', what: 'commands', line: 1, problem: 'compound' }] } },
+    });
+    // No checks: the body must say the user confirmed it (step 33).
+    expect(await call('POST', `/api/builds/${id}/start`, { ...body, confirm: true })).toMatchObject({ status: 400, json: { code: 'build.invalidStart', params: { items: [{ key: 'noChecks' }] } } });
+    expect((await call('POST', `/api/builds/${id}/start`, { ...body, confirm: true, noChecks: false })).status).toBe(400);
+    const started = await call('POST', `/api/builds/${id}/start`, { ...body, confirm: true, noChecks: true });
     expect(started).toMatchObject({ status: 200, json: { state: 'running', settings: { limit: 1, commands: ['npm test'] } } });
     await builds.idle(id);
     expect((await call('GET', `/api/builds/${id}`)).json).toMatchObject({ state: 'finished', tasks: [{ state: 'applied' }] });
@@ -124,7 +130,7 @@ describe('build routes', () => {
     // Cancel says it was confirmed, or nothing is read (review of M6, minor).
     expect(await call('POST', `/api/builds/${id}/cancel`, {})).toMatchObject({ status: 400, json: { code: 'web.invalidBody' } });
     expect(await call('POST', `/api/builds/${id}/cancel`, { confirm: true })).toMatchObject({ status: 409, json: { code: 'build.wrongState' } });
-    await call('POST', `/api/builds/${id}/start`, { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true });
+    await call('POST', `/api/builds/${id}/start`, { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true, noChecks: true });
     await builds.idle(id);
     expect((await call('GET', `/api/builds/${id}`)).json).toMatchObject({ state: 'finished' });
     // A finished build resumes (here nothing is left within its limit, so it finishes again).
@@ -139,7 +145,7 @@ describe('build routes', () => {
     const id = (await call('POST', '/api/projects/garden/builds', {})).json.id as string;
     await builds.idle(id);
     expect(await call('GET', `/api/builds/${id}/diff`)).toMatchObject({ status: 200, json: { diff: null } });
-    await call('POST', `/api/builds/${id}/start`, { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true });
+    await call('POST', `/api/builds/${id}/start`, { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true, noChecks: true });
     await builds.idle(id);
     const shown = (await call('GET', `/api/builds/${id}/diff`)).json as { diff: { files: { path: string }[] }; head: string };
     expect(shown.diff.files.length).toBeGreaterThan(0);
@@ -155,7 +161,7 @@ describe('build routes', () => {
 
     const other = (await call('POST', '/api/projects/garden/builds', {})).json.id as string;
     await builds.idle(other);
-    await call('POST', `/api/builds/${other}/start`, { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true });
+    await call('POST', `/api/builds/${other}/start`, { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true, noChecks: true });
     await builds.idle(other);
     expect(await call('POST', `/api/builds/${other}/discard`, {})).toMatchObject({ status: 400 });
     expect((await call('GET', `/api/builds/${other}`)).json).toMatchObject({ state: 'finished' });

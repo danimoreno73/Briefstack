@@ -6,21 +6,22 @@ import type { Effort } from '../models.js';
 import { hideAbsolutePaths } from '../panel/project.js';
 import { checkTaskPreconditions } from '../tasks/preconditions.js';
 import type { TaskManager, TaskView } from '../tasks/manager.js';
-import { repoState } from '../tasks/git.js';
 import { proposalDiff, type ProposalDiff } from '../tasks/proposal.js';
 import { newTaskId } from '../tasks/store.js';
 import { claudeTokens } from '../tasks/runner.js';
 import { isActiveTask, type TaskState } from '../tasks/types.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { applyBuild, revertBuild } from './apply.js';
-import { approvedListProblems } from './commands.js';
-import { commitsSince, createIntegrationBranch, deleteIntegrationBranch, integrationHead } from './git.js';
+import { approvedListIssues, startIssueText, type StartIssue } from './commands.js';
+import { branchCheckedOut, commitsSince, createIntegrationBranch, deleteIntegrationBranch, integrationHead } from './git.js';
 import { readPlanningInput, type BuildPlanner } from './planner.js';
 import { buildRoundPrompt, failureText } from './prompt.js';
 import type { BuildStore } from './store.js';
 import {
+  capDenied,
   integrationBranchOf,
   isOpenBuild,
+  isRevertable,
   MAX_BUILD_CHECKS,
   MAX_COMMANDS,
   MAX_FIX_ROUNDS,
@@ -52,6 +53,8 @@ export interface BuildStartInput {
   checks: string[];
   fixRounds: number;
   thresholds: { fiveHour: number; week: number };
+  /** The user confirmed a start with no checks (every task with no denied command is then applied). */
+  noChecks?: boolean;
 }
 
 export interface BuildManagerOptions {
@@ -326,23 +329,37 @@ export class BuildManager {
     }
   }
 
-  /** The issues of a start, or none. */
+  /** The issues of a start, in English, or none. */
   startProblems(input: BuildStartInput): string[] {
-    const issues: string[] = [];
-    if (!Array.isArray(input.tasks) || input.tasks.length === 0) issues.push('the queue is empty');
-    if (input.tasks.length > MAX_QUEUE) issues.push(`at most ${MAX_QUEUE} tasks`);
+    return this.startIssues(input).map(startIssueText);
+  }
+
+  /** The issues of a start, each a code the page translates (step 33), or none. */
+  startIssues(input: BuildStartInput): StartIssue[] {
+    const issues: StartIssue[] = [];
+    if (!Array.isArray(input.tasks) || input.tasks.length === 0) issues.push({ key: 'emptyQueue' });
+    if (input.tasks.length > MAX_QUEUE) issues.push({ key: 'tooManyTasks', max: MAX_QUEUE });
     input.tasks.forEach((task, i) => {
       const parsed = queueItemSchema.safeParse(task);
-      if (!parsed.success) issues.push(`task ${i + 1}: ${parsed.error.issues.map((issue) => `${issue.path.join('.')} ${issue.message}`).join(', ')}`);
-      else if (parsed.data.dependsOn.some((n) => n >= i + 1)) issues.push(`task ${i + 1}: it may depend only on earlier tasks`);
+      if (!parsed.success) {
+        issues.push({
+          key: 'taskInvalid',
+          n: i + 1,
+          fields: [...new Set(parsed.error.issues.map((issue) => String(issue.path[0] ?? '')).filter((field) => field !== ''))],
+          detail: parsed.error.issues.map((issue) => `${issue.path.join('.')} ${issue.message}`).join(', '),
+        });
+      } else if (parsed.data.dependsOn.some((n) => n >= i + 1)) issues.push({ key: 'laterDependency', n: i + 1 });
     });
-    if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > Math.max(1, input.tasks.length)) issues.push('how many tasks to run: from 1 to the queue\'s length');
-    issues.push(...approvedListProblems(input.commands, 'commands', MAX_COMMANDS));
-    issues.push(...approvedListProblems(input.checks, 'checks', MAX_BUILD_CHECKS));
-    if (!Number.isInteger(input.fixRounds) || input.fixRounds < 0 || input.fixRounds > MAX_FIX_ROUNDS) issues.push(`fix rounds: 0 to ${MAX_FIX_ROUNDS}`);
+    if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > Math.max(1, input.tasks.length)) issues.push({ key: 'limit' });
+    issues.push(...approvedListIssues(input.commands, 'commands', MAX_COMMANDS));
+    issues.push(...approvedListIssues(input.checks, 'checks', MAX_BUILD_CHECKS));
+    if (!Number.isInteger(input.fixRounds) || input.fixRounds < 0 || input.fixRounds > MAX_FIX_ROUNDS) issues.push({ key: 'fixRounds', max: MAX_FIX_ROUNDS });
     for (const [name, value] of Object.entries(input.thresholds ?? {})) {
-      if (typeof value !== 'number' || !Number.isFinite(value) || value < 1 || value > 100) issues.push(`usage threshold ${name}: 1 to 100`);
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 1 || value > 100) issues.push({ key: 'threshold', name });
     }
+    // With no checks, "the checks pass" holds by itself: every task with no denied command is applied. The user says
+    // so explicitly (review of M3, minor; step 33).
+    if (Array.isArray(input.checks) && input.checks.length === 0 && input.noChecks !== true) issues.push({ key: 'noChecks' });
     return issues;
   }
 
@@ -362,8 +379,8 @@ export class BuildManager {
     this.refuseWhileStopping();
     const record = await this.load(id);
     if (record.state !== 'planned') throw new BriefstackError('build.wrongState', { id, state: record.state });
-    const issues = this.startProblems(input);
-    if (issues.length > 0) throw new BriefstackError('build.invalidStart', { issues });
+    const items = this.startIssues(input);
+    if (items.length > 0) throw new BriefstackError('build.invalidStart', { issues: items.map(startIssueText), items });
     const start = await this.preconditions(record.project, id);
     await createIntegrationBranch(start.dir, record.branch, start.head);
     const fixRounds = input.fixRounds;
@@ -425,7 +442,7 @@ export class BuildManager {
       // An applied or reverted build (decisions.md, "Phase 9: the user's decisions", 1): only its integration branch goes.
       // The commits on the default branch stay, and so does the record, with what it applied and reverted.
       if (record.state === 'applied' || record.state === 'reverted') {
-        if ((await repoState(record.projectDir)).branch === record.branch) throw new BriefstackError('build.branchMoved', { branch: record.branch });
+        // `deleteIntegrationBranch` refuses a branch any worktree has checked out (step 33).
         await deleteIntegrationBranch(record.projectDir, record.branch);
         const next: BuildRecord = { ...record, state: 'discarded', updatedAt: this.now().toISOString() };
         await this.save(next);
@@ -434,8 +451,9 @@ export class BuildManager {
       // A started build (M5): its open tasks' worktrees and branches go, then its integration branch. Nothing reaches the project.
       this.refuseUnlessSettled(record, l);
       await this.refuseTaskAtWork(record);
-      // A branch the user checked out by hand is never removed under their folder (review of M5, minor).
-      if ((await repoState(record.projectDir)).branch === record.branch) throw new BriefstackError('build.branchMoved', { branch: record.branch });
+      // A branch the user checked out by hand, in the project folder or another worktree, is never removed under it, and
+      // nothing else is discarded first (review of M5 and of M1, minor; step 33).
+      if (await branchCheckedOut(record.projectDir, record.branch)) throw new BriefstackError('build.branchCheckedOut', { branch: record.branch });
       for (const item of record.tasks) {
         if (item.taskId === undefined) continue;
         const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
@@ -521,14 +539,16 @@ export class BuildManager {
     return this.serial(l, async () => {
       this.refuseWhileStopping();
       const record = await this.load(id);
-      if (record.state !== 'applied') throw new BriefstackError('build.wrongState', { id, state: record.state });
+      // A discarded build that was applied can still be reverted: discarding deleted only its branch (review of step 33, A, I-1).
+      if (!isRevertable(record)) throw new BriefstackError('build.wrongState', { id, state: record.state });
       const { libraryDir } = await this.options.locations();
       const reverted = await revertBuild(record, {
         libraryDir,
         busy: async () => (await this.options.tasks.list()).find((task) => task.project === record.project && isActiveTask(task.state))?.id,
         now: this.now,
       });
-      const next: BuildRecord = { ...record, state: 'reverted', reverted, updatedAt: this.now().toISOString() };
+      // A discarded build stays discarded (its branch is gone), with the revert recorded.
+      const next: BuildRecord = { ...record, state: record.state === 'discarded' ? 'discarded' : 'reverted', reverted, updatedAt: this.now().toISOString() };
       await this.save(next);
       return this.view(next);
     });
@@ -695,6 +715,8 @@ export class BuildManager {
         l.pausing = false;
         if (l.timer !== undefined) clearTimeout(l.timer);
         delete l.timer;
+        // On disk at once: a server stop before the loop records the cancel leaves the build cancelled (step 33).
+        await this.save(await this.load(id)).catch(() => undefined);
         l.wake?.();
         void this.finishCancel(id, l);
       }
@@ -765,6 +787,11 @@ export class BuildManager {
         try {
           const record = await this.options.store.load(id);
           if (record === undefined || record.state !== 'running' || this.stopping) return;
+          // A loop that failed while the user cancelled: the build is cancelled, not interrupted (step 33).
+          if (l.cancelling || record.cancelAsked !== undefined) {
+            await this.options.store.save({ ...this.cancelledNow(record), error: await this.message(error) });
+            return;
+          }
           const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'waiting' as const, reason: 'interrupted' as const } : task));
           await this.save({ ...record, tasks, state: 'interrupted', error: await this.message(error), updatedAt: this.now().toISOString() });
         } catch {
@@ -1017,7 +1044,12 @@ export class BuildManager {
       for (;;) {
         task = await this.options.tasks.roundSettled(task.id);
         const counted = await this.load(record.id);
-        await this.save({ ...this.withTask(counted, n, { rounds: (counted.tasks[n - 1]?.rounds ?? 0) + 1, denied: [...(counted.tasks[n - 1]?.denied ?? []), ...denied] }), roundsRun: counted.roundsRun + 1 });
+        const before = counted.tasks[n - 1];
+        const capped = capDenied(before?.denied ?? [], before?.deniedOmitted ?? 0, denied);
+        await this.save({
+          ...this.withTask(counted, n, { rounds: (before?.rounds ?? 0) + 1, denied: capped.denied, ...(capped.deniedOmitted > 0 ? { deniedOmitted: capped.deniedOmitted } : {}) }),
+          roundsRun: counted.roundsRun + 1,
+        });
         if (this.stopping) return;
         if (l.cancelling) {
           await this.updateTask(record.id, n, { state: 'cancelled' });
@@ -1102,6 +1134,10 @@ export class BuildManager {
       if (record.state === 'planning') {
         await this.save({ ...record, state: 'planFailed', error: await this.message(new BriefstackError('build.planStopped', {})), updatedAt: this.now().toISOString() });
         count += 1;
+      } else if ((record.state === 'running' || record.state === 'paused') && record.cancelAsked !== undefined) {
+        // The user had asked to cancel it (step 33).
+        await this.options.store.save(this.cancelledNow(record));
+        count += 1;
       } else if (record.state === 'running' || record.state === 'paused') {
         const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'waiting' as const, reason: 'interrupted' as const } : task));
         const next: BuildRecord = { ...record, tasks, state: 'interrupted', updatedAt: this.now().toISOString() };
@@ -1150,8 +1186,26 @@ export class BuildManager {
     return record;
   }
 
+  /**
+   * Every save of a running or paused build whose cancel was asked carries
+   * `cancelAsked`, whichever path saves it (the loop's own saves read the
+   * record before the cancel came); any other state drops it.
+   */
   private async save(record: BuildRecord): Promise<void> {
-    await this.options.store.save({ ...record, updatedAt: this.now().toISOString() });
+    const next: BuildRecord = { ...record, updatedAt: this.now().toISOString() };
+    const asked = this.live.get(record.id)?.cancelling === true;
+    if ((next.state === 'running' || next.state === 'paused') && (asked || next.cancelAsked !== undefined)) next.cancelAsked ??= this.now().toISOString();
+    else delete next.cancelAsked;
+    await this.options.store.save(next);
+  }
+
+  /** A running or paused record whose cancel was asked, as cancelled: what a restart or a failed loop leaves. */
+  private cancelledNow(record: BuildRecord): BuildRecord {
+    const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'cancelled' as const } : task));
+    const next: BuildRecord = { ...record, tasks, state: 'cancelled', finishedAt: this.now().toISOString(), updatedAt: this.now().toISOString() };
+    delete next.pause;
+    delete next.cancelAsked;
+    return next;
   }
 
   private async message(error: unknown): Promise<string> {

@@ -893,7 +893,7 @@ export class TaskManager {
       io: {
         // The runner refuses questions in a build's round; this is only a second line: nothing is ever queued for the user.
         askQuestions: (request) => (l.unattended !== undefined ? Promise.resolve<QuestionResult>({ decision: 'cancel' }) : this.request<QuestionResult>(l, { id: '', kind: 'question', payload: request })),
-        emit: (event) => this.onRunnerEvent(l, event),
+        emit: (event) => this.onRunnerEvent(l, event, n),
         recordCodex: (call) => this.recordCodex(l, n, call),
       },
     });
@@ -1118,7 +1118,8 @@ export class TaskManager {
 
   // ---- stream ----------------------------------------------------------------------------------
 
-  private onRunnerEvent(l: Live, event: TaskRunnerEvent): void {
+  /** `round`: the round whose runner sent the event. */
+  private onRunnerEvent(l: Live, event: TaskRunnerEvent, round?: number): void {
     if (event.kind === 'status' && event.status === 'turnEnded') {
       // In a build's round nobody replies: the turn's end ends the round (phase 9).
       if (l.unattended !== undefined && l.handle !== undefined) {
@@ -1137,8 +1138,9 @@ export class TaskManager {
     if (event.kind === 'usage') {
       // Claude's tokens (phase 9, step 33): the running total of the round's session, kept with the round in memory and
       // saved with the round's end. Not saved here: a save outside the round's own order could put an older state on disk.
-      const round = l.record.rounds.at(-1);
-      if (round !== undefined && round.finishedAt === undefined) round.claude = { ...event.usage };
+      // Only into the round whose session sent it, while it runs: a late result of an earlier session never lands in a new round.
+      const target = l.record.rounds.at(-1);
+      if (target !== undefined && target.n === round && target.finishedAt === undefined) target.claude = { ...event.usage };
       return;
     }
     if (event.kind === 'denial') {
