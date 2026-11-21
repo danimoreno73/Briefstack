@@ -6829,6 +6829,12 @@ recorded here; the design decisions are in
   out) and records `discarded`, keeping `applied` and `reverted`; the
   commits on the default branch are not touched. The build page offers
   Discard on those builds with its own text (`buildDiscardAppliedBody`).
+  An applied build that was discarded can still be reverted (the revert
+  needs only the applied commit and its parent, not the branch); it stays
+  `discarded`, with `reverted` recorded, and the page keeps showing the
+  applied commit's diff (review of step 33, part A, I-1: otherwise
+  discarding would also have taken away the revert, which the user's
+  decision did not say).
 - **2. The build page shows Claude's tokens per task** (source: the user,
   2026-11-19, step 33; the review of M5 found the column empty in
   practice, Codex only). Each task round keeps `claude` `{ input, output,
@@ -7073,6 +7079,61 @@ Choices made without the user, each the conservative reading:
   with a test's task runner the server reads no plan by default, so the
   real check passes the real reader, tapped to print each reading. Tests
   are unchanged.
+
+## Phase 9: step 33, open items of IDEAS §9 (2026-11-21)
+
+Each with a test that fails without it where it is code. Sources: the
+reviews of M1 to M6 and of step 32.
+
+- **The list limits command lines, not code** (review of step 32): the
+  README (Limitations) and the start page's hint say that the session can
+  change what an approved command runs (a `package.json` script, a test
+  file).
+- **A build with no checks** (review of M3): the start page warns and the
+  Start button waits for a checkbox; the server refuses a start with no
+  checks unless the body says `noChecks: true` (`build.invalidStart`,
+  item `noChecks`). The conservative reading: an explicit field, not a
+  default.
+- **A cancel kept on disk** (review of M4): the cancel saves
+  `cancelAsked` in the record at once, and every later save of a running
+  or paused record keeps it (the loop's saves read the record before the
+  cancel came, so `save()` adds it from the live flag). `recover()` and a
+  loop that fails during a cancel leave the build `cancelled`.
+- **The integration branch checked out by hand** (review of M1): before
+  `update-ref` moves (landing a task) or removes (discard) the branch,
+  `git worktree list --porcelain` is read; a worktree with
+  `branch refs/heads/<branch>` (the project folder or another) refuses with
+  `build.branchCheckedOut`. A listing that fails counts as checked out.
+  This replaces the check of the project folder alone (review of M5).
+- **The minimum git version** (review of M1): verified in git's own
+  release notes. `Documentation/RelNotes/2.38.0.adoc`: "\"git merge-tree\"
+  learned a new mode where it takes two commits and computes a tree that
+  would result in the merge commit" (the `--write-tree` mode);
+  `Documentation/RelNotes/2.40.0.adoc`: "\"merge-tree\" learns a new
+  `--merge-base` option." (https://github.com/git/git, read on
+  2026-11-21). Applying a task (`src/tasks/apply.ts`) and landing on a
+  build's branch both use `--merge-base`, so `MIN_GIT_VERSION` rises from
+  2.38 to 2.40, with its messages and the README. A git between 2.38 and
+  2.39 is now refused before a task starts instead of failing at apply.
+- **A random tag in the planner's markers** (review of M3): each marker
+  line holds 16 hex characters made for that message, and the
+  instructions name the tag, so a brief holding `=== end of docs/BRIEF.md
+  ===` no longer fakes the end of its data.
+- **A cap on a task's denied list** (review of M3): `build.json` keeps the
+  first 50 (`MAX_DENIED_KEPT`) and counts the rest in `deniedOmitted`; the
+  page says "and N more".
+- **The build page** (reviews of M3, M5, M6): it kept polling a build
+  paused for usage already (M6 fixes); it now shows the `error` of an
+  interrupted build, reads the build and its diff again after a refused
+  action, and a change already on the default branch is
+  `build.alreadyOnBranch`, not `build.nothingToApply`.
+- **The start page** (review of M3): `build.invalidStart` carries `items`,
+  each problem as a code with only numbers and names from fixed sets,
+  which the page says in English or Spanish (never the server's text);
+  removing a task lowers "how many tasks to run" to the queue's length.
+- **Cheap others**: creating the integration branch tells a base that is
+  not a commit from an existing branch (review of M1); a test of a
+  transitive skip and of Resume skipping again (review of M4).
 
 ## Phase 9: review of M6, the fixes (2026-11-19)
 

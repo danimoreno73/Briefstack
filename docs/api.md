@@ -866,7 +866,8 @@ roundsRun, pause?, startedAt?, finishedAt?, applied?, reverted?, error? }`.
 `discarded`. `plan` is the planner's proposal `{ tasks, commands, checks }`;
 `tasks` the queue the user started, each
 `{ n, title, instruction, doneWhen, dependsOn, state, taskId?, reason?,
-skippedFor?, detail?, commit?, denied?, rounds, task? }`, with `state`
+skippedFor?, detail?, commit?, denied?, deniedOmitted?, rounds, task? }`
+(`denied` keeps at most 50 entries; `deniedOmitted` counts the rest), with `state`
 `queued`, `running`, `applied`, `waiting`, `skipped` or `cancelled`;
 `reason` (waiting) `checksFailed`, `denied`, `blocked`, `roundFailed`,
 `interrupted`, `notStarted`, `notApplied` or `roundsCap`; `task` (only on
@@ -914,13 +915,20 @@ The build, as above (`404 build.notFound`).
 ### `POST /api/builds/:id/start`
 
 Body `{ tasks, limit, commands, checks, fixRounds, thresholds:
-{ fiveHour, week }, confirm: true }` (the page sends `confirm` after its
+{ fiveHour, week }, confirm: true, noChecks? }` (the page sends `confirm` after its
 dialog, which names the commands; without it `400 web.invalidBody`). Only
 a `planned` build (`409 build.wrongState`). Every rule is checked and each
-problem named in `400 build.invalidStart { issues }`: 1 to 20 tasks, each
+problem named in `400 build.invalidStart { issues, items }`: 1 to 20 tasks, each
 depending only on earlier ones; `limit` from 1 to the queue's length;
 commands and checks exact, one per line, plain characters only, no chain,
-wildcard or secret; `fixRounds` 0 to 2; thresholds 1 to 100. Then the
+wildcard or secret; `fixRounds` 0 to 2; thresholds 1 to 100; with no
+checks, `noChecks: true` (the user confirmed that every task with no
+denied command is then applied; phase 9 step 33). `issues` are English
+texts; `items` the same problems as codes the page translates
+(`{ key, n?, max?, line?, what?, problem?, name?, fields? }`, `key` one of
+`emptyQueue`, `tooManyTasks`, `taskInvalid`, `laterDependency`, `limit`,
+`listTooLong`, `listLine`, `listDuplicate`, `fixRounds`, `threshold`,
+`noChecks`; `src/builds/commands.ts`). Then the
 integration branch is made at the default branch's head (`409
 build.branchExists` when a branch of that name is already there) and the
 loop starts; nothing of the start changes afterwards.
@@ -936,8 +944,15 @@ tasks and waiting tasks with no task of their own are queued again, and
 the next task starts without reading the plan usage. Cancel: a `running`
 build ends the round or checks at work (process tree included) and
 becomes `cancelled` once its loop stopped; a `paused` or `interrupted`
-build is cancelled at once. The integration branch stays. Otherwise
-`409 build.wrongState`.
+build is cancelled at once. The integration branch stays. A cancel asked
+is kept in the record (`cancelAsked`) until the loop records it: a server
+stop meanwhile leaves the build `cancelled` after the restart, not
+`interrupted` (phase 9 step 33). Otherwise `409 build.wrongState`.
+
+Moving or deleting the integration branch (a task applied to it, a
+discard) is refused with `409 build.branchCheckedOut { branch }` while any
+worktree of the project's repository, the project folder included, has it
+checked out (phase 9 step 33).
 
 ### `GET /api/builds/:id/diff`
 
@@ -964,13 +979,15 @@ work (`409 build.taskRunning`) and none waiting for the user
 discard it, first). One commit on the default branch with the integration
 branch's whole change, with a task's refusals (`task.dirtyFolder`,
 `task.notOnBranch`, `task.conflict`, `task.mergeDrivers`,
-`task.projectBusy`, ...); `409 build.nothingToApply` when the branch holds
-nothing new. Tasks the build cancelled are discarded with it. A line goes
+`task.projectBusy`, ...); `409 build.alreadyOnBranch { branch }` when the
+whole change is already on the default branch (phase 9 step 33; it was
+`build.nothingToApply`). Tasks the build cancelled are discarded with it. A line goes
 in the project's library note. Nothing is pushed.
 
 ### `POST /api/builds/:id/revert`
 
-Body `{ "confirm": true }`. An `applied` build: one commit that undoes
+Body `{ "confirm": true }`. An `applied` build, or a `discarded` one that
+was applied and not reverted (it stays `discarded`): one commit that undoes
 the build's commit, with the same refusals.
 
 ### `POST /api/builds/:id/discard`
@@ -982,9 +999,9 @@ branch is deleted, and the build becomes `discarded`. Nothing reaches the
 project. An `applied` or `reverted` build loses only its integration
 branch (the user's decision, phase 9 step 33): its commits on the default
 branch and its record stay, and it becomes `discarded`. The integration
-branch otherwise stays after an apply or a revert. Refused
-(`409 build.branchMoved`) when the user checked the integration branch out
-in the project folder by hand.
+branch otherwise stays after an apply or a revert. Refused, with nothing
+discarded, (`409 build.branchCheckedOut`) when the project folder or
+another worktree has the integration branch checked out.
 
 ## CLI: `skills install`
 

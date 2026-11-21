@@ -959,15 +959,16 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
 [PLAN-phase-9.md](PLAN-phase-9.md); the decisions are in
 [decisions.md](decisions.md), "Phase 9".
 
-- **Pending: minor.** Creating the integration branch reports any failure
+- **Done (step 33).** Creating the integration branch reports any failure
   of `update-ref` as `build.branchExists`, an invalid base too
   (`src/builds/git.ts`). Review of M1.
-- **Pending: minor.** Nothing stops the user from checking out
+- **Done (step 33: `build.branchCheckedOut`).** Nothing stops the user from checking out
   `briefstack/build-<id>` by hand: `update-ref` would then move the branch
   under their folder, and removing it would leave that folder's `HEAD` on
   a missing branch. A check that no worktree has it checked out, before
   moving or removing it, would close that. Review of M1.
-- **Pending: to verify.** `git merge-tree --write-tree --merge-base` is
+- **Done (step 33: verified in git's release notes; the minimum is now
+  2.40).** `git merge-tree --write-tree --merge-base` is
   documented from git 2.40, while `MIN_GIT_VERSION` says 2.38; phase 7's
   apply (`src/tasks/apply.ts`) already used it, and the integration branch
   uses it too. Review of M1.
@@ -995,10 +996,10 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   (usage pause, restart, cap of rounds), the usage reader, the routes and
   the wiring in one commit, and M4's code came without M4's tests (added in
   M4). Review of M3, I7.
-- **Pending: minor.** A build may start with no checks: the rule "the
+- **Done (step 33: a warning and `noChecks: true`).** A build may start with no checks: the rule "the
   checks pass" then holds by itself and every task with no denied command
   is applied. The start page does not warn about it. Review of M3.
-- **Pending: minor.** `build.invalidStart` shows a generic text on the
+- **Done (step 33: `items`, translated).** `build.invalidStart` shows a generic text on the
   page, not the list of issues the server names (they are English only,
   as `approvedListProblems` of M2), and "how many tasks to run" is not
   lowered when tasks are removed, which then refuses the start. Review of
@@ -1008,21 +1009,22 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   saves (harmless: the build's start checks again); and a planner counts
   in the shared limit only from a moment after its record is saved.
   Review of M3.
-- **Pending: minor.** The planner prompt's data markers are fixed text: a
+- **Done (step 33: a random tag).** The planner prompt's data markers are fixed text: a
   brief holding `=== end of docs/BRIEF.md ===` fakes the end of the data
   (low impact: no tools, the user reviews the queue). A random marker
   would close it. Review of M3.
-- **Pending: minor.** A build task's `denied` list grows without a cap in
+- **Done (step 33: 50 kept, `deniedOmitted`).** A build task's `denied` list grows without a cap in
   `build.json`. Review of M3.
-- **Pending: minor.** The build page polls only while `planning` or
+- **Done (fixes of M6; checked in step 33).** The build page polls only while `planning` or
   `running`: a build paused for usage does not refresh when it resumes by
   itself. Review of M3.
-- **Pending: minor.** A cancel followed at once by a server stop is not
+- **Done (step 33: `cancelAsked`).** A cancel followed at once by a server stop is not
   recorded: the build stays `running`, `recover()` makes it `interrupted`,
   and the user could resume a build they cancelled; likewise when the loop
   fails during a cancel. Keeping "cancel asked" in the record would close
   it. Review of M4.
-- **Pending: minor.** No test of a transitive skip (a task skipped for a
+- **Partly done (step 33: the transitive skip and Resume skipping again
+  are tested; "cancel kills the tree" still rests on phase 7).** No test of a transitive skip (a task skipped for a
   skipped one), nor of a task queued again by Resume and skipped again;
   "cancel kills the tree" is shown with the fake runner and rests on phase
   7's tests of the task manager's cancel. Review of M4.
@@ -1040,7 +1042,7 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   shows only Codex's tokens, and a build's rounds offer no Codex, so it is
   empty in practice; task records keep no count of Claude's own tokens
   (the SDK's result message carries `usage`). Review of M5.
-- **Pending: minor.** If the server stops between landing the build's
+- **Done (step 33: `build.alreadyOnBranch`).** If the server stops between landing the build's
   commit and saving `applied`, the build stays `finished` with its change
   on the default branch, and a new apply says `build.nothingToApply`
   ("nothing applied on its integration branch"), which is misleading. A
@@ -1052,7 +1054,8 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   already applied: `applyToBuild` could refuse a build that no longer
   holds the project. Reverting does not check whether another build holds
   the project (it does not touch the user's folder). Review of M5.
-- **Pending: minor.** The build page: a waiting task the user approved or
+- **Partly done (step 33: the `error` of an interrupted build is shown;
+  the rest is pending).** The build page: a waiting task the user approved or
   discarded still reads "Waiting for you" until Resume or Apply; Apply
   shows even when tasks wait (the server refuses with the reason); the
   `error` of a build interrupted by an unexpected failure is not shown;
@@ -1062,7 +1065,7 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   only at 0. Commit `a28d655` also holds the refactor of
   `src/tasks/apply.ts` and two test-fixture fixes from M3 and M4. Review
   of M5.
-- **Pending: minor.** After a refused action the build page does not read
+- **Done (step 33).** After a refused action the build page does not read
   the diff again (`onDone` runs only on success), so a second Apply with
   a stale head is refused the same way until the page is reloaded (the
   message now says to reload). `useBuildDiff` loads twice on mount
@@ -1092,3 +1095,13 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
 - **Noted.** Commit `97f5d32` holds the second real check, the moved build
   helpers, the deadlines and the minors of `check-build.ts` together.
   Review of step 33, part D.
+- **Pending: minor.** Claude's tokens: no test of several readings in one
+  round (the last one kept, not summed) nor of a cancelled or failed
+  round's count; the fallback to the SDK's `usage` counts only the last
+  turn of a round. The real checks' process count looks for
+  `node --test` or `scripts/check.js` in every process of the machine, so
+  another project of the user's running one would give a false FAIL.
+  Review of step 33, part A.
+- **Noted.** Commit `8e02689` holds the user's decisions 1 and 2 together,
+  and `1cf5846` the docs of part A with the minors of part D's review.
+  Review of step 33, part A.
