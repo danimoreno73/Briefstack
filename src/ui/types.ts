@@ -476,7 +476,14 @@ export interface BuildTaskUi extends QueueItemUi {
   denied?: { tool: string; text: string }[];
   rounds: number;
   /** What the server adds from the task itself (M5): its state, checks and Codex calls (tokens as Codex counts them). */
-  task?: { state: string; checks?: { command: string; exitCode: number | null; timedOut: boolean }[]; codexCalls: number; codexTokens: number };
+  task?: {
+    state: string;
+    checks?: { command: string; exitCode: number | null; timedOut: boolean }[];
+    codexCalls: number;
+    codexTokens: number;
+    /** Claude's tokens over the task's rounds (step 33): without and with the prompt cache. */
+    claudeTokens?: { noCache: number; withCache: number; rounds: number };
+  };
 }
 
 /** A build, as `GET /api/builds/:id` gives it (phase 9). */

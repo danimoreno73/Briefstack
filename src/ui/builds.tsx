@@ -325,8 +325,10 @@ function Progress({ build }: { build: BuildViewUi }) {
                     ? '—'
                     : t.buildChecksPassed(task.task.checks.filter((check) => check.exitCode === 0 && !check.timedOut).length, task.task.checks.length)}
                 </td>
-                <td class="td-mono">{task.task === undefined ? '—' : task.task.codexCalls}</td>
-                <td class="td-mono">{task.task === undefined || task.task.codexCalls === 0 ? '—' : formatCount(task.task.codexTokens, lang)}</td>
+                <td class="td-mono">{task.task === undefined ? '—' : task.task.codexCalls === 0 ? '0' : `${task.task.codexCalls} · ${formatCount(task.task.codexTokens, lang)}`}</td>
+                <td class="td-mono" data-testid="build-task-tokens">
+                  {task.task?.claudeTokens === undefined ? '—' : `${formatCount(task.task.claudeTokens.noCache, lang)} (${formatCount(task.task.claudeTokens.withCache, lang)})`}
+                </td>
                 <td class="t-small">
                   {task.reason !== undefined && <span data-testid="build-task-reason">{t.buildWaitReason(task.reason)}</span>}
                   {task.skippedFor !== undefined && <span>{t.buildSkippedFor(task.skippedFor)}</span>}
@@ -357,6 +359,7 @@ function Progress({ build }: { build: BuildViewUi }) {
           </tbody>
         </table>
       </div>
+      <p class="t-small muted">{t.buildTokensHint}</p>
     </section>
   );
 }
@@ -397,8 +400,10 @@ function Actions({ build, head, onDone }: { build: BuildViewUi; head: string | u
     cancel: (build.state === 'running' && build.cancelling !== true) || build.state === 'paused' || build.state === 'interrupted',
     apply: settled && head !== undefined,
     revert: build.state === 'applied',
-    discard: settled,
+    // An applied or reverted build loses only its branch (the user's decision, step 33).
+    discard: settled || build.state === 'applied' || build.state === 'reverted',
   };
+  const landed = build.state === 'applied' || build.state === 'reverted';
   // Confirmed actions say so in the body; apply also names the change the page shows (review of M5, I2 and I3).
   const body = (name: BuildAction): Record<string, unknown> => (name === 'apply' ? { confirm: true, head } : dialogs[name] === undefined ? {} : { confirm: true });
   const run = (name: BuildAction) => void action.run(() => send('POST', `/api/builds/${encodeURIComponent(build.id)}/${name}`, body(name))).then((ok) => ok && onDone());
@@ -406,7 +411,7 @@ function Actions({ build, head, onDone }: { build: BuildViewUi; head: string | u
     cancel: { title: t.buildCancelTitle, body: t.buildCancelBody, label: t.buildCancel, tone: 'danger' },
     apply: { title: t.buildApplyTitle, body: `${t.buildApplyBody(build.baseBranch ?? '')} ${t.buildApplyHint}`, label: t.buildApply, tone: 'normal' },
     revert: { title: t.buildRevertTitle, body: t.buildRevertBody, label: t.buildRevert, tone: 'normal' },
-    discard: { title: t.buildDiscardTitle, body: t.buildDiscardBody, label: t.buildDiscard, tone: 'danger' },
+    discard: { title: t.buildDiscardTitle, body: landed ? t.buildDiscardAppliedBody : t.buildDiscardBody, label: t.buildDiscard, tone: 'danger' },
   };
   const labels: Record<BuildAction, string> = { pause: t.buildPause, resume: t.buildResume, cancel: t.buildCancel, apply: t.buildApply, revert: t.buildRevert, discard: t.buildDiscard };
   const shown = (Object.keys(can) as BuildAction[]).filter((name) => can[name]);

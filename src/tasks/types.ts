@@ -57,6 +57,21 @@ const codexCallSchema = z.object({
 });
 export type TaskCodexCall = z.infer<typeof codexCallSchema>;
 
+/**
+ * Claude's own tokens in one round (phase 9, step 33): from the SDK's
+ * result message, its `modelUsage` summed over the models (main loop,
+ * subagents, internal calls), which the SDK keeps as a running total over
+ * the session: the last result of the round is kept. `cacheRead` and
+ * `cacheCreation` are input tokens read from or written to the prompt cache.
+ */
+export const claudeUsageSchema = z.object({
+  input: z.int().min(0),
+  output: z.int().min(0),
+  cacheRead: z.int().min(0),
+  cacheCreation: z.int().min(0),
+});
+export type ClaudeUsage = z.infer<typeof claudeUsageSchema>;
+
 const roundSchema = z.object({
   /** 1, 2, 3…: the first round is the task's text, each later one a request for changes. */
   n: z.int().min(1),
@@ -73,6 +88,8 @@ const roundSchema = z.object({
   error: z.string().optional(),
   /** The round's Codex calls (added in step 25 of phase 8: records saved before it read as they did). */
   codex: z.array(codexCallSchema).optional(),
+  /** Claude's tokens in the round (added in step 33 of phase 9: older rounds have none). */
+  claude: claudeUsageSchema.optional(),
 });
 export type TaskRound = z.infer<typeof roundSchema>;
 

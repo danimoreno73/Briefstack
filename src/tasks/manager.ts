@@ -1134,6 +1134,13 @@ export class TaskManager {
       this.pushStatus(l);
       return;
     }
+    if (event.kind === 'usage') {
+      // Claude's tokens (phase 9, step 33): the running total of the round's session, kept with the round in memory and
+      // saved with the round's end. Not saved here: a save outside the round's own order could put an older state on disk.
+      const round = l.record.rounds.at(-1);
+      if (round !== undefined && round.finishedAt === undefined) round.claude = { ...event.usage };
+      return;
+    }
     if (event.kind === 'denial') {
       const reason = hideAbsolutePaths(redactSecretLines(event.reason)).slice(0, 300);
       this.push(l, { kind: 'denied', data: { toolName: event.toolName, reason, at: this.now().toISOString(), ...(event.agentType === undefined ? {} : { agentType: event.agentType }) } });

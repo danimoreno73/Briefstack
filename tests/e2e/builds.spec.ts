@@ -93,6 +93,8 @@ test.describe('builds', () => {
     await expect(page.getByTestId('build-task-state')).toHaveText(['Applied', 'Applied']);
     await expect(page.getByTestId('build-diff')).toContainText('NOTES.md');
     await expect(page.getByTestId('build-diff')).toContainText('SUMMARY.md');
+    // Claude's tokens per task (step 33): the fake round's 1,200 in + 300 out, and 6,000 with the cache.
+    await expect(page.getByTestId('build-task-tokens')).toHaveText(['1,500 (6,000)', '1,500 (6,000)']);
     await page.getByTestId('build-apply').click();
     await page.getByRole('dialog').getByRole('button', { name: 'Apply the build' }).click();
     await expect(page.getByTestId('build-state')).toHaveText('Applied', SLOW);
@@ -104,6 +106,18 @@ test.describe('builds', () => {
     await expect(page.getByTestId('build-state')).toHaveText('Reverted', SLOW);
     await expect(page.getByTestId('build-reverted')).toBeVisible();
     expect(await testGit(dir, ['ls-files', 'NOTES.md'])).toBe('');
+    // The build's branch stayed through the apply and the revert; discarding the reverted build removes only it (step 33).
+    const id = decodeURIComponent(new URL(page.url()).hash.replace(/^#\/builds\//, ''));
+    const branch = (await app.builds.get(id)).branch;
+    expect((await testGit(dir, ['branch', '--list', branch])).trim()).not.toBe('');
+    const head = (await testGit(dir, ['rev-parse', 'HEAD'])).trim();
+    await page.getByTestId('build-discard').click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('Only the build’s branch is deleted');
+    await dialog.getByRole('button', { name: 'Discard the build' }).click();
+    await expect(page.getByTestId('build-state')).toHaveText('Discarded', SLOW);
+    expect(await testGit(dir, ['branch', '--list', branch])).toBe('');
+    expect((await testGit(dir, ['rev-parse', 'HEAD'])).trim()).toBe(head);
   });
 
   test('a discard removes the build\'s branch; nothing reaches the project', async ({ page, app }) => {

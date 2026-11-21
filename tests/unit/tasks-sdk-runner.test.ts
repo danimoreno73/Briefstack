@@ -4,7 +4,7 @@ import type { HookCallback, Options, Query, SDKMessage } from '@anthropic-ai/cla
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { TrackedSpawn } from '../../src/creation/processTree.js';
 import type { QuestionRequest, QuestionResult } from '../../src/creation/types.js';
-import { UNATTENDED_DENIED, UNATTENDED_QUESTION, type TaskRunnerEvent, type TaskRunnerStartOptions } from '../../src/tasks/runner.js';
+import { claudeTokens, claudeUsageOf, UNATTENDED_DENIED, UNATTENDED_QUESTION, type TaskRunnerEvent, type TaskRunnerStartOptions } from '../../src/tasks/runner.js';
 import { TaskSdkRunner } from '../../src/tasks/sdkRunner.js';
 import { TaskApprovals, type ApprovalRequest, type ShellAnswer } from '../../src/tasks/shell.js';
 import { tempDir, writeTree } from '../helpers.js';
@@ -223,6 +223,42 @@ describe('TaskSdkRunner: tool calls', () => {
     expect(await handle.done).toEqual({ kind: 'ended', summary: 'Changed a.txt.' });
     const lines = await readFile(path.join(dir, 'home', 'sessions', SESSION, 'events.jsonl'), 'utf8');
     expect(lines.trim().split('\n').at(-1)).toContain('"type":"session.finished","outcome":"completed"');
+  });
+
+  it('reports Claude\'s tokens from each result message before the turn\'s end, summed over modelUsage (phase 9, step 33)', async () => {
+    const { handle } = start();
+    await until(() => options !== undefined, 'query');
+    fake.push({ type: 'system', subtype: 'init', session_id: SESSION, tools: [] });
+    fake.push({
+      type: 'result',
+      subtype: 'success',
+      result: 'Done.',
+      session_id: SESSION,
+      usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 1, cache_creation_input_tokens: 1 },
+      modelUsage: {
+        'claude-a': { inputTokens: 100, outputTokens: 20, cacheReadInputTokens: 300, cacheCreationInputTokens: 40, webSearchRequests: 0, costUSD: 0, contextWindow: 0, maxOutputTokens: 0 },
+        'claude-b': { inputTokens: 5, outputTokens: 2, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 0, maxOutputTokens: 0 },
+      },
+    });
+    await until(() => events.some((event) => event.kind === 'status' && event.status === 'turnEnded'), 'the turn');
+    const usage = events.findIndex((event) => event.kind === 'usage');
+    const ended = events.findIndex((event) => event.kind === 'status' && event.status === 'turnEnded');
+    expect(usage).toBeGreaterThanOrEqual(0);
+    expect(usage).toBeLessThan(ended);
+    expect(events[usage]).toEqual({ kind: 'usage', usage: { input: 105, output: 22, cacheRead: 300, cacheCreation: 40 } });
+    handle.finish();
+    await handle.done;
+  });
+
+  it('claudeUsageOf: modelUsage first, the main loop\'s usage without it, nothing from a message without counts', () => {
+    expect(claudeUsageOf({ usage: { input_tokens: 10, output_tokens: 3, cache_read_input_tokens: 7, cache_creation_input_tokens: 2 } })).toEqual({ input: 10, output: 3, cacheRead: 7, cacheCreation: 2 });
+    expect(claudeUsageOf({ usage: { input_tokens: 10, output_tokens: 3 } })).toEqual({ input: 10, output: 3, cacheRead: 0, cacheCreation: 0 });
+    expect(claudeUsageOf({ modelUsage: {}, usage: { input_tokens: 4, output_tokens: 1 } })).toEqual({ input: 4, output: 1, cacheRead: 0, cacheCreation: 0 });
+    expect(claudeUsageOf({ modelUsage: { m: { inputTokens: 'x', outputTokens: 1 } } })).toBeUndefined();
+    expect(claudeUsageOf({ usage: { input_tokens: -1, output_tokens: 1 } })).toBeUndefined();
+    expect(claudeUsageOf({ type: 'result' })).toBeUndefined();
+    expect(claudeUsageOf(null)).toBeUndefined();
+    expect(claudeTokens({ input: 10, output: 3, cacheRead: 7, cacheCreation: 2 })).toEqual({ noCache: 13, withCache: 22 });
   });
 
   it('in a build\'s round (phase 9): a question is refused, never asked, and a denial says nobody was asked', async () => {

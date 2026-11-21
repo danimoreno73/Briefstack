@@ -13,7 +13,7 @@ import { evaluateTaskToolUse, type TaskGuardRules } from './guard.js';
 import { writeTaskRulesSync } from './guardCommand.js';
 import { createTaskToolsServer, type CodexDelegate } from '../codex/tool.js';
 import { TASK_TOOLS_SERVER_NAME } from '../codex/toolNames.js';
-import { closeTaskSession, codexDelegateFor, openTaskSession, taskHookEvent, UNATTENDED_DENIED, UNATTENDED_QUESTION, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
+import { claudeUsageOf, closeTaskSession, codexDelegateFor, openTaskSession, taskHookEvent, UNATTENDED_DENIED, UNATTENDED_QUESTION, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
 import { taskFlagSettings, taskTools, TASK_ENV } from './session.js';
 import { describeCommand, TaskApprovals, TASK_HOOK_TIMEOUT_S } from './shell.js';
 
@@ -343,6 +343,9 @@ class TaskSdkRun {
       this.afterResult = true;
       const last = 'result' in message && typeof message.result === 'string' ? redactSecretLines(message.result.trim()).slice(0, MAX_SUMMARY) : '';
       if (last !== '') this.summary = last;
+      // Claude's tokens so far (phase 9, step 33): before the turn's end, which may end a build's round.
+      const usage = claudeUsageOf(message);
+      if (usage !== undefined) this.options.io.emit({ kind: 'usage', usage });
       this.options.io.emit({ kind: 'status', status: 'turnEnded', ...(last === '' ? {} : { message: last }) });
       this.armIdle();
     }

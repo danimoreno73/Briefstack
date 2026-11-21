@@ -9,6 +9,7 @@ import type { TaskManager, TaskView } from '../tasks/manager.js';
 import { repoState } from '../tasks/git.js';
 import { proposalDiff, type ProposalDiff } from '../tasks/proposal.js';
 import { newTaskId } from '../tasks/store.js';
+import { claudeTokens } from '../tasks/runner.js';
 import { isActiveTask, type TaskState } from '../tasks/types.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { applyBuild, revertBuild } from './apply.js';
@@ -115,6 +116,13 @@ export interface BuildTaskSummary {
   codexCalls: number;
   /** Codex's tokens as Codex counts them: input without cache, plus output (decisions.md, phase 8, step 28). */
   codexTokens: number;
+  /**
+   * Claude's own tokens over the task's rounds (decisions.md, "Phase 9: the
+   * user's decisions", 2): input and output as the main figure, and with the
+   * prompt cache's reads and writes; `rounds` is how many rounds had a
+   * reading. Absent when no round has one (rounds before step 33).
+   */
+  claudeTokens?: { noCache: number; withCache: number; rounds: number };
 }
 
 export type BuildTaskView = BuildTask & { task?: BuildTaskSummary };
@@ -164,10 +172,14 @@ export class BuildManager {
         const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
         if (task === undefined) return item;
         const calls = task.rounds.flatMap((round) => round.codex ?? []);
+        const readings = task.rounds.flatMap((round) => (round.claude === undefined ? [] : [claudeTokens(round.claude)]));
         const summary: BuildTaskSummary = {
           state: task.state,
           codexCalls: calls.length,
           codexTokens: calls.reduce((sum, call) => sum + (call.usage === undefined ? 0 : Math.max(0, call.usage.input - call.usage.cached) + call.usage.output), 0),
+          ...(readings.length === 0
+            ? {}
+            : { claudeTokens: { noCache: readings.reduce((sum, item) => sum + item.noCache, 0), withCache: readings.reduce((sum, item) => sum + item.withCache, 0), rounds: readings.length } }),
           ...(task.checks === undefined ? {} : { checks: task.checks.map((check) => ({ command: check.command, exitCode: check.exitCode, timedOut: check.timedOut })) }),
         };
         return { ...item, task: summary };
@@ -387,10 +399,12 @@ export class BuildManager {
   }
 
   /**
-   * Discards a build. Here only one that never started (`planned`, or
-   * `planFailed`): it has no branch and no task, so the record just becomes
-   * `discarded` and the project is free again (review of M3, I4). Runs in
-   * the same line as plans and starts, so it cannot pass a start.
+   * Discards a build. One that never started (`planned`, or `planFailed`)
+   * has no branch and no task, so the record just becomes `discarded` and
+   * the project is free again (review of M3, I4). A settled one loses its
+   * open tasks and its integration branch (M5). An applied or reverted one
+   * loses only its integration branch (the user's decision, step 33). Runs
+   * in the same line as plans and starts, so it cannot pass a start.
    */
   discard(id: string): Promise<BuildView> {
     const run = this.starting.then(() => this.discardNow(id));
@@ -404,6 +418,15 @@ export class BuildManager {
       this.refuseWhileStopping();
       const record = await this.load(id);
       if (record.state === 'planned' || record.state === 'planFailed') {
+        const next: BuildRecord = { ...record, state: 'discarded', updatedAt: this.now().toISOString() };
+        await this.save(next);
+        return this.view(next);
+      }
+      // An applied or reverted build (decisions.md, "Phase 9: the user's decisions", 1): only its integration branch goes.
+      // The commits on the default branch stay, and so does the record, with what it applied and reverted.
+      if (record.state === 'applied' || record.state === 'reverted') {
+        if ((await repoState(record.projectDir)).branch === record.branch) throw new BriefstackError('build.branchMoved', { branch: record.branch });
+        await deleteIntegrationBranch(record.projectDir, record.branch);
         const next: BuildRecord = { ...record, state: 'discarded', updatedAt: this.now().toISOString() };
         await this.save(next);
         return this.view(next);

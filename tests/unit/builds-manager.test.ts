@@ -9,7 +9,7 @@ import type { PlanOutput } from '../../src/builds/types.js';
 import type { UsageReading } from '../../src/builds/usage.js';
 import { afterRoundWith } from '../../src/tasks/afterRound.js';
 import type { TaskChecks } from '../../src/tasks/checks.js';
-import { TaskFakeRunner, type TaskFakeScript, type TaskFakeStep } from '../../src/tasks/fakeRunner.js';
+import { FAKE_USAGE, TaskFakeRunner, type TaskFakeScript, type TaskFakeStep } from '../../src/tasks/fakeRunner.js';
 import { TaskManager } from '../../src/tasks/manager.js';
 import type { CheckResult } from '../../src/tasks/types.js';
 import { useHermeticGit, writeTree } from '../helpers.js';
@@ -824,6 +824,14 @@ describe('the build page\'s actions (M5)', () => {
       expect(done.tasks.map((task) => task.state)).toEqual(['applied', 'waiting', 'skipped']);
       // The page sees the waiting task's own checks.
       expect(done.tasks[1]?.task).toMatchObject({ state: 'proposal', checks: [{ command: 'npm test', exitCode: 1, timedOut: false }], codexCalls: 0, codexTokens: 0 });
+      // Claude's tokens per task (the user's decision 2, step 33): each fake round reports FAKE_USAGE; summed over the rounds.
+      const rounds2 = done.tasks[1]?.rounds ?? 0;
+      expect(rounds2).toBe(2);
+      const perRound = FAKE_USAGE.input + FAKE_USAGE.output;
+      expect(done.tasks[1]?.task?.claudeTokens).toEqual({ noCache: perRound * 2, withCache: (perRound + FAKE_USAGE.cacheRead + FAKE_USAGE.cacheCreation) * 2, rounds: 2 });
+      expect(done.tasks[0]?.task?.claudeTokens).toEqual({ noCache: perRound, withCache: perRound + FAKE_USAGE.cacheRead + FAKE_USAGE.cacheCreation, rounds: 1 });
+      // A task that never started has no task of its own, and no tokens.
+      expect(done.tasks[2]?.task).toBeUndefined();
       // The cumulative diff: task 1's file only, and the head it shows.
       const shown = await s.builds.diff(id);
       expect(shown.diff?.files.map((file) => [file.path, file.status])).toEqual([['LIST.md', 'added']]);
@@ -858,6 +866,47 @@ describe('the build page\'s actions (M5)', () => {
       expect((await gitIn(project, 'rev-parse', 'HEAD^')).trim()).toBe(commit);
       await expect(access(path.join(project, 'LIST.md'))).rejects.toBeDefined();
       await expect(s.builds.revert(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+      // The integration branch stays after the apply and the revert (the user's decision 1, step 33)…
+      expect(await integrationHead(project, done.branch)).toBe(head);
+      // …and discarding the reverted build removes only it: the commits on the default branch and the record stay.
+      const headNow = (await gitIn(project, 'rev-parse', 'HEAD')).trim();
+      const gone = await s.builds.discard(id);
+      expect(gone.state).toBe('discarded');
+      expect(gone.applied?.commit).toBe(commit);
+      expect(gone.reverted?.commit).toBe(reverted.reverted?.commit);
+      expect(await integrationHead(project, done.branch)).toBeUndefined();
+      expect((await gitIn(project, 'rev-parse', 'HEAD')).trim()).toBe(headNow);
+      expect(await gitIn(project, 'status', '--porcelain')).toBe('');
+      await expect(s.builds.discard(id)).rejects.toMatchObject({ code: 'build.wrongState' });
+    } finally {
+      await s.builds.shutdown();
+      await s.tasks.shutdown();
+    }
+  });
+
+  it('an applied build can be discarded: only its branch goes, never under a folder that has it checked out (the user\'s decision 1, step 33)', async () => {
+    await world.initLibrary();
+    const s = setup();
+    try {
+      const id = await planned(s);
+      await s.builds.start(id, start());
+      await s.builds.idle(id);
+      const done = await s.builds.get(id);
+      await s.tasks.discard(done.tasks[1]?.taskId as string);
+      const { head } = await s.builds.diff(id);
+      const applied = await s.builds.apply(id, head as string);
+      const commit = applied.applied?.commit as string;
+      expect(await integrationHead(project, done.branch)).toBe(head);
+      // The build's branch checked out in the user's folder: discard refuses and removes nothing.
+      await gitIn(project, 'checkout', '--quiet', done.branch);
+      await expect(s.builds.discard(id)).rejects.toMatchObject({ code: 'build.branchMoved' });
+      expect(await integrationHead(project, done.branch)).toBe(head);
+      await gitIn(project, 'checkout', '--quiet', 'main');
+      const gone = await s.builds.discard(id);
+      expect(gone).toMatchObject({ state: 'discarded', applied: { commit } });
+      expect(await integrationHead(project, done.branch)).toBeUndefined();
+      expect((await gitIn(project, 'rev-parse', 'HEAD')).trim()).toBe(commit);
+      expect(await readFile(path.join(project, 'LIST.md'), 'utf8')).toBe('List.\n');
     } finally {
       await s.builds.shutdown();
       await s.tasks.shutdown();

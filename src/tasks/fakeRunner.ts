@@ -8,6 +8,7 @@ import { CODEX_TOOL_ID } from '../codex/toolNames.js';
 import { evaluateTaskToolUse } from './guard.js';
 import { closeTaskSession, codexDelegateFor, openTaskSession, taskHookEvent, UNATTENDED_DENIED, UNATTENDED_QUESTION, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
 import { describeCommand } from './shell.js';
+import type { ClaudeUsage } from './types.js';
 
 /**
  * A task runner without Claude Code, for every UI and API test (BRIEF-phase-7
@@ -32,7 +33,11 @@ export type TaskFakeStep =
   | { kind: 'codex'; instruction: string; results?: CodexToolResult[] }
   | { kind: 'wait'; ms: number }
   | { kind: 'fail'; error: string }
-  | { kind: 'end'; summary: string };
+  /** The turn's end; `usage` is Claude's tokens so far, as the result message carries them (default `FAKE_USAGE` times the turns ended). */
+  | { kind: 'end'; summary: string; usage?: ClaudeUsage };
+
+/** The tokens one fake turn adds, so the pages show figures in tests (phase 9, step 33). */
+export const FAKE_USAGE: ClaudeUsage = { input: 1200, output: 300, cacheRead: 4000, cacheCreation: 500 };
 
 export interface TaskFakeRound {
   steps: TaskFakeStep[];
@@ -77,6 +82,8 @@ class FakeRun {
   private replies: string[] = [];
   private summary: string | undefined;
   private calls = 0;
+  /** Turns ended so far in this session. */
+  private turns = 0;
   private readonly codex: CodexDelegate | undefined;
   private readonly done: Promise<TaskRunnerOutcome>;
   private opened!: () => void;
@@ -233,10 +240,15 @@ class FakeRun {
           break;
         case 'fail':
           return { error: step.error };
-        case 'end':
+        case 'end': {
           this.summary = step.summary;
+          // A running total over the session's turns, as the SDK's result message gives it.
+          this.turns += 1;
+          const usage = step.usage ?? { input: FAKE_USAGE.input * this.turns, output: FAKE_USAGE.output * this.turns, cacheRead: FAKE_USAGE.cacheRead * this.turns, cacheCreation: FAKE_USAGE.cacheCreation * this.turns };
+          this.options.io.emit({ kind: 'usage', usage });
           this.options.io.emit({ kind: 'status', status: 'turnEnded', message: step.summary });
           break;
+        }
       }
     }
     return 'ok';

@@ -5,7 +5,7 @@ import { CodexDelegate, type CodexSession } from '../codex/tool.js';
 import type { Effort } from '../models.js';
 import type { QuestionRequest, QuestionResult } from '../creation/types.js';
 import type { TaskApprovals } from './shell.js';
-import { branchOf, type TaskCodexCall } from './types.js';
+import { branchOf, type ClaudeUsage, type TaskCodexCall } from './types.js';
 
 /**
  * A task's session runner (BRIEF-phase-7 §3.2): the SDK one and a fake one
@@ -16,7 +16,9 @@ export type TaskRunnerEvent =
   | { kind: 'status'; status: 'starting' | 'running' | 'turnEnded' | 'stopping' | 'error'; message?: string }
   | { kind: 'agent'; phase: 'started' | 'stopped'; agentType: string; agentId?: string }
   | { kind: 'denial'; toolName: string; summary: string; agentType?: string; agentId?: string; toolUseId?: string; reason: string }
-  | { kind: 'effort'; level: string; requested?: string };
+  | { kind: 'effort'; level: string; requested?: string }
+  /** Claude's tokens so far in the round's session (each result message carries the running total). */
+  | { kind: 'usage'; usage: ClaudeUsage };
 
 export interface TaskRunnerIO {
   askQuestions(request: QuestionRequest): Promise<QuestionResult>;
@@ -62,7 +64,48 @@ export const UNATTENDED_QUESTION = 'Nobody can answer questions during a build. 
 /** What a build's session reads when a command or request is denied (phase 9). */
 export const UNATTENDED_DENIED = 'Denied: during a build only the exact commands approved at its start can run, and web requests are not allowed. Nobody was asked. Go on without it, or use an approved command.';
 
-export type TaskRunnerOutcome = { kind: 'ended'; summary?: string } | { kind: 'stopped' } | { kind: 'failed'; error: string };
+/**
+ * Claude's tokens from an SDK result message: `modelUsage` summed over its
+ * models (the field the SDK documents for token accounting), or, without
+ * it, the main loop's `usage`. `undefined` when the message carries neither
+ * or the numbers are not counts.
+ */
+export function claudeUsageOf(message: unknown): ClaudeUsage | undefined {
+  if (typeof message !== 'object' || message === null) return undefined;
+  const count = (value: unknown): number | undefined => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : undefined);
+  const { modelUsage, usage } = message as { modelUsage?: unknown; usage?: unknown };
+  if (typeof modelUsage === 'object' && modelUsage !== null && Object.keys(modelUsage).length > 0) {
+    const total: ClaudeUsage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+    for (const entry of Object.values(modelUsage as Record<string, unknown>)) {
+      if (typeof entry !== 'object' || entry === null) return undefined;
+      const fields = entry as Record<string, unknown>;
+      const input = count(fields.inputTokens);
+      const output = count(fields.outputTokens);
+      if (input === undefined || output === undefined) return undefined;
+      total.input += input;
+      total.output += output;
+      total.cacheRead += count(fields.cacheReadInputTokens) ?? 0;
+      total.cacheCreation += count(fields.cacheCreationInputTokens) ?? 0;
+    }
+    return total;
+  }
+  if (typeof usage === 'object' && usage !== null) {
+    const fields = usage as Record<string, unknown>;
+    const input = count(fields.input_tokens);
+    const output = count(fields.output_tokens);
+    if (input === undefined || output === undefined) return undefined;
+    return { input, output, cacheRead: count(fields.cache_read_input_tokens) ?? 0, cacheCreation: count(fields.cache_creation_input_tokens) ?? 0 };
+  }
+  return undefined;
+}
+
+/** Tokens without the cache (input + output: the main figure) and with it (plus cache reads and writes). */
+export function claudeTokens(usage: ClaudeUsage): { noCache: number; withCache: number } {
+  const noCache = usage.input + usage.output;
+  return { noCache, withCache: noCache + usage.cacheRead + usage.cacheCreation };
+}
+
+export type TaskRunnerOutcome ={ kind: 'ended'; summary?: string } | { kind: 'stopped' } | { kind: 'failed'; error: string };
 
 export interface TaskRunnerHandle {
   /** Resolves once the Claude Code session id is known. */
