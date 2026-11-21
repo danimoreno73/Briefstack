@@ -39,7 +39,7 @@ import { buildUsageReader, type UsageReading } from '../../src/builds/usage.js';
 import { systemPathEnv } from '../../src/config/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { claudeExecutable, report, requireConfirmation, sandbox, startCheck } from './common.js';
-import { exists, git, newTap, plannerReading, processesLeft, sampleProject, startWeb, tappedQuery, usageGate, waitBuild, type BuildSeen } from './tasks-common.js';
+import { exists, git, newTap, plannerReading, processesLeft, processesVerdict, sampleProject, startWeb, tappedQuery, usageGate, waitBuild, type BuildSeen } from './tasks-common.js';
 
 requireConfirmation(
   'Phase 9 real check: a build in a temp home. It spends one planner session and two or three short task sessions (saver profile), with up to one fix round each, plus free plan readings.',
@@ -200,8 +200,10 @@ try {
   }
 
   await web.stop();
-  const left = await processesLeft(box);
-  verdict('no process of the sandbox is left once the server stopped', left.length === 0, left.map((entry) => `${entry.pid} ${entry.command.slice(0, 120)}`).join(' | ') || 'none');
+  // A task session names its worktree in its command line; a check runs `node --test` in it, named here.
+  const left = processesVerdict(await processesLeft(box, [COMMAND]));
+  if (left.verdict === 'NOT CONTROLLED') notControlled('no process of the sandbox is left once the server stopped', left.detail);
+  else verdict('no process of the sandbox is left once the server stopped', left.verdict === 'PASS', left.detail);
   await usageGate(box, executable, 'after').catch((error: unknown) => console.log(String(error)));
 } catch (error) {
   check.fail(error);

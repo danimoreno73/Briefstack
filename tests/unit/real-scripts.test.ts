@@ -911,7 +911,7 @@ describe('phase 9 real check (check-build): prepared, guarded, kept to a temp ho
     expect(script).toContain('plannerReading(plannerTap)');
     expect(script).toContain('buildUsageReader({ pathEnv, repoDir: PACKAGE_ROOT })');
     // The processes of the sandbox are counted once the server stopped (review of M6).
-    expect(script.indexOf('await processesLeft(box)')).toBeGreaterThan(script.indexOf('await web.stop()'));
+    expect(script.indexOf('await processesLeft(box, [COMMAND])')).toBeGreaterThan(script.indexOf('await web.stop()'));
     // The usage gate runs before the planner session starts.
     expect(script.indexOf("await usageGate(box, executable, 'before')")).toBeLessThan(script.indexOf('/api/projects/${project.slug}/builds'));
   });
@@ -990,7 +990,9 @@ describe('phase 9 second real check (check-build-deny): a denied command, a fix 
     const script = await read();
     expect(script).toContain("'.gitignore': 'node_modules/\\n.check-state/\\n'");
     expect(script).toContain("const CHECK = 'node scripts/check.js';");
-    expect(script).toContain("2. its check passed on its second run");
+    expect(script).toContain('2. its check passed on a later run than its first');
+    // A command the model runs in task 2 is its own verdict, not hidden in the fix round's (review of step 33, I1).
+    expect(script).toContain('2. the session of task 2 ran no command');
     expect(script).toContain("3. task 4, which depends on it, was skipped without a session");
     // The approved command and the check are valid items of a build's lists.
     const { approvedListProblems } = await import('../../src/builds/commands.js');
@@ -1035,6 +1037,39 @@ describe('phase 9 second real check (check-build-deny): a denied command, a fix 
     expect(code).toBe(2);
     expect(err).toContain('Run it again with --yes');
     expect(err).toContain('six short task sessions');
+  });
+});
+
+describe('phase 9 second real check: the check\'s state survives a task\'s rounds and never reaches a commit', { timeout: 60_000 }, () => {
+  it('commitRound leaves .check-state/ out of the commit, and restoreToHead keeps it', async () => {
+    const { commitRound, restoreToHead } = await import('../../src/tasks/git.js');
+    const { dir, cleanup } = await tempDir('check-state');
+    try {
+      const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'core.hooksPath=', ...args], { cwd: dir, encoding: 'utf8' });
+      expect(git('init', '--quiet', '-b', 'main').status).toBe(0);
+      await writeFile(path.join(dir, '.gitignore'), 'node_modules/\n.check-state/\n', 'utf8');
+      expect(git('add', '-A').status).toBe(0);
+      expect(git('commit', '--quiet', '--no-verify', '-m', 'base').status).toBe(0);
+      await mkdir(path.join(dir, '.check-state'));
+      await writeFile(path.join(dir, '.check-state', 'runs'), '1', 'utf8');
+      await writeFile(path.join(dir, 'a.txt'), 'a', 'utf8');
+      const commit = await commitRound(dir, 'round 1');
+      expect(commit).toBeDefined();
+      expect(git('show', '--name-only', '--format=', 'HEAD').stdout.trim()).toBe('a.txt');
+      await writeFile(path.join(dir, 'stray.txt'), 'x', 'utf8');
+      await restoreToHead(dir);
+      expect(await readFile(path.join(dir, '.check-state', 'runs'), 'utf8')).toBe('1');
+      await expect(stat(path.join(dir, 'stray.txt'))).rejects.toBeDefined();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('processesVerdict: NOT CONTROLLED when the listing failed, PASS with none, FAIL with some', async () => {
+    const { processesVerdict } = await import('../../scripts/real/tasks-common.js');
+    expect(processesVerdict(undefined).verdict).toBe('NOT CONTROLLED');
+    expect(processesVerdict([])).toEqual({ verdict: 'PASS', detail: 'none' });
+    expect(processesVerdict([{ pid: 7, command: 'node scripts/check.js' }]).verdict).toBe('FAIL');
   });
 });
 

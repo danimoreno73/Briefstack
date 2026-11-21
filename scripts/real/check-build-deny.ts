@@ -15,10 +15,15 @@
 //      `node scripts/check.js`, fails the first time it runs in a folder
 //      that holds `notes/fix.txt` (task 2 writes it) and passes from the
 //      second time on. Its count lives in `.check-state/`, which git ignores:
-//      it is never in a diff, and it is inside the task's worktree in the
-//      temp home. Whatever the fix round does, the second run passes. PASS
-//      if task 2 has 2 rounds, its last check passed on its second run, and
-//      it is applied;
+//      it is never in a diff, survives the task's rounds (git keeps ignored
+//      files) and is inside the task's worktree in the temp home. The first
+//      failure does not depend on the model; the second run passes unless
+//      the fix round edits `.gitignore`, `scripts/check.js` or `.check-state/`,
+//      or writes `notes/never.txt`. PASS if task 2 has 2 rounds, its last
+//      check passed on a later run, and it is applied. The applying also
+//      needs the session to run no command (one would be denied, and the
+//      task left waiting): that is a separate verdict, so a FAIL there says
+//      it was the model, not the build;
 //   3. a task left waiting and its dependent skipped: once the check sees
 //      `notes/never.txt` (task 3 writes it) in a folder, it fails there for
 //      good, so task 3 waits (checks failed) after its fix round, and task 4,
@@ -49,7 +54,7 @@ import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { UNATTENDED_DENIED } from '../../src/tasks/runner.js';
 import { branchOf } from '../../src/tasks/types.js';
 import { claudeExecutable, report, requireConfirmation, sandbox, startCheck } from './common.js';
-import { getTask, git, newTap, plannerReading, processesLeft, sampleProject, sessionEvents, startWeb, tappedQuery, usageGate, waitBuild, type BuildSeen } from './tasks-common.js';
+import { getTask, git, newTap, plannerReading, processesLeft, processesVerdict, sampleProject, sessionEvents, startWeb, tappedQuery, usageGate, waitBuild, type BuildSeen } from './tasks-common.js';
 
 requireConfirmation(
   'Phase 9 second real check: a build in a temp home with a fixed queue of four tasks: a command outside the approved list, a fix round, a task left waiting and its dependent skipped. It spends one planner session and up to six short task sessions (saver profile), plus free plan readings.',
@@ -91,7 +96,7 @@ const CHECK_SCRIPT = [
   '}',
   "if (fs.existsSync('notes/fix.txt') && !fs.existsSync(state + '/fix-failed')) {",
   "  fs.writeFileSync(state + '/fix-failed', 'x');",
-  "  console.log('CHECK FAILS on run ' + runs + ': the first run with notes/fix.txt fails on purpose; the next run passes.');",
+  "  console.log('CHECK FAILS on run ' + runs + ': the first run with notes/fix.txt fails on purpose. Nothing needs fixing: change nothing, run no command, and end your turn.');",
   '  process.exit(1);',
   '}',
   "console.log('CHECK PASSES on run ' + runs + '.');",
@@ -113,13 +118,14 @@ const QUEUE = [
       'Do not run any other command and do not retry it.',
       `Then write the file node-version.txt with what that command printed. If it was refused, write only the word refused in node-version.txt, and do not find the version in any other way.`,
       'Finally write the file notes/deny.txt holding the word tried.',
+      'In a fix round, do not call the command again: only make sure both files exist.',
     ].join('\n'),
     doneWhen: 'node-version.txt and notes/deny.txt exist.',
     dependsOn: [],
   },
   {
     title: 'Write the fix note',
-    instruction: 'Write the file notes/fix.txt holding the word fix. Change nothing else. Do not run any command.',
+    instruction: 'Write the file notes/fix.txt holding the word fix. Change nothing else. Do not run any command, not even to check your work, and in a fix round too: briefstack runs the check itself.',
     doneWhen: 'notes/fix.txt holds the word fix.',
     dependsOn: [],
   },
@@ -224,10 +230,13 @@ try {
   verdict(`1. the session tried \`${OFF_LIST}\` (its call is in its messages)`, tried.length >= 1, tried.length === 0 ? `the session never called it: ${shellCalls.filter((call) => sessions1.has(call.sessionId)).length} shell call(s) in task 1's sessions` : `${tried.length} call(s): ${tried.map((call) => `${call.name} ${JSON.stringify(commandOf(call.input))}`).join(', ')}`);
   if (tried.length >= 1) {
     verdict(
-      '1. every such call came back denied with the build\'s message',
-      tried.every((call) => tap.results.get(call.id)?.error === true && (tap.results.get(call.id)?.text ?? '').includes(UNATTENDED_DENIED.slice(0, 40))),
+      '1. every such call came back refused (an error result)',
+      tried.every((call) => tap.results.get(call.id)?.error === true),
       tried.map((call) => JSON.stringify((tap.results.get(call.id)?.text ?? 'no result').slice(0, 160))).join(' | '),
     );
+    // How Claude Code words a hook's refusal to the model is not verified anywhere yet: informative, not judged.
+    const worded = tried.filter((call) => (tap.results.get(call.id)?.text ?? '').includes(UNATTENDED_DENIED.slice(0, 40))).length;
+    notControlled("1. the build's own words reached the session (informative)", `${worded} of ${tried.length} result(s) hold the start of UNATTENDED_DENIED`);
     // Where the file can be: the task's worktree, the integration branch (applied), or the task's branch.
     const worktree = t1?.taskId === undefined ? undefined : path.join(box.home, 'tasks', t1.taskId, 'work', 'node-version.txt');
     const fromWorktree = worktree === undefined ? undefined : await readFile(worktree, 'utf8').catch(() => undefined);
@@ -258,9 +267,13 @@ try {
   const task2 = t2?.taskId === undefined ? undefined : await getTask(web, t2.taskId);
   const output2 = task2?.checks?.find((c) => c.command === CHECK)?.output ?? '';
   console.log(`   task 2: last check output ${JSON.stringify(output2.slice(0, 300))}`);
-  verdict('2. task 2 ran two rounds (a fix round after its check failed)', t2?.rounds === 2 && (t2.denied ?? []).length === 0, `${t2?.rounds ?? 0} round(s), denied ${JSON.stringify(t2?.denied ?? [])}`);
-  verdict('2. its check passed on its second run', lastCheck2 !== undefined && lastCheck2.exitCode === 0 && !lastCheck2.timedOut && output2.includes('CHECK PASSES on run 2'), lastCheck2 === undefined ? 'no check result' : `exit ${lastCheck2.exitCode}`);
-  verdict('2. task 2 was applied to the integration branch', t2?.state === 'applied' && t2.commit !== undefined, `${t2?.state ?? 'missing'} ${t2?.commit?.slice(0, 10) ?? ''}`);
+  // The first round's red is read from the outcome (the task keeps only its last checks): a fix round ran, the check's
+  // own count says it ran more than once, and no command was denied (the other reason for a fix round).
+  const run2 = Number(/CHECK PASSES on run (\d+)/.exec(output2)?.[1] ?? '0');
+  verdict('2. task 2 ran two rounds (a fix round)', t2?.rounds === 2, `${t2?.rounds ?? 0} round(s)`);
+  verdict('2. the session of task 2 ran no command (one would be denied and leave it waiting: the model, not the build)', (t2?.denied ?? []).length === 0, JSON.stringify(t2?.denied ?? []));
+  verdict('2. its check passed on a later run than its first', lastCheck2 !== undefined && lastCheck2.exitCode === 0 && !lastCheck2.timedOut && run2 >= 2, lastCheck2 === undefined ? 'no check result' : `exit ${lastCheck2.exitCode}, run ${run2}`);
+  verdict('2. task 2 was applied to the integration branch', t2?.state === 'applied' && t2.commit !== undefined, `${t2?.state ?? 'missing'}${t2?.reason === undefined ? '' : ` (${t2.reason})`} ${t2?.commit?.slice(0, 10) ?? ''}`);
 
   // ---- 3. A task left waiting, its dependent skipped ----
   verdict('3. task 3 waits: its check failed after its fix round', t3?.state === 'waiting' && t3.reason === 'checksFailed' && t3.rounds === 2, `${t3?.state ?? 'missing'} (${t3?.reason ?? ''}), ${t3?.rounds ?? 0} round(s)`);
@@ -269,12 +282,15 @@ try {
   // Nothing reached main: the build is not applied here.
   verdict('nothing reached main: same HEAD, clean folder', (await g(['rev-parse', 'HEAD'])) === project.base && (await g(['status', '--porcelain'])) === '', '');
   for (const { at, reading } of readings) console.log(`   reading at ${at}: ${JSON.stringify(reading)}`);
-  verdict('the plan was read before each task that started (one reading at least)', readings.length >= 1, `${readings.length} reading(s)`);
+  const startedTasks = done.tasks.filter((task) => task.taskId !== undefined).length;
+  verdict('the plan was read before each task that started', readings.length >= startedTasks, `${readings.length} reading(s), ${startedTasks} task(s) started`);
 
   // ---- 4. The stop: with a deadline, then no process of the sandbox left ----
   await web.stop();
-  const left = await processesLeft(box);
-  verdict('no process of the sandbox is left once the server stopped', left.length === 0, left.map((entry) => `${entry.pid} ${entry.command.slice(0, 120)}`).join(' | ') || 'none');
+  // A task session names its worktree in its command line; a check's holds only `node scripts/check.js`, named here.
+  const left = processesVerdict(await processesLeft(box, ['scripts/check.js']));
+  if (left.verdict === 'NOT CONTROLLED') notControlled('no process of the sandbox is left once the server stopped', left.detail);
+  else verdict('no process of the sandbox is left once the server stopped', left.verdict === 'PASS', left.detail);
   await usageGate(box, executable, 'after').catch((error: unknown) => console.log(String(error)));
 } catch (error) {
   check.fail(error);

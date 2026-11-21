@@ -34,7 +34,7 @@ import { STRUCTURED_OUTPUT_TOOL } from '../../src/builds/planner.js';
 import { TOKEN_HEADER } from '../../src/server/index.js';
 import { TaskSdkRunner } from '../../src/tasks/sdkRunner.js';
 import { baseProfilesFile, loadUsageProfiles } from '../../src/usage/index.js';
-import { CheckStop, oneShot, processesMentioning, readPlanUsage, report, sandboxLibrary, sessionEnv, show, type Check, type Sandbox } from './common.js';
+import { allProcesses, CheckStop, mentioner, oneShot, processesMentioning, readPlanUsage, report, sandboxLibrary, sessionEnv, show, type Check, type Sandbox } from './common.js';
 
 const execFileAsync = promisify(execFile);
 export const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -275,7 +275,7 @@ export interface ApiAnswer {
 
 export interface Web {
   url: URL;
-  /** One API call; an error once `WEB_CALL_MS` pass without an answer (review of M6 of phase 9). */
+  /** One API call; an error once `WEB_CALL_MS` pass with nothing received (an idle deadline, not a total one; review of M6 of phase 9). */
   call(method: string, route: string, body?: unknown): Promise<ApiAnswer>;
   /**
    * What a streaming route (`text/event-stream`) sends within `ms`: the
@@ -294,9 +294,24 @@ export const WEB_CALL_MS = 60_000;
 /** How long the server may take to stop. */
 export const WEB_STOP_MS = 2 * 60_000;
 
-/** Processes still running that mention the sandbox's folder (a session, a check, a shell): none is expected after the server stopped. */
-export async function processesLeft(box: Sandbox): Promise<{ pid: number; command: string }[]> {
-  return processesMentioning(box.dir);
+/**
+ * Processes still running whose command line mentions the sandbox's folder
+ * (a task session names its worktree) or one of `markers` (a check's
+ * command line holds only the command, run in the worktree: the caller
+ * names it). `undefined` when the process listing itself failed: then
+ * nothing can be said (review of step 33).
+ */
+export async function processesLeft(box: Sandbox, markers: readonly string[] = []): Promise<{ pid: number; command: string }[] | undefined> {
+  const all = await allProcesses();
+  if (!all.some((entry) => entry.pid === process.pid)) return undefined;
+  const tests = [box.dir, ...markers].map(mentioner);
+  return all.filter((entry) => entry.pid !== process.pid && tests.some((test) => test(entry.command)));
+}
+
+/** The verdict on `processesLeft`: PASS with none, FAIL with some, NOT CONTROLLED when the listing failed. */
+export function processesVerdict(left: { pid: number; command: string }[] | undefined): { verdict: 'PASS' | 'FAIL' | 'NOT CONTROLLED'; detail: string } {
+  if (left === undefined) return { verdict: 'NOT CONTROLLED', detail: 'the process listing failed (this process was not in it)' };
+  return left.length === 0 ? { verdict: 'PASS', detail: 'none' } : { verdict: 'FAIL', detail: left.map((entry) => `${entry.pid} ${entry.command.slice(0, 120)}`).join(' | ') };
 }
 
 /**

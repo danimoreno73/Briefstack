@@ -499,9 +499,19 @@ const run = (file: string, args: readonly string[], env: NodeJS.ProcessEnv = pro
  * Linux: `/proc/<pid>/cmdline`; macOS: `ps`.
  */
 export async function processesMentioning(text: string): Promise<{ pid: number; command: string }[]> {
+  const mentions = mentioner(text);
+  return (await allProcesses()).filter((entry) => entry.pid !== process.pid && mentions(entry.command));
+}
+
+/** Whether a command line mentions `text`, with either slash, ignoring case on Windows. */
+export function mentioner(text: string): (command: string) => boolean {
   const forms = [...new Set([text, text.replaceAll('\\', '/'), text.replaceAll('/', '\\')])];
   const fold = (value: string) => (process.platform === 'win32' ? value.toLowerCase() : value);
-  const mentions = (command: string) => forms.some((form) => fold(command).includes(fold(form)));
+  return (command) => forms.some((form) => fold(command).includes(fold(form)));
+}
+
+/** Every process with a command line, this one included. Empty when the listing failed (it never is otherwise). */
+export async function allProcesses(): Promise<{ pid: number; command: string }[]> {
   const listed: { pid: number; command: string }[] = [];
   if (process.platform === 'win32') {
     const out = await run(
@@ -529,7 +539,7 @@ export async function processesMentioning(text: string): Promise<{ pid: number; 
       if (match !== null) listed.push({ pid: Number(match[1]), command: match[2] ?? '' });
     }
   }
-  return listed.filter((entry) => entry.pid !== process.pid && mentions(entry.command));
+  return listed;
 }
 
 /** Ends one process at once, without its children: what a crash or Task Manager does to a server. */
