@@ -16,6 +16,10 @@
 //   - what the real plan reading gives before each task: whether the login
 //     fills `resets_at` (decisions.md, "Phase 9: H0", 2);
 //   - the final apply: one commit on `main` in the project folder.
+// The planner session is tapped too (its init's tools are printed), and the
+// processes of the sandbox are counted once the server stopped.
+// What this run may not show (no shell call outside the list, no fix round)
+// is shown by scripts/real/check-build-deny.ts.
 //
 // The sample project is a tiny Node library with a brief of two
 // deliverables and `node --test` tests. The script approves exactly one
@@ -35,25 +39,11 @@ import { buildUsageReader, type UsageReading } from '../../src/builds/usage.js';
 import { systemPathEnv } from '../../src/config/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { claudeExecutable, report, requireConfirmation, sandbox, startCheck } from './common.js';
-import { exists, git, newTap, sampleProject, sleep, startWeb, usageGate, type Web } from './tasks-common.js';
+import { exists, git, newTap, plannerReading, processesLeft, sampleProject, startWeb, tappedQuery, usageGate, waitBuild, type BuildSeen } from './tasks-common.js';
 
 requireConfirmation(
   'Phase 9 real check: a build in a temp home. It spends one planner session and two or three short task sessions (saver profile), with up to one fix round each, plus free plan readings.',
 );
-
-/** The part of a build the check reads (`GET /api/builds/:id`, docs/api.md "Builds"). */
-interface BuildSeen {
-  id: string;
-  state: string;
-  branch: string;
-  baseCommit?: string;
-  error?: string;
-  plan?: { tasks: { title: string; instruction: string; doneWhen: string; dependsOn: number[] }[]; commands: string[]; checks: string[] };
-  tasks: { n: number; title: string; state: string; reason?: string; detail?: string; taskId?: string; commit?: string; rounds: number; denied?: { tool: string; text: string }[]; task?: { state: string; checks?: { command: string; exitCode: number | null; timedOut: boolean }[] } }[];
-  pause?: { reason: string; at: string; until?: string; fiveHour?: number | null; sevenDay?: number | null };
-  applied?: { commit: string; at: string };
-  roundsRun: number;
-}
 
 const BRIEF = [
   '# greetings: brief',
@@ -97,37 +87,18 @@ const notControlled = (name: string, detail: string): void => {
 const started = Date.now();
 const readings: { at: string; reading: UsageReading }[] = [];
 
-async function getBuild(web: Web, id: string): Promise<BuildSeen> {
-  const answer = await web.call('GET', `/api/builds/${id}`);
-  if (answer.status !== 200) throw new Error(`GET /api/builds/${id}: ${answer.status} ${answer.body.slice(0, 300)}`);
-  return answer.json() as BuildSeen;
-}
-
-/** Polls the build until its state is one of `states`, printing each change of a task's state. */
-async function waitBuild(web: Web, id: string, states: readonly string[], timeoutMs: number): Promise<BuildSeen> {
-  const end = Date.now() + timeoutMs;
-  let last = '';
-  for (;;) {
-    const build = await getBuild(web, id);
-    const now = `${build.state} | ${build.tasks.map((task) => `${task.n}:${task.state}${task.reason === undefined ? '' : `(${task.reason})`}`).join(' ')}`;
-    if (now !== last) console.log(`   build ${now}`);
-    last = now;
-    if (states.includes(build.state)) return build;
-    if (Date.now() > end) throw new Error(`The build is still ${build.state} after ${Math.round(timeoutMs / 60_000)} minutes.`);
-    await sleep(3000);
-  }
-}
-
 try {
   const executable = claudeExecutable();
   const box = await sandbox('build');
   check.add(() => box.cleanup());
   const tap = newTap();
+  // The planner session's own messages (review of M6): its init's tools and its calls. The server closes the session.
+  const plannerTap = newTap();
   // `sandbox()` points BRIEFSTACK_HOME at the temp home: the reader and the planner read it from here.
   const pathEnv = systemPathEnv();
   const realReader = buildUsageReader({ pathEnv, repoDir: PACKAGE_ROOT });
   const web = await startWeb(check, box, tap, {
-    buildPlanner: new SdkBuildPlanner({ pathEnv }),
+    buildPlanner: new SdkBuildPlanner({ pathEnv, query: tappedQuery(plannerTap) }),
     buildUsage: async () => {
       const reading = await realReader();
       readings.push({ at: new Date().toISOString(), reading });
@@ -147,6 +118,8 @@ try {
   const id = (planned.json() as { id: string }).id;
   const plan = await waitBuild(web, id, ['planned', 'planFailed'], 10 * 60_000);
   verdict('the planner answered with a queue (StructuredOutput reached it; the schema was accepted)', plan.state === 'planned', plan.state === 'planned' ? `${plan.plan?.tasks.length ?? 0} task(s)` : (plan.error ?? 'no error recorded'));
+  const planner = plannerReading(plannerTap);
+  verdict('the planner session had no tool but StructuredOutput, and called no other', planner.ok, planner.detail);
   if (plan.state !== 'planned' || plan.plan === undefined) throw new Error('No queue: nothing more to check.');
   for (const [i, task] of plan.plan.tasks.entries()) console.log(`   ${i + 1}. ${task.title} (depends on ${task.dependsOn.join(', ') || 'none'}): ${task.instruction.slice(0, 200)} | done when: ${task.doneWhen.slice(0, 120)}`);
   console.log(`   proposed commands: ${JSON.stringify(plan.plan.commands)}; checks: ${JSON.stringify(plan.plan.checks)}`);
@@ -227,6 +200,8 @@ try {
   }
 
   await web.stop();
+  const left = await processesLeft(box);
+  verdict('no process of the sandbox is left once the server stopped', left.length === 0, left.map((entry) => `${entry.pid} ${entry.command.slice(0, 120)}`).join(' | ') || 'none');
   await usageGate(box, executable, 'after').catch((error: unknown) => console.log(String(error)));
 } catch (error) {
   check.fail(error);

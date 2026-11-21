@@ -1,5 +1,5 @@
-import { spawn } from 'node:child_process';
-import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { spawn, spawnSync } from 'node:child_process';
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -906,8 +906,12 @@ describe('phase 9 real check (check-build): prepared, guarded, kept to a temp ho
     expect(script).not.toContain('bypassPermissions');
     // startWeb sets the saver profile in the temp home; the build's planner and plan reading are the real ones.
     expect(await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'tasks-common.ts'), 'utf8')).toContain("activeProfile: 'saver'");
-    expect(script).toContain('buildPlanner: new SdkBuildPlanner({ pathEnv })');
+    // The planner session is tapped too (review of M6): its init's tools are printed and judged.
+    expect(script).toContain('buildPlanner: new SdkBuildPlanner({ pathEnv, query: tappedQuery(plannerTap) })');
+    expect(script).toContain('plannerReading(plannerTap)');
     expect(script).toContain('buildUsageReader({ pathEnv, repoDir: PACKAGE_ROOT })');
+    // The processes of the sandbox are counted once the server stopped (review of M6).
+    expect(script.indexOf('await processesLeft(box)')).toBeGreaterThan(script.indexOf('await web.stop()'));
     // The usage gate runs before the planner session starts.
     expect(script.indexOf("await usageGate(box, executable, 'before')")).toBeLessThan(script.indexOf('/api/projects/${project.slug}/builds'));
   });
@@ -947,6 +951,98 @@ describe('phase 9 real check (check-build): prepared, guarded, kept to a temp ho
     expect(code).toBe(2);
     expect(err).toContain('Run it again with --yes');
     expect(err).toContain('planner session');
+  });
+});
+
+describe('phase 9 second real check (check-build-deny): a denied command, a fix round and a waiting task, from a fixed queue', { timeout: 60_000 }, () => {
+  const read = () => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-build-deny.ts'), 'utf8');
+
+  it('asks for --yes, works in a temp sandbox, taps the planner and the task sessions, and replaces the queue with its own', async () => {
+    const script = await read();
+    expect(script).toContain('requireConfirmation(');
+    expect(script).toMatch(/await sandbox\('build-deny'\)/);
+    expect(script).toContain('check.add(() => box.cleanup())');
+    expect(script).not.toContain('bypassPermissions');
+    expect(script).toContain('buildPlanner: new SdkBuildPlanner({ pathEnv, query: tappedQuery(plannerTap) })');
+    expect(script.indexOf("await usageGate(box, executable, 'before')")).toBeLessThan(script.indexOf('/api/projects/${project.slug}/builds'));
+    // The planner must answer, then its queue is replaced by the fixed one; one approved command, not the one task 1 tries.
+    expect(script).toContain("verdict('the planner answered with a queue', plan.state === 'planned'");
+    expect(script).toContain('const startBody = { tasks: QUEUE, limit: QUEUE.length, commands: [COMMAND], checks: [CHECK], fixRounds: 1');
+    expect(script).toContain("const COMMAND = 'node --test';");
+    expect(script).toContain("const OFF_LIST = 'node --version';");
+    // Every wait has a deadline.
+    expect(script.match(/await waitBuild\(web, id, .+?, \d+ \* 60_000/g)?.length).toBe(2);
+  });
+
+  it('judges the denial by what happened, and fails when the session never tried the command', async () => {
+    const script = await read();
+    expect(script).toContain('the session never called it');
+    expect(script).toContain("if (tried.length >= 1) {");
+    expect(script).toContain('UNATTENDED_DENIED');
+    expect(script).toContain("1. it is in the build's denied list");
+    // Nobody asked: pending while it ran, the task's stream, and the denial recorded by policy.
+    expect(script).toContain('pendingSeen.set(item.taskId');
+    expect(script).toContain('web.read(`/api/tasks/${t1.taskId}/stream?from=0`, 3000)');
+    expect(script).toContain("event.type === 'tool.denied' && event.toolUseId === call.id && event.by === 'policy'");
+  });
+
+  it('its check is deterministic: state only in .check-state/, which git ignores', async () => {
+    const script = await read();
+    expect(script).toContain("'.gitignore': 'node_modules/\\n.check-state/\\n'");
+    expect(script).toContain("const CHECK = 'node scripts/check.js';");
+    expect(script).toContain("2. its check passed on its second run");
+    expect(script).toContain("3. task 4, which depends on it, was skipped without a session");
+    // The approved command and the check are valid items of a build's lists.
+    const { approvedListProblems } = await import('../../src/builds/commands.js');
+    expect(approvedListProblems(['node --test'], 'commands')).toEqual([]);
+    expect(approvedListProblems(['node scripts/check.js'], 'checks')).toEqual([]);
+  });
+
+  it('the check script fails first with notes/fix.txt, passes on its second run, and fails for good with notes/never.txt', async () => {
+    const script = await read();
+    const start = script.indexOf('const CHECK_SCRIPT = [');
+    const body = script.slice(start, script.indexOf("].join('\\n');", start));
+    // Rebuild the file's text from the array of lines and run it in temp folders.
+    const lines = [...body.matchAll(/^\s+("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'),$/gm)].map((match) => (match[1]?.startsWith('"') ? (JSON.parse(match[1]) as string) : (match[1] ?? '').slice(1, -1).replace(/\\'/g, "'")));
+    const text = `${lines.join('\n')}\n`;
+    const { dir, cleanup } = await tempDir('build-check-script');
+    try {
+      await writeFile(path.join(dir, 'check.js'), text, 'utf8');
+      const run = () => spawnSync(process.execPath, ['check.js'], { cwd: dir, encoding: 'utf8' });
+      expect(run().status).toBe(0);
+      await mkdir(path.join(dir, 'notes'));
+      await writeFile(path.join(dir, 'notes', 'fix.txt'), 'fix', 'utf8');
+      const first = run();
+      expect(first.status).toBe(1);
+      const second = run();
+      expect(second.status).toBe(0);
+      expect(second.stdout).toContain('CHECK PASSES on run 3');
+      await writeFile(path.join(dir, 'notes', 'never.txt'), 'never', 'utf8');
+      expect(run().status).toBe(1);
+      await rm(path.join(dir, 'notes', 'never.txt'));
+      expect(run().status).toBe(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('without --yes it exits with 2 and starts nothing', async () => {
+    const child = spawn(process.execPath, ['--import', 'tsx', path.join('scripts', 'real', 'check-build-deny.ts')], { cwd: PACKAGE_ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    let err = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => (err += chunk));
+    const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
+    expect(code).toBe(2);
+    expect(err).toContain('Run it again with --yes');
+    expect(err).toContain('six short task sessions');
+  });
+});
+
+describe('phase 9 real checks: the shared helpers have deadlines', () => {
+  it('web.call and web.stop end with an error past their deadline', async () => {
+    const common = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'tasks-common.ts'), 'utf8');
+    expect(common).toContain('req.setTimeout(WEB_CALL_MS,');
+    expect(common).toContain("await within(running, WEB_STOP_MS, 'briefstack web stopping')");
   });
 });
 

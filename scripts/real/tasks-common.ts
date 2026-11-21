@@ -30,6 +30,7 @@ import { killProcessTree, spawnTracked } from '../../src/creation/processTree.js
 import { addNote } from '../../src/library/index.js';
 import { writeProjectNote } from '../../src/library/projectStatus.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
+import { STRUCTURED_OUTPUT_TOOL } from '../../src/builds/planner.js';
 import { TOKEN_HEADER } from '../../src/server/index.js';
 import { TaskSdkRunner } from '../../src/tasks/sdkRunner.js';
 import { baseProfilesFile, loadUsageProfiles } from '../../src/usage/index.js';
@@ -274,11 +275,28 @@ export interface ApiAnswer {
 
 export interface Web {
   url: URL;
+  /** One API call; an error once `WEB_CALL_MS` pass without an answer (review of M6 of phase 9). */
   call(method: string, route: string, body?: unknown): Promise<ApiAnswer>;
-  /** Stops the server as Ctrl+C does and waits for it. */
+  /**
+   * What a streaming route (`text/event-stream`) sends within `ms`: the
+   * stream is closed then and its text so far returned. For a task's
+   * stream, the items the server keeps since the task started.
+   */
+  read(route: string, ms: number): Promise<{ status: number; body: string }>;
+  /** Stops the server as Ctrl+C does and waits for it, at most `WEB_STOP_MS` (then an error). */
   stop(): Promise<void>;
   /** What the server printed. */
   log: string[];
+}
+
+/** How long one API call may take to answer. */
+export const WEB_CALL_MS = 60_000;
+/** How long the server may take to stop. */
+export const WEB_STOP_MS = 2 * 60_000;
+
+/** Processes still running that mention the sandbox's folder (a session, a check, a shell): none is expected after the server stopped. */
+export async function processesLeft(box: Sandbox): Promise<{ pid: number; command: string }[]> {
+  return processesMentioning(box.dir);
 }
 
 /**
@@ -322,7 +340,7 @@ export async function startWeb(check: Check, box: Sandbox, tap: Tap, builds: Pic
     if (done) return;
     done = true;
     release();
-    await running;
+    await within(running, WEB_STOP_MS, 'briefstack web stopping');
   };
   check.add(stop);
   for (let i = 0; i < 240 && address === undefined; i += 1) {
@@ -332,28 +350,47 @@ export async function startWeb(check: Check, box: Sandbox, tap: Tap, builds: Pic
   if (address === undefined) throw new Error(`briefstack web did not print its address: ${log.join(' | ').slice(0, 500)}`);
   const url = new URL(address);
   const token = url.hash.replace('#token=', '');
+  const headers = { host: url.host, [TOKEN_HEADER]: token, origin: url.origin, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json' };
   const call = (method: string, route: string, body?: unknown) =>
     new Promise<ApiAnswer>((resolve, reject) => {
-      const req = request(
-        {
-          host: '127.0.0.1',
-          port: Number(url.port),
-          path: route,
-          method,
-          headers: { host: url.host, [TOKEN_HEADER]: token, origin: url.origin, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json' },
-        },
-        (res) => {
-          let text = '';
-          res.setEncoding('utf8');
-          res.on('data', (chunk: string) => (text += chunk));
-          res.on('end', () => resolve({ status: res.statusCode ?? 0, body: text, json: () => JSON.parse(text) as unknown }));
-        },
-      );
+      const req = request({ host: '127.0.0.1', port: Number(url.port), path: route, method, headers }, (res) => {
+        let text = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk: string) => (text += chunk));
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: text, json: () => JSON.parse(text) as unknown }));
+      });
+      // A call that never answers fails the check instead of hanging it (review of M6 of phase 9).
+      req.setTimeout(WEB_CALL_MS, () => req.destroy(new Error(`${method} ${route}: no answer within ${WEB_CALL_MS / 1000} s`)));
       req.on('error', reject);
       req.end(body === undefined ? undefined : JSON.stringify(body));
     });
+  const read = (route: string, ms: number) =>
+    new Promise<{ status: number; body: string }>((resolve, reject) => {
+      let text = '';
+      let status = 0;
+      const req = request({ host: '127.0.0.1', port: Number(url.port), path: route, method: 'GET', headers }, (res) => {
+        status = res.statusCode ?? 0;
+        res.setEncoding('utf8');
+        res.on('data', (chunk: string) => (text += chunk));
+        res.on('end', () => {
+          clearTimeout(timer);
+          resolve({ status, body: text });
+        });
+        res.on('error', () => undefined);
+      });
+      const timer = setTimeout(() => {
+        req.destroy();
+        resolve({ status, body: text });
+      }, ms);
+      req.on('error', (error) => {
+        clearTimeout(timer);
+        if (status === 0) reject(error);
+        else resolve({ status, body: text });
+      });
+      req.end();
+    });
   console.log('briefstack web is running (in this process, temp home).');
-  return { url, call, stop, log };
+  return { url, call, read, stop, log };
 }
 
 // ---- Driving a task ------------------------------------------------------------------------------
@@ -502,6 +539,76 @@ export async function sessionEvents(box: Sandbox, sessionId: string | undefined)
 /** The `type` of every line of a session's `events.jsonl`, with the tool after a colon. */
 export async function sessionEventTypes(box: Sandbox, sessionId: string | undefined): Promise<string[]> {
   return (await sessionEvents(box, sessionId)).map((event) => `${event.type}${event.tool === undefined ? '' : `:${event.tool}`}`);
+}
+
+// ---- Builds (phase 9, check-build.ts and check-build-deny.ts) ------------------------------------
+
+/** The part of a build the checks read (`GET /api/builds/:id`, docs/api.md "Builds"). */
+export interface BuildSeen {
+  id: string;
+  state: string;
+  branch: string;
+  baseCommit?: string;
+  error?: string;
+  plan?: { tasks: { title: string; instruction: string; doneWhen: string; dependsOn: number[] }[]; commands: string[]; checks: string[] };
+  tasks: {
+    n: number;
+    title: string;
+    state: string;
+    reason?: string;
+    detail?: string;
+    skippedFor?: number;
+    taskId?: string;
+    commit?: string;
+    rounds: number;
+    denied?: { tool: string; text: string }[];
+    deniedOmitted?: number;
+    task?: { state: string; checks?: { command: string; exitCode: number | null; timedOut: boolean }[]; claudeTokens?: { noCache: number; withCache: number; rounds: number } };
+  }[];
+  pause?: { reason: string; at: string; until?: string; fiveHour?: number | null; sevenDay?: number | null };
+  applied?: { commit: string; at: string };
+  roundsRun: number;
+}
+
+/**
+ * What the planner session's own messages show (review of M6 of phase 9):
+ * its init's tools, printed, and its calls. `ok` when one session was seen
+ * and it had, and called, nothing but `StructuredOutput`.
+ */
+export function plannerReading(tap: Tap): { ok: boolean; detail: string } {
+  const init = tap.inits[0];
+  console.log(`   planner session: ${tap.inits.length} init(s); init.tools ${JSON.stringify(init?.tools ?? null)}; calls ${JSON.stringify(tap.calls.map((call) => call.name))}; Claude Code ${init?.claudeCodeVersion ?? '?'}`);
+  const only = (names: readonly string[]) => names.every((name) => name === STRUCTURED_OUTPUT_TOOL);
+  return {
+    ok: tap.inits.length === 1 && init !== undefined && only(init.tools) && only(tap.calls.map((call) => call.name)),
+    detail: `tools ${JSON.stringify(init?.tools ?? null)}, ${tap.calls.length} call(s)`,
+  };
+}
+
+export async function getBuild(web: Web, id: string): Promise<BuildSeen> {
+  const answer = await web.call('GET', `/api/builds/${id}`);
+  if (answer.status !== 200) throw new Error(`GET /api/builds/${id}: ${answer.status} ${answer.body.slice(0, 300)}`);
+  return answer.json() as BuildSeen;
+}
+
+/**
+ * Polls the build until its state is one of `states`, printing each change
+ * of a task's state; `onPoll` runs on every reading (the check's own
+ * observations while the build runs). An error past `timeoutMs`.
+ */
+export async function waitBuild(web: Web, id: string, states: readonly string[], timeoutMs: number, onPoll?: (build: BuildSeen) => Promise<void>): Promise<BuildSeen> {
+  const end = Date.now() + timeoutMs;
+  let last = '';
+  for (;;) {
+    const build = await getBuild(web, id);
+    await onPoll?.(build);
+    const now = `${build.state} | ${build.tasks.map((task) => `${task.n}:${task.state}${task.reason === undefined ? '' : `(${task.reason})`}`).join(' ')}`;
+    if (now !== last) console.log(`   build ${now}`);
+    last = now;
+    if (states.includes(build.state)) return build;
+    if (Date.now() > end) throw new Error(`The build is still ${build.state} after ${Math.round(timeoutMs / 60_000)} minutes.`);
+    await sleep(3000);
+  }
 }
 
 // ---- Codex in Settings (phase 8, check-codex-task.ts) -------------------------------------------
