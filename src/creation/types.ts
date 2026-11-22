@@ -116,6 +116,28 @@ export interface RunnerIO {
    */
   refreshFolderClaims?(): Promise<void>;
   emit(event: RunnerEvent): void;
+  /** The implement step (phase 10): what its `briefstack-web` tools call. Absent: the tools answer that it is not available. */
+  implement?: ImplementPort;
+}
+
+/** A reply of the implement step's tools: text for the session, an error or not. */
+export interface ImplementReply {
+  text: string;
+  isError: boolean;
+}
+
+/** The implement step as the runner's tools and guard reach it (phase 10, PLAN-phase-10 §1, 4 and 7). */
+export interface ImplementPort {
+  start(dir: unknown): Promise<ImplementReply>;
+  runCommand(command: unknown): Promise<ImplementReply>;
+  finish(): Promise<ImplementReply>;
+  /** Codex without its shell (M4); absent before it is wired. */
+  delegate?(instruction: unknown): Promise<ImplementReply>;
+  /**
+   * Called by the guard for each tool call of the implementer: counts it and
+   * says why it may do nothing more, or `undefined`.
+   */
+  implementerCall(): string | undefined;
 }
 
 export type ClaimResult = { ok: true } | { ok: false; holder: string };
