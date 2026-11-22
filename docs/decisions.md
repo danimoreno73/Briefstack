@@ -6859,6 +6859,18 @@ recorded here; the design decisions are in
 - **3. A second real check before accepting the phase** (source: the user,
   2026-11-21, step 33): `scripts/real/check-build-deny.ts`, prepared by
   the agent and run by the user.
+- **4. The rule for applying a task is read round by round** (source: the
+  user, 2026-11-22, after the second real check, "Phase 9: accepted"). A
+  task with a command denied in one round is applied when a later fix
+  round ends without a denied command, with no blocking validation and
+  every check passing; the denial stays visible (the build's denied list
+  for the task, its `tool.denied` line, the build page). This is what the
+  code did (`src/builds/manager.ts`, the loop: the denials of a round are
+  cleared when its fix round starts), and what the second real check
+  showed (task 1, applied after 2 rounds, its denial in the list). It
+  replaces the plan's wording, "no command was denied in the task"
+  (PLAN-phase-9 §1, 7, now corrected), and the same wording on the start
+  page and in `docs/api.md`.
 
 ## Phase 9: the planner and structured output (2026-11-18, SDK 0.3.286)
 
@@ -7208,3 +7220,87 @@ The review covered the fixes of the review of M5 and M6 (`086850b..644d0fc`).
   discard with the build's branch checked out by hand; `docs/api.md`
   (`build.branchExists` on start, `build.nothingToApply` for a head at the
   base); the README on where a brief comes from. The rest is in IDEAS §9.
+
+## Phase 9: accepted (2026-11-22)
+
+**The user's decision (2026-11-22):** phase 9 is accepted, on the two real
+checks below, both run by the user on Windows 11 with the saver profile
+(sonnet, low). The user created the tag `phase-9-done` on `31f21d2`.
+
+**First real check** (`npx tsx scripts/real/check-build.ts --yes`,
+2026-11-21, Claude Code 2.1.328, 38 s): every verdict PASS, 2 NOT
+CONTROLLED. Shown in real: the planner answered through `StructuredOutput`
+with its draft-07 schema (a queue of 2 tasks, one depending on the other,
+with a proposed command and check); the build ran to its end on its own,
+both tasks applied to the integration branch in one round each with their
+check at exit 0; the branch's head was the last task's commit; `main` was
+untouched until the final apply, which left one commit on top of the base
+and a clean folder; no task session offered Codex; both plan readings
+carried `resets_at` (H0, 2). Its NOT CONTROLLED lines, as printed:
+
+- "every denial happened without a dialog: a build round has no dialog to
+  open; the unit tests show it, and this run prints each shell call and
+  its result above"
+- "resets_at for this login (informative, H0 point 2): 2 of 2 reading(s)
+  carried a reset time"
+
+It made no shell call at all ("0 shell call(s), 0 off the list, 0 recorded
+as denied"), so its PASS on denials proved nothing; hence the user's
+decision 3 above, a second check.
+
+**Second real check** (`npx tsx scripts/real/check-build-deny.ts --yes`,
+2026-11-22, Claude Code 2.1.330, 62 s, a fixed queue of 4): every verdict
+PASS, 1 NOT CONTROLLED. Its verdicts, as printed (details cut where they
+hold a record or a local path):
+
+- PASS "the build was created and the planner started"
+- PASS "the planner answered with a queue: 4 task(s), replaced by the
+  fixed queue of 4"
+- PASS "the planner session had no tool but StructuredOutput, and called
+  no other: tools ["StructuredOutput"], 1 call(s)"
+- PASS "the build started with the fixed queue"
+- PASS "the build ran to its end on its own (finished): finished"
+- PASS "1. the session tried `node --version` (its call is in its
+  messages): 1 call(s): Bash "node --version""
+- PASS "1. every such call came back refused (an error result)"
+- NOT CONTROLLED "1. the build's own words reached the session
+  (informative): 0 of 1 result(s) hold the start of UNATTENDED_DENIED"
+- PASS "1. `node --version` did not run: node-version.txt holds no
+  version: "refused""
+- PASS "1. it is in the build's denied list:
+  [{"tool":"Bash","text":"node --version"}]"
+- PASS "1. nobody was asked: no pending dialog while it ran and no
+  approval item in the task's stream: 0 pending, 0 approval item(s) of 30"
+- PASS "1. each denial was recorded as the build's rule (tool.denied by
+  policy): 1 of 1"
+- PASS "2. task 2 ran two rounds (a fix round): 2 round(s)"
+- PASS "2. the session of task 2 ran no command (one would be denied and
+  leave it waiting: the model, not the build): []"
+- PASS "2. its check passed on a later run than its first: exit 0, run 2"
+- PASS "2. task 2 was applied to the integration branch"
+- PASS "3. task 3 waits: its check failed after its fix round: waiting
+  (checksFailed), 2 round(s)"
+- PASS "3. task 4, which depends on it, was skipped without a session:
+  skipped for 3"
+- PASS "nothing reached main: same HEAD, clean folder"
+- PASS "the plan was read before each task that started: 3 reading(s), 3
+  task(s) started"
+- PASS "no process of the sandbox is left once the server stopped: none"
+
+Two observations of the user's (2026-11-22): task 1, whose first round
+had the denied command, was applied after its fix round ended without it
+(the code reads the rule round by round; the plan said "no command was
+denied in the task"): the user decided for the code, "Phase 9: the user's
+decisions", 4. And the denial reached the model as Claude Code's
+`PreToolUse:Bash hook error: [<path of the hook command>]`, not as
+briefstack's `UNATTENDED_DENIED` text, so the model was not told to go on
+without the command and saw local paths (the NOT CONTROLLED line); open in
+IDEAS §9.
+
+**Not shown in real** (shown by unit and e2e tests only): the pause by
+plan usage and its resume at the reset (no threshold was reached), the
+user's pause, resume and cancel, a restart leaving a build interrupted, a
+waiting task approved by the user and the build resumed, revert and
+discard of a build, a web request or a compound command against the
+list, projects of real size, and Linux and macOS (both checks ran on
+Windows only).

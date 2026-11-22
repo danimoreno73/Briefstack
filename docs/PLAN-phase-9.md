@@ -13,7 +13,8 @@ the user is in decisions.md, "Decisiones sin Dani (fase 9)".
 
 ## 0. Status
 
-Updated 2026-11-18.
+Updated 2026-11-22. **Phase 9 is accepted by the user (2026-11-22), tag
+`phase-9-done`**; decisions.md, "Phase 9: accepted".
 
 | # | Milestone | State |
 |---|---|---|
@@ -25,6 +26,9 @@ Updated 2026-11-18.
 | M5 | The build page: progress, cumulative diff, apply, revert, discard | done (`a28d655`, `086850b`, CI green on the three systems, run 44433478847; review fixes `26f52cc`): review I1 (apply took in no approved waiting task) fixed, I2 (apply did not check the head the page showed) fixed, I3 (no confirmation in the body) fixed, I4 (refusals untested) fixed; minors in IDEAS §9. `src/builds/apply.ts` (apply and revert through phase 7's `land`), `BuildManager.apply`, `revert`, `discard` of a started build, `diff`, each task's own state, checks and Codex calls on `GET /api/builds/:id`; routes `POST /api/builds/:id/apply`, `revert`, `GET /api/builds/:id/diff`; the page's pause notes, actions with confirmations, progress columns and the whole change; unit and e2e tests (applied, waiting and skipped, pause and resume, cancel, apply and revert, discard); decisions.md "Phase 9: M5" |
 | M6 | Docs and the real check script (prepared, not run) | done (`6a250ce`, `644d0fc`; review fixes in the next commits): review I-1 (apply checked only the branch's head; a build cancelled after a round could not apply; the head checked was read again) fixed, I-2 (the real check did not read what the task sessions did) fixed; minors in IDEAS §9. README (what builds do, their security, "a build runs code before you read it", limits), `docs/api.md` "Builds (phase 9)", decisions.md "Phase 9: M6", `CLAUDE.md` current state, `scripts/real/check-build.ts` prepared and **not run** (`npx tsx scripts/real/check-build.ts --yes`, run by the user), its static checks in `tests/unit/real-scripts.test.ts` |
 | Step 33 | After the first real check (run and passed by the user): the second real check, the user's decisions, open items, four controls, the changelog | done (`97f5d32`…; each part reviewed, fixes in the next commits): `scripts/real/check-build-deny.ts` prepared and **not run** (a denied command, a deterministic fix round, a waiting task and its skipped dependent, from a fixed queue; `npx tsx scripts/real/check-build-deny.ts --yes`, run by the user); the user's decisions 1 (discarding an applied or reverted build deletes only its branch) and 2 (Claude's tokens per task on the build page), decisions.md "Phase 9: the user's decisions"; the open items of IDEAS §9, decisions.md "Phase 9: step 33, open items of IDEAS §9"; four controls of IDEAS §3, decisions.md "Phase 9: step 33, four controls of IDEAS §3"; an "Unreleased" section in `CHANGELOG.md` (no version, no tag) |
+| Real 1 | `scripts/real/check-build.ts`, run by the user | 2026-11-21, Claude Code 2.1.328, saver profile, 38 s: every verdict PASS, 2 NOT CONTROLLED (no dialog is observable from outside; `resets_at` came in 2 of 2 readings). The real planner answered through `StructuredOutput` with a queue of 2; both tasks applied in one round each; the final apply left one commit on `main`. No shell call was made, so the approved list and its denials were not shown in real |
+| Real 2 | `scripts/real/check-build-deny.ts`, run by the user | 2026-11-22, Claude Code 2.1.330, saver profile, 62 s: every verdict PASS, 1 NOT CONTROLLED (the build's own words did not reach the session). A command off the list was refused without a dialog and recorded; a fix round passed; a waiting task's dependent was skipped; `main` untouched; no process left |
+| Accepted | The user's acceptance | 2026-11-22, tag `phase-9-done` (on `31f21d2`, made by the user); decisions.md "Phase 9: accepted" |
 
 ## 1. Design decisions taken from H0
 
@@ -77,9 +81,12 @@ Each one is the conservative reading and is in decisions.md.
    the build's recorded checks, after the round's commit and validations,
    with today's runner (proxies pointed nowhere, 10 minutes per command).
    A task without a build is refused. No route calls it.
-7. **The rules** for applying a task unattended: no blocking validation,
-   every check exits 0 without a timeout, and no command was denied in the
-   task. Otherwise a fix round runs (a run setting, 0 to 2, default 1) with
+7. **The rules** for applying a task unattended, read after each round:
+   no blocking validation, every check exits 0 without a timeout, and no
+   command was denied in that round (the user's decision of 2026-11-22,
+   decisions.md "Phase 9: the user's decisions", 4: a task whose fix round
+   ends without the denied command is applied, and the denial stays
+   visible; this text said "in the task" before). Otherwise a fix round runs (a run setting, 0 to 2, default 1) with
    the failing output; when the rules still fail, or the round itself
    failed, the task is left **waiting** with the reason, and the tasks
    that depend on it, directly or not, are **skipped**. A per-build cap on
