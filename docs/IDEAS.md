@@ -1133,7 +1133,10 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   user's `usage-profiles.json` in the schema's key order. Review of step
   33, part C.
 - **Noted.** Commits `fde4fe7` (the four controls of part C) and
-  `bfaa9b6` hold several concerns. Review of step 33, part C.
+  `bfaa9b6` hold several concerns. Review of step 33, part C. So does
+  `ffe7d5d` (the fixes of part C's review, with a test of the cancel mark
+  its message does not name); the week's note with `activity: null` has
+  no test. Review of step 33, part E.
 - **Noted.** Commit `5c6133b` holds the ten items of part B and the fixes
   of part A's review together. Review of step 33, part B.
 - **Noted.** Commit `8e02689` holds the user's decisions 1 and 2 together,

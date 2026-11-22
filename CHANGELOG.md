@@ -14,10 +14,20 @@ What phases 7, 8 and 9 add. The briefs are in [`docs/`](docs/)
   folder.
 - Every shell command and web request asks first, in a dialog with the
   exact command: once, for the rest of the task, or deny.
+- The session loads the project's `CLAUDE.md`, agents and skills; the
+  project's hooks never run.
 - The result is a diff to review, with validations (files outside the
   copy, settings or hooks, hidden lines, secrets, personal paths); approve
-  applies it as one commit on the project's branch, revert undoes it,
+  applies it as one commit on the project's branch, ask for changes runs
+  another round on the same branch, revert undoes an approved one,
   discard drops it. Nothing is pushed.
+- Tasks start from the project's page or from the chat, with a card to
+  confirm.
+- Usage profiles have a `work` entry (the model and effort of a task's
+  session). **Upgrading:** every preset needs it, user presets included,
+  so a `usage-profiles.json` of your own from 1.0.0 no longer loads until
+  you add `work` to each preset (the error names the missing field; no
+  default is filled in).
 - The project's declared checks run only after a click and a
   confirmation on the proposal page.
 - Tasks share the active-sessions limit with creations, one per project
@@ -44,7 +54,10 @@ What phases 7, 8 and 9 add. The briefs are in [`docs/`](docs/)
 - The queue runs unattended on an integration branch: commands off the
   list are denied without a dialog and recorded, checks run after each
   round, a failing task gets fix rounds and then waits for the user, its
-  dependents are skipped. Builds never offer Codex.
+  dependents are skipped. A build's own rounds never offer Codex (its
+  commands would not pass through the list; this replaces the brief's
+  "only through phase 8's switch"); a waiting task the user opens and runs
+  as an ordinary task still can.
 - Pause and resume, a pause by plan usage that resumes by itself at the
   reset, cancel, and a restart that leaves a build interrupted.
 - The build's page: progress, Claude's tokens per task, the whole change,
@@ -57,7 +70,7 @@ What phases 7, 8 and 9 add. The briefs are in [`docs/`](docs/)
   not what an approved command runs. Tasks and builds need git 2.40 or
   later.
 
-### Projects and Usage pages
+### Projects and Usage pages (phase 9, step 33)
 
 - Archive and restore an interrupted or cancelled creation.
 - Export the projects list as CSV, with no paths.
