@@ -896,7 +896,10 @@ roundsRun, pause?, startedAt?, finishedAt?, applied?, reverted?, error? }`.
 `tasks` the queue the user started, each
 `{ n, title, instruction, doneWhen, dependsOn, state, taskId?, reason?,
 skippedFor?, detail?, commit?, denied?, deniedOmitted?, rounds, task? }`
-(`denied` keeps at most 50 entries; `deniedOmitted` counts the rest), with `state`
+(`denied` keeps at most 50 entries, from every round; `deniedOmitted` counts
+the rest; a task is applied after a round with no blocking validation,
+every check passing and no command denied in that round, so an `applied`
+task may still list denials of an earlier round), with `state`
 `queued`, `running`, `applied`, `waiting`, `skipped` or `cancelled`;
 `reason` (waiting) `checksFailed`, `denied`, `blocked`, `roundFailed`,
 `interrupted`, `notStarted`, `notApplied` or `roundsCap`; `task` (only on
@@ -951,8 +954,8 @@ problem named in `400 build.invalidStart { issues, items }`: 1 to 20 tasks, each
 depending only on earlier ones; `limit` from 1 to the queue's length;
 commands and checks exact, one per line, plain characters only, no chain,
 wildcard or secret; `fixRounds` 0 to 2; thresholds 1 to 100; with no
-checks, `noChecks: true` (the user confirmed that every task with no
-denied command is then applied; phase 9 step 33). `issues` are English
+checks, `noChecks: true` (the user confirmed that every task whose round
+ends with no denied command is then applied; phase 9 step 33). `issues` are English
 texts; `items` the same problems as codes the page translates
 (`{ key, n?, max?, line?, what?, problem?, name?, fields? }`, `key` one of
 `emptyQueue`, `tooManyTasks`, `taskInvalid`, `laterDependency`, `limit`,

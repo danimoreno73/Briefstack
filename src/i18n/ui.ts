@@ -507,8 +507,8 @@ export const uiMessages = defineCatalogue({
     buildCommandsHint:
       'A session may run only these commands, exactly as written, or a chain of them with &&, || or ;. Anything else is denied without asking you. The list limits command lines, not code: the session can change what an approved command runs (for example the test script in package.json, or a test file).',
     buildNoChecksTitle: 'No checks',
-    buildNoChecksBody: 'With no checks, every task with no denied command is applied to the build’s branch without anything run on it. Add a check (usually the tests), or confirm below.',
-    buildNoChecksConfirm: 'Start without checks: apply every task with no denied command',
+    buildNoChecksBody: 'With no checks, every task with no denied command is applied to the build’s branch without anything run on it; a task with a denied command gets its fix round, and is applied if that round ends without one. Add a check (usually the tests), or confirm below.',
+    buildNoChecksConfirm: 'Start without checks: apply every task whose round ends with no denied command',
     buildInvalidStartLead: 'The build cannot start:',
     buildStartIssue: (i: StartIssueFacts): string => {
       const list = i.checks ? 'checks' : 'approved commands';
@@ -551,7 +551,7 @@ export const uiMessages = defineCatalogue({
       }
     },
     buildChecksLabel: 'Checks after each round (one per line)',
-    buildChecksHint: 'They run after each round, before you see the change. A task is applied to the build’s branch only if they all pass and no command was denied.',
+    buildChecksHint: 'They run after each round, before you see the change. A task is applied to the build’s branch after a round where they all pass and no command was denied; a denial in an earlier round stays shown.',
     buildFixRoundsLabel: 'Fix rounds when a check fails',
     buildFixRoundsHint: 'From 0 to 2. The session gets the failing output and tries again.',
     buildNoCodex: 'A build never hands work to Codex: its commands would not pass through the approved list. Your own tasks, and a waiting task you open, still can when Codex is on in Settings.',
@@ -1785,8 +1785,8 @@ export const uiMessages = defineCatalogue({
     buildCommandsHint:
       'Una sesión solo puede ejecutar estos comandos, tal cual, o una cadena de ellos con &&, || o ;. Todo lo demás se deniega sin preguntarte. La lista limita líneas de órdenes, no código: la sesión puede cambiar lo que ejecuta un comando aprobado (por ejemplo el script de test de package.json, o un fichero de test).',
     buildNoChecksTitle: 'Sin comprobaciones',
-    buildNoChecksBody: 'Sin comprobaciones, cada tarea sin comandos denegados se aplica a la rama del build sin que se ejecute nada sobre ella. Añade una comprobación (normalmente los tests) o confírmalo abajo.',
-    buildNoChecksConfirm: 'Empezar sin comprobaciones: aplicar cada tarea sin comandos denegados',
+    buildNoChecksBody: 'Sin comprobaciones, cada tarea sin comandos denegados se aplica a la rama del build sin que se ejecute nada sobre ella; una tarea con un comando denegado pasa a su ronda de arreglo y se aplica si esa ronda termina sin ninguno. Añade una comprobación (normalmente los tests) o confírmalo abajo.',
+    buildNoChecksConfirm: 'Empezar sin comprobaciones: aplicar cada tarea cuya ronda termine sin comandos denegados',
     buildInvalidStartLead: 'El build no puede empezar:',
     buildStartIssue: (i: StartIssueFacts): string => {
       const list = i.checks ? 'las comprobaciones' : 'los comandos aprobados';
@@ -1829,7 +1829,7 @@ export const uiMessages = defineCatalogue({
       }
     },
     buildChecksLabel: 'Comprobaciones tras cada ronda (una por línea)',
-    buildChecksHint: 'Se ejecutan tras cada ronda, antes de que veas el cambio. Una tarea se aplica a la rama del build solo si pasan todas y no se denegó ningún comando.',
+    buildChecksHint: 'Se ejecutan tras cada ronda, antes de que veas el cambio. Una tarea se aplica a la rama del build tras una ronda en la que pasan todas y no se denegó ningún comando; una denegación de una ronda anterior sigue a la vista.',
     buildFixRoundsLabel: 'Rondas de arreglo si falla una comprobación',
     buildFixRoundsHint: 'De 0 a 2. La sesión recibe la salida que falló y lo intenta otra vez.',
     buildNoCodex: 'Un build nunca pasa trabajo a Codex: sus comandos no pasarían por la lista aprobada. Tus propias tareas, y una tarea en espera que abras, sí pueden si Codex está activado en Ajustes.',
