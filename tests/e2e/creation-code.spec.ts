@@ -52,6 +52,8 @@ test.describe('the code choice at the spec checkpoint', () => {
     await expect(page.getByTestId('result')).toHaveAttribute('data-outcome', 'completed', { timeout: 15_000 });
     const [state] = app.manager.list();
     expect(state?.code).toEqual({ commands: ['npm install', 'npm test'], checks: ['npm test'], fixPasses: 2, codex: false });
+    // M5: code chosen but this recording never ran the step: the result screen says so.
+    await expect(page.getByTestId('implement-not-started')).toContainText('did not run');
     expect(JSON.parse(await readFile(path.join(app.sessionsDir, state?.sessionId ?? '', 'code.json'), 'utf8'))).toMatchObject({ v: 1, fixPasses: 2 });
   });
 
@@ -126,6 +128,16 @@ test.describe('a creation with code (M2)', () => {
     expect(state?.implement?.workspaceCommit).toMatch(/^[0-9a-f]{40}$/);
     expect(state?.implement?.codeCommit).toMatch(/^[0-9a-f]{40}$/);
     expect(await readFile(path.join(app.projectsDir, 'garden', 'src', 'garden.js'), 'utf8')).toBe('export const beds = 3;\n');
+    // M5: the result screen shows the two commits, the command run, the one denied, the checks and what is left.
+    const shown = page.getByTestId('implement');
+    await expect(shown).toHaveAttribute('data-state', 'done');
+    await expect(shown.getByTestId('implement-workspace-commit')).toHaveText(state?.implement?.workspaceCommit?.slice(0, 10) ?? '');
+    await expect(shown.getByTestId('implement-code-commit')).toHaveText(state?.implement?.codeCommit?.slice(0, 10) ?? '');
+    await expect(shown.getByTestId('implement-run')).toHaveCount(1);
+    await expect(shown.getByTestId('implement-run')).toContainText('node --version');
+    await expect(shown.getByTestId('implement-refused-command')).toHaveText(['npm publish']);
+    await expect(shown.getByTestId('implement-checks-summary')).toHaveAttribute('data-ok', 'true');
+    await expect(shown.getByTestId('implement-status')).toBeVisible();
   });
 });
 
@@ -169,6 +181,12 @@ test.describe('failing checks with a fix pass (M3)', () => {
     expect(implement?.checks[1]?.results[0]?.exitCode).not.toBe(0);
     expect(implement?.codeCommit).toMatch(/^[0-9a-f]{40}$/);
     expect(await readFile(path.join(app.projectsDir, 'garden', 'src', 'garden.js'), 'utf8')).toBe('export const beds = 4;\n');
+    // M5: the warning, both runs of the checks and the fix pass are on the result screen.
+    const shown = page.getByTestId('implement');
+    await expect(shown.getByTestId('implement-warning')).toBeVisible();
+    await expect(shown.getByTestId('implement-checks-pass')).toHaveCount(2);
+    await expect(shown.getByTestId('implement-checks-summary')).toHaveAttribute('data-ok', 'false');
+    await expect(shown).toContainText('1 of 1');
   });
 });
 
@@ -218,6 +236,10 @@ test.describe('a creation with code and Codex (M4)', () => {
     expect(exec).toHaveLength(1);
     expect(exec[0]?.argv).toEqual(expect.arrayContaining(['--ignore-user-config', 'shell_tool', 'web_search="disabled"']));
     expect(await readFile(path.join(app.projectsDir, 'garden', 'codex-note.txt'), 'utf8')).toContain('without its shell');
+    // M5: Codex's call and tokens on the result screen.
+    const shown = page.getByTestId('implement');
+    await expect(shown.getByTestId('implement-codex-call')).toHaveCount(1);
+    await expect(shown.getByTestId('implement-codex-tokens')).toContainText('tokens');
   });
 });
 

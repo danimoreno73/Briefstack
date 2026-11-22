@@ -287,13 +287,24 @@ export interface CreationState {
 
 /** The implement step as the server records it (phase 10, `src/creation/implement.ts`). */
 export interface ImplementViewUi {
-  state: 'running' | 'done' | 'notStarted';
-  reason?: string;
+  state: 'running' | 'checking' | 'finishing' | 'done' | 'interrupted' | 'notStarted';
+  reason?: 'notChosen' | 'wrongFolder' | 'notAProject' | 'commitFailed' | 'usage' | 'usageUnread';
+  usage?: { fiveHour: number | null; sevenDay: number | null };
   workspaceCommit?: string;
   codeCommit?: string;
   commitWarning?: string;
   runs: { command: string; exitCode: number | null; timedOut: boolean; output: string; durationMs: number; at: string }[];
   refused: { command: string; at: string }[];
+  checks: { pass: number; results: { command: string; exitCode: number | null; timedOut: boolean; output: string; durationMs: number }[] }[];
+  fixPassesUsed: number;
+  bounds?: { maxMinutes: number; maxToolCalls: number };
+  toolCalls: number;
+  limit?: 'time' | 'toolCalls';
+  warning?: 'checksFailed';
+  codex: TaskCodexCallUi[];
+  codexUnavailable?: true;
+  status?: string;
+  protectedReverted?: string[];
   startedAt?: string;
   finishedAt?: string;
 }

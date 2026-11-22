@@ -1296,6 +1296,48 @@ export const uiMessages = defineCatalogue({
     specCodeNotOffered: 'code is offered only for a software project for Claude Code',
     specCodeNoChecks: 'add at least one check: the code is not written without a check to measure it',
     specCodeFixed: 'the implement step already started, so the code choice no longer changes',
+    implementTitle: 'First version of the code',
+    implementNotStarted: (reason: string | undefined): string => {
+      switch (reason) {
+        case 'usage':
+          return 'The code was not written: plan usage was at or above your thresholds when the step was to start. The workspace is ready; a task or a build can write the code later.';
+        case 'usageUnread':
+          return 'The code was not written: plan usage could not be read when the step was to start. The workspace is ready; a task or a build can write the code later.';
+        case 'commitFailed':
+          return 'The code was not written: the workspace could not be committed first.';
+        case 'notAProject':
+        case 'wrongFolder':
+          return 'The code was not written: the step did not find this creation’s project folder.';
+        default:
+          return 'You chose a first version of the code, but the step did not run. The workspace is ready; a task or a build can write the code.';
+      }
+    },
+    implementState: (state: string): string =>
+      ({ running: 'The implementer is writing the code.', checking: 'The checks are running.', finishing: 'The code is being committed.', done: 'Done.', interrupted: 'Stopped before it ended.' })[state] ?? state,
+    implementChecksFailed: 'Some checks still fail. The code is kept and committed as it is; read it and the checks’ output before you rely on it.',
+    implementLimit: (limit: 'time' | 'toolCalls') => (limit === 'time' ? 'The implementer stopped at the time limit.' : 'The implementer stopped at its limit of tool calls.'),
+    implementCodexUnavailable: 'You ticked Codex, but it was not available when the step started, so it was not used.',
+    implementProtectedReverted: (files: string) => `These files are briefstack’s or Claude Code’s settings and hooks; the changes made to them were put back as the workspace had them: ${files}.`,
+    implementCommitWarning: (code: string) => `A commit was not made (${code}). What was written stays in the folder.`,
+    implementWorkspaceCommit: 'Workspace commit',
+    implementCodeCommit: 'Code commit',
+    implementBounds: 'Limits',
+    implementBoundsValue: (calls: number, maxCalls: number, maxMinutes: number) => `${calls} of ${maxCalls} tool calls · ${maxMinutes} minutes at most`,
+    implementFixPasses: 'Fix passes',
+    implementFixPassesValue: (used: number, max: number) => `${used} of ${max}`,
+    implementChecks: 'Checks',
+    implementChecksPassed: 'all passed',
+    implementChecksFailing: 'some fail',
+    implementRunsTitle: 'Commands it ran',
+    implementRefusedTitle: 'Commands denied',
+    implementRefusedNote: 'Not on your list: denied without asking anyone, and not run.',
+    implementChecksPass: (n: number) => `Checks, run ${n}`,
+    implementTimedOut: 'did not finish in time',
+    implementExit: (code: number | null) => (code === null ? 'no exit code' : `exit ${code}`),
+    implementNoOutput: '(no output)',
+    implementCodexTitle: (calls: number) => `Codex, without its shell: ${calls} call${calls === 1 ? '' : 's'}`,
+    implementStatusTitle: 'What is done and what is left',
+    implementStatusNote: 'From the brief’s “Current status”, as the implementer wrote it.',
     specSkillKeep: (name: string) => `Keep ${name}`,
     usageWarnTitle: 'Plan usage is high',
     usageWarnBody: (fiveHour: number | null, warnFiveHour: number, week: number | null, warnWeek: number) =>
@@ -2597,6 +2639,48 @@ export const uiMessages = defineCatalogue({
     specCodeNotOffered: 'el código solo se ofrece para un proyecto de software para Claude Code',
     specCodeNoChecks: 'añade al menos una comprobación: el código no se escribe sin una comprobación que lo mida',
     specCodeFixed: 'el paso de implementación ya empezó, así que la elección de código ya no cambia',
+    implementTitle: 'Primera versión del código',
+    implementNotStarted: (reason: string | undefined): string => {
+      switch (reason) {
+        case 'usage':
+          return 'El código no se escribió: el uso del plan estaba en tus umbrales o por encima cuando iba a empezar el paso. El espacio de trabajo está listo; una tarea o un build pueden escribir el código después.';
+        case 'usageUnread':
+          return 'El código no se escribió: no se pudo leer el uso del plan cuando iba a empezar el paso. El espacio de trabajo está listo; una tarea o un build pueden escribir el código después.';
+        case 'commitFailed':
+          return 'El código no se escribió: antes no se pudo hacer el commit del espacio de trabajo.';
+        case 'notAProject':
+        case 'wrongFolder':
+          return 'El código no se escribió: el paso no encontró la carpeta del proyecto de esta creación.';
+        default:
+          return 'Elegiste una primera versión del código, pero el paso no se ejecutó. El espacio de trabajo está listo; una tarea o un build pueden escribir el código.';
+      }
+    },
+    implementState: (state: string): string =>
+      ({ running: 'El implementador está escribiendo el código.', checking: 'Se están ejecutando las comprobaciones.', finishing: 'Se está haciendo el commit del código.', done: 'Hecho.', interrupted: 'Se paró antes de terminar.' })[state] ?? state,
+    implementChecksFailed: 'Algunas comprobaciones siguen fallando. El código se conserva y se hace commit tal cual; léelo, y la salida de las comprobaciones, antes de fiarte de él.',
+    implementLimit: (limit: 'time' | 'toolCalls') => (limit === 'time' ? 'El implementador paró en el límite de tiempo.' : 'El implementador paró en su límite de llamadas a herramientas.'),
+    implementCodexUnavailable: 'Marcaste Codex, pero no estaba disponible cuando empezó el paso, así que no se usó.',
+    implementProtectedReverted: (files: string) => `Estos ficheros son de briefstack o ajustes y hooks de Claude Code; los cambios que se les hicieron se devolvieron a como los tenía el espacio de trabajo: ${files}.`,
+    implementCommitWarning: (code: string) => `No se hizo un commit (${code}). Lo escrito sigue en la carpeta.`,
+    implementWorkspaceCommit: 'Commit del espacio de trabajo',
+    implementCodeCommit: 'Commit del código',
+    implementBounds: 'Límites',
+    implementBoundsValue: (calls: number, maxCalls: number, maxMinutes: number) => `${calls} de ${maxCalls} llamadas a herramientas · ${maxMinutes} minutos como mucho`,
+    implementFixPasses: 'Pasadas de arreglo',
+    implementFixPassesValue: (used: number, max: number) => `${used} de ${max}`,
+    implementChecks: 'Comprobaciones',
+    implementChecksPassed: 'todas pasan',
+    implementChecksFailing: 'alguna falla',
+    implementRunsTitle: 'Comandos que ejecutó',
+    implementRefusedTitle: 'Comandos denegados',
+    implementRefusedNote: 'No estaban en tu lista: se denegaron sin preguntar a nadie y no se ejecutaron.',
+    implementChecksPass: (n: number) => `Comprobaciones, ejecución ${n}`,
+    implementTimedOut: 'no terminó a tiempo',
+    implementExit: (code: number | null) => (code === null ? 'sin código de salida' : `salida ${code}`),
+    implementNoOutput: '(sin salida)',
+    implementCodexTitle: (calls: number) => `Codex, sin su shell: ${calls} llamada${calls === 1 ? '' : 's'}`,
+    implementStatusTitle: 'Qué está hecho y qué falta',
+    implementStatusNote: 'De la sección «Current status» del brief, tal como la escribió el implementador.',
     specSkillKeep: (name: string) => `Conservar ${name}`,
     usageWarnTitle: 'El uso del plan está alto',
     usageWarnBody: (fiveHour: number | null, warnFiveHour: number, week: number | null, warnWeek: number) =>

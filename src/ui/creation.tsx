@@ -16,6 +16,7 @@ import { STEPS, deriveProgress, parseSse, type Progress } from './progress.js';
 import { ReplyBox } from './reply.js';
 import { routeHash } from './route.js';
 import { SpecCodeCard, codeAnswer, emptyCodeDraft, type SpecCodeDraft } from './specCode.js';
+import { ImplementCard } from './implementCard.js';
 import type { CreationState, Pending, ProjectDetail, ProjectListing, SpecView, StreamEvent, UiQuestion, UsageWarningView } from './types.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -420,6 +421,9 @@ function CreationView({ id }: { id: string }) {
                 <StepBar steps={steps} current={progress.current} />
               </div>
             </section>
+
+            {/* Phase 10: while the implement step runs, what it did so far (commands, denials, checks, Codex). */}
+            {state.implement !== undefined && state.implement.state !== 'notStarted' && <ImplementCard state={state} />}
 
             <div class="cols">
               <div class="col-main">
@@ -898,8 +902,10 @@ function FinishedView({
   return (
     <>
       <div class="cols">
-        <div class="col-main">
+        <div class="col-main stack-4">
           <Result state={state} />
+          {/* Phase 10: the first version of the code, its commits, checks, denied commands and Codex calls. */}
+          <ImplementCard state={state} />
         </div>
         <div class="col-side">
           <Denied state={state} progress={progress} />
