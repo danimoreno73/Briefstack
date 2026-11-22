@@ -135,6 +135,44 @@ describe('codexExecArgs', () => {
     ]);
     expect(codexExecArgs({ worktree: 'W', outFile: 'O', mode: 'elevated', platform: 'linux' })).toEqual(['exec', '--json', '--sandbox', 'workspace-write', '--ephemeral', '-c', 'approval_policy="never"', '-C', 'W', '-o', 'O', '-']);
   });
+
+  it('without its shell (phase 10, creations only): exactly the measured set of H0.1 calls 3–8, and nothing else', () => {
+    expect(codexExecArgs({ worktree: 'W', outFile: 'O', mode: 'unelevated', platform: 'win32', noShell: true })).toEqual([
+      'exec',
+      '--json',
+      '--sandbox',
+      'workspace-write',
+      '--ephemeral',
+      '--ignore-user-config',
+      '--disable',
+      'shell_tool',
+      '--disable',
+      'multi_agent',
+      '--disable',
+      'plugins',
+      '--disable',
+      'apps',
+      '--disable',
+      'hooks',
+      '--disable',
+      'browser_use',
+      '--disable',
+      'computer_use',
+      '-c',
+      'web_search="disabled"',
+      '-c',
+      'approval_policy="never"',
+      '-c',
+      'windows.sandbox="unelevated"',
+      '-C',
+      'W',
+      '-o',
+      'O',
+      '-',
+    ]);
+    // A task's call does not change: noShell absent or false.
+    expect(codexExecArgs({ worktree: 'W', outFile: 'O', platform: 'linux', noShell: false })).toEqual(codexExecArgs({ worktree: 'W', outFile: 'O', platform: 'linux' }));
+  });
 });
 
 describe('CodexEventReader', () => {

@@ -50,6 +50,13 @@ export interface CodexDelegateDeps {
   run?: (options: CodexExecOptions) => Promise<CodexExecResult>;
   platform?: NodeJS.Platform;
   now?: () => Date;
+  /**
+   * Phase 10: a creation's implement step runs Codex without its shell
+   * (`codexExecArgs` adds the measured set). Tasks never set it.
+   */
+  noShell?: true;
+  /** What the refusals call the folder and its branch; "worktree" and "the task's branch" by default. */
+  words?: { folder: string; branch: string };
 }
 
 /** The most of Codex's final message Claude gets back. */
@@ -141,7 +148,8 @@ export class CodexDelegate {
     this.busy = true;
     try {
       const before = await worktreeState(this.deps.worktree);
-      if (before.branch !== `refs/heads/${this.deps.branch}`) return this.refuse("The worktree is not on the task's branch, so Codex was not called. Tell the user.");
+      const words = this.deps.words ?? { folder: 'worktree', branch: "the task's branch" };
+      if (before.branch !== `refs/heads/${this.deps.branch}`) return this.refuse(`The ${words.folder} is not on ${words.branch}, so Codex was not called. Tell the user.`);
       this.calls += 1;
       const n = this.calls;
       const at = (this.deps.now ?? (() => new Date()))().toISOString();
@@ -151,6 +159,7 @@ export class CodexDelegate {
         worktree: this.deps.worktree,
         instruction,
         mode: session.mode,
+        ...(this.deps.noShell === true ? { noShell: true } : {}),
         outFile: path.join(session.outDir, `call-${process.pid}-${Date.now().toString(36)}-${n}.txt`),
         env: codexEnvironment(this.deps.env).env,
         timeoutMs: session.timeoutMs ?? CODEX_CALL_TIMEOUT_MS,

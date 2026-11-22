@@ -4,7 +4,7 @@ import path from 'node:path';
 import { killProcessTree, spawnTracked, type TrackedSpawn } from '../creation/processTree.js';
 import type { CodexCommand } from './command.js';
 import { CodexEventReader, type CodexCommandRun, type CodexUsage } from './events.js';
-import type { CodexSandboxMode } from './limits.js';
+import { CODEX_NO_SHELL_EXEC_ARGS, type CodexSandboxMode } from './limits.js';
 
 /**
  * Running the user's Codex CLI (decisions.md, "Phase 8: step 25"): no shell,
@@ -131,6 +131,8 @@ export interface CodexExecOptions {
   instruction: string;
   /** The Windows sandbox mode; only passed on Windows. */
   mode?: CodexSandboxMode | undefined;
+  /** Phase 10: Codex without its shell (creations only). */
+  noShell?: boolean | undefined;
   /** Where Codex writes its final message (`-o`), outside the worktree. Removed after it is read. */
   outFile: string;
   env: Readonly<Record<string, string>>;
@@ -167,7 +169,7 @@ const MAX_FINAL = 16_000;
  * the call, the worktree as the folder, the final message to a file, the
  * instruction on stdin. The mode only on Windows (not measured elsewhere).
  */
-export function codexExecArgs(options: { worktree: string; outFile: string; mode?: CodexSandboxMode | undefined; platform?: NodeJS.Platform }): string[] {
+export function codexExecArgs(options: { worktree: string; outFile: string; mode?: CodexSandboxMode | undefined; platform?: NodeJS.Platform; noShell?: boolean | undefined }): string[] {
   const windows = (options.platform ?? process.platform) === 'win32';
   return [
     'exec',
@@ -175,6 +177,8 @@ export function codexExecArgs(options: { worktree: string; outFile: string; mode
     '--sandbox',
     'workspace-write',
     '--ephemeral',
+    // Phase 10: a creation's Codex runs without its shell, with the measured set (decisions.md, "Phase 10: H0", 1). Tasks never pass it.
+    ...(options.noShell === true ? CODEX_NO_SHELL_EXEC_ARGS : []),
     '-c',
     'approval_policy="never"',
     ...(windows && options.mode !== undefined ? ['-c', `windows.sandbox="${options.mode}"`] : []),
