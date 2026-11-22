@@ -5,37 +5,26 @@ each one.
 
 ## Current state
 
-Phase 9 is in progress (tag `phase-9-start`): builds (from a project's
-brief, briefstack plans a queue of tasks and runs it unattended on an
-integration branch; the user applies the whole build at the end). Its
-brief is `docs/BRIEF-phase-9.md`, its plan with the Status
-`docs/PLAN-phase-9.md`, its decisions `docs/decisions.md`, "Phase 9".
-H0 to M6 are implemented; the user ran the real check
-`scripts/real/check-build.ts`, and the second one,
-`scripts/real/check-build-deny.ts` (a denied command, a fix round, a
-waiting task), waits for the user, and the phase is not done before the user runs and
-accepts it. What phase 9 leaves open is in `docs/IDEAS.md` §9.
+`v1.1.0` is prepared (version in `package.json`, `CHANGELOG.md`
+"1.1.0"); its tag and GitHub release are the user's to make. What comes
+next is not decided yet.
 
-Phase 8 is done (tag `phase-8-done`): Codex in tasks (Claude may hand
-code writing in a task to Codex; off by default). Its brief, with what
-changed and the steps as done, is `docs/BRIEF-phase-8.md`; its decisions
-are in `docs/decisions.md`, "Phase 8" (the close: "Phase 8: closed").
-Codex in the creation flow has no brief yet.
+Phases 7, 8 and 9 are done (tags `phase-7-done`, `phase-8-done`,
+`phase-9-done`): tasks in existing projects; Codex in tasks (off by
+default; Codex in the creation flow has no brief yet); builds (from a
+project's brief, briefstack plans a queue of tasks and runs it unattended
+on an integration branch; the user applies the whole build at the end).
+Their briefs and plans are in `docs/history/` (phase 8 has a brief with
+what changed and no plan); their decisions are in `docs/decisions.md`,
+"Phase 7", "Phase 8" and "Phase 9" (the closes: "Phase 7: M9 accepted,
+phase closed", "Phase 8: closed", "Phase 9: accepted"). What they leave
+open is in `docs/IDEAS.md` §7, §8 and §9.
 
-Phase 7 is done (tag `phase-7-done`): tasks in existing projects. Its
-brief, `docs/BRIEF-phase-7.md`, and its plan, with the Status,
-`docs/PLAN-phase-7.md`, stay in `docs/` until they join the earlier ones
-in `docs/history/`; its decisions are in `docs/decisions.md`, "Phase 7".
-Open them only when needed.
-
-`v1.0.0` is published. The living backlog is `docs/IDEAS.md`; what phase 7
-left open is in its §7, what phase 8 left open in its §8. The briefs
-and plans of phases 1–6, the UI pass and the release are in
-`docs/history/` (tags `phase-1-done` … `phase-6-done`, `ui-done`,
-`v1.0.0`); open them only when needed. Backlogs 1 and 2 are done (tags
-`backlog-1-done`, `backlog-2-done`; `docs/PLAN-backlog-1.md`,
-`docs/PLAN-backlog-2.md`). Contributors' rules are also in
-`CONTRIBUTING.md`.
+`v1.0.0` is published. The living backlog is `docs/IDEAS.md`. The briefs
+and plans of phases 1–9, the UI pass, the release and backlogs 1 and 2
+are in `docs/history/` (tags `phase-1-done` … `phase-9-done`, `ui-done`,
+`v1.0.0`, `backlog-1-done`, `backlog-2-done`); open them only when
+needed. Contributors' rules are also in `CONTRIBUTING.md`.
 
 ## Commands
 
