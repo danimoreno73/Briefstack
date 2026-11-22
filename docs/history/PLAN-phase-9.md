@@ -1,7 +1,7 @@
 # briefstack — Phase 9 plan: builds
 
 Plan for [BRIEF-phase-9.md](BRIEF-phase-9.md). H0 is in
-[decisions.md](decisions.md), "Phase 9: H0", with sources and dates; this
+[decisions.md](../decisions.md), "Phase 9: H0", with sources and dates; this
 plan follows from it. Work happens on `main`, from tag `phase-9-start`.
 Small commits, one concern each; build, lint, unit and e2e tests green
 before each commit; CI checked after each push and green on Linux, Windows

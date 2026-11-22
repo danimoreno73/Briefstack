@@ -21,8 +21,8 @@ decides so; each needs its own plan and approval.
 
 ## 2. Working inside projects from briefstack
 
-**Done in phase 7** ([BRIEF-phase-7.md](BRIEF-phase-7.md),
-[PLAN-phase-7.md](PLAN-phase-7.md)): tasks in existing projects. What
+**Done in phase 7** ([BRIEF-phase-7.md](history/BRIEF-phase-7.md),
+[PLAN-phase-7.md](history/PLAN-phase-7.md)): tasks in existing projects. What
 stays open is in §7, "Open items from phase 7".
 
 Today briefstack only creates projects; the work on them happens in Claude
@@ -119,7 +119,7 @@ are not repeated.
 - A `claude-code` project does not show its scheduled tasks anywhere; only
   `NEXT_STEPS.md` of a `claude-app` project does. From
   [PLAN-phase-1.md](history/PLAN-phase-1.md).
-- **Done in backlog 2** (B10 in [PLAN-backlog-2.md](PLAN-backlog-2.md),
+- **Done in backlog 2** (B10 in [PLAN-backlog-2.md](history/PLAN-backlog-2.md),
   option (1); its real check, `scripts/real/check-chat-step.ts`, is for the
   user to run). The chat sometimes describes a creation's step wrongly: it should quote the
   exact step from the panel. From [PLAN-phase-4.md](history/PLAN-phase-4.md), carried
@@ -153,7 +153,7 @@ are not repeated.
     English and Spanish; `list_sessions` and `session_panel` carry it; the
     system prompt names it; a real check for the user that asks the chat
     mid-creation and compares the answer with the panel.
-- **Done in backlog 2** (B8 in [PLAN-backlog-2.md](PLAN-backlog-2.md),
+- **Done in backlog 2** (B8 in [PLAN-backlog-2.md](history/PLAN-backlog-2.md),
   option (1); what the docs say is in decisions.md, "Backlog 2:
   `claudeMdExcludes` for creations"; its real check,
   `scripts/real/check-claude-md.ts`, passed for the main session and a
@@ -208,7 +208,7 @@ are not repeated.
   gate of improvements does see it). From [PLAN-phase-4.md](history/PLAN-phase-4.md),
   carried in [PLAN-phase-5.md](history/PLAN-phase-5.md).
 
-  **Half done in backlog 2** (B9 in [PLAN-backlog-2.md](PLAN-backlog-2.md)):
+  **Half done in backlog 2** (B9 in [PLAN-backlog-2.md](history/PLAN-backlog-2.md)):
   option (2), read only, recorded in the session's `folder.json` rather
   than in an event (decisions.md, "Backlog 2: the web app sees the folders
   of terminal creations"), and the README note of option (3). Still open:
@@ -252,7 +252,7 @@ are not repeated.
     the fake runner); the folder-claims tests as they are; an e2e with a
     fake terminal session; a real check for the user with one terminal and
     one web creation.
-- **Done in backlog 1** (A7 in [PLAN-backlog-1.md](PLAN-backlog-1.md)).
+- **Done in backlog 1** (A7 in [PLAN-backlog-1.md](history/PLAN-backlog-1.md)).
   The library lock on writes that take more than 2 minutes. From
   [PLAN-phase-4.md](history/PLAN-phase-4.md), carried in
   [PLAN-phase-5.md](history/PLAN-phase-5.md).
@@ -287,14 +287,14 @@ are not repeated.
   with the same code, was green. The `app` fixture (the server and the
   page) took longer than the test's 30 seconds on that runner. To look
   at: what the fixture waits for, and whether its setup needs its own
-  timeout. From [PLAN-backlog-2.md](PLAN-backlog-2.md).
+  timeout. From [PLAN-backlog-2.md](history/PLAN-backlog-2.md).
 - Creations and improvement sessions do not offer the `Skill` tool, so
   their model cannot invoke Claude Code's bundled skills, built-in
   plugins or synced claude.ai skills; but nothing in their settings turns
   those off. Consider giving them the task's layers too
   (`disableBundledSkills`, `disableSkillShellExecution`,
   `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS`, `CLAUDE_CODE_DISABLE_CRON`).
-  From [PLAN-phase-7.md](PLAN-phase-7.md); decisions.md, "Phase 7: skills
+  From [PLAN-phase-7.md](history/PLAN-phase-7.md); decisions.md, "Phase 7: skills
   that are not the project's".
 
 ## 5. Codex
@@ -316,7 +316,7 @@ declared checks and the user's approval are the control. Auth with the
 user's own Codex login; usage goes to the user's OpenAI quota.
 
 - **Tasks: done** (phase 8, closed 2026-11-17): the brief, what changed
-  and the steps as done are in [BRIEF-phase-8.md](BRIEF-phase-8.md); the
+  and the steps as done are in [BRIEF-phase-8.md](history/BRIEF-phase-8.md); the
   close is decisions.md, "Phase 8: closed". What its reviews left open is
   §8 below.
 - **Generation: next**, not started. It needs a brief of its own (the
@@ -520,7 +520,7 @@ when a decision is needed, so the user does not have to watch a screen.
 Left open when phase 7 closed (2026-11-01). Steps 14 to 16 of the
 cleanup (2026-11-02 to 2026-11-05) closed most of them; each item starts
 with its state: **done**, **accepted** by the user, or **pending** with
-the reason. The phase's plan is [PLAN-phase-7.md](PLAN-phase-7.md); its
+the reason. The phase's plan is [PLAN-phase-7.md](history/PLAN-phase-7.md); its
 decisions are in [decisions.md](decisions.md), "Phase 7".
 
 Each item ends with its source, in one of three forms:
@@ -898,7 +898,7 @@ Each item ends with its source, in one of three forms:
 Left open when phase 8 (Codex in tasks) closed (2026-11-17). Each item
 starts with its state and ends with its source, in the forms of §7 (for
 example "Review of step 22, minor"). The brief is
-[BRIEF-phase-8.md](BRIEF-phase-8.md); the decisions are in
+[BRIEF-phase-8.md](history/BRIEF-phase-8.md); the decisions are in
 [decisions.md](decisions.md), "Phase 8". Already listed elsewhere, so not
 repeated here: what the real checks did not cover (`elevated` in a real
 task, other systems, a cancel right at a call's start or end, the limit
@@ -969,7 +969,7 @@ under load and `chat-improve-tools.test.ts` on Windows CI are in §7,
 Minor findings of the milestone reviews of phase 9 (builds), noted and not
 pursued (only blocking and important findings are fixed within their
 milestone). Each ends with its source, "Review of M<n>". The plan is
-[PLAN-phase-9.md](PLAN-phase-9.md); the decisions are in
+[PLAN-phase-9.md](history/PLAN-phase-9.md); the decisions are in
 [decisions.md](decisions.md), "Phase 9".
 
 - **Done (step 33).** Creating the integration branch reports any failure

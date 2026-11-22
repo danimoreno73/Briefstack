@@ -1,11 +1,11 @@
 # briefstack — Backlog plan 2
 
-Plan for the second pass over the backlog in [IDEAS.md](IDEAS.md): the
+Plan for the second pass over the backlog in [IDEAS.md](../IDEAS.md): the
 three proposals of backlog 1 (B8, B9, B10) built, and two notes in
 IDEAS.md. The scope and the rules come from the user's request of
 2026-10-26, given for an unattended run: no questions; where a decision is
 needed, the most conservative option is taken and recorded in
-[decisions.md](decisions.md) ("Backlog 2").
+[decisions.md](../decisions.md) ("Backlog 2").
 
 Starting point: tag `backlog-2-start` on `745efb3`, before any change.
 Work happens on `main`. One item per commit, each with its tests; build,

@@ -1,7 +1,7 @@
 # briefstack — Phase 7 plan: tasks in existing projects
 
 Plan for [BRIEF-phase-7.md](BRIEF-phase-7.md). H0 is in
-[decisions.md](decisions.md), "Phase 7", with sources and dates; this plan
+[decisions.md](../decisions.md), "Phase 7", with sources and dates; this plan
 follows from it. Work happens on `main`, from tag `phase-7-start`. Small
 commits, one concern each; build, lint, unit and e2e tests green before each
 commit; CI checked after each push and green on Linux, Windows and macOS
@@ -15,7 +15,7 @@ section 1.**
 Updated 2026-11-01. **Phase 7 is done and accepted by the user** (tag
 `phase-7-done`): H0 and M0 to M9 done; M9 accepted by the user on
 2026-11-01 (decisions.md, "Phase 7: M9 accepted, phase closed"). What
-stays open is in [IDEAS.md](IDEAS.md), §7.
+stays open is in [IDEAS.md](../IDEAS.md), §7.
 
 M1 to M8 run unattended (the user's instruction of 2026-10-29): doubts
 are settled with the most conservative option and recorded in
@@ -45,7 +45,7 @@ checks and the real run are in decisions.md, "Phase 7: M9 real checks";
 they ran on Windows only. The temporary change of `activeProfile` (saver
 for the real run, then back to `balanced`) is accepted too. What the
 reviews of the phase's steps left open (code, tests, the real checks'
-scripts) is in [IDEAS.md](IDEAS.md), §7 "Open items from phase 7"; none
+scripts) is in [IDEAS.md](../IDEAS.md), §7 "Open items from phase 7"; none
 of it is planned, and each item needs its own plan and approval.
 
 ## 1. Design decisions taken from H0

@@ -3857,7 +3857,7 @@ in the test, not covered by the retry.
 
 ## Backlog 1: choices made without the user (2026-10-25)
 
-The user asked for [PLAN-backlog-1.md](PLAN-backlog-1.md) to run unattended:
+The user asked for [PLAN-backlog-1.md](history/PLAN-backlog-1.md) to run unattended:
 no questions, the most conservative option where a decision is needed,
 recorded here.
 
@@ -3907,7 +3907,7 @@ recorded here.
 
 ## Backlog 1: the SDK passes the abort signal to the chat's tools (2026-10-25)
 
-A6 of [PLAN-backlog-1.md](PLAN-backlog-1.md), the open question of the
+A6 of [PLAN-backlog-1.md](history/PLAN-backlog-1.md), the open question of the
 "chat tool-call timeout" note above ("If the SDK passes the call's abort
 signal…").
 
@@ -3941,7 +3941,7 @@ timeout, as above.
 
 ## Backlog 1: the library lock on writes longer than 2 minutes (2026-10-25)
 
-A7 of [PLAN-backlog-1.md](PLAN-backlog-1.md). The lock judged a lock stale
+A7 of [PLAN-backlog-1.md](history/PLAN-backlog-1.md). The lock judged a lock stale
 by its age alone: older than `staleMs` (2 minutes) was taken over even when
 its owner was alive and still writing, so a library write longer than that
 in one process could run at the same time as another process's.
@@ -3960,7 +3960,7 @@ alone, because a pid can be reused by an unrelated process after a crash.
 
 ## Backlog 2: choices made without the user (2026-10-26)
 
-The user asked for [PLAN-backlog-2.md](PLAN-backlog-2.md) to run unattended:
+The user asked for [PLAN-backlog-2.md](history/PLAN-backlog-2.md) to run unattended:
 no questions, the most conservative option where a decision is needed,
 recorded here.
 
@@ -3991,7 +3991,7 @@ recorded here.
 
 ## Backlog 2: `claudeMdExcludes` for creations, what the docs say (2026-10-26)
 
-B8 of [PLAN-backlog-2.md](PLAN-backlog-2.md). Read on 2026-10-26 in the
+B8 of [PLAN-backlog-2.md](history/PLAN-backlog-2.md). Read on 2026-10-26 in the
 official docs, and in the installed SDK (`@anthropic-ai/claude-agent-sdk`
 0.3.286, `sdk.d.ts`):
 
@@ -4062,7 +4062,7 @@ If Claude Code ignored the setting, the file would load as before.
 
 ## Backlog 2: the web app sees the folders of terminal creations (2026-10-26)
 
-B9 of [PLAN-backlog-2.md](PLAN-backlog-2.md), option (2) of the proposal
+B9 of [PLAN-backlog-2.md](history/PLAN-backlog-2.md), option (2) of the proposal
 in IDEAS.md: read only. Option (1), claims on disk that the terminal flow
 also obeys, stays in IDEAS.md.
 
@@ -4342,7 +4342,7 @@ command-hook guard, server security, folder claims) passes as it was.
 
 ## Phase 7: H0 (2026-10-26, Claude Code 2.1.310, SDK 0.3.286, git 2.55, Windows 11)
 
-[BRIEF-phase-7.md](BRIEF-phase-7.md) §6, before any design. No real SDK
+[BRIEF-phase-7.md](history/BRIEF-phase-7.md) §6, before any design. No real SDK
 session was run (the user's rule for this pass); the git points were
 verified with plain git on this machine (`<home>`-free scratch folder,
 three probe scripts). Docs read on 2026-10-26. Sources:
@@ -6590,7 +6590,7 @@ cancel route the page uses, after `codexWorking`), and that without
 
 Codex in tasks is done. Its brief, with what changed after it was
 approved and the steps as they were done, is
-[BRIEF-phase-8.md](BRIEF-phase-8.md). No plan file was written; each
+[BRIEF-phase-8.md](history/BRIEF-phase-8.md). No plan file was written; each
 step's results are in the "Phase 8" sections above.
 
 **What was built** (steps 25, 27 and 28): the runner for `codex exec`
@@ -6657,7 +6657,7 @@ step once its CI is green.
 
 ## Phase 9: H0 (2026-11-17, SDK 0.3.286, git 2.55, Windows 11)
 
-The five points of [BRIEF-phase-9.md](BRIEF-phase-9.md) §6, checked before
+The five points of [BRIEF-phase-9.md](history/BRIEF-phase-9.md) §6, checked before
 the plan. No real plan reading and no real session: the SDK's types, the
 code and tests already in the repo, and git in a temp folder. None of them
 makes a decision of the brief's §2 impossible or unsafe, so the plan and
@@ -6761,7 +6761,7 @@ does.
 Phase 9 runs unattended (BRIEF-phase-9.md, §8; the user's authorisation of
 2026-11-17). Each doubt is settled with the most conservative option and
 recorded here; the design decisions are in
-[PLAN-phase-9.md](PLAN-phase-9.md), §1.
+[PLAN-phase-9.md](history/PLAN-phase-9.md), §1.
 
 - **The tag `phase-9-start`** was refused by the session's permissions
   (2026-11-17). It belongs on `f111713` (the commit that adds the brief),

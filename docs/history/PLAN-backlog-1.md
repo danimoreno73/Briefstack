@@ -1,10 +1,10 @@
 # briefstack — Backlog plan 1
 
-Plan for the first pass over the backlog in [IDEAS.md](IDEAS.md), section
+Plan for the first pass over the backlog in [IDEAS.md](../IDEAS.md), section
 "4. Open items from the plans". The scope and the rules come from the
 user's request of 2026-10-25, given for an unattended run: no questions;
 where a decision is needed, the most conservative option is taken and
-recorded in [decisions.md](decisions.md) ("Backlog 1").
+recorded in [decisions.md](../decisions.md) ("Backlog 1").
 
 Starting point: tag `backlog-1-start` on `9dc9e78`, before any change.
 Work happens on `main`. Part A: one fix per commit, each with a test;

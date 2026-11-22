@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-What phases 7, 8 and 9 add. The briefs are in [`docs/`](docs/)
-([phase 7](docs/BRIEF-phase-7.md), [phase 8](docs/BRIEF-phase-8.md),
-[phase 9](docs/BRIEF-phase-9.md)); the decisions are in
+What phases 7, 8 and 9 add. The briefs are in [`docs/history/`](docs/history/)
+([phase 7](docs/history/BRIEF-phase-7.md), [phase 8](docs/history/BRIEF-phase-8.md),
+[phase 9](docs/history/BRIEF-phase-9.md)); the decisions are in
 [`docs/decisions.md`](docs/decisions.md).
 
 ### Tasks in existing projects (phase 7)
