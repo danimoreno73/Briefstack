@@ -7571,3 +7571,86 @@ important items and eight minor ones. Fixed in the next commits:
 - Not changed: **m1** (Codex availability read when the flow asks, not at
   the answer) is for M4, which checks again when a call is made; **m8**
   (one commit carried the next one's i18n keys) is history.
+
+## Phase 10: M3, checks, fix passes, bounds and the usage reading (2026-11-22)
+
+- **Settings:** `implementMaxMinutes` (default 30, 5 to 120) and
+  `implementMaxToolCalls` (default 150, 20 to 1000), in the config, `PUT
+  /api/settings`, both `GET` views and a Settings card. Read when the step
+  starts and kept on its record (`bounds`).
+- **The bounds** are counted by the step from `implement_start`: the guard
+  calls `implementerCall` for every tool call of the implementer (MCP
+  tools included). Past the minutes or the calls, every further tool of the
+  implementer is denied with "stop now and report"; no fix pass follows a
+  bound; the checks still run on what was written. The page follows the
+  count every ten calls. The checks' own time is not the implementer's (it
+  is idle then), but the minutes run from the start for the whole step,
+  fix passes included.
+- **Checks** run in `implement_finish`, one after another, offline as a
+  task's declared checks (`checkEnv`: proxies pointed nowhere, no Claude
+  Code credentials, no briefstack variables), 10 minutes each, output cut
+  and redacted. While they run the step is `checking` and the implementer
+  gets nothing. A failure with a fix pass left (and no bound reached)
+  answers "fix pass n of m" with the failures as data; the main session
+  launches the implementer again. Otherwise the code is committed; checks
+  that still fail leave a `checksFailed` warning, never a failed creation.
+- **Usage:** read in `implement_start`, before the workspace commit, with
+  builds' reading and decision (`buildUsageReader`, `decideUsage`) against
+  the warning thresholds of Settings; `usage` or `usageUnread` means the
+  step does not start (the main session finishes it as skipped and goes
+  on); a login without plan limits starts. Only with the real runner, as
+  the creation's other readings. The Settings help says the warning
+  thresholds now stop this one step.
+- **A bug found by the tests before any commit:** the manager turned the
+  step's "go on" (`undefined`) into a stop with `??`; fixed and covered by
+  the flow test.
+
+## Phase 10: review of M2, the fixes (2026-11-22)
+
+The review of M2 (`ee4fb98..aa1abfd`; apto con reservas; CI of `aa1abfd`
+green on the three systems, run 45054683892) found four important items
+and eleven minor ones. Fixed with M3:
+
+- **I1** (a `;` chain on Windows): the step takes an item of the list, or
+  a chain of `&&` only whose every part is an item (`approvedParts`), and
+  runs each part on its own, stopping at the first that fails. Builds keep
+  their own rule (their lines run in Bash); cmd reads `;` as an argument.
+- **I2** (overlaps): `start` and `finish` are latched (one at a time);
+  `finish` refuses while a command runs; the `briefstack-web` server gets
+  its own timeout of a day, so `MCP_TOOL_TIMEOUT` from the user's
+  environment no longer cuts a listed command in the middle (this replaces
+  the M2 entry "No timeout of ours").
+- **I3** (main offered code without bounds, usage or checks between the
+  pushes of M2 and M3): true for the commits `f7a098e..aa1abfd` only; M3
+  adds all three. Recorded here; no release was made in between.
+- **I4**: unit tests of the real system (an approved item with quotes, the
+  deadline and an abort ending the tree, the environments, the output cut
+  at a line, `approvedParts`, the folder checks, a commit in a folder that
+  is no longer a project).
+- **m1**: the implementer writes only inside the running step's project
+  folder, never in `.briefstack/` or `.claude/settings*.json` (stricter for
+  this caller only; the other callers keep the creation's roots).
+- **m2**: output is cut at a line's start before it is redacted.
+- **m3**: commands and checks get no `GIT_CONFIG*`, `GIT_COMMON_DIR`,
+  `GIT_OBJECT_DIRECTORY` and the like, and `NoDefaultCurrentDirectoryInExePath=1`
+  (cmd then does not run a program from the project folder before the
+  PATH). **Accepted, not changed:** the code commit runs git with the
+  server's environment; a listed command could have changed the project's
+  `.git/config` (a signing program, a filter). Approved commands already
+  run as the user (brief §4); the commit keeps hooks and `fsmonitor` off as
+  phase 1 decided.
+- **m4**: a commit that throws (the project's `.briefstack/profile.json`
+  gone) is a warning; the step still ends.
+- **m5**: a cancel stops a running command or check at once.
+- **m7**: the start's answer says whether Codex is on and the limits; the
+  refusals say how to finish the step; with nothing to commit, the head
+  stands for the commit's id.
+- **m11**: the records keep the last 50 runs and refusals; a command ends
+  two seconds after its process exits even when a grandchild keeps its
+  pipes open.
+- **Not changed:** m6 (the order is the skill's; `implement_start` checks
+  the choice, the folder and the project; a creation with code that never
+  ran the step is shown on the result screen, M5); m8 (the creations list
+  counts `implement` when code was chosen, the panel once it is reached);
+  m9 is M4's (the Codex tool refuses when the checkbox is off); m10 is
+  history.
