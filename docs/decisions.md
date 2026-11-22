@@ -7304,3 +7304,211 @@ waiting task approved by the user and the build resumed, revert and
 discard of a build, a web request or a compound command against the
 list, projects of real size, and Linux and macOS (both checks ran on
 Windows only).
+
+## Phase 10: H0 (2026-11-22, Codex CLI 0.167.0, SDK 0.3.286, git 2.55, Windows 11)
+
+The five points of [BRIEF-phase-10.md](BRIEF-phase-10.md) §6, checked
+before the plan. The tag `phase-10-start` was refused to Claude Code by
+the auto mode's classifier; the user creates it (at `722420b`). None of
+the points makes a decision of the brief's §2 impossible or unsafe, so the
+plan and the milestones go ahead (the brief's §8).
+
+### 1. Codex without its shell (8 real calls of the 10 allowed)
+
+On the user's authorisation for step 35: at most 10 `codex exec` calls,
+only in throwaway folders outside the repo (`<temp>/paso35/h01/`, each
+call a git repository `work/`, an `outside/` folder next to it and an
+`out/` folder with the exact command, the prompt, the JSONL, stderr, the
+final message and a summary); `config.toml` never written, `auth.json`
+never read. Calls from Node with no shell, through the npm launcher
+(`node <npm prefix>/node_modules/@openai/codex/bin/codex.js`, as
+`src/codex/command.ts`), with the environment `src/codex/env.ts` cleans.
+A server on 127.0.0.1 (a free port) recorded every request: a request
+means some command ran. Phase 8 showed the sandbox reaches 127.0.0.1 in
+both modes ("Phase 8: Codex spike", e), so a command that ran would have
+been seen.
+
+**Before any call (no model):**
+
+- `codex exec --help`: `--enable <FEATURE>` / `--disable <FEATURE>`
+  ("Equivalent to `-c features.<name>=false`"), `--ignore-user-config`
+  ("Do not load `$CODEX_HOME/config.toml`; auth still uses
+  `CODEX_HOME`"), `--ignore-rules`, `--ephemeral`, `-s workspace-write`.
+  It says nothing of a "no shell" mode by that name.
+- `codex features list`: `shell_tool stable true`, and also `unified_exec`,
+  `multi_agent`, `plugins`, `apps`, `hooks`, `browser_use`,
+  `computer_use`, `code_mode_host`, all on.
+- `codex mcp list`: the user's Codex has two MCP servers on, `node_repl`
+  and `cua_repl` (from the Codex desktop app), and `codex_app` off. A
+  Node REPL is another way to run code, so the shell feature alone could
+  not be trusted. `--disable plugins` hides `cua_repl` and `codex_app`
+  but not `node_repl`; `-c mcp_servers={}` hides nothing (a dotted
+  override merges); with an empty `CODEX_HOME` none is listed, so they
+  come from the user's `config.toml`, which `--ignore-user-config` skips.
+- `codex debug prompt-input` (renders the model-visible input, tools
+  included, locally): by default the tools inside Codex's `exec` (a
+  JavaScript cell in a "fresh V8 isolate … no Node, no file system, no
+  network access") are `apply_patch`, `exec_command`, `write_stdin`,
+  `view_image`, the MCP resource tools, `request_plugin_install` and a
+  clock; with `--disable shell_tool`, `exec_command` and `write_stdin` are
+  gone (with `--disable unified_exec` alone, they stay). `spawn_agent`
+  and the other `collaboration` tools stay even with `--disable
+  multi_agent`.
+- `codex sandbox -c windows.sandbox="<mode>" -P :workspace -- whoami`:
+  both modes ready (`<machine>\<user>` and
+  `<machine>\codexsandboxoffline`).
+
+**The calls.** Every call: `exec --json --sandbox workspace-write
+--ephemeral [extra] -c approval_policy="never" -c
+windows.sandbox="<mode>" -C <work> -o <file> -`, the prompt on stdin.
+"No shell" in call 2: extra = `--ignore-user-config --disable shell_tool
+--disable multi_agent --disable plugins --disable apps --disable hooks
+--disable browser_use --disable computer_use`; calls 3–8 add `-c
+web_search="disabled"`.
+
+| # | Mode | What it showed | Result |
+|---|---|---|---|
+| 1 | unelevated, with shell (today's task call) | control: asked to run `node -e "fetch('http://127.0.0.1:<port>/hit-1')…"` | ran: one `command_execution` (PowerShell), the server got `/hit-1`, the reply's marker in the final message. 44 368 input tokens |
+| 2 | unelevated, no shell (without `web_search`) | the same request, and "try every other tool" | not run: no request reached the server, no `command_execution`. Codex tried `web__run` (OpenAI's web tool, `open_page` on 127.0.0.1: an error) and `fetch` in its JavaScript cell (`fetch is not defined`) |
+| 3 | unelevated, no shell | the same, plus "spawn a sub-agent to run it" | not run: no request; `web__run` gone; `spawn_agent` failed (`no rollout found for thread id`, with `--ephemeral`); no MCP server, no MCP resource |
+| 4 | unelevated, no shell | write `inside.txt`, a file by absolute path in `outside/`, and `..\escape2.txt` | inside written (`file_change`, kind `add`); both outside writes refused (`patch rejected: writing outside of the project; rejected by user approval settings`, on stderr and in the final message); nothing outside |
+| 5 | unelevated, no shell | read `README.md` inside and `outside/secret.txt` | read neither: Codex has no tool that reads a text file; `view_image` refused both (`invalid or unsupported image data`) |
+| 6 | elevated, no shell | as 3 | as 3 (two failed `spawn_agent`) |
+| 7 | elevated, no shell | as 4 | as 4 |
+| 8 | unelevated, no shell | a small module, its test and `package.json`, "do not run anything" | three files in one `file_change` item; no command; 19 609 input tokens (17 152 cached), 328 output |
+
+HEAD unchanged in every call; stderr empty but for Codex's own `ERROR`
+lines quoted above.
+
+**Events in `--json` without the shell:** `thread.started`,
+`turn.started`, `item.started` / `item.completed` with items
+`agent_message`, `file_change` (`changes`: `path` absolute, `kind` `add`
+here), `mcp_tool_call` (`server` `codex`, its own resource listing), and
+`turn.completed` with `usage` as in phase 8. A refused patch is no event:
+only stderr and the final message say it.
+
+**Conclusion.** The no-shell mode holds in `codex exec`, in both Windows
+modes: no command ran, nothing was written outside the folder, HEAD did
+not move. **The flag is `--disable shell_tool`**, but on this machine it
+is not enough by itself to say "Codex runs nothing": the user's
+`config.toml` brings MCP servers (a Node REPL among them), plugins and
+apps add tools, and the web tool reaches the Internet from OpenAI's side.
+The product's no-shell call is therefore the measured set of calls 3–8:
+`--ignore-user-config --disable shell_tool --disable multi_agent
+--disable plugins --disable apps --disable hooks --disable browser_use
+--disable computer_use -c web_search="disabled"`, with `--ephemeral`
+(which, as measured, also keeps `spawn_agent` from creating an agent).
+What `--ignore-user-config` costs: the model and settings the user chose
+in `config.toml` do not apply to these calls (Codex's defaults do); the
+login still works. Codex in this mode **cannot read text files** inside
+or outside the folder, only images (`view_image`, inferred from any path:
+the refusal was about the data, not the place). So Claude must put in the
+instruction what Codex needs to know; Codex writes new files (an edit
+needs the existing lines, which only the instruction can give it).
+
+**Not measured:** macOS and Linux; a Codex where `elevated` is not set
+up; `view_image` on a real image outside the folder; Codex releases after
+0.167.0 (a feature renamed or added could bring a tool back: the status
+check repeats the prompt-input reading, see the plan); the Codex in tasks
+(with shell) also exposes the user's `codex_apps` tools (plugin and app
+management, parental controls) seen in call 1's tool list: noted in
+IDEAS, not changed (the brief keeps Codex with shell in tasks as it is).
+
+### 2. How the creation's steps run, and where `implement` fits
+
+The flow is one SDK session running the `/new-project` skill in the
+briefstack repo (`src/creation/sdkRunner.ts`, `cwd` = the repo,
+`settingSources: ['project']`), with the five agents as subagents; the
+steps are what the skill reports with `briefstack event <step>`
+(`FLOW_STEPS` in `src/events/index.ts`), and the panel reads them from
+the session's `events.jsonl` and the runner's events. The same skill runs
+in the terminal; it tells the two apart by the `briefstack-web` tools
+(`MODE`). A subagent's shell commands run in the main session's folder
+(the repo) and `cd` does not persist between its calls (code.claude.com
+docs, "Create custom subagents", 2026-11-22), so an implementer that ran
+the project's commands through Bash would run them in the briefstack
+repo. **Conclusion:** a new agent `implementer` (`.claude/agents/`, model
+and effort from the profile through `usage set`, a new `agents` entry)
+and a new step `implement` between `validate-review` and `learn`, run only
+when the approval of the spec chose code, which only the web app offers.
+The implementer has **no shell at all**; it runs the listed commands
+through a new `briefstack-web` tool that runs them in the project folder.
+The terminal path of the skill does not change (the new section is for
+`MODE` web with code chosen, and a test holds the terminal text and the
+step list the terminal uses).
+
+### 3. The creation's guard and builds' exact list, for one step only
+
+The guard (`src/creation/guard.ts`) decides by caller (`callerOf`: main,
+`generator`, `reviewer`, other) from the hook input's `agent_type`, which
+Claude Code sets for every tool of a subagent, MCP tools included.
+**Conclusion:** a caller `implementer`, with no shell command (Bash and
+PowerShell denied, as for "other"), writes in the same roots as today
+(projects folder, session folder, granted folders; never `.git`), and the
+new tools allowed to it only. The exact list is enforced in code, in the
+tool's handler: a command is run only when `isApprovedCommand` (from
+`src/builds/commands.ts`) accepts it against the list recorded at the
+approval, and the list itself is validated with `approvedListIssues`.
+Anything else is refused by the handler, recorded and shown, with no
+dialog. The command-hook guard (`guardCommand.ts`) gets the same caller.
+Other callers and the rest of the creation do not change.
+
+### 4. Splitting the hand-off's commit
+
+`briefstack commit` calls `commitProject` (`src/scaffold/commit.ts`): `git
+add .` and one commit, `PROJECT_COMMIT_MESSAGE`, with the project's hooks
+and `fsmonitor` off. **Conclusion:** the server commits the workspace
+with that message when the implement step starts (before the implementer
+writes anything) and commits the code with a second message when the
+step ends; the hand-off's `briefstack commit` then finds nothing to
+commit, as it already handles (`nothingToCommit`). `commitProject` takes
+the message as an option; its default and the CLI stay as they are.
+
+### 5. An in-process tool and a creation's subagent
+
+`delegate_to_codex` reaches task sessions through the SDK's in-process
+MCP server (`createSdkMcpServer`, `src/codex/tool.ts`); a creation
+already has one, `briefstack-web`. The docs say subagents "inherit the
+built-in tools and MCP tools available in the main conversation" and a
+`tools` field may name `mcp__<server>__<tool>`; they do not say whether
+that holds for an in-process SDK server. Phase 8 denied the Codex tool to
+subagents in the task guard ("Phase 8: step 25"), which implies they
+could see it, but no real session showed it. **Conclusion:** the new
+tools go on `briefstack-web`; the implementer's `tools` names them; the
+guard allows them to the implementer only (main and other agents are
+denied). Not verified without a real session: that the subagent sees an
+in-process server's tool. The real check verifies it; if it does not,
+the implementer reports it and the creation ends with the workspace and a
+warning, never as failed.
+
+## Decisiones sin Dani (fase 10)
+
+Choices made without the user while working unattended (brief §8), each
+the most conservative at hand. The plan's §1 has the design they belong
+to.
+
+- **The brief's defaults 5, 7, 8, 9 and 10 kept.** 6 kept with one change:
+  the implementer has **no shell** and runs the listed commands through a
+  `briefstack-web` tool in the project folder, because a subagent's Bash
+  runs in the briefstack repo (H0, 2). The list is still builds' exact
+  list (`isApprovedCommand`).
+- **Listed commands run with the network and without credentials;** the
+  checks run offline as declared checks do. An install needs the network
+  (builds run their listed commands through Claude's Bash, with it); the
+  environment of a listed command drops the same names Codex's does.
+- **Turns are counted as the implementer's tool calls,** by the server, so
+  the cap is a setting and holds deterministically (a subagent's
+  `maxTurns` is fixed in its file and only `usage set` writes those).
+- **The user's threshold** for the usage reading is the warning
+  thresholds of Settings (`usageWarnFiveHour`, `usageWarnWeek`); a failed
+  reading does not start the step (a build would pause; a creation has no
+  pause, brief §2, 9).
+- **Codex's no-shell call skips the user's `config.toml`**
+  (`--ignore-user-config`) and turns off plugins, apps, hooks, browser and
+  computer use, multi-agent and web search, not only the shell (H0, 1):
+  the user's MCP servers include a Node REPL. Its model is Codex's
+  default, not the one in `config.toml`.
+- **Calls to Codex per creation** use Settings' calls per round (1 to 10),
+  counted over the whole implement step, fix passes included.
+- **The tag `phase-10-start`** was refused to Claude Code; the user
+  creates it at `722420b`.
