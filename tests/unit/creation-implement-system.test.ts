@@ -36,11 +36,12 @@ describe('runCommandLine', { timeout: 30_000 }, () => {
   it('runs a command with the network but no credentials, and a check offline', async () => {
     const env = commandEnv({ PATH: 'p', ANTHROPIC_API_KEY: 'k', GH_TOKEN: 't', BRIEFSTACK_HOME: 'h', CLAUDE_CODE_X: 'c', CODEX_HOME: 'x', GIT_DIR: 'g', GIT_CONFIG_GLOBAL: 'g', HTTPS_PROXY: 'keep' });
     expect(env).toEqual({ PATH: 'p', HTTPS_PROXY: 'keep', NoDefaultCurrentDirectoryInExePath: '1' });
-    const offline = checkEnvironment({ PATH: 'p', ANTHROPIC_API_KEY: 'k', BRIEFSTACK_HOME: 'h', GIT_WORK_TREE: 'w' });
+    const offline = checkEnvironment({ PATH: 'p', ANTHROPIC_API_KEY: 'k', BRIEFSTACK_HOME: 'h', GIT_WORK_TREE: 'w', GH_TOKEN: 't', GITHUB_TOKEN: 't', NPM_TOKEN: 't', OPENAI_API_KEY: 'k', AWS_SECRET_ACCESS_KEY: 's', CLAUDE_X: 'c' });
     expect(offline.PATH).toBe('p');
     expect(offline.HTTPS_PROXY).toBeDefined();
     expect(offline.HTTPS_PROXY).not.toBe('keep');
-    for (const name of ['ANTHROPIC_API_KEY', 'BRIEFSTACK_HOME', 'GIT_WORK_TREE']) expect(offline[name]).toBeUndefined();
+    // Review of M3, I2: no credential reaches a check.
+    for (const name of ['ANTHROPIC_API_KEY', 'BRIEFSTACK_HOME', 'GIT_WORK_TREE', 'GH_TOKEN', 'GITHUB_TOKEN', 'NPM_TOKEN', 'OPENAI_API_KEY', 'AWS_SECRET_ACCESS_KEY', 'CLAUDE_X']) expect(offline[name], name).toBeUndefined();
   });
 });
 

@@ -69,7 +69,8 @@ export function commandEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 export function checkEnvironment(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env = offlineEnv(source);
   for (const name of Object.keys(env)) {
-    if (/^BRIEFSTACK_/.test(name) || GIT_POINTERS.test(name)) delete env[name];
+    // No credential either (review of M3, I2): a check runs code nobody read yet, and a later listed command has the network.
+    if (/^BRIEFSTACK_/.test(name) || GIT_POINTERS.test(name) || isDroppedForCodex(name)) delete env[name];
   }
   return { ...env, ...NO_CURRENT_DIR_EXE };
 }
@@ -79,7 +80,10 @@ function lastLines(text: string, max: number): string {
   if (text.length <= max) return text;
   const tail = text.slice(-max);
   const firstBreak = tail.indexOf('\n');
-  return firstBreak === -1 ? '' : tail.slice(firstBreak + 1);
+  if (firstBreak !== -1) return tail.slice(firstBreak + 1);
+  // One long line (npm's progress with `\r` only): cut at a blank instead, never inside a word (review of M3, m6).
+  const firstBlank = tail.search(/[\s\r]/);
+  return firstBlank === -1 ? '' : tail.slice(firstBlank + 1);
 }
 
 /**
@@ -145,6 +149,8 @@ export function runCommandLine(dir: string, command: string, options: { signal: 
     child.on('close', (code) => done(code));
     child.on('exit', (code) => {
       drain = setTimeout(() => {
+        // A grandchild still holds the pipes (a server the command left behind): its tree ends too (review of M3, m7).
+        end();
         child.stdout?.destroy();
         child.stderr?.destroy();
         done(code);
