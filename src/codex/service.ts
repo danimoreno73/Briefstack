@@ -210,8 +210,21 @@ export class CodexService {
    * showed the no-shell mode holds (`creationCodexOffered`).
    */
   async creationSession(): Promise<Omit<CodexSession, 'outDir'> | undefined> {
-    if (!creationCodexOffered(await this.view())) return undefined;
-    return this.session();
+    const view = await this.view();
+    if (!creationCodexOffered(view)) return undefined;
+    const session = await this.session();
+    if (session === undefined) return undefined;
+    // The Codex that runs is the one the no-shell check measured (review of M4, I5): another version needs a new check.
+    const ran = await runCodexProcess({
+      command: session.command,
+      args: ['--version'],
+      cwd: path.join(this.folder(), 'check'),
+      env: codexEnvironment(this.deps.pathEnv.env).env,
+      timeoutMs: this.deps.checkTimeoutMs ?? 60_000,
+      ...(this.deps.tracked === undefined ? {} : { tracked: this.deps.tracked }),
+    }).catch(() => undefined);
+    const now = ran !== undefined && ran.ended === 'exited' && ran.exitCode === 0 ? shown(ran.stdout.split(/\r?\n/)[0] ?? '') : undefined;
+    return now !== undefined && now !== '' && now === view.last?.version.text ? session : undefined;
   }
 
   /** What a task round needs to offer `delegate_to_codex`, or `undefined` when it does not get the tool. */

@@ -165,6 +165,16 @@ describe('the service and its routes', { timeout: 60_000 }, () => {
     expect(creationCodexOffered({ available: false, last: { ...view.last!, noShell: { ok: true, text: '' } } })).toBe(false);
   });
 
+  it('a creation gets Codex only from the version the check measured (review of M4, I5)', async () => {
+    await updateConfig(path.join(home, 'config.json'), { codexEnabled: true });
+    await service('win32').check();
+    expect(await service('win32').creationSession()).toMatchObject({ maxCalls: 5 });
+    // Codex upgraded (another version answers) since the check: no Codex for creations until a new check.
+    expect(await service('win32', 'oldVersion').creationSession()).toBeUndefined();
+    // Tasks keep their own rule.
+    expect(await service('win32', 'oldVersion').session()).toBeDefined();
+  });
+
   it('shellToolsDeclared reads declarations only, not mentions in a description; a renamed shell tool is caught too', () => {
     expect(shellToolsDeclared('Run code, for example `await tools.exec_command(...)`.\n### `apply_patch`\n"name": "exec"')).toEqual([]);
     expect(shellToolsDeclared('### `exec_command`\n"name": "shell"')).toEqual(['exec_command', 'shell']);
