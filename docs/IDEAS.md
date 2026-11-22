@@ -37,6 +37,9 @@ would take. Each would be a behaviour change, outside a UI pass.
 
 ### Usage: "New preset based on Balanced"
 
+**Done (phase 9, step 33):** `POST /api/usage/presets` and the form on the
+Usage page; decisions.md, "Phase 9: step 33, four controls of IDEAS §3".
+
 Create a user preset from a base one, from the page. It would need a write
 route for presets (today user presets are written by hand in the user's
 `usage-profiles.json`), the same schema check as the CLI, a form to change
@@ -44,6 +47,9 @@ the model and effort per agent, and the rule that `.claude/agents/*.md` is
 only written by `briefstack usage set`.
 
 ### Usage: a note on the week's plan window
+
+**Done (phase 9, step 33):** from the last saved reading (with `resets_at`)
+and `activity` in `GET /api/usage`; no new reading.
 
 "The week is at 63% and resets on Monday; switching to Max with two
 creations running could reach the limit sooner." The page would need to
@@ -53,6 +59,9 @@ costs a call each time.
 
 ### Projects: "Export CSV"
 
+**Done (phase 9, step 33):** built in the page, no paths, a `blob:`
+download under the unchanged CSP.
+
 Download the projects list as a CSV file. The page could build it from
 `GET /api/projects`, but it would need a decision on columns and on paths
 (the list shows absolute paths of the user's machine), a file download from
@@ -60,6 +69,10 @@ a page whose CSP allows nothing but `'self'` (a `blob:` URL would need
 checking against the CSP), and English and Spanish column names.
 
 ### Projects: "Archive" an interrupted or cancelled creation
+
+**Done (phase 9, step 33):** `<home>/archived-sessions.json`,
+`PUT /api/sessions/:id/archived`, Archive and Restore on the Projects page;
+`list_sessions` lists them marked.
 
 Hide an unfinished creation from the list without deleting it. It would
 need a place to keep the choice (a field in the session's folder or in the

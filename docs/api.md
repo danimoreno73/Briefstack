@@ -112,11 +112,23 @@ note's frontmatter (`target`, `path`, `status`, `profile`, `updated`,
 
 ### `GET /api/sessions`
 
-`200 { "sessions": [{ id, status, outcome?, startedAt?, lastEventAt?, lastStep?, endReason?, idea? }, …] }`,
+`200 { "sessions": [{ id, status, outcome?, startedAt?, lastEventAt?, lastStep?, endReason?, idea?, archived? }, …] }`,
 newest first. `status` is `finished | in-progress | interrupted`;
 `outcome` (`completed | cancelled | failed`) comes with `finished`. The UI
 lists `interrupted` and `cancelled` ones apart, named by their `idea`, with
-their `lastStep`.
+their `lastStep`. `archived` (ISO time) marks an unfinished one the user
+archived: the page hides it unless asked; the chat's `list_sessions` still
+lists it, marked.
+
+### `PUT /api/sessions/:id/archived`
+
+Body `{ "archived": true | false }` (phase 9 step 33). Archives or restores
+an interrupted or cancelled creation: the choice is kept in
+`<home>/archived-sessions.json`, never in the session's folder, and
+nothing is deleted. `{ id, archived? }`. `404 events.sessionNotFound`;
+`409 sessions.notUnfinished` for a creation that is neither interrupted
+nor cancelled; `409 sessions.archiveUnreadable` when that file does not
+read back (it is not overwritten).
 
 `idea` (read-only, added in the UI pass) is the session's `idea.md` as the
 flow wrote it: lines that look like a secret replaced with `[redacted]`,
@@ -162,12 +174,29 @@ The session's lines for the agent panel (phase 3):
 
 What `briefstack usage show --json` prints (`profile`, `label`, `fromConfig`,
 `sessionModel`, `chat: { model, effort }`, `agents`, `tiers`, `research`, `reviewRounds`, `available`,
-`drift`, `envWarnings`) plus `presets`: `[{ name, source: "base" | "user", label: { en, es }, sessionModel, effort, chat, tiers, research, reviewRounds }, …]`
-and `lastPlanUsage`: `{ fiveHour, sevenDay, at }` (percent or `null`, and
-the ISO time of the reading) or `null`. It is the last plan usage the server
-read (for a creation's panel, before a start, or for the chat's
+`drift`, `envWarnings`) plus `presets`: `[{ name, source: "base" | "user", label: { en, es }, sessionModel, effort, chat, tiers, research, reviewRounds, agents }, …]`
+(`agents`: each flow agent's `{ model, effort }`),
+`lastPlanUsage`: `{ fiveHour, sevenDay, at, fiveHourResetsAt?, sevenDayResetsAt? }` (percent or `null`, the
+ISO time of the reading, and each window's reset time when the reading
+gave one) or `null`, and `activity`: `{ creations, builds }` (active
+creations, and builds planning or running) or `null`. The plan usage is the last one the server
+read (for a creation's panel, before a start, before a build's task, or for the chat's
 `show_usage`), saved in `<home>/plan-usage.json`; the route never reads the
-usage itself. No token or cost figures.
+usage itself. The page's note on the week uses them (phase 9 step 33). No token or cost figures.
+
+### `POST /api/usage/presets`
+
+Body `{ name, base, label: { en, es }, sessionModel?, effort?, agents? }`
+(phase 9 step 33; `agents`: `{ <flow agent>: { model, effort? } }`). A user
+preset made from `base` with those changes, checked with the same schema
+as the CLI's profiles file and added to the user's `usage-profiles.json`
+(an existing one that does not read back is refused, never overwritten).
+`201 { name }`. No agent file changes and the active profile stays:
+`.claude/agents/*.md` are written only by `briefstack usage set`
+(`PUT /api/usage`). `409 usage.presetExists` for a name that exists, base
+or user; `400 usage.unknownProfile` for an unknown base; `400
+usage.invalidProfiles` when the result breaks the schema; a name outside
+`[a-z0-9]+(-[a-z0-9]+)*` is `400 web.invalidBody`.
 
 ### `GET /api/paths`
 

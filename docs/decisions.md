@@ -7140,6 +7140,46 @@ reviews of M1 to M6 and of step 32.
   not a commit from an existing branch (review of M1); a test of a
   transitive skip and of Resume skipping again (review of M4).
 
+## Phase 9: step 33, four controls of IDEAS §3 (2026-11-22)
+
+The four the user chose; "Open folder" and "folders with read-only access"
+stay out (the user's security decisions).
+
+- **Projects: Archive an unfinished creation.** The choice is kept in
+  `<home>/archived-sessions.json` (`{ v: 1, sessions: { <id>: <when> } }`),
+  written by code with tests, never in the session's folder (which only
+  the session writes). `PUT /api/sessions/:id/archived` (token, origin and
+  JSON as every write route) archives only an interrupted or cancelled
+  creation and restores any; a file that does not read back is refused,
+  never overwritten; writes are one at a time in the process. The page
+  hides archived ones unless "Show archived" is on, and each card has
+  Archive or Restore. The rule for the chat's `list_sessions`: it still
+  lists them, with `archived` (the conservative reading: the chat never
+  hides what is on disk; the Projects page is where the user hides it).
+- **Projects: Export CSV.** Built in the page from `GET /api/projects`:
+  name, slug, target, status, profile, created, updated and archived;
+  no path, no note file. Fields are quoted as RFC 4180 says, and a field a
+  spreadsheet would read as a formula gets a leading apostrophe; UTF-8 with
+  a byte order mark, CRLF. The download is a `blob:` link with `download`:
+  no directive of the server's CSP (`default-src 'self'`, ...) governs a
+  download, so nothing is relaxed. Checked in the e2e test with Chromium:
+  the file arrives and the console shows no CSP refusal.
+- **Usage: a note on the week's window.** No new reading (it costs a
+  session): the page uses the last one saved in `<home>/plan-usage.json`,
+  which now also keeps each window's `resets_at` when the reading gives it
+  (creations' readings and builds' readings both), and `GET /api/usage`
+  adds `activity` (active creations; builds planning or running). The
+  page says the week's figure, the weekday of the reset in the browser's
+  time zone (or that it is not known yet), and what runs now.
+- **Usage: New preset based on…** `POST /api/usage/presets` copies a
+  preset, applies the name, labels and per-agent model and effort, checks
+  the result with `UsagePresetSchema` and the whole file with
+  `UsageProfilesFileSchema` (the CLI's own checks), and writes only the
+  user's `usage-profiles.json` (an unreadable one is refused, never
+  overwritten). It never chooses the preset and never writes an agent
+  file: `.claude/agents/*.md` change only through `briefstack usage set`
+  (`PUT /api/usage`), when the user chooses it on the page.
+
 ## Phase 9: review of M6, the fixes (2026-11-19)
 
 The review covered the fixes of the review of M5 and M6 (`086850b..644d0fc`).
