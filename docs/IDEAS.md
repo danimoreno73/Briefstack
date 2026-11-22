@@ -1142,3 +1142,17 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
 - **Noted.** Commit `8e02689` holds the user's decisions 1 and 2 together,
   and `1cf5846` the docs of part A with the minors of part D's review.
   Review of step 33, part A.
+- **Pending.** In the second real check (2026-11-22, Claude Code 2.1.330)
+  the denial reached the model as Claude Code's `PreToolUse:Bash hook
+  error: [<path of the hook command>]`, not with briefstack's
+  `UNATTENDED_DENIED` text (its NOT CONTROLLED line: "0 of 1 result(s)
+  hold the start of UNATTENDED_DENIED"). The command was refused and not
+  run, but the model is not told to go on without it or to use an
+  approved command, and it sees local paths (the hook's command line).
+  To find out how a hook's refusal reaches the model and make it carry
+  briefstack's text without paths. decisions.md, "Phase 9: accepted".
+- **Pending.** `scripts/real/check-build-deny.ts` accepts task 1
+  `waiting` or `applied`: after the user's decision 4 (the rule is read
+  round by round), it should require `applied` once its fix round ended
+  without the denied command, and judge that the denial stays in the
+  build's denied list. decisions.md, "Phase 9: the user's decisions", 4.
