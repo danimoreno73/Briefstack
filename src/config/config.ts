@@ -3,7 +3,15 @@ import path from 'node:path';
 import { DEFAULT_CODEX_MAX_CALLS, DEFAULT_CODEX_MODE, isCodexMaxCalls, isCodexSandboxMode, type CodexSandboxMode } from '../codex/limits.js';
 import { BriefstackError, type FieldExpectation } from '../errors.js';
 import { isLang, type Lang } from '../i18n/index.js';
-import { DEFAULT_MAX_ACTIVE_CREATIONS, DEFAULT_USAGE_WARN_FIVE_HOUR, DEFAULT_USAGE_WARN_WEEK } from './limits.js';
+import {
+  DEFAULT_IMPLEMENT_MINUTES,
+  DEFAULT_IMPLEMENT_TOOL_CALLS,
+  DEFAULT_MAX_ACTIVE_CREATIONS,
+  DEFAULT_USAGE_WARN_FIVE_HOUR,
+  DEFAULT_USAGE_WARN_WEEK,
+  isImplementMinutes,
+  isImplementToolCalls,
+} from './limits.js';
 import { toAbsolute, type PathEnv } from './paths.js';
 
 /**
@@ -41,6 +49,15 @@ export interface BriefstackConfig {
   codexMode?: CodexSandboxMode;
   /** Codex calls per task round, 1 to 10; absent means `DEFAULT_CODEX_MAX_CALLS`. */
   codexMaxCalls?: number;
+  /** The implement step's minutes (phase 10), 5 to 120; absent means the default. */
+  implementMaxMinutes?: number;
+  /** The implementer's tool calls (phase 10), 20 to 1000; absent means the default. */
+  implementMaxToolCalls?: number;
+}
+
+/** The implement step's bounds, with the defaults (30 minutes, 150 tool calls). */
+export function implementBoundsOf(config: BriefstackConfig): { maxMinutes: number; maxToolCalls: number } {
+  return { maxMinutes: config.implementMaxMinutes ?? DEFAULT_IMPLEMENT_MINUTES, maxToolCalls: config.implementMaxToolCalls ?? DEFAULT_IMPLEMENT_TOOL_CALLS };
 }
 
 /** The config's Codex settings, with the defaults (off, `unelevated`, 5 calls per round). */
@@ -199,6 +216,14 @@ export function parseConfig(text: string, file: string): BriefstackConfig {
   if (raw.codexMaxCalls !== undefined) {
     if (!isCodexMaxCalls(raw.codexMaxCalls)) invalid('codexMaxCalls', 'codexMaxCalls');
     config.codexMaxCalls = raw.codexMaxCalls as number;
+  }
+  if (raw.implementMaxMinutes !== undefined) {
+    if (!isImplementMinutes(raw.implementMaxMinutes)) invalid('implementMaxMinutes', 'implementMinutes');
+    config.implementMaxMinutes = raw.implementMaxMinutes as number;
+  }
+  if (raw.implementMaxToolCalls !== undefined) {
+    if (!isImplementToolCalls(raw.implementMaxToolCalls)) invalid('implementMaxToolCalls', 'implementToolCalls');
+    config.implementMaxToolCalls = raw.implementMaxToolCalls as number;
   }
   return config;
 }

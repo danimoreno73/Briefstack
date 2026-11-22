@@ -21,6 +21,8 @@ const expectationEn: Record<FieldExpectation, string> = {
   boolean: 'true or false',
   codexMode: 'one of: unelevated, elevated',
   codexMaxCalls: 'a whole number from 1 to 10',
+  implementMinutes: 'a whole number from 5 to 120',
+  implementToolCalls: 'a whole number from 20 to 1000',
 };
 const expectationEs: Record<FieldExpectation, string> = {
   text: 'un texto no vacío',
@@ -31,6 +33,8 @@ const expectationEs: Record<FieldExpectation, string> = {
   boolean: 'true o false',
   codexMode: 'uno de: unelevated, elevated',
   codexMaxCalls: 'un número entero de 1 a 10',
+  implementMinutes: 'un número entero de 5 a 120',
+  implementToolCalls: 'un número entero de 20 a 1000',
 };
 
 type UnsafeReason = ErrorParams['task.unsafeDefinitions']['items'][number]['reason'];

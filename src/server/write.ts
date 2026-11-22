@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { CODEX_SANDBOX_MODES, MAX_CODEX_MAX_CALLS, MIN_CODEX_MAX_CALLS, type CodexSandboxMode } from '../codex/limits.js';
+import { MAX_IMPLEMENT_MINUTES, MAX_IMPLEMENT_TOOL_CALLS, MIN_IMPLEMENT_MINUTES, MIN_IMPLEMENT_TOOL_CALLS } from '../config/limits.js';
 import {
   codexSettingsOf,
   configFilePath,
+  implementBoundsOf,
   PERMISSION_POLICIES,
   maxActiveCreationsOf,
   permissionPolicyOf,
@@ -61,6 +63,8 @@ const settingsBody = z
     codexEnabled: z.boolean().optional(),
     codexMode: z.enum(CODEX_SANDBOX_MODES).optional(),
     codexMaxCalls: z.int().min(MIN_CODEX_MAX_CALLS).max(MAX_CODEX_MAX_CALLS).optional(),
+    implementMaxMinutes: z.int().min(MIN_IMPLEMENT_MINUTES).max(MAX_IMPLEMENT_MINUTES).optional(),
+    implementMaxToolCalls: z.int().min(MIN_IMPLEMENT_TOOL_CALLS).max(MAX_IMPLEMENT_TOOL_CALLS).optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'at least one setting' });
 
@@ -90,6 +94,7 @@ export function writeRoutes(context: WriteContext): RouteTable {
       maxActiveCreations: maxActiveCreationsOf(config),
       usageWarning: usageWarningOf(config),
       codex: codexSettingsOf(config),
+      implement: implementBoundsOf(config),
     };
   };
 
@@ -165,7 +170,11 @@ export function writeRoutes(context: WriteContext): RouteTable {
           codexEnabled?: boolean;
           codexMode?: CodexSandboxMode;
           codexMaxCalls?: number;
+          implementMaxMinutes?: number;
+          implementMaxToolCalls?: number;
         } = {};
+        if (body.implementMaxMinutes !== undefined) patch.implementMaxMinutes = body.implementMaxMinutes;
+        if (body.implementMaxToolCalls !== undefined) patch.implementMaxToolCalls = body.implementMaxToolCalls;
         if (body.codexEnabled !== undefined) patch.codexEnabled = body.codexEnabled;
         if (body.codexMode !== undefined) patch.codexMode = body.codexMode;
         if (body.codexMaxCalls !== undefined) patch.codexMaxCalls = body.codexMaxCalls;

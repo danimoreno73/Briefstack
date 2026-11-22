@@ -1,6 +1,6 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { configFilePath, maxActiveCreationsOf, permissionPolicyOf, readConfig, resolvePaths, toAbsolute, usageWarningOf, type PathEnv } from '../config/index.js';
+import { configFilePath, implementBoundsOf, maxActiveCreationsOf, permissionPolicyOf, readConfig, resolvePaths, toAbsolute, usageWarningOf, type PathEnv } from '../config/index.js';
 import { readLastPlanUsage } from '../creation/planUsage.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
 import { isUnfinishedSession, readArchivedSessions } from '../events/archived.js';
@@ -307,6 +307,7 @@ export function readRoutes(context: ReadContext): RouteTable {
           permissionPolicy: permissionPolicyOf(config),
           maxActiveCreations: maxActiveCreationsOf(config),
           usageWarning: usageWarningOf(config),
+          implement: implementBoundsOf(config),
         });
       },
     ],

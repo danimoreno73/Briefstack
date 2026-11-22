@@ -1320,7 +1320,12 @@ export const uiMessages = defineCatalogue({
     suggestionDiscardTitle: 'Discard this suggestion?',
     suggestionDiscardBody: 'It is not shown again.',
     settingsUsageWarnTitle: 'Plan-usage warning',
-    settingsUsageWarnHelp: 'Before a creation or an improvement starts, briefstack shows the plan usage when it is at or above these values. It never blocks.',
+    settingsUsageWarnHelp:
+      'Before a creation or an improvement starts, briefstack shows the plan usage when it is at or above these values. It never blocks them; only the step that writes a first version of the code does not start at or above them.',
+    settingsImplementTitle: 'First version of the code (creations)',
+    settingsImplementMinutes: 'Most minutes',
+    settingsImplementToolCalls: 'Most tool calls of the implementer',
+    settingsImplementHelp: 'Limits of the step that writes a first version of the code, from 5 to 120 minutes and from 20 to 1000 tool calls. When one is reached, the implementer stops and the checks run on what it wrote.',
     settingsWarnFiveHour: '5-hour window (%)',
     settingsWarnWeek: 'Week (%)',
 
@@ -2616,7 +2621,12 @@ export const uiMessages = defineCatalogue({
     suggestionDiscardTitle: '¿Descartar esta sugerencia?',
     suggestionDiscardBody: 'No se vuelve a mostrar.',
     settingsUsageWarnTitle: 'Aviso de uso del plan',
-    settingsUsageWarnHelp: 'Antes de que empiece una creación o una mejora, briefstack muestra el uso del plan cuando está en estos valores o por encima. Nunca bloquea.',
+    settingsUsageWarnHelp:
+      'Antes de que empiece una creación o una mejora, briefstack muestra el uso del plan cuando está en estos valores o por encima. No las bloquea; solo el paso que escribe una primera versión del código no empieza en estos valores o por encima.',
+    settingsImplementTitle: 'Primera versión del código (creaciones)',
+    settingsImplementMinutes: 'Minutos como mucho',
+    settingsImplementToolCalls: 'Llamadas a herramientas del implementador como mucho',
+    settingsImplementHelp: 'Límites del paso que escribe una primera versión del código, de 5 a 120 minutos y de 20 a 1000 llamadas a herramientas. Al llegar a uno, el implementador para y las comprobaciones se ejecutan sobre lo que escribió.',
     settingsWarnFiveHour: 'Ventana de 5 horas (%)',
     settingsWarnWeek: 'Semana (%)',
 

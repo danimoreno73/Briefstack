@@ -24,6 +24,8 @@ export function SettingsPage() {
   const [maxActive, setMaxActive] = useState('');
   const [warnFiveHour, setWarnFiveHour] = useState('');
   const [warnWeek, setWarnWeek] = useState('');
+  const [implementMinutes, setImplementMinutes] = useState('');
+  const [implementToolCalls, setImplementToolCalls] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
   const [saved, setSaved] = useState(false);
@@ -38,6 +40,8 @@ export function SettingsPage() {
     setMaxActive(String(settings.maxActiveCreations));
     setWarnFiveHour(String(settings.usageWarning.fiveHour));
     setWarnWeek(String(settings.usageWarning.week));
+    setImplementMinutes(String(settings.implement?.maxMinutes ?? ''));
+    setImplementToolCalls(String(settings.implement?.maxToolCalls ?? ''));
   }, [settings]);
 
   // Before saving, say whether the folder exists: a missing one is created by the save.
@@ -69,6 +73,8 @@ export function SettingsPage() {
     if (maxActive.trim() !== String(settings.maxActiveCreations)) body.maxActiveCreations = Number(maxActive.trim());
     if (warnFiveHour.trim() !== String(settings.usageWarning.fiveHour)) body.usageWarnFiveHour = Number(warnFiveHour.trim());
     if (warnWeek.trim() !== String(settings.usageWarning.week)) body.usageWarnWeek = Number(warnWeek.trim());
+    if (settings.implement !== undefined && implementMinutes.trim() !== String(settings.implement.maxMinutes)) body.implementMaxMinutes = Number(implementMinutes.trim());
+    if (settings.implement !== undefined && implementToolCalls.trim() !== String(settings.implement.maxToolCalls)) body.implementMaxToolCalls = Number(implementToolCalls.trim());
     if (Object.keys(body).length === 0) return;
     setBusy(true);
     setError(undefined);
@@ -259,6 +265,53 @@ export function SettingsPage() {
                   {t.settingsUsageWarnHelp}
                 </p>
               </section>
+
+              {settings?.implement !== undefined && (
+                <section class="card card-roomy" aria-labelledby="implement-title" data-testid="settings-implement">
+                  <h2 class="t-2" id="implement-title">
+                    {t.settingsImplementTitle}
+                  </h2>
+                  <div class="limit-row">
+                    <div class="field">
+                      <label class="label" for="implement-minutes">
+                        {t.settingsImplementMinutes}
+                      </label>
+                      <input
+                        id="implement-minutes"
+                        class="input input-mono limit-input"
+                        type="number"
+                        min={5}
+                        max={120}
+                        step={1}
+                        inputMode="numeric"
+                        value={implementMinutes}
+                        aria-describedby="implement-hint"
+                        onInput={(event) => setImplementMinutes(event.currentTarget.value)}
+                      />
+                    </div>
+                    <div class="field">
+                      <label class="label" for="implement-tool-calls">
+                        {t.settingsImplementToolCalls}
+                      </label>
+                      <input
+                        id="implement-tool-calls"
+                        class="input input-mono limit-input"
+                        type="number"
+                        min={20}
+                        max={1000}
+                        step={1}
+                        inputMode="numeric"
+                        value={implementToolCalls}
+                        aria-describedby="implement-hint"
+                        onInput={(event) => setImplementToolCalls(event.currentTarget.value)}
+                      />
+                    </div>
+                  </div>
+                  <p class="help" id="implement-hint">
+                    {t.settingsImplementHelp}
+                  </p>
+                </section>
+              )}
 
               <div class="btn-row">
                 <button type="submit" class="btn btn-primary" disabled={busy}>

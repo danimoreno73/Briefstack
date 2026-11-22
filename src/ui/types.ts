@@ -123,6 +123,8 @@ export interface SettingsView {
   usageWarning: { fiveHour: number; week: number };
   /** Codex in tasks (phase 8): the switch, the Windows sandbox mode and the calls per round. */
   codex: { enabled: boolean; mode: CodexModeView; maxCalls: number };
+  /** The implement step's bounds (phase 10): its minutes and the implementer's tool calls. */
+  implement?: { maxMinutes: number; maxToolCalls: number };
 }
 
 export type CodexModeView = 'unelevated' | 'elevated';
