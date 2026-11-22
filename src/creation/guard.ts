@@ -4,7 +4,7 @@ import path from 'node:path';
 import { expandHome, isFullyAbsolute, isPathInside, systemPathEnv, type PathEnv } from '../config/paths.js';
 import { realpathNearest } from '../scaffold/outputDir.js';
 import { redactSecretLines } from '../validate/secrets.js';
-import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './toolNames.js';
+import { APPROVE_SPEC_TOOL, CREATION_CODEX_TOOL, GRANT_DIRECTORY_TOOL, IMPLEMENT_FINISH_TOOL, IMPLEMENT_START_TOOL, IMPLEMENTER_AGENT, RUN_COMMAND_TOOL } from './toolNames.js';
 
 /**
  * The guard of a creation session (PLAN-phase-2 §3 "SdkRunner", H6).
@@ -33,7 +33,11 @@ import { APPROVE_SPEC_TOOL, GRANT_DIRECTORY_TOOL } from './toolNames.js';
  * - web access is allowed for the researcher and denied to everyone else;
  * - `SubagentHandback` is left to the permission mode for subagents, also
  *   after a cancel, and denied to the main session;
- * - a tool outside `FLOW_TOOLS` is denied.
+ * - a tool outside `FLOW_TOOLS` is denied;
+ * - phase 10: the `implementer` agent has no shell command at all, the
+ *   implement step's tools are allowed to their own caller only (its start
+ *   and finish to the main session, `run_command` and Codex to the
+ *   implementer), and past the step's bounds the implementer gets nothing.
  * Everything else is left to the permission mode and `canUseTool`.
  */
 
@@ -80,22 +84,35 @@ export const FLOW_BUILTIN_TOOLS = [
  */
 export const SUBAGENT_TOOLS: ReadonlySet<string> = new Set<string>(['SubagentHandback']);
 
-/** Every tool the guard knows: the built-ins above, the subagent tools and the two `briefstack-web` tools. Anything else is denied. */
+/** The implement step's tools (phase 10) and who may call each: the step's two for the main session, the rest for the implementer. */
+export const IMPLEMENT_TOOL_CALLERS: Readonly<Record<string, 'main' | 'implementer'>> = {
+  [IMPLEMENT_START_TOOL]: 'main',
+  [IMPLEMENT_FINISH_TOOL]: 'main',
+  [RUN_COMMAND_TOOL]: 'implementer',
+  [CREATION_CODEX_TOOL]: 'implementer',
+};
+
+/** Every tool the guard knows: the built-ins above, the subagent tools and the `briefstack-web` tools. Anything else is denied. */
 export const FLOW_TOOLS: ReadonlySet<string> = new Set<string>([
   ...FLOW_BUILTIN_TOOLS,
   ...SUBAGENT_TOOLS,
   APPROVE_SPEC_TOOL,
   GRANT_DIRECTORY_TOOL,
+  ...Object.keys(IMPLEMENT_TOOL_CALLERS),
 ]);
 
-export type Caller = 'main' | 'generator' | 'reviewer' | 'other';
+export type Caller = 'main' | 'generator' | 'reviewer' | 'implementer' | 'other';
 
-/** The subcommands of `briefstack` each caller may run (the table in PLAN-phase-2 "Pending for H6"). */
+/**
+ * The subcommands of `briefstack` each caller may run (the table in PLAN-phase-2 "Pending for H6"). The
+ * implementer has none: it has no shell at all (phase 10; a subagent's shell runs in the briefstack repo).
+ */
 export const ALLOWED_SUBCOMMANDS: Readonly<Record<Exclude<Caller, 'other'>, readonly (readonly string[])[]>> = {
   main: [['event'], ['paths'], ['usage', 'show'], ['library', 'context'], ['library', 'add'], ['spec', 'check'], ['validate'], ['commit']],
   // `skills install` copies approved library skills into the project (BRIEF-phase-6 §4): the generator only.
   generator: [['scaffold'], ['skills', 'install'], ['validate']],
   reviewer: [['validate']],
+  implementer: [],
 };
 
 /** Who is calling: the main session has no `agent_id`; a subagent is told apart by its type. */
@@ -103,8 +120,13 @@ export function callerOf(input: { agent_id?: string | undefined; agent_type?: st
   if (input.agent_id === undefined || input.agent_id === '') return 'main';
   if (input.agent_type === 'generator') return 'generator';
   if (input.agent_type === 'reviewer') return 'reviewer';
+  if (input.agent_type === IMPLEMENTER_AGENT) return 'implementer';
   return 'other';
 }
+
+const IMPLEMENTER_NO_SHELL =
+  'The implementer has no shell: its commands would run in the briefstack repo, not the project. Run an approved command with ' +
+  'run_command, exactly as listed; any other command is denied. Nobody is asked.';
 
 const PREFIX = ['npm', 'run', '--silent', 'briefstack', '--'] as const;
 
@@ -211,6 +233,12 @@ export interface GuardContext {
    * it, no library skill may be installed.
    */
   approvedLibrarySkills?(): readonly string[] | undefined;
+  /**
+   * Phase 10: why the implementer may do nothing more (the step's time or
+   * tool calls ran out, or the step is not running), or `undefined`. Read
+   * on every implementer call; the callback guard counts the call too.
+   */
+  implementerStop?(): string | undefined;
   pathEnv?: PathEnv;
 }
 
@@ -467,9 +495,16 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
   const deny = (reason: string, summary: string): GuardVerdict => ({ verdict: 'deny', reason, summary: redact(summary) });
   const roots = (): string[] => [ctx.projectsDir, ctx.sessionDir(input.session_id), ...ctx.grantedDirs()];
 
+  // Phase 10: past the implement step's bounds, nothing more for the implementer (decided by the server's clock and count).
+  if (caller === 'implementer' && !SUBAGENT_TOOLS.has(tool)) {
+    const stop = ctx.implementerStop?.();
+    if (stop !== undefined) return deny(stop, `${tool}`);
+  }
+
   if (SHELL_TOOLS.has(tool)) {
     const command = text(toolInput.command) ?? '';
     const summary = command;
+    if (caller === 'implementer') return deny(ctx.cancelled() ? CANCEL_MESSAGE : IMPLEMENTER_NO_SHELL, summary);
     const parsed = parseBriefstackCommand(command);
     if (ctx.cancelled()) {
       // Only the calls that close the session still go through.
@@ -530,6 +565,15 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
   }
 
   if (ctx.cancelled()) return deny(CANCEL_MESSAGE, `${tool}`);
+
+  // Phase 10: each tool of the implement step to its own caller only; the handler checks the rest (code chosen, the list).
+  const owner = IMPLEMENT_TOOL_CALLERS[tool];
+  if (owner !== undefined) {
+    if (caller !== owner) {
+      return deny(owner === 'main' ? `${tool} is only for the main session.` : `${tool} is only for the implementer agent, in the implement step.`, tool);
+    }
+    return { verdict: 'allow', reason: 'a tool of the implement step for its caller' };
+  }
 
   if (READ_TOOLS.has(tool) && (await readsLibrarySkills(tool, toolInput, ctx, pathEnv))) {
     return deny(LIBRARY_SKILLS_MESSAGE, `${tool}: ${text(toolInput.file_path) ?? text(toolInput.path) ?? ''} ${text(toolInput.pattern) ?? ''}`.trim());

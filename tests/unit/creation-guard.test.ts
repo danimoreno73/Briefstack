@@ -641,6 +641,59 @@ describe('evaluateToolUse', () => {
     }
   });
 
+  describe('the implement step (phase 10)', () => {
+    const implementer = { agent_id: 'a9', agent_type: 'implementer' };
+    const START = 'mcp__briefstack-web__implement_start';
+    const FINISH = 'mcp__briefstack-web__implement_finish';
+    const RUN = 'mcp__briefstack-web__run_command';
+    const CODEX = 'mcp__briefstack-web__delegate_to_codex';
+
+    it('the implementer has no shell at all, not even a briefstack command, and nobody is asked', async () => {
+      for (const command of ['npm test', `${CLI} validate "${slashes(path.join(projectsDir, 'app'))}"`, 'node -e 1']) {
+        const verdict = await evaluateToolUse(ctx, input('Bash', { command }, implementer));
+        expect(verdict, command).toMatchObject({ verdict: 'deny', reason: expect.stringContaining('run_command') });
+      }
+      expect(await verdictOf('PowerShell', { command: 'npm test' }, implementer)).toBe('deny');
+      expect(await verdictOf('WebFetch', { url: 'https://example.com' }, implementer)).toBe('deny');
+    });
+
+    it('writes where a creation writes, never in .git; reads as the others', async () => {
+      expect(await verdictOf('Write', { file_path: path.join(projectsDir, 'app', 'src', 'index.js'), content: 'x' }, implementer)).toBe('allow');
+      expect(await verdictOf('Write', { file_path: path.join(outside, 'x.js'), content: 'x' }, implementer)).toBe('deny');
+      expect(await verdictOf('Edit', { file_path: path.join(projectsDir, 'app', '.git', 'config'), old_string: 'a', new_string: 'b' }, implementer)).toBe('deny');
+      expect(await verdictOf('Read', { file_path: path.join(projectsDir, 'app', 'docs', 'BRIEF.md') }, implementer)).toBe('pass');
+    });
+
+    it('each tool of the step goes to its own caller only', async () => {
+      expect(await verdictOf(START, { dir: 'x' })).toBe('allow');
+      expect(await verdictOf(FINISH, {})).toBe('allow');
+      for (const who of [implementer, generator, reviewer, { agent_id: 'a5', agent_type: 'researcher' }]) {
+        expect(await verdictOf(START, { dir: 'x' }, who), who.agent_type).toBe('deny');
+        expect(await verdictOf(FINISH, {}, who), who.agent_type).toBe('deny');
+      }
+      expect(await verdictOf(RUN, { command: 'npm test' }, implementer)).toBe('allow');
+      expect(await verdictOf(CODEX, { instruction: 'x' }, implementer)).toBe('allow');
+      for (const who of [{}, generator, reviewer]) {
+        expect(await verdictOf(RUN, { command: 'npm test' }, who)).toBe('deny');
+        expect(await verdictOf(CODEX, { instruction: 'x' }, who)).toBe('deny');
+      }
+    });
+
+    it('past the bounds the implementer gets nothing but its report; after a cancel, nothing', async () => {
+      ctx = { ...ctx, implementerStop: () => 'The time of the implement step ran out: stop now and report.' };
+      for (const [tool, toolInput] of [[RUN, { command: 'npm test' }], ['Write', { file_path: path.join(projectsDir, 'app', 'a.js'), content: 'x' }], ['Read', { file_path: path.join(projectsDir, 'app', 'a.js') }]] as const) {
+        expect(await evaluateToolUse(ctx, input(tool, toolInput, implementer)), tool).toMatchObject({ verdict: 'deny', reason: expect.stringContaining('ran out') });
+      }
+      expect(await verdictOf('SubagentHandback', { message: 'report' }, implementer)).toBe('pass');
+      // Other callers are not bounded by it.
+      expect(await verdictOf(FINISH, {})).toBe('allow');
+      ctx = { ...ctx, implementerStop: () => undefined };
+      cancelled = true;
+      expect(await verdictOf(RUN, { command: 'npm test' }, implementer)).toBe('deny');
+      expect(await verdictOf(START, { dir: 'x' })).toBe('deny');
+    });
+  });
+
   describe('after a cancel', () => {
     it('denies everything except the main session closing the session', async () => {
       cancelled = true;
