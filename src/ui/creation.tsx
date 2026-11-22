@@ -15,6 +15,7 @@ import { formatClock, formatDuration, liveFromState, panelEventsFromStream, perc
 import { STEPS, deriveProgress, parseSse, type Progress } from './progress.js';
 import { ReplyBox } from './reply.js';
 import { routeHash } from './route.js';
+import { SpecCodeCard, codeAnswer, emptyCodeDraft, type SpecCodeDraft } from './specCode.js';
 import type { CreationState, Pending, ProjectDetail, ProjectListing, SpecView, StreamEvent, UiQuestion, UsageWarningView } from './types.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -689,6 +690,12 @@ function SpecApproval({ id, idea, pending, answer }: { id: string; idea: string;
   const [cancelling, setCancelling] = useState(false);
   /** Library skills the user unticked (BRIEF-phase-6 §3.5). */
   const [removed, setRemoved] = useState<string[]>([]);
+  /** The code choice (phase 10): "workspace only" until the user picks code. */
+  const [code, setCode] = useState<SpecCodeDraft>(emptyCodeDraft(1));
+  const approval = (view: SpecView | undefined): Record<string, unknown> => {
+    const chosen = view?.code?.offered === true ? codeAnswer(code, view.code.codex) : undefined;
+    return { decision: 'approve', ...(removed.length === 0 ? {} : { removeSkills: removed }), ...(chosen === undefined ? {} : { code: chosen }) };
+  };
 
   const decide = async (value: unknown) => {
     setBusy(true);
@@ -797,6 +804,7 @@ function SpecApproval({ id, idea, pending, answer }: { id: string; idea: string;
                 </ul>
               </div>
             )}
+            {view.code?.offered === true && <SpecCodeCard code={view.code} draft={code} onChange={setCode} />}
           </div>
         )}
       </LoadState>
@@ -815,7 +823,7 @@ function SpecApproval({ id, idea, pending, answer }: { id: string; idea: string;
               type="button"
               class="btn btn-primary btn-lg"
               disabled={busy}
-              onClick={() => void decide(removed.length === 0 ? { decision: 'approve' } : { decision: 'approve', removeSkills: removed })}
+              onClick={() => void decide(approval(spec.data))}
             >
               {t.approve}
             </button>

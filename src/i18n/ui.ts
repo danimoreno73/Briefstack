@@ -1275,6 +1275,9 @@ export const uiMessages = defineCatalogue({
     specCodeFixPasses: 'Fix passes if a check fails',
     specCodeCodex: 'Let Claude hand parts of the code to Codex, without its shell',
     specCodeCodexHint: 'Codex writes files only and runs nothing; its calls use your Codex plan.',
+    specCodeInvalidLead: 'The code choice cannot be approved:',
+    specCodeCodexRefused: 'Codex is not available for creations now (turn it on and check it in Settings)',
+    specCodeNotOffered: 'code is offered only for a software project for Claude Code',
     specSkillKeep: (name: string) => `Keep ${name}`,
     usageWarnTitle: 'Plan usage is high',
     usageWarnBody: (fiveHour: number | null, warnFiveHour: number, week: number | null, warnWeek: number) =>
@@ -2566,6 +2569,9 @@ export const uiMessages = defineCatalogue({
     specCodeFixPasses: 'Pasadas de arreglo si falla una comprobación',
     specCodeCodex: 'Dejar que Claude pase partes del código a Codex, sin su shell',
     specCodeCodexHint: 'Codex solo escribe ficheros y no ejecuta nada; sus llamadas usan tu plan de Codex.',
+    specCodeInvalidLead: 'La elección de código no se puede aprobar:',
+    specCodeCodexRefused: 'Codex no está disponible para las creaciones ahora (actívalo y compruébalo en Ajustes)',
+    specCodeNotOffered: 'el código solo se ofrece para un proyecto de software para Claude Code',
     specSkillKeep: (name: string) => `Conservar ${name}`,
     usageWarnTitle: 'El uso del plan está alto',
     usageWarnBody: (fiveHour: number | null, warnFiveHour: number, week: number | null, warnWeek: number) =>

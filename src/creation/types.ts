@@ -67,7 +67,8 @@ export interface SpecApprovalRequest {
   summaryFile: string;
 }
 
-export type SpecDecision = { decision: 'approve' } | { decision: 'change'; text: string } | { decision: 'cancel' };
+/** `code`: the user chose a first version of the code (phase 10, web app only); absent is "workspace only". */
+export type SpecDecision = { decision: 'approve'; code?: true } | { decision: 'change'; text: string } | { decision: 'cancel' };
 
 /** An output folder outside `projectsDir`, granted to this session only once confirmed. */
 export interface GrantRequest {

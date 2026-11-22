@@ -213,6 +213,7 @@ describe('error catalogue', () => {
     'creation.noPending': { id: 'c1' },
     'creation.wrongPending': { pendingId: 'p1', expected: 'p2' },
     'creation.invalidAnswer': { kind: 'question', issues: ['a'] },
+    'creation.invalidCode': { issues: ['a'], items: [{ key: 'listLine', what: 'commands', line: 1, problem: 'compound' }], codex: true, notOffered: false },
   };
 
   it('has a distinct message for every code in every language', () => {

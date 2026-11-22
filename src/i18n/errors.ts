@@ -218,6 +218,7 @@ const errors = defineCatalogue<ErrorMessages>({
     'creation.wrongPending': (p) =>
       `That answer is for ${p.pendingId}, but the creation is waiting for ${p.expected}. Reload and try again.`,
     'creation.invalidAnswer': (p) => `The answer to this ${p.kind} is not valid:${bullets(p.issues)}`,
+    'creation.invalidCode': (p) => `The code choice cannot be approved: ${p.issues.join('; ')}.`,
     'creation.noReply': (p) => `Creation ${p.id} is not waiting for a reply.`,
     'chat.unavailable': () => 'The chat is not available in this server.',
     'chat.threadNotFound': (p) => `There is no chat ${p.id}.`,
@@ -449,6 +450,13 @@ const errors = defineCatalogue<ErrorMessages>({
     'creation.wrongPending': (p) =>
       `Esa respuesta es para ${p.pendingId}, pero la creación espera ${p.expected}. Recarga e inténtalo de nuevo.`,
     'creation.invalidAnswer': (p) => `La respuesta a esta petición (${p.kind}) no es válida:${bullets(p.issues)}`,
+    // In Spanish from the codes, as the page says them; the English issues only for what has no code.
+    'creation.invalidCode': (p) => {
+      const said = p.items.map(startIssueFacts).flatMap((facts) => (facts === undefined ? [] : [uiMessages.es.buildStartIssue(facts)]));
+      if (p.codex) said.push(uiMessages.es.specCodeCodexRefused);
+      if (p.notOffered) said.push(uiMessages.es.specCodeNotOffered);
+      return `La elección de código no se puede aprobar: ${(said.length > 0 ? said : p.issues).join('; ')}.`;
+    },
     'creation.noReply': (p) => `La creación ${p.id} no está esperando una respuesta.`,
     'chat.unavailable': () => 'El chat no está disponible en este servidor.',
     'chat.threadNotFound': (p) => `No existe el chat ${p.id}.`,

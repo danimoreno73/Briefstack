@@ -202,6 +202,8 @@ export interface FakeRunnerOptions {
   libraryDir?: string;
   /** Free-text replies the user sent, in order (`turnEnd`). */
   received?: string[];
+  /** What the flow was told at each spec checkpoint, in order (phase 10 tests). */
+  decisions?: unknown[];
 }
 
 const STOPPED = Symbol('stopped');
@@ -353,6 +355,7 @@ export class FakeRunner implements CreationRunner {
             if (step.summary !== undefined) await writeFile(summaryFile, step.summary, 'utf8');
             const result = await untilStopped(io.approveSpec({ specFile, summaryFile }));
             if (result === STOPPED) return { kind: 'stopped' };
+            this.options.decisions?.push(result);
             if (result.decision === 'change') pc = jump(step.onChange);
             else if (result.decision === 'cancel' && !ignoreCancel) {
               if (step.onCancel !== undefined) pc = jump(step.onCancel);

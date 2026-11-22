@@ -32,7 +32,7 @@ import { UsageCheck } from '../../src/usage/warning.js';
 import { EXFILTRATOR, HARMLESS, INJECTOR } from '../skillFixtures.js';
 import { sampleRepo, startFakeGitHub, type FakeGitHub } from '../skillsWorld.js';
 import { isolateEnvironment } from '../sandboxEnv.js';
-import { CodexService } from '../../src/codex/service.js';
+import { CodexService, creationCodexOffered } from '../../src/codex/service.js';
 import { fakeCodex } from '../codexWorld.js';
 import type { BuildManager } from '../../src/builds/manager.js';
 import { FakeBuildPlanner } from '../../src/builds/planner.js';
@@ -244,7 +244,10 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   const usageCheck = usageReading === undefined ? undefined : new UsageCheck({ read: async () => usageReading, thresholds: async () => ({ fiveHour: 80, week: 85 }), ttlMs: 0 });
 
   const holderTasks: { value?: TaskManager } = {};
+  const holderCodex: { value?: CodexService } = {};
   const manager = new CreationManager({
+    // As in `briefstack web` (phase 10): the spec page's Codex checkbox follows the last check.
+    codexForCreations: async () => (holderCodex.value === undefined ? false : creationCodexOffered(await holderCodex.value.view())),
     skills,
     runner:
       options.recordingText === undefined
@@ -300,6 +303,7 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   const codexLog = path.join(dir, 'codex-calls.jsonl');
   await writeFile(codexLog, '', 'utf8');
   const codex = new CodexService({ pathEnv, locate: () => fakeCodex(codexLog, options.codexScenario) });
+  holderCodex.value = codex;
   const holderBuilds: { value?: BuildManager } = {};
   const tasks = await createWebTasks({ pathEnv, repoDir, lang: 'en', runner: taskRunner, creations: manager, codex, buildOn: async (slug) => holderBuilds.value?.holder(slug), buildDrives: (id) => holderBuilds.value?.drives(id) ?? false });
   holderTasks.value = tasks;

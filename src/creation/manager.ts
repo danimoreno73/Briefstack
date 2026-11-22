@@ -28,6 +28,19 @@ import { hideAbsolutePaths, projectEvent } from '../panel/project.js';
 import { settlesWithin } from '../timeLimit.js';
 import { FolderClaims } from './folderClaims.js';
 import { redactSecretLines } from '../validate/secrets.js';
+import {
+  CODE_NOT_OFFERED_TEXT,
+  DEFAULT_FIX_PASSES,
+  MAX_CODE_CHECKS,
+  MAX_CODE_COMMANDS,
+  MAX_FIX_PASSES,
+  codeChoiceIssues,
+  codeChoiceProblems,
+  codeChoiceSchema,
+  specOffersCode,
+  type CodeChoice,
+  type SpecCodeView,
+} from './code.js';
 import type {
   CreationRunner,
   GrantRequest,
@@ -82,6 +95,8 @@ export interface SpecView {
   spec: SpecFields | null;
   /** The library skills the spec chose; empty when none. */
   librarySkills: SpecLibrarySkill[];
+  /** The code choice the page offers (phase 10). */
+  code: SpecCodeView;
 }
 
 /** What the creation manager reads of the skill library. */
@@ -147,6 +162,8 @@ export interface CreationState {
   currentStep?: FlowStep;
   /** Set from the start until the first plan usage reading arrived or failed. */
   usageReading?: true;
+  /** The code the user chose at the spec checkpoint (phase 10); absent for "workspace only". */
+  code?: CodeChoice;
   /** Why the runner failed, when it did. Never contains tool inputs. */
   error?: string;
   startedAt: string;
@@ -229,6 +246,8 @@ export interface CreationManagerOptions {
   usageEveryMs?: number;
   /** The skill library, for the approval screen's list of library skills. */
   skills?: SkillCatalogue;
+  /** Whether the spec page offers the Codex checkbox now (phase 10); read when the flow asks for approval. Default no. */
+  codexForCreations?: () => Promise<boolean>;
   /**
    * How long `shutdown()` waits for the runners to stop and the streams to
    * close. After it, what is left is marked interrupted and its stream closed
@@ -261,6 +280,10 @@ interface Creation {
   state: CreationState;
   /** The last spec the flow asked about: the approval screen reads its files. */
   lastSpec?: SpecApprovalRequest | undefined;
+  /** What the last spec offers of code (phase 10), read when the flow asked: the answer is checked against it. */
+  specCode?: { offered: boolean; codex: boolean } | undefined;
+  /** Once the implement step started, the code choice no longer changes. */
+  codeFixed?: boolean;
   handle?: RunnerHandle;
   runnerDone: boolean;
   /** The server is ending the runner itself: its `done` is not a crash. */
@@ -294,7 +317,8 @@ const answerSchemas = {
   permission: z.enum(['allow', 'deny']),
   spec: z.discriminatedUnion('decision', [
     // `removeSkills`: library skills the user unticked; the server drops them from spec.json.
-    z.object({ decision: z.literal('approve'), removeSkills: z.array(z.string().regex(SLUG_RE).max(64)).max(50).optional() }),
+    // `code` (phase 10): the user chose a first version of the code; absent is "workspace only".
+    z.object({ decision: z.literal('approve'), removeSkills: z.array(z.string().regex(SLUG_RE).max(64)).max(50).optional(), code: codeChoiceSchema.optional() }),
     z.object({ decision: z.literal('change'), text: z.string().trim().min(1) }),
     z.object({ decision: z.literal('cancel') }),
   ]),
@@ -491,7 +515,15 @@ export class CreationManager {
         spec = null;
       }
     }
-    return { summary: summary === undefined ? null : redactSecretLines(summary), spec, librarySkills };
+    const offer = c.specCode ?? { offered: false, codex: false };
+    const code: SpecCodeView = {
+      ...offer,
+      maxCommands: MAX_CODE_COMMANDS,
+      maxChecks: MAX_CODE_CHECKS,
+      maxFixPasses: MAX_FIX_PASSES,
+      defaultFixPasses: DEFAULT_FIX_PASSES,
+    };
+    return { summary: summary === undefined ? null : redactSecretLines(summary), spec, librarySkills, code };
   }
 
   /** The spec's library skills with what the library says of each. */
@@ -544,6 +576,53 @@ export class CreationManager {
     } catch {
       return asChange;
     }
+  }
+
+  /**
+   * What the spec the flow shows offers of code (phase 10): a `software`
+   * spec for Claude Code; the Codex checkbox only when Codex is available
+   * for creations now. Read when the flow asks, so the answer is checked
+   * against what the page showed.
+   */
+  private async specCodeOf(c: Creation, request: SpecApprovalRequest): Promise<{ offered: boolean; codex: boolean }> {
+    const session = c.state.sessionId;
+    const pathEnv = systemPathEnv();
+    if (session === undefined || !isPathInside(request.specFile, pathEnv.pathApi.join(this.options.sessionsDir, session), pathEnv)) return { offered: false, codex: false };
+    let offered = false;
+    try {
+      const info = await stat(request.specFile);
+      if (info.isFile() && info.size <= MAX_SPEC_FILE_BYTES) {
+        const text = await readFile(request.specFile, 'utf8');
+        offered = specOffersCode(JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text) as { type?: unknown; target?: unknown });
+      }
+    } catch {
+      offered = false;
+    }
+    const codex = offered && (await (this.options.codexForCreations?.() ?? Promise.resolve(false)).catch(() => false)) === true;
+    return { offered, codex };
+  }
+
+  /**
+   * The approval with code: `code.json` in the session folder (written by
+   * the server, read by nobody but the server and the user), and the flow is
+   * told that code was chosen, so it runs the implement step.
+   */
+  private async approveWithCode(c: Creation, approved: Promise<unknown>): Promise<unknown> {
+    const result = (await approved) as Record<string, unknown>;
+    if (result.decision !== 'approve') return result;
+    const session = c.state.sessionId;
+    const code = c.state.code;
+    if (session !== undefined && code !== undefined) {
+      const file = systemPathEnv().pathApi.join(this.options.sessionsDir, session, 'code.json');
+      const temp = `${file}.${process.pid}.tmp`;
+      try {
+        await writeFile(temp, `${JSON.stringify({ v: 1, ...code }, null, 2)}\n`, 'utf8');
+        await rename(temp, file);
+      } catch {
+        // The record on the creation is what the step reads; the file is for the user.
+      }
+    }
+    return { ...result, code: true, codeNote: 'The user chose workspace and a first version of the code: run the implement step after validate-review.' };
   }
 
   list(): CreationState[] {
@@ -599,10 +678,26 @@ export class CreationManager {
       this.recordDenial(c, 'user', head.pending.payload.toolName, head.pending.payload.agentType);
     }
     if (head.pending.kind === 'spec') {
-      const decision = parsed.data as { decision: string; removeSkills?: string[] };
+      const decision = parsed.data as { decision: string; removeSkills?: string[]; code?: CodeChoice };
       // The flow gets the spec as approved: unticked library skills are taken out first.
       if (decision.decision === 'approve') {
-        result = decision.removeSkills !== undefined && decision.removeSkills.length > 0 ? this.approveWithout(c, decision.removeSkills) : { decision: 'approve' };
+        const code = decision.code;
+        if (code !== undefined) {
+          // Phase 10: only where the page offered it, with lists builds would accept, Codex only when offered.
+          const offer = c.specCode;
+          if (offer === undefined || !offer.offered) throw new BriefstackError('creation.invalidCode', { issues: [CODE_NOT_OFFERED_TEXT], items: [], codex: false, notOffered: true });
+          const issues = codeChoiceIssues(code, { codexOffered: offer.codex });
+          if (issues.items.length > 0 || issues.codex) {
+            throw new BriefstackError('creation.invalidCode', { issues: codeChoiceProblems(code, { codexOffered: offer.codex }), items: issues.items, codex: issues.codex, notOffered: false });
+          }
+        }
+        if (c.codeFixed !== true) {
+          if (code === undefined) delete c.state.code;
+          else c.state.code = structuredClone(code);
+        }
+        const approved = decision.removeSkills !== undefined && decision.removeSkills.length > 0 ? this.approveWithout(c, decision.removeSkills) : { decision: 'approve' };
+        // "Workspace only" is told exactly what the flow was told before phase 10.
+        result = code === undefined ? approved : this.approveWithCode(c, Promise.resolve(approved));
       }
     }
     this.settle(c, result, parsed.data);
@@ -764,8 +859,10 @@ export class CreationManager {
         this.recordDenial(c, 'policy', request.toolName, request.agentType);
         return 'deny';
       },
-      approveSpec: (request) => {
+      approveSpec: async (request) => {
         c.lastSpec = request;
+        // Read before the page can answer: the answer's code choice is checked against it (phase 10).
+        c.specCode = await this.specCodeOf(c, request);
         return this.request(c, 'spec', request);
       },
       grantDirectory: (request) => this.request(c, 'grant', request),

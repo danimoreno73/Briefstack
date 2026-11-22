@@ -68,7 +68,7 @@ import type { BuildManager } from './builds/manager.js';
 import { FakeBuildPlanner, type BuildPlanner } from './builds/planner.js';
 import type { UsageReading } from './builds/usage.js';
 import { createWebBuilds } from './builds/wiring.js';
-import { CodexService } from './codex/service.js';
+import { CodexService, creationCodexOffered } from './codex/service.js';
 import { createWebCreations } from './creation/wiring.js';
 import { createWebImprovements } from './improve/wiring.js';
 import type { ImprovementManager } from './improve/manager.js';
@@ -699,6 +699,8 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     skills,
     // Tasks and build planners share the active-sessions limit (BRIEF-phase-7 §2.6, BRIEF-phase-9 §2).
     otherActive: () => [...(tasks?.activeIds() ?? []), ...(builds?.activeIds() ?? [])],
+    // Phase 10: the spec page's Codex checkbox, only when the last check showed the no-shell mode holds.
+    codexForCreations: async () => creationCodexOffered(await codex.view()),
   });
   let chat: ChatManager | undefined;
   let improvements: ImprovementManager | undefined;
