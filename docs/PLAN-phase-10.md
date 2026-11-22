@@ -21,9 +21,9 @@ Updated 2026-11-22.
 | H0 | Verify before designing (BRIEF §6) | done, decisions.md "Phase 10: H0": the no-shell mode holds (8 real Codex calls of 10) |
 | M1 | The spec checkpoint: code choice, lists, fix passes, Codex checkbox; the no-shell status check | done (`2446c90`, `ee4fb98`; CI green on the three systems, run 45035131741). Review: apto con reservas; I1–I4 and m2–m7 fixed with M2 (decisions.md, "Phase 10: review of M1, the fixes"); the bounds settings moved to M3 |
 | M2 | The `implement` step: the implementer, its tools, the guard, the two commits, a fake implementer | done (`f7a098e..aa1abfd`; CI green on the three systems, run 45054683892). Review: apto con reservas; I1–I4 and m1–m5, m7, m11 fixed with M3 (decisions.md, "Phase 10: review of M2, the fixes") |
-| M3 | Checks, fix passes, bounds and the usage reading | done in the working tree, with the M2 fixes (decisions.md, "Phase 10: M3"); commits, CI and review below |
-| M4 | Codex without its shell in the implement step | not started |
-| M5 | The live panel and the result screen | not started |
+| M3 | Checks, fix passes, bounds and the usage reading | done (`69ff686..ba3f2ab`; CI green on the three systems, run 45056801649). Review: no apto (B1: the command hook denied implementer writes); B1, I1–I4, m1–m7, m9 fixed in `cd4d2c4..5b2382e` (decisions.md, "Phase 10: review of M3, the fixes") |
+| M4 | Codex without its shell in the implement step | done (`236f5b3..74d73ff`). Review (with the M3 fixes): apto con reservas; Windows CI of `5b2382e` red (short temp path, I2); I1–I3, I5, I6, m1, m3 fixed with M5 (decisions.md, "Phase 10: review of M4, the fixes") |
+| M5 | The live panel and the result screen | done in the working tree (decisions.md, "Phase 10: M5") |
 | M6 | Docs and the real check script (prepared, not run) | not started |
 
 ## 1. Design decisions taken from H0

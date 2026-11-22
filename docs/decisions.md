@@ -7726,3 +7726,62 @@ the review came; the fixes follow it and nothing was pushed in between.
   not build alone because its test imported a function of the next
   commit); m11 (fixed by M4: the start's answer names Codex only when it
   is wired and available).
+
+## Phase 10: review of M4, the fixes (2026-11-22)
+
+The review of M4 and the M3 fixes (`ba3f2ab..5b2382e`; apto con reservas,
+"no apto if Windows CI is red") found six important items and nine minor
+ones. **Windows CI of `5b2382e` was red** (run 45081053960: ubuntu and
+macOS green, Windows failed two guard tests): the runner's temp folder is
+a short name (`RUNNER~1`), which the new check of I1 refused. Fixed with
+M5, pushed together:
+
+- **I2** (that failure): the checks for short names, streams and
+  protected names look only at the part of the path inside the project
+  folder, as written and after links on both sides; a folder above the
+  project with a short name or named `.briefstack` is the user's.
+- **I1** (Codex's file tool does not pass through the guard): before the
+  checks and the code commit, the step puts back every protected file
+  changed since the workspace commit (`revertProtectedChanges`: restored
+  from HEAD, or removed when new; git with hooks off), records them and
+  says so on the result screen.
+- **I6**: `.claude/hooks/`, `.husky/` and `.githooks/` are protected too.
+  **Open for the user:** hooks declared in the frontmatter of a project
+  skill or agent the implementer writes (a task's validation catches them,
+  `declaresHooks`); not added to the creation, which only writes a first
+  version: a decision for the user, noted in IDEAS.
+- **I3, m3**: one Codex call at a time, never beside a listed command;
+  `implement_finish` waits for both.
+- **I5**: a creation uses Codex only when `codex --version` answers the
+  version the last check measured; another version needs a new check.
+- **m1**: a stop during the start (the bounds, the commit, Codex) leaves
+  the step not running and Codex stopped.
+- **Not changed:** I4 (the runner rewriting `guard.json` at
+  `implement_start` and `implement_finish` has no runner-level test; the
+  real check shows it); m2 (a Codex call keeps its own 10-minute deadline
+  inside the step's minutes); m4 (some of the delegate's texts still say
+  "round"; a failed `symbolic-ref` reads as "not available"); m5 (tests of
+  a cancel during a Codex call and of `headChanged` in a creation are
+  phase 8's, not repeated); m6 (history); m7 (the plan's Status, updated
+  now); m8 (gates and CI are in the step's report).
+- **Residual risk, not measured in H0:** whether Codex's file tool could
+  write inside `.git` (a `filter.*.clean` in `.git/config` that the
+  server's `git add` would run). Phase 8 measured its shell could not; its
+  file tool refuses writes outside the folder, and `.git` is inside.
+
+## Phase 10: M5, the live panel and the result screen (2026-11-22)
+
+- One card, `ImplementCard`, on the creation page while the step runs and
+  on the result screen when it ended: its state, the two commits (short
+  ids), the limits and tool calls, the fix passes, each command run with
+  its exit and output, the commands denied (nobody asked), each pass of
+  the checks with its output, Codex's calls with tokens and the cost
+  note, protected files put back, and the brief's "Current status" (what
+  is done and what is left), read when the step ends, cut, redacted and
+  shown as data.
+- A creation with code whose step never ran (or did not start) says so on
+  the result screen, with the reason (review of M2, m6).
+- The step, the implementer as an agent and the denials were already in
+  the panel (the optional step, the subagent hooks, the denied stream).
+- `GET /api/creations/:id` carries `code` and `implement` (the creation's
+  state).
