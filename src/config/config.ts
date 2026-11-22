@@ -263,6 +263,24 @@ export async function updateConfig(
   await mkdir(path.dirname(file), { recursive: true });
   const temp = `${file}.${process.pid}.tmp`;
   await writeFile(temp, output, 'utf8');
-  await rename(temp, file);
+  await renameRetrying(temp, file);
   return config;
+}
+
+/**
+ * On Windows a rename over a file another request is reading fails for a
+ * moment (EPERM, EBUSY, EACCES); it is tried again a few times (phase 10:
+ * the Settings page reads the config from several requests at once).
+ */
+async function renameRetrying(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (attempt >= 9 || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+    }
+  }
 }
