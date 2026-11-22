@@ -657,11 +657,25 @@ describe('evaluateToolUse', () => {
       expect(await verdictOf('WebFetch', { url: 'https://example.com' }, implementer)).toBe('deny');
     });
 
-    it('writes where a creation writes, never in .git; reads as the others', async () => {
-      expect(await verdictOf('Write', { file_path: path.join(projectsDir, 'app', 'src', 'index.js'), content: 'x' }, implementer)).toBe('allow');
-      expect(await verdictOf('Write', { file_path: path.join(outside, 'x.js'), content: 'x' }, implementer)).toBe('deny');
-      expect(await verdictOf('Edit', { file_path: path.join(projectsDir, 'app', '.git', 'config'), old_string: 'a', new_string: 'b' }, implementer)).toBe('deny');
-      expect(await verdictOf('Read', { file_path: path.join(projectsDir, 'app', 'docs', 'BRIEF.md') }, implementer)).toBe('pass');
+    it('writes only inside the running step\'s project, never in .git, .briefstack or Claude Code settings; reads as the others', async () => {
+      const app = path.join(projectsDir, 'app');
+      const write = (file: string) => verdictOf('Write', { file_path: file, content: 'x' }, implementer);
+      // No running step: nowhere (review of M2, m1).
+      expect(await write(path.join(app, 'src', 'index.js'))).toBe('deny');
+      ctx = { ...ctx, implementerFolder: () => app };
+      expect(await write(path.join(app, 'src', 'index.js'))).toBe('allow');
+      expect(await write(path.join(app, '.claude', 'skills', 'x', 'SKILL.md'))).toBe('allow');
+      // A sibling project, the session folder and outside: denied.
+      expect(await write(path.join(projectsDir, 'other', 'x.js'))).toBe('deny');
+      expect(await write(path.join(sessionsDir, SESSION, 'code.json'))).toBe('deny');
+      expect(await write(path.join(outside, 'x.js'))).toBe('deny');
+      for (const file of [path.join(app, '.briefstack', 'spec.json'), path.join(app, '.claude', 'settings.json'), path.join(app, '.claude', 'settings.local.json'), path.join(app, '.CLAUDE', 'Settings.JSON')]) {
+        expect(await evaluateToolUse(ctx, input('Write', { file_path: file, content: 'x' }, implementer)), file).toMatchObject({ verdict: 'deny' });
+      }
+      expect(await verdictOf('Edit', { file_path: path.join(app, '.git', 'config'), old_string: 'a', new_string: 'b' }, implementer)).toBe('deny');
+      expect(await verdictOf('Read', { file_path: path.join(app, 'docs', 'BRIEF.md') }, implementer)).toBe('pass');
+      // Other callers keep the creation's roots.
+      expect(await verdictOf('Write', { file_path: path.join(projectsDir, 'other', 'x.js'), content: 'x' }, generator)).toBe('allow');
     });
 
     it('each tool of the step goes to its own caller only', async () => {

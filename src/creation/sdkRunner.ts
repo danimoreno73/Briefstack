@@ -422,6 +422,7 @@ class SdkRun {
         approvedLibrarySkills: () => this.approvedLibrarySkills,
         // Phase 10: the implement step counts each implementer call and says when it may do nothing more.
         implementerStop: () => (this.io.implement === undefined ? 'The implement step is not available in this session. Stop now and report.' : this.io.implement.implementerCall()),
+        implementerFolder: () => this.io.implement?.projectFolder(),
         pathEnv: this.deps.pathEnv,
       };
       const recordAgent: HookCallback = async (hook) => {

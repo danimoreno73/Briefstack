@@ -129,6 +129,64 @@ test.describe('a creation with code (M2)', () => {
   });
 });
 
+/** M3: a check that fails (node refuses an unknown option), one fix pass, then the code kept with a warning. */
+function fixPassRecording(): string {
+  return [
+    { do: 'session', phase: 'started' },
+    { do: 'claim', dir: 'garden' },
+    { do: 'label', name: 'write' },
+    { do: 'spec', onChange: 'write', spec: JSON.stringify(SOFTWARE) },
+    { do: 'generate', dir: 'garden', git: true },
+    { do: 'flow', step: 'implement', phase: 'started' },
+    { do: 'implement', action: 'start', dir: 'garden' },
+    { do: 'implement', action: 'write', file: 'src/garden.js', text: 'export const beds = 3;\n' },
+    { do: 'implement', action: 'finish' },
+    { do: 'implement', action: 'write', file: 'src/garden.js', text: 'export const beds = 4;\n' },
+    { do: 'implement', action: 'finish' },
+    { do: 'flow', step: 'implement', phase: 'finished', outcome: 'ok' },
+    { do: 'session', phase: 'finished', outcome: 'completed' },
+  ]
+    .map((line) => JSON.stringify(line))
+    .join('\n');
+}
+
+test.describe('failing checks with a fix pass (M3)', () => {
+  test.use({ appOptions: { recordingText: fixPassRecording() } });
+
+  test('the check runs twice; the code is committed with a warning, and the creation completes', async ({ page, app }) => {
+    await page.goto(app.url);
+    await clickNav(page, 'New project');
+    await page.getByLabel('Describe your idea').fill('A garden planner');
+    await page.getByRole('button', { name: 'Start' }).click();
+    const card = page.getByTestId('spec-code');
+    await card.getByTestId('spec-code-with-code').check();
+    await card.getByTestId('spec-code-checks').fill('node --no-such-option-briefstack');
+    await page.getByRole('button', { name: 'Approve' }).click();
+    await expect(page.getByTestId('result')).toHaveAttribute('data-outcome', 'completed', { timeout: 20_000 });
+    const implement = app.manager.list()[0]?.implement;
+    expect(implement).toMatchObject({ state: 'done', fixPassesUsed: 1, warning: 'checksFailed' });
+    expect(implement?.checks.map((c) => c.pass)).toEqual([1, 2]);
+    expect(implement?.checks[1]?.results[0]?.exitCode).not.toBe(0);
+    expect(implement?.codeCommit).toMatch(/^[0-9a-f]{40}$/);
+    expect(await readFile(path.join(app.projectsDir, 'garden', 'src', 'garden.js'), 'utf8')).toBe('export const beds = 4;\n');
+  });
+});
+
+test.describe('the implement step limits in Settings (M3)', () => {
+  test('shows the defaults, saves new values and refuses values out of range', async ({ page, app }) => {
+    await page.goto(app.url);
+    await page.getByRole('link', { name: 'Settings' }).first().click();
+    const card = page.getByTestId('settings-implement');
+    await expect(card.getByLabel('Most minutes')).toHaveValue('30');
+    await expect(card.getByLabel('Most tool calls of the implementer')).toHaveValue('150');
+    await card.getByLabel('Most minutes').fill('45');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect.poll(async () => JSON.parse(await readFile(path.join(app.home, 'config.json'), 'utf8')).implementMaxMinutes).toBe(45);
+    await page.reload();
+    await expect(page.getByTestId('settings-implement').getByLabel('Most minutes')).toHaveValue('45');
+  });
+});
+
 test.describe('a spec that is not software for Claude Code', () => {
   test.use({ appOptions: { recordingText: recording(specInput({ slug: 'notes', type: 'generic', target: 'claude-code' })) } });
 

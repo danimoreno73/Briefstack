@@ -124,6 +124,16 @@ export function callerOf(input: { agent_id?: string | undefined; agent_type?: st
   return 'other';
 }
 
+const IMPLEMENTER_OUTSIDE = 'The implementer writes only inside the project folder of the running implement step. Do not try another path.';
+const IMPLEMENTER_PROTECTED =
+  "The implementer does not write in .briefstack/ or in .claude/settings*.json: briefstack's own files and Claude Code's settings (hooks there would run later) stay as the creation made them.";
+
+/** `.briefstack/…` or `.claude/settings*.json` anywhere in the path, ignoring case and the dots and spaces Windows drops. */
+export function protectedProjectFile(value: string): boolean {
+  const segments = value.split(/[\\/]+/).map((segment) => segment.toLowerCase().replace(/[. ]+$/, ''));
+  return segments.some((segment, index) => segment === '.briefstack' || (segment === '.claude' && /^settings.*\.json$/.test(segments[index + 1] ?? '')));
+}
+
 const IMPLEMENTER_NO_SHELL =
   'The implementer has no shell: its commands would run in the briefstack repo, not the project. Run an approved command with ' +
   'run_command, exactly as listed; any other command is denied. Nobody is asked.';
@@ -239,6 +249,11 @@ export interface GuardContext {
    * on every implementer call; the callback guard counts the call too.
    */
   implementerStop?(): string | undefined;
+  /**
+   * Phase 10 (review of M2, m1): the project folder of the running implement
+   * step; the implementer writes only inside it. `undefined`: nowhere.
+   */
+  implementerFolder?(): string | undefined;
   pathEnv?: PathEnv;
 }
 
@@ -588,6 +603,12 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
     if (await touchesGitDir(target, pathEnv)) return deny(GIT_MESSAGE, target);
     const librarySkill = await libraryNamedSkillWrite(target, ctx.libraryDir, pathEnv);
     if (librarySkill !== undefined) return deny(libraryNamedSkillMessage(librarySkill), target);
+    if (caller === 'implementer') {
+      // Only inside the project of the running step, never its briefstack files or Claude Code settings (hooks there would run later).
+      const folder = ctx.implementerFolder?.();
+      if (folder === undefined || !(await insideAny(target, [folder], pathEnv))) return deny(IMPLEMENTER_OUTSIDE, target);
+      if (protectedProjectFile(target)) return deny(IMPLEMENTER_PROTECTED, target);
+    }
     if (await insideAny(target, roots(), pathEnv)) return { verdict: 'allow', reason: 'inside an allowed folder' };
     return deny(
       `Writes are only allowed inside the projects folder, this creation's session folder and folders the user granted for it.${grantHint(caller)}`,

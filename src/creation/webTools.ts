@@ -96,8 +96,10 @@ export function createWebToolsServer(deps: WebToolsDeps): McpSdkServerConfigWith
   return createSdkMcpServer({
     name: WEB_SERVER_NAME,
     version: '1.0.0',
-    // No timeout of ours: the SDK's default is unbounded, and approve_spec waits for the user as long as they need.
-    // The implement step's commands and checks end by their own deadlines (implement.ts).
+    // Our own limit, not MCP_TOOL_TIMEOUT from the user's environment, which could cut a listed command (an install) in
+    // the middle while it keeps writing (review of M2, I2). A day: approve_spec still waits for the user as long as they
+    // need in practice; the implement step's commands and checks end by their own 10-minute deadlines.
+    timeout: WEB_TOOLS_TIMEOUT_MS,
     tools: [
       tool(
         'approve_spec',
@@ -117,6 +119,9 @@ export function createWebToolsServer(deps: WebToolsDeps): McpSdkServerConfigWith
     ],
   });
 }
+
+/** The `briefstack-web` server's own tool-call limit (review of M2, I2). */
+export const WEB_TOOLS_TIMEOUT_MS = 24 * 60 * 60_000;
 
 const asReply = (result: ImplementReply): ToolReply => reply(result.text, result.isError);
 const unavailable = (): ToolReply => reply('The implement step is not available in this session. Skip it and go on to learn.', true);

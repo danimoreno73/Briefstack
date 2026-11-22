@@ -30,7 +30,8 @@ import { FolderClaims } from './folderClaims.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { startIssueText, type StartIssue } from '../builds/commands.js';
 import { PROJECT_COMMIT_MESSAGE } from '../scaffold/commit.js';
-import { ImplementStep, type ImplementView } from './implement.js';
+import { ImplementStep, type ImplementView, type UsageGate } from './implement.js';
+import { DEFAULT_IMPLEMENT_MINUTES, DEFAULT_IMPLEMENT_TOOL_CALLS } from '../config/limits.js';
 import type { ImplementSystem } from './implementSystem.js';
 import { RUN_COMMAND_TOOL, IMPLEMENTER_AGENT } from './toolNames.js';
 import { DEFAULT_FIX_PASSES, MAX_CODE_CHECKS, MAX_CODE_COMMANDS, MAX_FIX_PASSES, codeChoiceIssues, codeChoiceSchema, hasCodeIssues, specOffersCode, type CodeChoice, type SpecCodeView } from './code.js';
@@ -250,6 +251,10 @@ export interface CreationManagerOptions {
    * the flow is never told to run a step nobody can run).
    */
   implement?: ImplementSystem;
+  /** The implement step's bounds (Settings), read when it starts. Default 30 minutes and 150 tool calls. */
+  implementBounds?: () => Promise<{ maxMinutes: number; maxToolCalls: number }>;
+  /** The plan-usage reading before the implement step; without it, it always starts. */
+  implementUsage?: () => Promise<UsageGate>;
   /**
    * How long `shutdown()` waits for the runners to stop and the streams to
    * close. After it, what is left is marked interrupted and its stream closed
@@ -648,6 +653,9 @@ export class CreationManager {
         isProject: (dir) => system.isProject(dir),
         commit: (dir, message) => system.commit(dir, message),
         run: (dir, command, signal) => system.run(dir, command, signal),
+        checks: (dir, commands, signal) => system.checks(dir, commands, signal),
+        bounds: async () => (await this.options.implementBounds?.().catch(() => undefined)) ?? { maxMinutes: DEFAULT_IMPLEMENT_MINUTES, maxToolCalls: DEFAULT_IMPLEMENT_TOOL_CALLS },
+        ...(this.options.implementUsage === undefined ? {} : { usage: this.options.implementUsage }),
         changed: (view) => {
           // Once it started, the choice is fixed (the brief: "unchanged after approval").
           if (view.state !== 'notStarted') c.codeFixed = true;
@@ -672,7 +680,9 @@ export class CreationManager {
       start: (dir) => this.implementStep(c, system).start(dir),
       runCommand: (command) => this.implementStep(c, system).runCommand(command),
       finish: () => this.implementStep(c, system).finish(),
-      implementerCall: () => (c.implement?.running === true ? undefined : 'The implement step is not running, so the implementer may do nothing. Stop now and report.'),
+      // `undefined` from the step means "go on": not a missing step.
+      projectFolder: () => c.implement?.projectFolder,
+      implementerCall: () => (c.implement === undefined ? 'The implement step is not running, so the implementer may do nothing. Stop now and report.' : c.implement.implementerCall()),
     };
   }
 
@@ -784,6 +794,8 @@ export class CreationManager {
     if (this.isFinished(c) || c.state.cancelling) return this.snapshot(c);
     c.state.cancelling = true;
     delete c.state.awaitingReply;
+    // A listed command or a check of the implement step ends now (review of M2, m5).
+    c.implement?.stop();
     this.settleAll(c);
     this.pushStatus(c);
     c.handle?.requestCancel();

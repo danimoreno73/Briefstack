@@ -1,4 +1,6 @@
-import { maxActiveCreationsOf, permissionPolicyOf, type PathEnv } from '../config/index.js';
+import { buildUsageReader, decideUsage, type UsageReading } from '../builds/usage.js';
+import { implementBoundsOf, maxActiveCreationsOf, permissionPolicyOf, usageWarningOf, type PathEnv } from '../config/index.js';
+import type { UsageGate } from './implement.js';
 import type { Lang } from '../i18n/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import { loadUsageContext, resolveActiveProfile } from '../usage/index.js';
@@ -23,6 +25,20 @@ export interface WebCreationOptions {
   codexForCreations?: (() => Promise<boolean>) | undefined;
   /** The implement step's system (phase 10); the real one by default. */
   implement?: ImplementSystem | undefined;
+}
+
+/**
+ * The implement step's usage gate (phase 10): builds' reading and decision
+ * (`decideUsage`), against the user's thresholds. A login without plan
+ * limits starts; a failed reading does not (a creation has no pause).
+ */
+export function implementUsageGate(deps: { read: () => Promise<UsageReading>; thresholds: () => Promise<{ fiveHour: number; week: number }>; now?: () => Date }): () => Promise<UsageGate> {
+  return async () => {
+    const reading = await deps.read();
+    const decision = decideUsage(reading, await deps.thresholds(), (deps.now ?? (() => new Date()))());
+    if (decision.go) return { go: true };
+    return { go: false, reason: decision.reason, ...(decision.fiveHour === undefined ? {} : { fiveHour: decision.fiveHour }), ...(decision.sevenDay === undefined ? {} : { sevenDay: decision.sevenDay }) };
+  };
 }
 
 /** The session model and effort of the active usage profile, read when a creation starts. */
@@ -67,6 +83,10 @@ export async function createWebCreations(options: WebCreationOptions): Promise<C
     ...(options.codexForCreations === undefined ? {} : { codexForCreations: options.codexForCreations }),
     // Phase 10: the implement step's system; with it the spec page offers code for a software spec.
     implement: options.implement ?? realImplementSystem(),
+    implementBounds: async () => implementBoundsOf((await read()).config),
+    // The plan reading before the step, against the user's warning thresholds (decisions.md, "Decisiones sin Dani (fase 10)").
+    // Only with the real runner, as the creation's own readings: the fake one has no plan to read.
+    ...(options.runner === undefined ? { implementUsage: implementUsageGate({ read: buildUsageReader({ pathEnv, repoDir }), thresholds: async () => usageWarningOf((await read()).config) }) } : {}),
     // Only with the real runner: the fake one has no plan to read.
     ...(options.runner === undefined ? { planUsage: planUsageReader({ pathEnv, repoDir }) } : {}),
   });

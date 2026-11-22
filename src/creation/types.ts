@@ -138,6 +138,8 @@ export interface ImplementPort {
    * says why it may do nothing more, or `undefined`.
    */
   implementerCall(): string | undefined;
+  /** The project folder of the running step, where the implementer may write; `undefined` when it is not running. */
+  projectFolder(): string | undefined;
 }
 
 export type ClaimResult = { ok: true } | { ok: false; holder: string };
