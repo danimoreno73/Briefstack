@@ -7094,11 +7094,16 @@ reviews of M1 to M6 and of step 32.
   checks unless the body says `noChecks: true` (`build.invalidStart`,
   item `noChecks`). The conservative reading: an explicit field, not a
   default.
-- **A cancel kept on disk** (review of M4): the cancel saves
-  `cancelAsked` in the record at once, and every later save of a running
-  or paused record keeps it (the loop's saves read the record before the
-  cancel came, so `save()` adds it from the live flag). `recover()` and a
-  loop that fails during a cancel leave the build `cancelled`.
+- **A cancel kept on disk** (review of M4): the cancel writes
+  `<home>/builds/<id>/cancel-asked` at once; `recover()` and a loop that
+  fails during a cancel leave a running or paused build with that file
+  `cancelled`; recording the cancel, or the user's Resume, removes it. The
+  first version kept it as `cancelAsked` in `build.json`, written by the
+  cancel itself: the review of part B (I1) found that this write, outside
+  the loop's own order, could put an older record over the one where the
+  loop had just applied a task, leaving a commit on the branch the record
+  did not know (the build could then never be applied). A file of its own
+  never touches the record.
 - **The integration branch checked out by hand** (review of M1): before
   `update-ref` moves (landing a task) or removes (discard) the branch,
   `git worktree list --porcelain` is read; a worktree with
@@ -7123,7 +7128,7 @@ reviews of M1 to M6 and of step 32.
   first 50 (`MAX_DENIED_KEPT`) and counts the rest in `deniedOmitted`; the
   page says "and N more".
 - **The build page** (reviews of M3, M5, M6): it kept polling a build
-  paused for usage already (M6 fixes); it now shows the `error` of an
+  paused for usage already (M5, `a28d655`); it now shows the `error` of an
   interrupted build, reads the build and its diff again after a refused
   action, and a change already on the default branch is
   `build.alreadyOnBranch`, not `build.nothingToApply`.

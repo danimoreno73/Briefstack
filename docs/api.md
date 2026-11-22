@@ -945,7 +945,8 @@ the next task starts without reading the plan usage. Cancel: a `running`
 build ends the round or checks at work (process tree included) and
 becomes `cancelled` once its loop stopped; a `paused` or `interrupted`
 build is cancelled at once. The integration branch stays. A cancel asked
-is kept in the record (`cancelAsked`) until the loop records it: a server
+is kept in a file of the build's own (`<home>/builds/<id>/cancel-asked`,
+not in the record) until the loop records it: a server
 stop meanwhile leaves the build `cancelled` after the restart, not
 `interrupted` (phase 9 step 33). Otherwise `409 build.wrongState`.
 
@@ -959,8 +960,9 @@ checked out (phase 9 step 33).
 `{ diff, head? }`: the whole change on the integration branch since the
 start, as a task's proposal diff (`{ files, more }`), and `head`, the
 integration commit it shows (the page sends it back to apply); or the
-applied commit's change once applied; `diff: null` before the start or
-once discarded.
+applied commit's change once applied (also once an applied build is
+discarded); `diff: null` before the start, or once a build that was never
+applied is discarded.
 
 ### `POST /api/builds/:id/apply`
 

@@ -1015,10 +1015,10 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   would close it. Review of M3.
 - **Done (step 33: 50 kept, `deniedOmitted`).** A build task's `denied` list grows without a cap in
   `build.json`. Review of M3.
-- **Done (fixes of M6; checked in step 33).** The build page polls only while `planning` or
+- **Done (in M5, `a28d655`; checked in step 33).** The build page polls only while `planning` or
   `running`: a build paused for usage does not refresh when it resumes by
   itself. Review of M3.
-- **Done (step 33: `cancelAsked`).** A cancel followed at once by a server stop is not
+- **Done (step 33: a `cancel-asked` file).** A cancel followed at once by a server stop is not
   recorded: the build stays `running`, `recover()` makes it `interrupted`,
   and the user could resume a build they cancelled; likewise when the loop
   fails during a cancel. Keeping "cancel asked" in the record would close
@@ -1102,6 +1102,14 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   `node --test` or `scripts/check.js` in every process of the machine, so
   another project of the user's running one would give a false FAIL.
   Review of step 33, part A.
+- **Pending: minor.** No UI test of the error of an interrupted build, of
+  the "and N more" line of denied commands, nor of Revert on a discarded
+  build; no test that a late usage reading never lands in a new round.
+  Reverting a discarded build does not check whether another build holds
+  the project now (its `busy` looks at active tasks only). Review of step
+  33, part B.
+- **Noted.** Commit `5c6133b` holds the ten items of part B and the fixes
+  of part A's review together. Review of step 33, part B.
 - **Noted.** Commit `8e02689` holds the user's decisions 1 and 2 together,
   and `1cf5846` the docs of part A with the minors of part D's review.
   Review of step 33, part A.
