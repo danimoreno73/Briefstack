@@ -1321,7 +1321,7 @@ export const uiMessages = defineCatalogue({
     suggestionDiscardBody: 'It is not shown again.',
     settingsUsageWarnTitle: 'Plan-usage warning',
     settingsUsageWarnHelp:
-      'Before a creation or an improvement starts, briefstack shows the plan usage when it is at or above these values. It never blocks them; only the step that writes a first version of the code does not start at or above them.',
+      'Before a creation or an improvement starts, briefstack shows the plan usage when it is at or above these values. It never blocks them; only the step that writes a first version of the code does not start at or above them, or when the usage cannot be read. To let that step run with more usage, raise these values.',
     settingsImplementTitle: 'First version of the code (creations)',
     settingsImplementMinutes: 'Most minutes',
     settingsImplementToolCalls: 'Most tool calls of the implementer',
@@ -2622,7 +2622,7 @@ export const uiMessages = defineCatalogue({
     suggestionDiscardBody: 'No se vuelve a mostrar.',
     settingsUsageWarnTitle: 'Aviso de uso del plan',
     settingsUsageWarnHelp:
-      'Antes de que empiece una creación o una mejora, briefstack muestra el uso del plan cuando está en estos valores o por encima. No las bloquea; solo el paso que escribe una primera versión del código no empieza en estos valores o por encima.',
+      'Antes de que empiece una creación o una mejora, briefstack muestra el uso del plan cuando está en estos valores o por encima. No las bloquea; solo el paso que escribe una primera versión del código no empieza en estos valores o por encima, ni cuando no se puede leer el uso. Para que ese paso funcione con más uso, sube estos valores.',
     settingsImplementTitle: 'Primera versión del código (creaciones)',
     settingsImplementMinutes: 'Minutos como mucho',
     settingsImplementToolCalls: 'Llamadas a herramientas del implementador como mucho',

@@ -233,6 +233,14 @@ test.describe('the implement step limits in Settings (M3)', () => {
     await expect.poll(async () => JSON.parse(await readFile(path.join(app.home, 'config.json'), 'utf8')).implementMaxMinutes).toBe(45);
     await page.reload();
     await expect(page.getByTestId('settings-implement').getByLabel('Most minutes')).toHaveValue('45');
+    // Out of range: the form refuses it (min 20), nothing is saved; the server refuses it too (unit tests).
+    const calls = page.getByTestId('settings-implement').getByLabel('Most tool calls of the implementer');
+    await calls.fill('5');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    expect(await calls.evaluate((element) => (element as HTMLInputElement).validity.valid)).toBe(false);
+    const config = JSON.parse(await readFile(path.join(app.home, 'config.json'), 'utf8')) as Record<string, unknown>;
+    expect(config.implementMaxMinutes).toBe(45);
+    expect(config.implementMaxToolCalls).toBeUndefined();
   });
 });
 
