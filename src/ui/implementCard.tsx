@@ -22,6 +22,8 @@ export function ImplementCard({ state }: { state: CreationState }) {
   // Code chosen but the step never started, or was refused: say so (review of M2, m6).
   if (step === undefined || step.state === 'notStarted') {
     if (state.status !== 'finished' && step === undefined) return null;
+    // A creation cancelled or failed before the step: nothing to say about the code (review of M5, m7).
+    if (step === undefined && state.outcome !== 'completed') return null;
     return (
       <section class="card" data-testid="implement" data-state="notStarted" aria-labelledby="implement-title">
         <h2 class="t-2" id="implement-title">
@@ -57,6 +59,11 @@ export function ImplementCard({ state }: { state: CreationState }) {
         </Note>
       )}
       {step.codexUnavailable === true && <Note tone="warn">{t.implementCodexUnavailable}</Note>}
+      {step.revertFailed === true && (
+        <Note tone="danger" testId="implement-revert-failed">
+          {t.implementRevertFailed}
+        </Note>
+      )}
       {(step.protectedReverted ?? []).length > 0 && (
         <Note tone="danger" testId="implement-protected">
           {t.implementProtectedReverted((step.protectedReverted ?? []).join(', '))}

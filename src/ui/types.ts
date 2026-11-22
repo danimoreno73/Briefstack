@@ -305,6 +305,7 @@ export interface ImplementViewUi {
   codexUnavailable?: true;
   status?: string;
   protectedReverted?: string[];
+  revertFailed?: true;
   startedAt?: string;
   finishedAt?: string;
 }

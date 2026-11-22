@@ -1318,7 +1318,9 @@ export const uiMessages = defineCatalogue({
     implementLimit: (limit: 'time' | 'toolCalls') => (limit === 'time' ? 'The implementer stopped at the time limit.' : 'The implementer stopped at its limit of tool calls.'),
     implementCodexUnavailable: 'You ticked Codex, but it was not available when the step started, so it was not used.',
     implementProtectedReverted: (files: string) => `These files are briefstack’s or Claude Code’s settings and hooks; the changes made to them were put back as the workspace had them: ${files}.`,
-    implementCommitWarning: (code: string) => `A commit was not made (${code}). What was written stays in the folder.`,
+    implementCommitWarning: (code: string): string =>
+      `A commit was not made: ${({ gitUnavailable: 'git was not found', notAGitRepo: 'the folder is not a git repository', notABriefstackProject: 'the folder is no longer a briefstack project', gitFailed: 'git failed (for example, commit signing)', commitFailed: 'git failed' } as Record<string, string>)[code] ?? 'git failed'}. What was written stays in the folder.`,
+    implementRevertFailed: 'Protected files (briefstack’s, Claude Code’s settings or hooks) were changed and could not be put back, so the code was not committed. Read the folder before you open it with Claude Code.',
     implementWorkspaceCommit: 'Workspace commit',
     implementCodeCommit: 'Code commit',
     implementBounds: 'Limits',
@@ -2661,7 +2663,9 @@ export const uiMessages = defineCatalogue({
     implementLimit: (limit: 'time' | 'toolCalls') => (limit === 'time' ? 'El implementador paró en el límite de tiempo.' : 'El implementador paró en su límite de llamadas a herramientas.'),
     implementCodexUnavailable: 'Marcaste Codex, pero no estaba disponible cuando empezó el paso, así que no se usó.',
     implementProtectedReverted: (files: string) => `Estos ficheros son de briefstack o ajustes y hooks de Claude Code; los cambios que se les hicieron se devolvieron a como los tenía el espacio de trabajo: ${files}.`,
-    implementCommitWarning: (code: string) => `No se hizo un commit (${code}). Lo escrito sigue en la carpeta.`,
+    implementCommitWarning: (code: string): string =>
+      `No se hizo un commit: ${({ gitUnavailable: 'no se encontró git', notAGitRepo: 'la carpeta no es un repositorio git', notABriefstackProject: 'la carpeta ya no es un proyecto de briefstack', gitFailed: 'git falló (por ejemplo, al firmar el commit)', commitFailed: 'git falló' } as Record<string, string>)[code] ?? 'git falló'}. Lo escrito sigue en la carpeta.`,
+    implementRevertFailed: 'Se cambiaron ficheros protegidos (de briefstack, o ajustes y hooks de Claude Code) y no se pudieron devolver, así que no se hizo commit del código. Revisa la carpeta antes de abrirla con Claude Code.',
     implementWorkspaceCommit: 'Commit del espacio de trabajo',
     implementCodeCommit: 'Commit del código',
     implementBounds: 'Límites',
