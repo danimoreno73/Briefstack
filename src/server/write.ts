@@ -13,10 +13,12 @@ import {
   usageWarningOf,
   type PathEnv,
 } from '../config/index.js';
+import { setSessionArchived } from '../events/archived.js';
 import { LANGS, resolveLang, systemLocale, type Lang } from '../i18n/index.js';
 import { revertLibraryCommit, saveNote, setProjectArchived, setProjectsDir } from '../library/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
-import { usageSet } from '../usage/index.js';
+import { EFFORT_LEVELS } from '../models.js';
+import { baseProfilesFile, createUserPreset, FLOW_AGENTS, PROFILE_NAME_RE, usageSet } from '../usage/index.js';
 import { readJsonBody, sendJson } from './http.js';
 import type { RouteTable } from './router.js';
 
@@ -37,6 +39,16 @@ const noteBody = z.strictObject({
 const revertBody = z.strictObject({ sha: z.string().regex(/^[0-9a-fA-F]{4,64}$/) });
 const archiveBody = z.strictObject({ archived: z.boolean() });
 const usageBody = z.strictObject({ profile: z.string().min(1).max(80) });
+const agentChange = z.strictObject({ model: z.string().min(1).max(80), effort: z.enum(EFFORT_LEVELS).optional() });
+/** A user preset from another one (IDEAS §3; step 33); the schema check of the CLI runs on the result. */
+const presetBody = z.strictObject({
+  name: z.string().regex(PROFILE_NAME_RE).max(60),
+  base: z.string().min(1).max(80),
+  label: z.strictObject({ en: z.string().trim().min(1).max(80), es: z.string().trim().min(1).max(80) }),
+  sessionModel: z.string().min(1).max(80).optional(),
+  effort: z.enum(EFFORT_LEVELS).optional(),
+  agents: z.partialRecord(z.enum(FLOW_AGENTS), agentChange).optional(),
+});
 const settingsBody = z
   .strictObject({
     projectsDir: z.string().min(1).max(1024).optional(),
@@ -105,6 +117,15 @@ export function writeRoutes(context: WriteContext): RouteTable {
       },
     ],
     [
+      // Archive or restore an interrupted or cancelled creation: a choice in the home, nothing deleted (IDEAS §3; step 33).
+      'PUT /api/sessions/:id/archived',
+      async (req, res, params) => {
+        const { archived } = await readJsonBody(req, archiveBody);
+        const { paths } = await load();
+        sendJson(res, 200, await setSessionArchived({ home: paths.home, sessionsDir: paths.sessionsDir, id: params.id ?? '', archived }));
+      },
+    ],
+    [
       'POST /api/library/revert',
       async (req, res) => {
         const { sha } = await readJsonBody(req, revertBody);
@@ -118,6 +139,17 @@ export function writeRoutes(context: WriteContext): RouteTable {
         const { profile } = await readJsonBody(req, usageBody);
         const result = await usageSet({ pathEnv, repoDir, profile });
         sendJson(res, 200, { scope: result.scope, profile: result.profile, sessionModel: result.sessionModel });
+      },
+    ],
+    [
+      // A new user preset from another one: written to the user's usage-profiles.json only. No agent file is touched:
+      // `.claude/agents/*.md` change only through `briefstack usage set` (PUT /api/usage), when the user chooses it.
+      'POST /api/usage/presets',
+      async (req, res) => {
+        const body = await readJsonBody(req, presetBody);
+        const { paths } = await load();
+        const created = await createUserPreset({ baseFile: baseProfilesFile(), userFile: paths.userProfilesFile }, body);
+        sendJson(res, 201, { name: created.name });
       },
     ],
     [

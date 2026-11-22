@@ -167,6 +167,24 @@ test.describe('before the server has said where the creation stands', () => {
   });
 });
 
+test.describe('archived unfinished creations (step 33)', () => {
+  test('archiving hides a cancelled creation; the filter shows it again and Restore brings it back', async ({ page, app }) => {
+    await page.goto(app.url);
+    const unfinished = page.getByTestId('unfinished');
+    const card = () => page.getByTestId('unfinished').getByRole('listitem').filter({ hasText: SESSION_CANCELLED });
+    await expect(card()).toHaveCount(1);
+    await card().getByTestId('session-archive').click();
+    await expect(card()).toHaveCount(0);
+    await expect(unfinished.getByRole('listitem').filter({ hasText: SESSION_INTERRUPTED })).toHaveCount(1);
+    await page.getByTestId('show-archived-sessions').check();
+    await expect(card()).toContainText('Archived');
+    await card().getByTestId('session-archive').click();
+    await expect(page.getByTestId('show-archived-sessions')).toHaveCount(0);
+    await expect(card()).toHaveCount(1);
+    await expect(card()).not.toContainText('Archived');
+  });
+});
+
 test.describe('finished sessions', () => {
   test('a cancelled and an interrupted session open their panel from the projects page', async ({ page, app }) => {
     await page.goto(app.url);

@@ -38,6 +38,8 @@ export interface ErrorParams {
   'usage.profilesNotFound': { file: string };
   'usage.invalidProfiles': { file: string; issues: string[] };
   'usage.unknownProfile': { profile: string; available: string[] };
+  /** A preset of that name exists already, base or user (step 33). */
+  'usage.presetExists': { name: string };
   'usage.notABriefstackProject': { dir: string };
   'usage.invalidProjectProfile': { file: string; issues: string[] };
   'validate.projectNotFound': { dir: string };
@@ -63,6 +65,10 @@ export interface ErrorParams {
   'library.noteChanged': { file: string };
   'events.invalidSession': { session: string };
   'events.sessionNotFound': { session: string };
+  /** Only an interrupted or cancelled creation can be archived (step 33). */
+  'sessions.notUnfinished': { session: string };
+  /** `<home>/archived-sessions.json` does not read back: it is not overwritten (step 33). */
+  'sessions.archiveUnreadable': { file: string };
   'web.invalidPort': { value: string };
   'web.portInUse': { port: number };
   'web.uiNotBuilt': { dir: string };

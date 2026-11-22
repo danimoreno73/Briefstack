@@ -10,6 +10,9 @@ import { cleanEnvironment } from './sdkRunner.js';
 export interface PlanUsage {
   fiveHour: number | null;
   sevenDay: number | null;
+  /** Each window's reset time when the reading gives one (step 33: the Usage page's week note). */
+  fiveHourResetsAt?: string;
+  sevenDayResetsAt?: string;
 }
 
 export interface PlanUsageOptions {
@@ -40,9 +43,13 @@ export async function readPlanUsage(options: PlanUsageOptions): Promise<PlanUsag
     });
     const usage = await q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true });
     if (!usage.rate_limits_available || usage.rate_limits === null) return 'plan limits are not available for this login';
+    const five = usage.rate_limits.five_hour;
+    const seven = usage.rate_limits.seven_day;
     return {
-      fiveHour: usage.rate_limits.five_hour?.utilization ?? null,
-      sevenDay: usage.rate_limits.seven_day?.utilization ?? null,
+      fiveHour: five?.utilization ?? null,
+      sevenDay: seven?.utilization ?? null,
+      ...(typeof five?.resets_at === 'string' ? { fiveHourResetsAt: five.resets_at } : {}),
+      ...(typeof seven?.resets_at === 'string' ? { sevenDayResetsAt: seven.resets_at } : {}),
     };
   } catch (error) {
     return `could not read the usage: ${error instanceof Error ? error.message : String(error)}`;
@@ -72,7 +79,10 @@ export async function readLastPlanUsage(home: string): Promise<LastPlanUsage | u
   const record = (typeof data === 'object' && data !== null ? data : {}) as Record<string, unknown>;
   const { fiveHour, sevenDay, at } = record;
   if (!percentOrNull(fiveHour) || !percentOrNull(sevenDay) || typeof at !== 'string' || Number.isNaN(Date.parse(at))) return undefined;
-  return { fiveHour, sevenDay, at };
+  const time = (value: unknown): string | undefined => (typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : undefined);
+  const fiveHourResetsAt = time(record.fiveHourResetsAt);
+  const sevenDayResetsAt = time(record.sevenDayResetsAt);
+  return { fiveHour, sevenDay, at, ...(fiveHourResetsAt === undefined ? {} : { fiveHourResetsAt }), ...(sevenDayResetsAt === undefined ? {} : { sevenDayResetsAt }) };
 }
 
 /** Saves a reading (a whole file written aside, then renamed). A failure is ignored: it only costs the page its figures. */
@@ -81,7 +91,8 @@ export async function saveLastPlanUsage(home: string, usage: PlanUsage, at: Date
   const temp = `${file}.${randomUUID()}.tmp`;
   try {
     await mkdir(home, { recursive: true });
-    await writeFile(temp, `${JSON.stringify({ v: 1, fiveHour: usage.fiveHour, sevenDay: usage.sevenDay, at: at.toISOString() })}\n`, 'utf8');
+    const resets = { ...(usage.fiveHourResetsAt === undefined ? {} : { fiveHourResetsAt: usage.fiveHourResetsAt }), ...(usage.sevenDayResetsAt === undefined ? {} : { sevenDayResetsAt: usage.sevenDayResetsAt }) };
+    await writeFile(temp, `${JSON.stringify({ v: 1, fiveHour: usage.fiveHour, sevenDay: usage.sevenDay, ...resets, at: at.toISOString() })}\n`, 'utf8');
     await rename(temp, file);
   } catch {
     await rm(temp, { force: true }).catch(() => undefined);

@@ -134,6 +134,12 @@ export function describeError(error: unknown, t: Messages): string {
         typeof error.params.sevenDay === 'number' ? error.params.sevenDay : null,
         Number(error.params.warnWeek),
       );
+    case 'usage.presetExists':
+      return t.errPresetExists;
+    case 'sessions.notUnfinished':
+      return t.errSessionNotUnfinished;
+    case 'sessions.archiveUnreadable':
+      return t.errArchiveUnreadable;
     case 'build.invalidStart': {
       // Each problem in the user's language, from its code and numbers (step 33); the server's English is never shown.
       const items = (Array.isArray(error.params.items) ? error.params.items : []).map(startIssueFacts).filter((item): item is StartIssueFacts => item !== undefined);

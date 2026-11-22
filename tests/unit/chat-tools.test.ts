@@ -20,6 +20,8 @@ import {
 } from '../../src/chat/tools.js';
 import { readConfig } from '../../src/config/index.js';
 import { BriefstackError } from '../../src/errors.js';
+import { setSessionArchived } from '../../src/events/archived.js';
+import { appendEvent, sessionLifecycleEvent } from '../../src/events/index.js';
 import { addNote } from '../../src/library/index.js';
 import { FAKE_KEY, INJECTED, SESSION, chatWorld, type ChatWorld } from '../chatWorld.js';
 import { useHermeticGit } from '../helpers.js';
@@ -172,6 +174,16 @@ describe('the tools', () => {
     expect(panel.data).toMatchObject({ session: { status: 'finished', outcome: 'completed' }, agents: [expect.objectContaining({ agent: 'main', status: 'done' })] });
     expect(panel.sources).toEqual([{ kind: 'session', ref: SESSION }]);
     await expect(read('session_panel', { sessionId: '../x' })).rejects.toBeInstanceOf(BriefstackError);
+  });
+
+  it('list_sessions still lists an archived creation, marked (step 33)', async () => {
+    const sessionsDir = world.sessionsDir;
+    await appendEvent(sessionsDir, sessionLifecycleEvent('sess-arch', 'started', undefined, new Date('2026-11-01T08:00:00Z')));
+    await appendEvent(sessionsDir, sessionLifecycleEvent('sess-arch', 'finished', 'cancelled', new Date('2026-11-01T08:05:00Z')));
+    await setSessionArchived({ home: world.home, sessionsDir, id: 'sess-arch', archived: true, now: new Date('2026-11-02T00:00:00Z') });
+    const listed = (await read('list_sessions')).data as { sessions: { id: string; archived?: string }[] };
+    expect(listed.sessions.find((session) => session.id === 'sess-arch')).toMatchObject({ archived: '2026-11-02T00:00:00.000Z' });
+    expect(listed.sessions.find((session) => session.id === SESSION)?.archived).toBeUndefined();
   });
 
   it('list_sessions and session_panel give the step as the panel words it (stepText)', async () => {

@@ -152,6 +152,7 @@ const errors = defineCatalogue<ErrorMessages>({
     'usage.invalidProfiles': (p) => `Usage profiles file ${p.file} is not valid:${bullets(p.issues)}`,
     'usage.unknownProfile': (p) =>
       `Unknown usage profile "${p.profile}". Available: ${p.available.join(', ')}.`,
+    'usage.presetExists': (p) => `A usage preset named "${p.name}" exists already. Choose another name.`,
     'usage.notABriefstackProject': (p) =>
       `${p.dir} was not created by briefstack (no .briefstack/profile.json); refusing to change it.`,
     'usage.invalidProjectProfile': (p) => `Project profile ${p.file} is not valid:${bullets(p.issues)}`,
@@ -190,6 +191,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'events.invalidSession': (p) =>
       `"${p.session}" is not a valid session id (letters, digits, ".", "_" and "-" only).`,
     'events.sessionNotFound': (p) => `No creation session "${p.session}" (it has no events.jsonl).`,
+    'sessions.notUnfinished': (p) => `Creation ${p.session} is not interrupted or cancelled: only an unfinished creation can be archived.`,
+    'sessions.archiveUnreadable': (p) => `${p.file} in the briefstack home does not read back, so it is not overwritten. Fix or remove it.`,
     'web.invalidPort': (p) => `"${p.value}" is not a valid port (a whole number from 0 to 65535).`,
     'web.portInUse': (p) =>
       `Port ${p.port} is already in use. Run again with --port 0 to use any free port.`,
@@ -379,6 +382,7 @@ const errors = defineCatalogue<ErrorMessages>({
       `El archivo de perfiles de uso ${p.file} no es válido:${bullets(p.issues)}`,
     'usage.unknownProfile': (p) =>
       `Perfil de uso desconocido "${p.profile}". Disponibles: ${p.available.join(', ')}.`,
+    'usage.presetExists': (p) => `Ya hay un preset de uso llamado "${p.name}". Elige otro nombre.`,
     'usage.notABriefstackProject': (p) =>
       `${p.dir} no lo creó briefstack (no tiene .briefstack/profile.json); no se modifica.`,
     'usage.invalidProjectProfile': (p) =>
@@ -418,6 +422,8 @@ const errors = defineCatalogue<ErrorMessages>({
     'events.invalidSession': (p) =>
       `"${p.session}" no es un id de sesión válido (solo letras, dígitos, ".", "_" y "-").`,
     'events.sessionNotFound': (p) => `No hay ninguna sesión de creación "${p.session}" (no tiene events.jsonl).`,
+    'sessions.notUnfinished': (p) => `La creación ${p.session} no está interrumpida ni cancelada: solo se puede archivar una creación sin terminar.`,
+    'sessions.archiveUnreadable': (p) => `${p.file}, en la carpeta de briefstack, no se puede leer, así que no se sobrescribe. Arréglalo o bórralo.`,
     'web.invalidPort': (p) => `"${p.value}" no es un puerto válido (un número entero de 0 a 65535).`,
     'web.portInUse': (p) =>
       `El puerto ${p.port} ya está en uso. Vuelve a ejecutarlo con --port 0 para usar cualquier puerto libre.`,

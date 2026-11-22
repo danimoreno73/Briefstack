@@ -290,9 +290,16 @@ describe('read API', () => {
     expect((await json<Last>('/api/usage')).lastPlanUsage).toBeNull();
     await saveLastPlanUsage(home, { fiveHour: 42, sevenDay: null }, new Date('2026-10-25T09:30:00Z'));
     expect((await json<Last>('/api/usage')).lastPlanUsage).toEqual({ fiveHour: 42, sevenDay: null, at: '2026-10-25T09:30:00.000Z' });
+    // The reset times are kept when the reading gave them (step 33: the week's note); an unreadable one is dropped.
+    await saveLastPlanUsage(home, { fiveHour: 10, sevenDay: 63, sevenDayResetsAt: '2026-10-27T00:00:00Z' }, new Date('2026-10-25T09:30:00Z'));
+    expect((await json<Last>('/api/usage')).lastPlanUsage).toEqual({ fiveHour: 10, sevenDay: 63, sevenDayResetsAt: '2026-10-27T00:00:00Z', at: '2026-10-25T09:30:00.000Z' });
+    await writeTree(home, { 'plan-usage.json': '{"fiveHour":1,"sevenDay":2,"at":"2026-10-25T09:30:00Z","sevenDayResetsAt":"soon"}' });
+    expect((await json<Last>('/api/usage')).lastPlanUsage).toEqual({ fiveHour: 1, sevenDay: 2, at: '2026-10-25T09:30:00Z' });
     // A file that does not read back is no figure at all.
     await writeTree(home, { 'plan-usage.json': '{"fiveHour":"lots"}' });
     expect((await json<Last>('/api/usage')).lastPlanUsage).toBeNull();
+    // Without the managers (this server has none), what runs is said as nothing.
+    expect((await json<{ activity: unknown }>('/api/usage')).activity).toEqual({ creations: 0, builds: 0 });
   });
 
   it('reports paths and settings from the config', async () => {

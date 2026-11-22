@@ -95,7 +95,10 @@ export function buildUsageReader(options: { pathEnv: PathEnv; repoDir: string })
     if (executable === undefined) return { kind: 'failed', message: 'Claude Code was not found.' };
     const { env } = cleanEnvironment(pathEnv.env, home);
     const reading = await readBuildUsage({ cwd: repoDir, executable, env });
-    if (reading.kind === 'ok') await saveLastPlanUsage(home, { fiveHour: reading.fiveHour, sevenDay: reading.sevenDay }, new Date());
+    if (reading.kind === 'ok') {
+      const resets = { ...(reading.fiveHourResetsAt === undefined ? {} : { fiveHourResetsAt: reading.fiveHourResetsAt }), ...(reading.sevenDayResetsAt === undefined ? {} : { sevenDayResetsAt: reading.sevenDayResetsAt }) };
+      await saveLastPlanUsage(home, { fiveHour: reading.fiveHour, sevenDay: reading.sevenDay, ...resets }, new Date());
+    }
     return reading;
   };
 }

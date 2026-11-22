@@ -268,6 +268,15 @@ export const uiMessages = defineCatalogue({
     copyCommand: 'Copy commands',
     unfinishedTitle: 'Interrupted and cancelled creations',
     unfinishedEmpty: 'None.',
+    exportCsv: 'Export CSV',
+    csvHeaders: { name: 'Name', slug: 'Slug', target: 'Target', status: 'Status', profile: 'Profile', created: 'Created', updated: 'Updated', archived: 'Archived' },
+    sessionArchive: 'Archive',
+    sessionRestore: 'Restore',
+    showArchivedSessions: (n: number) => `Show archived (${n})`,
+    sessionArchivedChip: 'Archived',
+    sessionArchiveHint: 'Archiving only hides it here: nothing is deleted, and it can be restored.',
+    errSessionNotUnfinished: 'Only an interrupted or cancelled creation can be archived.',
+    errArchiveUnreadable: 'The file of archived creations in the briefstack folder does not read back, so it was not changed. Fix or remove archived-sessions.json.',
     ideaNotRecorded: 'Idea not recorded',
     lastStep: (step: string | undefined) => (step === undefined ? 'before the first step' : `last step: ${step}`),
     outcome: (value: string | undefined): string => {
@@ -664,6 +673,25 @@ export const uiMessages = defineCatalogue({
     openUsageHint: 'To see your real consumption, type /usage in Claude Code.',
     usagePlanTitle: 'Plan usage',
     usagePlanLast: (when: string) => `Last known values, read ${when}.`,
+    errPresetExists: 'A preset with that name exists already. Choose another name.',
+    newPresetOpen: 'New preset based on…',
+    newPresetTitle: 'New preset',
+    newPresetHint: 'It starts as a copy of the preset you choose and is saved in your usage-profiles.json. Nothing else changes until you choose it above.',
+    newPresetBase: 'Based on',
+    newPresetName: 'Name (lowercase letters, digits and dashes)',
+    newPresetLabelEn: 'Label in English',
+    newPresetLabelEs: 'Label in Spanish',
+    newPresetAgent: 'Agent',
+    newPresetModel: 'Model',
+    newPresetEffort: 'Effort',
+    newPresetCreate: 'Create the preset',
+    newPresetCreated: (name: string) => `Preset ${name} created. Choose it above to use it.`,
+    usageWeekNote: (week: number, resetDay: string | undefined, creations: number, builds: number): string => {
+      const reset = resetDay === undefined ? 'its reset day is not known yet' : `it resets on ${resetDay}`;
+      const parts = [creations > 0 ? `${creations} creation${creations === 1 ? '' : 's'}` : '', builds > 0 ? `${builds} build${builds === 1 ? '' : 's'}` : ''].filter((part) => part !== '');
+      const now = parts.length === 0 ? 'Nothing runs now.' : `Running now: ${parts.join(' and ')}; a higher profile with them could reach the limit sooner.`;
+      return `The week is at ${week}% (last reading); ${reset}. ${now}`;
+    },
     usagePlanNone: 'Not read yet. briefstack reads it while a creation runs, before one starts, and when the chat shows the usage.',
 
     settingsTitle: 'Settings',
@@ -1514,6 +1542,15 @@ export const uiMessages = defineCatalogue({
     copyCommand: 'Copiar comandos',
     unfinishedTitle: 'Creaciones interrumpidas y canceladas',
     unfinishedEmpty: 'Ninguna.',
+    exportCsv: 'Exportar CSV',
+    csvHeaders: { name: 'Nombre', slug: 'Identificador', target: 'Destino', status: 'Estado', profile: 'Perfil', created: 'Creado', updated: 'Actualizado', archived: 'Archivado' },
+    sessionArchive: 'Archivar',
+    sessionRestore: 'Restaurar',
+    showArchivedSessions: (n: number) => `Mostrar archivadas (${n})`,
+    sessionArchivedChip: 'Archivada',
+    sessionArchiveHint: 'Archivar solo la oculta aquí: no se borra nada y se puede restaurar.',
+    errSessionNotUnfinished: 'Solo se puede archivar una creación interrumpida o cancelada.',
+    errArchiveUnreadable: 'El fichero de creaciones archivadas de la carpeta de briefstack no se puede leer, así que no se cambió. Arregla o borra archived-sessions.json.',
     ideaNotRecorded: 'Idea no guardada',
     lastStep: (step: string | undefined) => (step === undefined ? 'antes del primer paso' : `último paso: ${step}`),
     outcome: (value: string | undefined): string => {
@@ -1910,6 +1947,25 @@ export const uiMessages = defineCatalogue({
     openUsageHint: 'Para ver tu consumo real, escribe /usage en Claude Code.',
     usagePlanTitle: 'Uso del plan',
     usagePlanLast: (when: string) => `Últimos valores conocidos, leídos el ${when}.`,
+    errPresetExists: 'Ya hay un preset con ese nombre. Elige otro.',
+    newPresetOpen: 'Nuevo preset basado en…',
+    newPresetTitle: 'Nuevo preset',
+    newPresetHint: 'Empieza como copia del preset que elijas y se guarda en tu usage-profiles.json. No cambia nada más hasta que lo elijas arriba.',
+    newPresetBase: 'Basado en',
+    newPresetName: 'Nombre (minúsculas, dígitos y guiones)',
+    newPresetLabelEn: 'Etiqueta en inglés',
+    newPresetLabelEs: 'Etiqueta en español',
+    newPresetAgent: 'Agente',
+    newPresetModel: 'Modelo',
+    newPresetEffort: 'Esfuerzo',
+    newPresetCreate: 'Crear el preset',
+    newPresetCreated: (name: string) => `Preset ${name} creado. Elígelo arriba para usarlo.`,
+    usageWeekNote: (week: number, resetDay: string | undefined, creations: number, builds: number): string => {
+      const reset = resetDay === undefined ? 'aún no se sabe qué día se reinicia' : `se reinicia el ${resetDay}`;
+      const parts = [creations > 0 ? `${creations} ${creations === 1 ? 'creación' : 'creaciones'}` : '', builds > 0 ? `${builds} ${builds === 1 ? 'build' : 'builds'}` : ''].filter((part) => part !== '');
+      const now = parts.length === 0 ? 'Ahora no se ejecuta nada.' : `En marcha: ${parts.join(' y ')}; un perfil más alto con ellos podría llegar antes al límite.`;
+      return `La semana va por el ${week} % (última lectura); ${reset}. ${now}`;
+    },
     usagePlanNone: 'Aún no se ha leído. briefstack lo lee mientras corre una creación, antes de empezar una y cuando el chat muestra el uso.',
 
     settingsTitle: 'Ajustes',

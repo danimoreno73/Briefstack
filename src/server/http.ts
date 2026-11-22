@@ -38,6 +38,8 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'library.noteChanged': 409,
   'library.pathProtected': 409,
   'events.sessionNotFound': 404,
+  'sessions.notUnfinished': 409,
+  'sessions.archiveUnreadable': 409,
   'creation.unavailable': 503,
   'creation.limit': 409,
   'creation.notFound': 404,
@@ -142,6 +144,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'skills.outsideProjects': 403,
   'skills.wouldOverwrite': 409,
   'usage.high': 409,
+  'usage.presetExists': 409,
 };
 
 /** Error body of every `/api` route: `{ code, params, message }`, the message in the server's language. */

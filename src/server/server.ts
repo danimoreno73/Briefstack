@@ -103,7 +103,15 @@ function apiRoutes(options: WebServerOptions): RouteTable {
         sendJson(res, 200, await options.claudeStatus(refresh));
       },
     ],
-    ...readRoutes({ pathEnv, repoDir: options.repoDir, lang: options.lang }),
+    ...readRoutes({
+      pathEnv,
+      repoDir: options.repoDir,
+      lang: options.lang,
+      activity: async () => ({
+        creations: options.creations?.activeIds().length ?? 0,
+        builds: ((await options.builds?.list()) ?? []).filter((build) => build.state === 'running' || build.state === 'planning').length,
+      }),
+    }),
     ...writeRoutes({ pathEnv, repoDir: options.repoDir }),
     ...creationRoutes(options.creations, { ...(options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }), usage: options.usageCheck }),
     ...chatRoutes(options.chat, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),

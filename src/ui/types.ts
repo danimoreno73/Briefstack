@@ -35,6 +35,8 @@ export interface SessionSummary {
   endReason?: string;
   /** From the session's `idea.md`, redacted and cut; only in `GET /api/sessions`. */
   idea?: string;
+  /** When the user archived this unfinished creation (step 33); only in `GET /api/sessions`. */
+  archived?: string;
 }
 
 export interface TimelineStep {
@@ -89,6 +91,8 @@ export interface UsagePreset {
   effort: string;
   /** The model of each tier (`light`, `standard`, `heavy`). */
   tiers?: Record<string, string>;
+  /** Each flow agent's model and effort (step 33). */
+  agents?: Record<string, { model: string; effort: string } | null>;
 }
 
 export interface UsageView {
@@ -104,7 +108,9 @@ export interface UsageView {
   envWarnings: { field: string; variable: string; value: string }[];
   presets: UsagePreset[];
   /** The last plan usage the server read (percent, `null` when unknown), with when; `null` before the first reading. */
-  lastPlanUsage: { fiveHour: number | null; sevenDay: number | null; at: string } | null;
+  lastPlanUsage: { fiveHour: number | null; sevenDay: number | null; at: string; fiveHourResetsAt?: string; sevenDayResetsAt?: string } | null;
+  /** What runs now (step 33); `null` when the server cannot say. */
+  activity?: { creations: number; builds: number } | null;
 }
 
 export interface SettingsView {

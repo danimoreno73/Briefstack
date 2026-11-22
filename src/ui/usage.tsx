@@ -9,11 +9,21 @@ import type { UsagePreset, UsageView as UsageData } from './types.js';
 /** The models a preset uses, from its tiers, in the order they first appear. */
 const modelsOf = (preset: UsagePreset | undefined): string => (preset?.tiers === undefined ? (preset?.sessionModel ?? '') : [...new Set(Object.values(preset.tiers))].join(' · '));
 
+/** The weekday of an ISO time in the page's language and the browser's time zone, or `undefined` for a time that does not read. */
+export function weekdayOf(iso: string, lang: 'en' | 'es'): string | undefined {
+  const time = Date.parse(iso);
+  if (!Number.isFinite(time)) return undefined;
+  return new Intl.DateTimeFormat(lang === 'es' ? 'es-ES' : 'en-GB', { weekday: 'long' }).format(new Date(time));
+}
+
 /** The last plan usage the server read, with when; the page never reads it itself. Hidden with an API key or a cloud provider. */
-function LastPlanUsage({ last }: { last: UsageData['lastPlanUsage'] }) {
+function LastPlanUsage({ last, activity }: { last: UsageData['lastPlanUsage']; activity: UsageData['activity'] }) {
   const { t, lang } = useApp();
   const { status } = useClaudeStatus();
   const hidden = usageHiddenReason(t, status);
+  // The week's window (IDEAS §3; step 33): from the last reading the server saved, never a new one.
+  const resetDay = last?.sevenDayResetsAt === undefined ? undefined : weekdayOf(last.sevenDayResetsAt, lang);
+  const running = activity === undefined || activity === null ? undefined : activity;
   return (
     <section class="card" aria-labelledby="plan-usage-title" data-testid="last-plan-usage">
       <h2 class="t-2" id="plan-usage-title">
@@ -34,9 +44,139 @@ function LastPlanUsage({ last }: { last: UsageData['lastPlanUsage'] }) {
           <p class="t-small muted" data-testid="last-plan-usage-when">
             {t.usagePlanLast(formatWhen(last.at, lang))}
           </p>
+          {last.sevenDay !== null && (
+            <Note tone="plain" testId="usage-week-note">
+              {t.usageWeekNote(Math.round(last.sevenDay), resetDay, running?.creations ?? 0, running?.builds ?? 0)}
+            </Note>
+          )}
         </>
       )}
     </section>
+  );
+}
+
+const FLOW_AGENT_NAMES = ['interviewer', 'researcher', 'architect', 'generator', 'reviewer'] as const;
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+
+/**
+ * "New preset based on…" (IDEAS §3; step 33): a user preset from another
+ * one, with a name, its labels and each flow agent's model and effort. The
+ * server checks it with the CLI's schema and writes only the user's
+ * presets file; choosing it later is what rewrites the agent files.
+ */
+function NewPreset({ presets, onCreated }: { presets: UsagePreset[]; onCreated(name: string): void }) {
+  const { t, lang } = useApp();
+  const send = useSend();
+  const [open, setOpen] = useState(false);
+  const [base, setBase] = useState(presets.find((preset) => preset.name === 'balanced')?.name ?? presets[0]?.name ?? '');
+  const [name, setName] = useState('');
+  const [labelEn, setLabelEn] = useState('');
+  const [labelEs, setLabelEs] = useState('');
+  const [agents, setAgents] = useState<Record<string, { model: string; effort: string }>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(undefined);
+  const from = presets.find((preset) => preset.name === base);
+  const valueOf = (agent: string) => agents[agent] ?? from?.agents?.[agent] ?? { model: '', effort: from?.effort ?? 'medium' };
+  const change = (agent: string, part: Partial<{ model: string; effort: string }>) => setAgents((current) => ({ ...current, [agent]: { ...valueOf(agent), ...part } }));
+
+  const submit = async (event: Event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError(undefined);
+    try {
+      // Only the agents the user changed are sent; the others keep the base's entry.
+      const changed = Object.fromEntries(Object.entries(agents).filter(([agent, value]) => JSON.stringify(value) !== JSON.stringify(from?.agents?.[agent] ?? null)));
+      await send('POST', '/api/usage/presets', { name, base, label: { en: labelEn, es: labelEs }, ...(Object.keys(changed).length === 0 ? {} : { agents: changed }) });
+      setOpen(false);
+      setName('');
+      setAgents({});
+      onCreated(name);
+    } catch (failure) {
+      setError(failure);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" data-testid="new-preset-open" onClick={() => setOpen(true)}>
+          {t.newPresetOpen}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <form class="card stack-2" aria-labelledby="new-preset-title" data-testid="new-preset" onSubmit={(event) => void submit(event)}>
+      <h3 class="t-3" id="new-preset-title">
+        {t.newPresetTitle}
+      </h3>
+      <p class="t-small muted">{t.newPresetHint}</p>
+      <label class="label">
+        {t.newPresetBase}
+        <select class="input" value={base} onChange={(event) => (setBase((event.target as HTMLSelectElement).value), setAgents({}))} data-testid="new-preset-base">
+          {presets.map((preset) => (
+            <option key={preset.name} value={preset.name}>
+              {preset.label[lang]} ({preset.name})
+            </option>
+          ))}
+        </select>
+      </label>
+      <label class="label">
+        {t.newPresetName}
+        <input class="input mono" value={name} required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxLength={60} onInput={(event) => setName((event.target as HTMLInputElement).value)} data-testid="new-preset-name" />
+      </label>
+      <div class="btn-row">
+        <label class="label">
+          {t.newPresetLabelEn}
+          <input class="input" value={labelEn} required maxLength={80} onInput={(event) => setLabelEn((event.target as HTMLInputElement).value)} data-testid="new-preset-label-en" />
+        </label>
+        <label class="label">
+          {t.newPresetLabelEs}
+          <input class="input" value={labelEs} required maxLength={80} onInput={(event) => setLabelEs((event.target as HTMLInputElement).value)} data-testid="new-preset-label-es" />
+        </label>
+      </div>
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">{t.newPresetAgent}</th>
+              <th scope="col">{t.newPresetModel}</th>
+              <th scope="col">{t.newPresetEffort}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {FLOW_AGENT_NAMES.map((agent) => (
+              <tr key={agent}>
+                <td class="td-mono">{agent}</td>
+                <td>
+                  <input class="input mono" value={valueOf(agent).model} required maxLength={80} onInput={(event) => change(agent, { model: (event.target as HTMLInputElement).value })} data-testid={`new-preset-model-${agent}`} />
+                </td>
+                <td>
+                  <select class="input" value={valueOf(agent).effort} onChange={(event) => change(agent, { effort: (event.target as HTMLSelectElement).value })} data-testid={`new-preset-effort-${agent}`}>
+                    {EFFORTS.map((effort) => (
+                      <option key={effort} value={effort}>
+                        {effort}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {error !== undefined && <ErrorNote error={error} />}
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary" disabled={busy} data-testid="new-preset-create">
+          {t.newPresetCreate}
+        </button>
+        <button type="button" class="btn btn-ghost" onClick={() => setOpen(false)}>
+          {t.cancel}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -172,7 +312,15 @@ export function UsageView() {
                   </section>
                 )}
 
-                <LastPlanUsage last={usage.lastPlanUsage} />
+                <NewPreset
+                  presets={usage.presets}
+                  onCreated={(name) => {
+                    setNotice(t.newPresetCreated(name));
+                    loaded.reload();
+                  }}
+                />
+
+                <LastPlanUsage last={usage.lastPlanUsage} activity={usage.activity} />
 
                 <section class="stack-2" aria-labelledby="warnings-title">
                   <h2 class="section-title" id="warnings-title">

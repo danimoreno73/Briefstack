@@ -2,6 +2,7 @@ import { cp, readFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { appendEvent, sessionLifecycleEvent } from '../../src/events/index.js';
 import { initLibrary, libraryHistory, saveNote } from '../../src/library/index.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
 import { startWebServer, TOKEN_HEADER, type WebServer } from '../../src/server/index.js';
@@ -90,12 +91,51 @@ describe('write API', () => {
     await cleanup();
   });
 
+  it('creates a user preset from another one; no agent file and no active profile change (step 33)', async () => {
+    const agentsDir = path.join(repoDir, '.claude', 'agents');
+    const before = await readFile(path.join(agentsDir, 'architect.md'), 'utf8');
+    const created = await send('POST', '/api/usage/presets', { name: 'deep-dive', base: 'balanced', label: { en: 'Deep dive', es: 'A fondo' }, agents: { architect: { model: 'opus', effort: 'max' } } });
+    expect(created.status, created.body).toBe(201);
+    expect(JSON.parse(created.body)).toEqual({ name: 'deep-dive' });
+    const usage = await ok<{ profile: string; presets: { name: string; source: string }[] }>('GET', '/api/usage');
+    expect(usage.presets).toContainEqual(expect.objectContaining({ name: 'deep-dive', source: 'user' }));
+    expect(usage.profile).not.toBe('deep-dive');
+    // `.claude/agents/*.md` are written only by `briefstack usage set`.
+    expect(await readFile(path.join(agentsDir, 'architect.md'), 'utf8')).toBe(before);
+    expect((await send('POST', '/api/usage/presets', { name: 'deep-dive', base: 'saver', label: { en: 'x', es: 'x' } })).status).toBe(409);
+    expect((await send('POST', '/api/usage/presets', { name: 'Bad Name', base: 'saver', label: { en: 'x', es: 'x' } })).status).toBe(400);
+    expect((await send('POST', '/api/usage/presets', { name: 'x', base: 'saver', label: { en: 'x', es: 'x' }, agents: { hacker: { model: 'opus' } } })).status).toBe(400);
+  });
+
+  it('archives and restores an unfinished creation; GET /api/sessions says so; a finished one is refused (step 33)', async () => {
+    const sessions = path.join(home, 'sessions');
+    await appendEvent(sessions, sessionLifecycleEvent('sess-c', 'started', undefined, new Date('2026-11-01T08:00:00Z')));
+    await appendEvent(sessions, sessionLifecycleEvent('sess-c', 'finished', 'cancelled', new Date('2026-11-01T08:05:00Z')));
+    await appendEvent(sessions, sessionLifecycleEvent('sess-d', 'started', undefined, new Date('2026-11-01T09:00:00Z')));
+    await appendEvent(sessions, sessionLifecycleEvent('sess-d', 'finished', 'completed', new Date('2026-11-01T09:05:00Z')));
+    expect(await ok('PUT', '/api/sessions/sess-c/archived', { archived: true })).toMatchObject({ id: 'sess-c', archived: expect.any(String) });
+    const listed = await ok<{ sessions: { id: string; archived?: string }[] }>('GET', '/api/sessions');
+    expect(listed.sessions.find((session) => session.id === 'sess-c')?.archived).toEqual(expect.any(String));
+    expect(listed.sessions.find((session) => session.id === 'sess-d')?.archived).toBeUndefined();
+    const refused = await send('PUT', '/api/sessions/sess-d/archived', { archived: true });
+    expect(refused.status).toBe(409);
+    expect(JSON.parse(refused.body)).toMatchObject({ code: 'sessions.notUnfinished' });
+    expect((await send('PUT', '/api/sessions/nope/archived', { archived: true })).status).toBe(404);
+    expect(await ok('PUT', '/api/sessions/sess-c/archived', { archived: false })).toEqual({ id: 'sess-c' });
+    const after = await ok<{ sessions: { id: string; archived?: string }[] }>('GET', '/api/sessions');
+    expect(after.sessions.find((session) => session.id === 'sess-c')?.archived).toBeUndefined();
+    // Nothing of the session was touched: the choice is in the home.
+    expect(JSON.parse(await readFile(path.join(home, 'archived-sessions.json'), 'utf8'))).toEqual({ v: 1, sessions: {} });
+  });
+
   it('requires the token, the origin and JSON on every write route', async () => {
     const routes: [string, string, unknown][] = [
       ['PUT', '/api/library/note', { section: 'lessons', text: 'x' }],
       ['POST', '/api/library/revert', { sha: 'abcd' }],
       ['PUT', '/api/usage', { profile: 'max' }],
       ['PUT', '/api/settings', { lang: 'es' }],
+      ['PUT', '/api/sessions/sess-x/archived', { archived: true }],
+      ['POST', '/api/usage/presets', { name: 'x', base: 'saver', label: { en: 'x', es: 'x' } }],
     ];
     for (const [method, route, body] of routes) {
       expect((await send(method, route, body, { [TOKEN_HEADER]: 'wrong' })).status, route).toBe(401);

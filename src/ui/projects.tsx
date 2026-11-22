@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import { CopyButton, Markdown, PathText } from './common.js';
+import { projectsCsv, projectsCsvName } from './csv.js';
 import { formatWhen, isUnfinished, openCommandLines, withoutLeadingHeading } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { setIdeaDraft } from './ideaDraft.js';
@@ -14,7 +15,38 @@ export function ProjectsView() {
   const projects = useLoad<{ projects: ProjectListing[] }>('/api/projects');
   const sessions = useLoad<{ sessions: SessionSummary[] }>('/api/sessions');
   const [showArchived, setShowArchived] = useState(false);
+  const [showArchivedSessions, setShowArchivedSessions] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState<unknown>(undefined);
+  const send = useSend();
   useDocumentTitle(t.projectsTitle);
+
+  /** The projects shown, as a CSV file, built here: no path, no folder (IDEAS §3; step 33). A `blob:` link, which the CSP leaves alone. */
+  const downloadCsv = (shown: readonly ProjectListing[]) => {
+    const text = projectsCsv(shown, t.csvHeaders);
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = projectsCsvName();
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  };
+
+  /** Archives or restores an unfinished creation: a choice kept in the home, nothing deleted (IDEAS §3; step 33). */
+  const setArchived = async (id: string, archived: boolean) => {
+    setArchiving(true);
+    setArchiveError(undefined);
+    try {
+      await send('PUT', `/api/sessions/${encodeURIComponent(id)}/archived`, { archived });
+      sessions.reload();
+    } catch (failure) {
+      setArchiveError(failure);
+    } finally {
+      setArchiving(false);
+    }
+  };
 
   /** Opens New project with this idea in the box (the idea as `/api/sessions` gives it: redacted, maybe cut). */
   const startAgain = (idea: string) => {
@@ -51,7 +83,12 @@ export function ProjectsView() {
               <Empty title={t.projectsEmpty} action={{ href: routeHash({ page: 'new', id: undefined }), label: t.navNew }} />
             ) : (
               <div class="stack-2">
-              {filter}
+              <div class="btn-row">
+                {filter}
+                <button type="button" class="btn btn-ghost btn-sm" data-testid="export-csv" onClick={() => downloadCsv(list)}>
+                  {t.exportCsv}
+                </button>
+              </div>
               <div class="table-card">
                 <table class="table" data-testid="projects">
                   <caption class="sr-only">{t.projectsTitle}</caption>
@@ -101,11 +138,24 @@ export function ProjectsView() {
           <LoadState loaded={sessions}>
             {({ sessions: all }) => {
               const unfinished = all.filter(isUnfinished);
-              if (unfinished.length === 0) return <p class="muted">{t.unfinishedEmpty}</p>;
+              // Archived ones are hidden unless the filter is on (IDEAS §3; step 33).
+              const archivedCount = unfinished.filter((session) => session.archived !== undefined).length;
+              const shown = showArchivedSessions ? unfinished : unfinished.filter((session) => session.archived === undefined);
+              const filter = archivedCount > 0 && (
+                <label class="check-line">
+                  <input type="checkbox" checked={showArchivedSessions} data-testid="show-archived-sessions" onChange={(event) => setShowArchivedSessions(event.currentTarget.checked)} />{' '}
+                  {t.showArchivedSessions(archivedCount)}
+                </label>
+              );
+              if (shown.length === 0) return <div class="stack-2">{filter}<p class="muted">{t.unfinishedEmpty}</p></div>;
               // Named by their idea, then told apart by when and where they stopped; the id too (audit M8).
               return (
+                <div class="stack-2">
+                {filter}
+                <p class="t-small muted">{t.sessionArchiveHint}</p>
+                {archiveError !== undefined && <ErrorNote error={archiveError} />}
                 <ul class="card-grid" data-testid="unfinished">
-                  {unfinished.map((session) => (
+                  {shown.map((session) => (
                     <li key={session.id} class="card">
                       <h3 class="t-3">
                         <a class={session.idea === undefined ? 'link muted' : 'link'} href={routeHash({ page: 'session', id: session.id })}>
@@ -120,16 +170,21 @@ export function ProjectsView() {
                           formatWhen(session.lastEventAt ?? session.startedAt, lang),
                         ]}
                       />
-                      {session.idea !== undefined && (
-                        <div class="btn-row">
+                      {session.archived !== undefined && <span class="chip chip-outline">{t.sessionArchivedChip}</span>}
+                      <div class="btn-row">
+                        {session.idea !== undefined && (
                           <button type="button" class="btn btn-secondary btn-sm" onClick={() => startAgain(session.idea ?? '')}>
                             {t.startAgain}
                           </button>
-                        </div>
-                      )}
+                        )}
+                        <button type="button" class="btn btn-ghost btn-sm" disabled={archiving} data-testid="session-archive" onClick={() => void setArchived(session.id, session.archived === undefined)}>
+                          {session.archived === undefined ? t.sessionArchive : t.sessionRestore}
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
+                </div>
               );
             }}
           </LoadState>

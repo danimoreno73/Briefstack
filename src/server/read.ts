@@ -3,6 +3,7 @@ import path from 'node:path';
 import { configFilePath, maxActiveCreationsOf, permissionPolicyOf, readConfig, resolvePaths, toAbsolute, usageWarningOf, type PathEnv } from '../config/index.js';
 import { readLastPlanUsage } from '../creation/planUsage.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
+import { isUnfinishedSession, readArchivedSessions } from '../events/archived.js';
 import { readEvents, sessionEventsFile } from '../events/index.js';
 import { listSessions, sessionIdea, sessionTimeline, type SessionTimeline } from '../events/sessions.js';
 import { projectEvent } from '../panel/project.js';
@@ -22,7 +23,7 @@ import { readTextIfExists } from '../library/notes.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import { TARGET_CHOOSERS, type TargetChooser } from '../spec/schema.js';
 import { inspectOutputDir, protectedDirs } from '../scaffold/outputDir.js';
-import { loadUsageContext, usageShow } from '../usage/index.js';
+import { agentSetting, FLOW_AGENTS, loadUsageContext, usageShow } from '../usage/index.js';
 import { SPEC_FILE, redactSecretLines } from '../validate/index.js';
 import { sendJson } from './http.js';
 import type { RouteTable } from './router.js';
@@ -34,6 +35,8 @@ export interface ReadContext {
   repoDir?: string | undefined;
   /** Language of labels in responses; by default the one the CLI would use. */
   lang?: Lang | undefined;
+  /** What runs now, for the Usage page's note on the week (step 33): active creations and running builds. */
+  activity?: (() => Promise<{ creations: number; builds: number }>) | undefined;
 }
 
 /** Largest generated file the project detail returns. */
@@ -155,11 +158,14 @@ export function readRoutes(context: ReadContext): RouteTable {
       async (_req, res) => {
         const { paths } = await load();
         const sessions = await listSessions(paths.sessionsDir);
+        // An archived unfinished creation says when it was archived (IDEAS §3; step 33); the page hides it unless asked.
+        const archived = await readArchivedSessions(paths.home);
         // Read-only, redacted; added in the UI pass so unfinished creations are told apart (audit M8).
         const withIdeas = await Promise.all(
           sessions.map(async (session) => {
             const idea = await sessionIdea(paths.sessionsDir, session.id);
-            return idea === undefined ? session : { ...session, idea };
+            const at = isUnfinishedSession(session) ? archived[session.id] : undefined;
+            return { ...session, ...(idea === undefined ? {} : { idea }), ...(at === undefined ? {} : { archived: at }) };
           }),
         );
         sendJson(res, 200, { sessions: withIdeas });
@@ -247,10 +253,14 @@ export function readRoutes(context: ReadContext): RouteTable {
           tiers: preset.tiers,
           research: preset.research,
           reviewRounds: preset.reviewRounds,
+          // Each flow agent's model and effort, for the "New preset based on…" form (step 33).
+          agents: Object.fromEntries(FLOW_AGENTS.map((agent) => [agent, agentSetting(preset, agent) ?? null])),
         }));
-        // The last reading saved in the home; opening the page never reads the usage again.
+        // The last reading a creation or a build saved (no new reading here: it costs a session), with its reset times,
+        // and what runs now (IDEAS §3, "Usage: a note on the week's plan window"; step 33).
         const lastPlanUsage = (await readLastPlanUsage(paths.home)) ?? null;
-        sendJson(res, 200, { ...shown, presets, lastPlanUsage });
+        const activity = (await context.activity?.().catch(() => undefined)) ?? null;
+        sendJson(res, 200, { ...shown, presets, lastPlanUsage, activity });
       },
     ],
     [

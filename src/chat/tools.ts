@@ -5,6 +5,7 @@ import type { CreationManager, CreationState } from '../creation/manager.js';
 import type { ImprovementManager } from '../improve/manager.js';
 import { suggestionText } from '../improve/suggestions.js';
 import { BriefstackError, isBriefstackError } from '../errors.js';
+import { isUnfinishedSession, readArchivedSessions } from '../events/archived.js';
 import { readEvents, sessionEventsFile } from '../events/index.js';
 import { listSessions } from '../events/sessions.js';
 import { formatError } from '../i18n/errors.js';
@@ -339,12 +340,17 @@ export const CHAT_TOOLS: readonly ChatTool[] = [
     name: 'list_sessions',
     kind: 'read',
     description:
-      'List the creation sessions on disk (id, status, outcome, times) and the creations active in this server (creation id, idea, what each waits for, and stepText: where it is, as its panel shows it).',
+      'List the creation sessions on disk (id, status, outcome, times; archived: when the user archived an unfinished one, so it is hidden from the Projects page) and the creations active in this server (creation id, idea, what each waits for, and stepText: where it is, as its panel shows it).',
     input: {},
     summary: () => '',
     run: async (ctx) => {
       const { paths } = await load(ctx);
-      const sessions = await listSessions(paths.sessionsDir);
+      // Archived creations are still listed, marked (IDEAS §3; step 33): the chat never hides what is on disk.
+      const archived = await readArchivedSessions(paths.home);
+      const sessions = (await listSessions(paths.sessionsDir)).map((session) => {
+        const at = isUnfinishedSession(session) ? archived[session.id] : undefined;
+        return at === undefined ? session : { ...session, archived: at };
+      });
       const running = (ctx.creations?.list() ?? []).filter((creation) => creation.status !== 'finished');
       const active = await Promise.all(
         running.map(async (creation) => ({
