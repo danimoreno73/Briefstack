@@ -7785,3 +7785,71 @@ M5, pushed together:
   the panel (the optional step, the subagent hooks, the denied stream).
 - `GET /api/creations/:id` carries `code` and `implement` (the creation's
   state).
+
+## Phase 10: review of M5, the fixes (2026-11-23)
+
+The review of M5 and the M4 fixes (`5b2382e..18a6993`) said **no apto**:
+one blocking item, four important, ten minor. Fixed with M6:
+
+- **B1** (protected files git ignores were never put back:
+  `.claude/settings.local.json` is ignored in every generated project and
+  Claude Code reads hooks from it): the step keeps a snapshot of the
+  ignored protected files when it starts; the listing of protected paths
+  includes ignored ones (`--ignored=matching`, limited by pathspecs to the
+  protected names); an ignored one goes back as the snapshot had it, or is
+  removed when it did not exist then; one of the snapshot that went is
+  written back.
+- **I1**: the step is `checking` before the files are put back (no late
+  write), and they are put back again right before the code commit (the
+  checks ran code the implementer wrote).
+- **I2**: a stop (cancel, the creation's end) puts them back too.
+- **I3**: when putting them back fails, the code is not committed; the
+  record and the result screen say so (`revertFailed`).
+- **m1** renames listed as two paths (`--no-renames`); **m3** names only
+  (no short-form or stream rule on names git reports); **m4** a checkout
+  with literal pathspecs and a removal only inside the project after
+  links; **m5** the refusal and the screen say Codex can be checked again;
+  **m6** the brief's status cut at a line before redaction; **m7** no "did
+  not run" note on a creation that did not complete; **m8** commit
+  warnings in words; **m9** the reply to Claude counts the files put back
+  instead of quoting their names; **m10** tests of the ignored files, the
+  snapshot, the order of the put-backs, a failure, the hook folders.
+- **Not changed:** m2 (the base is HEAD; a listed command that commits
+  could hide its changes: a listed command can already do anything, brief
+  §4); I4 (CI is in the step's report).
+- **An intermittent e2e found by the gates** (the Settings test of M3, 1
+  in 5 locally): a `PUT /api/settings` answered `web.internal` because on
+  Windows `rename` over `config.json` fails for a moment while another
+  request reads it. `updateConfig` now tries the rename again on `EPERM`,
+  `EBUSY` or `EACCES` (up to ten times, a few milliseconds apart); 15 runs
+  of that test passed after it.
+
+## Phase 10: M6, docs and the real check (2026-11-22)
+
+- **Docs:** README (the feature; "the creation runs code before you read
+  it" in the security model and the limitations; Codex without its
+  shell), `docs/api.md` (the spec answer's `code`, `creation.invalidCode`,
+  the creation's `code` and `implement`, the bounds settings, Codex's
+  no-shell check), `CHANGELOG.md` "Unreleased", `CLAUDE.md` current state,
+  `docs/IDEAS.md` §10.
+- **The real check** `scripts/real/check-creation-code.ts`, prepared and
+  **not run** (the user runs it: `npx tsx scripts/real/check-creation-code.ts
+  --yes`). In a temp home and projects folder, on the saver profile, with
+  the user's real Claude Code and Codex: Codex turned on and checked first
+  (no model); nothing is spent on Claude unless the check passed with its
+  no-shell part and plan usage is under 70% of the 5-hour window and 95% of
+  the week. One creation of a tiny Node tool, played as the other real
+  checks play the browser; at the spec it chooses code with the list `node
+  --test`, the check `node --test`, one fix pass and Codex. The idea asks
+  the implementer to run `npm --version` (off the list) and to hand
+  `src/sum.js` to Codex; if the model never tries either, that verdict
+  fails with that fact. Verdicts: the offer, the creation completed, the
+  step ended, two commits (workspace then code), the code commit holds
+  what the implementer wrote (the command hook knew its folder), the
+  implementer called briefstack's tools (the in-process server reached the
+  subagent, H0, 5), a listed command ran, the off-list command was denied,
+  nobody was asked during the step, Codex called without its shell and
+  ran no command, the checks ran, no protected file changed, no turn
+  waited for text, no process left. NOT CONTROLLED: whether the checks
+  passed (the model's code), what the brief says is left. Its static
+  checks are in `tests/unit/real-scripts.test.ts`.

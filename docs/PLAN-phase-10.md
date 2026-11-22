@@ -23,8 +23,10 @@ Updated 2026-11-22.
 | M2 | The `implement` step: the implementer, its tools, the guard, the two commits, a fake implementer | done (`f7a098e..aa1abfd`; CI green on the three systems, run 45054683892). Review: apto con reservas; I1–I4 and m1–m5, m7, m11 fixed with M3 (decisions.md, "Phase 10: review of M2, the fixes") |
 | M3 | Checks, fix passes, bounds and the usage reading | done (`69ff686..ba3f2ab`; CI green on the three systems, run 45056801649). Review: no apto (B1: the command hook denied implementer writes); B1, I1–I4, m1–m7, m9 fixed in `cd4d2c4..5b2382e` (decisions.md, "Phase 10: review of M3, the fixes") |
 | M4 | Codex without its shell in the implement step | done (`236f5b3..74d73ff`). Review (with the M3 fixes): apto con reservas; Windows CI of `5b2382e` red (short temp path, I2); I1–I3, I5, I6, m1, m3 fixed with M5 (decisions.md, "Phase 10: review of M4, the fixes") |
-| M5 | The live panel and the result screen | done in the working tree (decisions.md, "Phase 10: M5") |
-| M6 | Docs and the real check script (prepared, not run) | not started |
+| M5 | The live panel and the result screen | done (`0e0cd9d..18a6993`, with the M4 review fixes; decisions.md, "Phase 10: M5"); CI and review in the step's report |
+| M6 | Docs and the real check script (prepared, not run) | done (decisions.md, "Phase 10: M6"): `scripts/real/check-creation-code.ts` **not run**; the user runs it (`npx tsx scripts/real/check-creation-code.ts --yes`) |
+| Real | `scripts/real/check-creation-code.ts`, run by the user | pending |
+| Accepted | The user's acceptance | pending; no `phase-10-done` before it |
 
 ## 1. Design decisions taken from H0
 
