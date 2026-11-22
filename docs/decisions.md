@@ -7648,9 +7648,37 @@ and eleven minor ones. Fixed with M3:
 - **m11**: the records keep the last 50 runs and refusals; a command ends
   two seconds after its process exits even when a grandchild keeps its
   pipes open.
-- **Not changed:** m6 (the order is the skill's; `implement_start` checks
+- **Not changed (M2 review):** m6 (the order is the skill's; `implement_start` checks
   the choice, the folder and the project; a creation with code that never
   ran the step is shown on the result screen, M5); m8 (the creations list
   counts `implement` when code was chosen, the panel once it is reached);
   m9 is M4's (the Codex tool refuses when the checkbox is off); m10 is
   history.
+
+## Phase 10: M4, Codex without its shell in the implement step (2026-11-22)
+
+- **The call** is phase 8's (`codexExecArgs`) with the measured set of
+  H0.1 calls 3–8 right after `--ephemeral` (`CODEX_NO_SHELL_EXEC_ARGS`),
+  only when `noShell` is set, which only a creation does; a task's call is
+  byte for byte as before (a unit test compares both).
+- **The delegate** is phase 8's `CodexDelegate` (one call at a time, the
+  instruction alone on stdin, the cleaned environment, the folder's branch
+  and HEAD read before and after: a call that moves them failed, the reply
+  cut and masked as another program's data), in the project folder, on the
+  branch the step started on, its `-o` files in the session folder. Its
+  refusals say "project folder" instead of "worktree".
+- **When:** the tool `delegate_to_codex` is on `briefstack-web` and the
+  guard gives it to the implementer only; the step refuses it unless the
+  user ticked Codex at the spec and Codex was available when the step
+  started. Availability is asked again then (review of M1, m1): the
+  switch, the last check (with its no-shell part) and the mode
+  (`CodexService.creationSession`). Ticked but not available: off for the
+  step, said in the start's answer, recorded (`codexUnavailable`).
+- **The cap** is Settings' calls per round, counted over the whole step,
+  fix passes included; `implement_finish` waits while a Codex call runs; a
+  cancel or the creation's end stops it (its process tree).
+- **The fake Codex** writes with a `file_change` item and runs no command
+  when called with `--disable shell_tool`, as Codex 0.167.0 did in H0.1;
+  `[fake:cmd]` makes it say it has no shell tool.
+- **Not shown here:** a real Codex in the implement step (the real check,
+  M6, does it, run by the user).
