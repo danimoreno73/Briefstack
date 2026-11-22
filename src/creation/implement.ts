@@ -2,7 +2,7 @@ import { chainParts, isApprovedCommand } from '../builds/commands.js';
 import { describeCommand } from '../tasks/shell.js';
 import { cutThenMask } from '../codex/tool.js';
 import { hideAbsolutePaths } from '../panel/project.js';
-import type { CheckResult } from '../tasks/types.js';
+import type { CheckResult, TaskCodexCall } from '../tasks/types.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import type { CodeChoice } from './code.js';
 
@@ -82,6 +82,10 @@ export interface ImplementView {
   limit?: 'time' | 'toolCalls';
   /** The step ended with checks that still fail (the code is kept and committed). */
   warning?: 'checksFailed';
+  /** Codex's calls without its shell (M4), as a task round records them. */
+  codex: TaskCodexCall[];
+  /** The user ticked Codex but it was not available when the step started (switch off, check failed, mode changed). */
+  codexUnavailable?: true;
   startedAt?: string;
   finishedAt?: string;
 }
@@ -112,11 +116,24 @@ export interface ImplementDeps {
   bounds(): Promise<{ maxMinutes: number; maxToolCalls: number }>;
   /** The plan-usage reading before the step; without it the step always starts. */
   usage?(): Promise<UsageGate>;
+  /**
+   * Codex without its shell for this step (M4), asked when the step starts
+   * and only when the user ticked it; `undefined` when it is not available
+   * now. `record` saves each call on the step's record.
+   */
+  codex?(dir: string, record: (call: TaskCodexCall) => void): Promise<CodexPort | undefined>;
   /** Told after every change, so the page and the record follow. */
   changed(view: ImplementView): void;
   /** Told of each command refused (shown text), so it is listed with the creation's other denials. */
   refused?(command: string, reason: string): void;
   now?: () => Date;
+}
+
+/** Codex for one implement step (`CodexDelegate` with the no-shell call). */
+export interface CodexPort {
+  call(instruction: unknown): Promise<StepReply>;
+  /** Ends a running call's process tree; no new call starts. */
+  stop(): void;
 }
 
 /** The workspace commit's message is the hand-off's own (`PROJECT_COMMIT_MESSAGE`); the code gets its own. */
@@ -168,9 +185,11 @@ export function approvedParts(command: string, approved: readonly string[]): str
 }
 
 export class ImplementStep {
-  private record: ImplementView = { state: 'notStarted', runs: [], refused: [], checks: [], fixPassesUsed: 0, toolCalls: 0 };
+  private record: ImplementView = { state: 'notStarted', runs: [], refused: [], checks: [], fixPassesUsed: 0, toolCalls: 0, codex: [] };
   private dir: string | undefined;
   private choice: CodeChoice | undefined;
+  private codex: CodexPort | undefined;
+  private codexBusy = false;
   private startedMs = 0;
   private busy = false;
   private moving = false;
@@ -206,6 +225,31 @@ export class ImplementStep {
   /** The creation ended or was cancelled: a running command's or check's process tree ends, nothing new starts. */
   stop(): void {
     this.abort.abort();
+    this.codex?.stop();
+  }
+
+  /** Saves one Codex call on the record (the `CodexDelegate`'s `record`). */
+  private recordCodex(call: TaskCodexCall): void {
+    keepLast(this.record.codex, call);
+    this.changed();
+  }
+
+  /**
+   * `delegate_to_codex` (implementer, M4): only while the step runs, only
+   * when the user ticked Codex and it was available at the start; one call
+   * at a time (the delegate refuses a second one), at most the calls
+   * Settings allows for the whole step.
+   */
+  async delegate(instruction: unknown): Promise<StepReply> {
+    if (!this.running) return { text: 'The implement step is not running, so Codex was not called. Stop and report.', isError: true };
+    if (this.choice?.codex !== true) return { text: 'The user did not tick Codex for this creation, so it is not called. Go on without it.', isError: true };
+    if (this.codex === undefined) return { text: 'Codex is not available now (its switch, its check or its mode changed), so it is not called. Go on without it.', isError: true };
+    this.codexBusy = true;
+    try {
+      return await this.codex.call(instruction);
+    } finally {
+      this.codexBusy = false;
+    }
   }
 
   private changed(): void {
@@ -272,6 +316,9 @@ export class ImplementStep {
     }
     this.dir = folder;
     this.choice = choice;
+    // Codex is asked again now (review of M1, m1): the switch, the check or the mode may have changed since the spec page.
+    this.codex = choice.codex ? await this.deps.codex?.(folder, (call) => this.recordCodex(call)).catch(() => undefined) : undefined;
+    const codexUnavailable = choice.codex && this.codex === undefined;
     this.startedMs = this.nowDate().getTime();
     this.record = {
       state: 'running',
@@ -280,16 +327,19 @@ export class ImplementStep {
       checks: [],
       fixPassesUsed: 0,
       toolCalls: 0,
+      codex: [],
       bounds,
       startedAt: this.now(),
       ...(workspace.commit === undefined ? {} : { workspaceCommit: workspace.commit }),
+      ...(codexUnavailable ? { codexUnavailable: true as const } : {}),
     };
     this.changed();
     const commands = choice.commands.length === 0 ? 'none' : choice.commands.map((command) => `- ${command}`).join('\n');
+    const codexLine = this.codex !== undefined ? 'on (delegate_to_codex, without its shell)' : codexUnavailable ? 'off: the user ticked it, but it is not available now (tell the user in one line)' : 'off';
     return {
       text: [
         'The implement step started. The workspace is committed.',
-        `Codex: ${choice.codex ? 'on (delegate_to_codex, without its shell)' : 'off'}.`,
+        `Codex: ${codexLine}.`,
         `Limits: ${bounds.maxMinutes} minutes and ${bounds.maxToolCalls} tool calls for the implementer.`,
         'Launch the implementer agent now, with the project folder and these exact commands, the only ones it may run (through run_command):',
         commands,
@@ -366,7 +416,7 @@ export class ImplementStep {
 
   private async finishNow(): Promise<StepReply> {
     if (!this.running || this.dir === undefined || this.choice === undefined) return { text: 'The implement step is not running. Go on to learn.', isError: true };
-    if (this.busy) return { text: 'A command of the implementer is still running. Wait for the implementer to report, then call implement_finish.', isError: true };
+    if (this.busy || this.codexBusy) return { text: 'A command or a Codex call of the implementer is still running. Wait for the implementer to report, then call implement_finish.', isError: true };
     const { dir, choice } = this;
     let results: CheckResult[] = [];
     if (choice.checks.length > 0) {

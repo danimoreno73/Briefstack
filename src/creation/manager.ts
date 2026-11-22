@@ -30,7 +30,10 @@ import { FolderClaims } from './folderClaims.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { startIssueText, type StartIssue } from '../builds/commands.js';
 import { PROJECT_COMMIT_MESSAGE } from '../scaffold/commit.js';
-import { ImplementStep, type ImplementView, type UsageGate } from './implement.js';
+import { ImplementStep, type CodexPort, type ImplementView, type UsageGate } from './implement.js';
+import { CodexDelegate, type CodexSession } from '../codex/tool.js';
+import { runGit } from '../tasks/git.js';
+import type { TaskCodexCall } from '../tasks/types.js';
 import { DEFAULT_IMPLEMENT_MINUTES, DEFAULT_IMPLEMENT_TOOL_CALLS } from '../config/limits.js';
 import type { ImplementSystem } from './implementSystem.js';
 import { RUN_COMMAND_TOOL, IMPLEMENTER_AGENT } from './toolNames.js';
@@ -255,6 +258,12 @@ export interface CreationManagerOptions {
   implementBounds?: () => Promise<{ maxMinutes: number; maxToolCalls: number }>;
   /** The plan-usage reading before the implement step; without it, it always starts. */
   implementUsage?: () => Promise<UsageGate>;
+  /**
+   * Codex for the implement step (M4): the session a task round would get,
+   * and only when the no-shell check passed (`creationCodexOffered`);
+   * `undefined` when not available now. Asked when the step starts.
+   */
+  implementCodex?: () => Promise<Omit<CodexSession, 'outDir'> | undefined>;
   /**
    * How long `shutdown()` waits for the runners to stop and the streams to
    * close. After it, what is left is marked interrupted and its stream closed
@@ -656,6 +665,7 @@ export class CreationManager {
         checks: (dir, commands, signal) => system.checks(dir, commands, signal),
         bounds: async () => (await this.options.implementBounds?.().catch(() => undefined)) ?? { maxMinutes: DEFAULT_IMPLEMENT_MINUTES, maxToolCalls: DEFAULT_IMPLEMENT_TOOL_CALLS },
         ...(this.options.implementUsage === undefined ? {} : { usage: this.options.implementUsage }),
+        ...(this.options.implementCodex === undefined ? {} : { codex: (dir, record) => this.creationCodex(c, dir, record) }),
         changed: (view) => {
           // Once it started, the choice is fixed (the brief: "unchanged after approval").
           if (view.state !== 'notStarted') c.codeFixed = true;
@@ -674,12 +684,37 @@ export class CreationManager {
     return c.implement;
   }
 
+  /**
+   * Codex without its shell for one implement step (M4): phase 8's
+   * `CodexDelegate` in the project folder, on its current branch (a call
+   * that moves the branch or HEAD failed), its `-o` files in the session
+   * folder, the calls per round of Settings for the whole step.
+   */
+  private async creationCodex(c: Creation, dir: string, record: (call: TaskCodexCall) => void): Promise<CodexPort | undefined> {
+    const session = await this.options.implementCodex?.();
+    const sessionId = c.state.sessionId;
+    if (session === undefined || sessionId === undefined) return undefined;
+    const head = await runGit(dir, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
+    if (head.code !== 0) return undefined;
+    const delegate = new CodexDelegate({
+      session: { ...session, outDir: systemPathEnv().pathApi.join(this.options.sessionsDir, sessionId, 'codex') },
+      worktree: dir,
+      branch: head.stdout.trim(),
+      env: process.env,
+      record: async (call) => record(call),
+      noShell: true,
+      words: { folder: 'project folder', branch: 'the branch the implement step started on' },
+    });
+    return { call: (instruction) => delegate.call(instruction), stop: () => delegate.stop() };
+  }
+
   /** What the runner's tools and guard reach of the step (phase 10). */
   private implementPort(c: Creation, system: ImplementSystem): ImplementPort {
     return {
       start: (dir) => this.implementStep(c, system).start(dir),
       runCommand: (command) => this.implementStep(c, system).runCommand(command),
       finish: () => this.implementStep(c, system).finish(),
+      delegate: (instruction) => this.implementStep(c, system).delegate(instruction),
       // `undefined` from the step means "go on": not a missing step.
       projectFolder: () => c.implement?.projectFolder,
       implementerCall: () => (c.implement === undefined ? 'The implement step is not running, so the implementer may do nothing. Stop now and report.' : c.implement.implementerCall()),

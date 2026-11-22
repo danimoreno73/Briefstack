@@ -701,6 +701,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     otherActive: () => [...(tasks?.activeIds() ?? []), ...(builds?.activeIds() ?? [])],
     // Phase 10: the spec page's Codex checkbox, only when the last check showed the no-shell mode holds.
     codexForCreations: async () => creationCodexOffered(await codex.view()),
+    implementCodex: () => codex.creationSession(),
   });
   let chat: ChatManager | undefined;
   let improvements: ImprovementManager | undefined;

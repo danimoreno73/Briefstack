@@ -172,6 +172,55 @@ test.describe('failing checks with a fix pass (M3)', () => {
   });
 });
 
+/** M4: the implementer hands a piece to Codex, without its shell (the fake Codex CLI). */
+function codexRecording(): string {
+  return [
+    { do: 'session', phase: 'started' },
+    { do: 'claim', dir: 'garden' },
+    { do: 'label', name: 'write' },
+    { do: 'spec', onChange: 'write', spec: JSON.stringify(SOFTWARE) },
+    { do: 'generate', dir: 'garden', git: true },
+    { do: 'flow', step: 'implement', phase: 'started' },
+    { do: 'implement', action: 'start', dir: 'garden' },
+    { do: 'implement', action: 'codex', text: 'Write codex-note.txt.' },
+    { do: 'implement', action: 'finish' },
+    { do: 'flow', step: 'implement', phase: 'finished', outcome: 'ok' },
+    { do: 'session', phase: 'finished', outcome: 'completed' },
+  ]
+    .map((line) => JSON.stringify(line))
+    .join('\n');
+}
+
+test.describe('a creation with code and Codex (M4)', () => {
+  test.use({ appOptions: { recordingText: codexRecording() } });
+
+  test('Codex is called without its shell, once, and what it wrote is in the code commit', async ({ page, app }) => {
+    await updateConfig(path.join(app.home, 'config.json'), { codexEnabled: true });
+    await app.codex.check();
+    await page.goto(app.url);
+    await clickNav(page, 'New project');
+    await page.getByLabel('Describe your idea').fill('A garden planner');
+    await page.getByRole('button', { name: 'Start' }).click();
+    const card = page.getByTestId('spec-code');
+    await card.getByTestId('spec-code-with-code').check();
+    await card.getByTestId('spec-code-checks').fill('node --version');
+    await card.getByTestId('spec-code-codex').check();
+    await page.getByRole('button', { name: 'Approve' }).click();
+    await expect(page.getByTestId('result')).toHaveAttribute('data-outcome', 'completed', { timeout: 20_000 });
+    const implement = app.manager.list()[0]?.implement;
+    expect(implement?.codex).toHaveLength(1);
+    expect(implement?.codex[0]).toMatchObject({ outcome: 'completed', commands: 0 });
+    const exec = (await readFile(app.codexLog, 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as { argv: string[] })
+      .filter((call) => call.argv[0] === 'exec');
+    expect(exec).toHaveLength(1);
+    expect(exec[0]?.argv).toEqual(expect.arrayContaining(['--ignore-user-config', 'shell_tool', 'web_search="disabled"']));
+    expect(await readFile(path.join(app.projectsDir, 'garden', 'codex-note.txt'), 'utf8')).toContain('without its shell');
+  });
+});
+
 test.describe('the implement step limits in Settings (M3)', () => {
   test('shows the defaults, saves new values and refuses values out of range', async ({ page, app }) => {
     await page.goto(app.url);

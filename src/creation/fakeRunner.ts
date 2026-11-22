@@ -68,6 +68,7 @@ import type { CreationRunner, RunnerHandle, RunnerOutcome, RunnerStartOptions } 
  *   `"git":true` also makes its git repository, as the real scaffold does.
  * - `{"do":"implement","action":"start","dir":"garden"}`, `"action":"run"`
  *   with `"command"`, `"action":"write"` with `"file"` and `"text"`, and
+ *   `"action":"codex"` with `"text"` (the implementer's `delegate_to_codex`),
  *   `"action":"finish"` (phase 10): the implement step through the same
  *   port the real `briefstack-web` tools call (needs a manager with the
  *   implement system); `write` stands for the implementer's Write tool.
@@ -154,7 +155,7 @@ const stepSchema = z.discriminatedUnion('do', [
   // Phase 10: the implement step through the same port the real tools call; `write` is the implementer's Write.
   z.object({
     do: z.literal('implement'),
-    action: z.enum(['start', 'run', 'write', 'finish']),
+    action: z.enum(['start', 'run', 'write', 'codex', 'finish']),
     /** `start`: the project folder, relative to `projectsDir`. */
     dir: z.string().min(1).optional(),
     /** `run`: the command line. */
@@ -464,6 +465,11 @@ export class FakeRunner implements CreationRunner {
             } else if (step.action === 'run') {
               const stop = port.implementerCall();
               const reply = stop === undefined ? await port.runCommand(step.command ?? '') : { text: stop, isError: true };
+              this.options.implementReplies?.push(reply.text);
+            } else if (step.action === 'codex') {
+              // The implementer's delegate_to_codex, with `text` as the instruction.
+              const stop = port.implementerCall();
+              const reply = stop === undefined ? await (port.delegate?.(step.text ?? '') ?? Promise.resolve({ text: 'no Codex', isError: true })) : { text: stop, isError: true };
               this.options.implementReplies?.push(reply.text);
             } else if (step.action === 'write') {
               if (implementDir === undefined) throw new Error('recording: implement write before start');

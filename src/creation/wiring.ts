@@ -1,5 +1,6 @@
 import { buildUsageReader, decideUsage, type UsageReading } from '../builds/usage.js';
 import { implementBoundsOf, maxActiveCreationsOf, permissionPolicyOf, usageWarningOf, type PathEnv } from '../config/index.js';
+import type { CodexSession } from '../codex/tool.js';
 import type { UsageGate } from './implement.js';
 import type { Lang } from '../i18n/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
@@ -25,6 +26,8 @@ export interface WebCreationOptions {
   codexForCreations?: (() => Promise<boolean>) | undefined;
   /** The implement step's system (phase 10); the real one by default. */
   implement?: ImplementSystem | undefined;
+  /** Codex without its shell for the implement step (phase 10, M4). */
+  implementCodex?: (() => Promise<Omit<CodexSession, 'outDir'> | undefined>) | undefined;
 }
 
 /**
@@ -84,6 +87,7 @@ export async function createWebCreations(options: WebCreationOptions): Promise<C
     // Phase 10: the implement step's system; with it the spec page offers code for a software spec.
     implement: options.implement ?? realImplementSystem(),
     implementBounds: async () => implementBoundsOf((await read()).config),
+    ...(options.implementCodex === undefined ? {} : { implementCodex: options.implementCodex }),
     // The plan reading before the step, against the user's warning thresholds (decisions.md, "Decisiones sin Dani (fase 10)").
     // Only with the real runner, as the creation's own readings: the fake one has no plan to read.
     ...(options.runner === undefined ? { implementUsage: implementUsageGate({ read: buildUsageReader({ pathEnv, repoDir }), thresholds: async () => usageWarningOf((await read()).config) }) } : {}),

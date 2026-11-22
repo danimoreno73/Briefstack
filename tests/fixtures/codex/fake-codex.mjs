@@ -18,6 +18,10 @@
 //                  look like credentials or ours
 //   [fake:noisy]   lines that are not JSON among the events
 //   [fake:noout]   no -o file; the agent message stands in
+//   [fake:cmd]     with --disable shell_tool: the final message says it
+//                  could not run a command (phase 10)
+// With --disable shell_tool (phase 10, no shell) it writes with a
+// file_change item and runs no command_execution.
 // Scenarios change the other commands: loggedOut, noSandbox, oldVersion,
 // shellStays (`debug prompt-input` still lists the shell tools without it),
 // otherFormat (`debug prompt-input` declares its tools in another format).
@@ -91,13 +95,24 @@ async function exec() {
     execFileSync('git', ['switch', '--quiet', '-c', 'codex-other'], { cwd: worktree, stdio: 'ignore' });
   }
 
-  const command = 'Set-Content codex-note.txt';
-  emit({ type: 'item.started', item: { id: 'item_1', type: 'command_execution', command, status: 'in_progress' } });
+  // Phase 10: without its shell (as measured with Codex 0.167.0) it writes with its file tool (a file_change item) and
+  // runs nothing; asked to run something, it says it cannot.
+  const noShell = argv.join(' ').includes('--disable shell_tool');
   mkdirSync(worktree, { recursive: true });
-  writeFileSync(path.join(worktree, 'codex-note.txt'), 'Written by the fake Codex.\n', 'utf8');
-  emit({ type: 'item.completed', item: { id: 'item_1', type: 'command_execution', command, aggregated_output: '', exit_code: 0, status: 'completed' } });
+  if (noShell) {
+    const file = path.join(worktree, 'codex-note.txt');
+    emit({ type: 'item.started', item: { id: 'item_1', type: 'file_change', changes: [{ path: file, kind: 'add' }], status: 'in_progress' } });
+    writeFileSync(file, 'Written by the fake Codex, without its shell.\n', 'utf8');
+    emit({ type: 'item.completed', item: { id: 'item_1', type: 'file_change', changes: [{ path: file, kind: 'add' }], status: 'completed' } });
+  } else {
+    const command = 'Set-Content codex-note.txt';
+    emit({ type: 'item.started', item: { id: 'item_1', type: 'command_execution', command, status: 'in_progress' } });
+    writeFileSync(path.join(worktree, 'codex-note.txt'), 'Written by the fake Codex.\n', 'utf8');
+    emit({ type: 'item.completed', item: { id: 'item_1', type: 'command_execution', command, aggregated_output: '', exit_code: 0, status: 'completed' } });
+  }
 
-  let message = 'I wrote codex-note.txt.';
+  let message = noShell ? 'I wrote codex-note.txt with my file tool.' : 'I wrote codex-note.txt.';
+  if (noShell && has('cmd')) message = "I couldn't run the command: this session has no shell-command tool.";
   if (has('long')) message = Array.from({ length: 400 }, (_, i) => `Line ${i}: ${'x'.repeat(60)}`).join('\n');
   if (has('secret')) message = `Done.\nkey ${['sk', 'ant', 'b'.repeat(40)].join('-')}\nThe end.`;
   if (has('env')) message = `ENV: ${suspect().join(',')}`;

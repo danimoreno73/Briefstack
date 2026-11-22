@@ -204,6 +204,16 @@ export class CodexService {
     return this.view();
   }
 
+  /**
+   * What a creation's implement step needs for Codex without its shell
+   * (phase 10): a task round's session, and only when the last check also
+   * showed the no-shell mode holds (`creationCodexOffered`).
+   */
+  async creationSession(): Promise<Omit<CodexSession, 'outDir'> | undefined> {
+    if (!creationCodexOffered(await this.view())) return undefined;
+    return this.session();
+  }
+
   /** What a task round needs to offer `delegate_to_codex`, or `undefined` when it does not get the tool. */
   async session(): Promise<Omit<CodexSession, 'outDir'> | undefined> {
     const settings = await this.settings();

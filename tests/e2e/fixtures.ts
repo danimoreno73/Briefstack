@@ -251,6 +251,8 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     codexForCreations: async () => (holderCodex.value === undefined ? false : creationCodexOffered(await holderCodex.value.view())),
     // As in `briefstack web` (phase 10): the real implement step's system (commits, listed commands) in the test's folders.
     implement: realImplementSystem(),
+    // Phase 10, M4: Codex without its shell for the implement step, the fake Codex CLI here.
+    implementCodex: async () => holderCodex.value?.creationSession(),
     skills,
     runner:
       options.recordingText === undefined
