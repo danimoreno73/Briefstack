@@ -7512,3 +7512,62 @@ to.
   counted over the whole implement step, fix passes included.
 - **The tag `phase-10-start`** was refused to Claude Code; the user
   creates it at `722420b`.
+- **Code needs at least one check** (review of M1, I3): builds accept an
+  empty list only with an explicit confirmation; a creation has no such
+  confirmation, so the spec page refuses code without a check
+  (`creation.invalidCode`, `noChecks`). The commands may be empty (the
+  implementer then runs nothing).
+- **The implementer takes `work` when a preset does not name it**
+  (`agentSetting`): it is not one of the five flow agents, so a user's
+  preset made before phase 10 stays valid. Its file was created without
+  `model` and `effort`, which `usage set balanced` then wrote, run with a
+  throwaway `BRIEFSTACK_HOME` so the user's config was not touched (the
+  values are the repo default's, as for the other agents).
+- **`implement` is an optional step** of the panel and the step count: it
+  shows and counts only once the flow reached it (or, on the creations
+  list, when the creation has code), so a creation without code still says
+  "step n of 9".
+- **No timeout of ours on `briefstack-web`.** The SDK's default for an
+  in-process server is unbounded (`sdk.d.ts`, `createSdkMcpServer`), and
+  `approve_spec` waits for the user as long as they need; a listed command
+  ends at its own 10-minute deadline (`implementSystem.ts`).
+
+## Phase 10: review of M1, the fixes (2026-11-22)
+
+The review of M1 (`e20684e..ee4fb98`; apto con reservas) found four
+important items and eight minor ones. Fixed in the next commits:
+
+- **I1** (the real flow could be told `code: true` with no step to run
+  it): the spec page offers code only when the manager has the implement
+  step's system (`implement` option), which comes with the skill section,
+  the agent and the tools (M2); nothing was pushed between the fix and M2.
+- **I2** (the no-shell check failed open on an unknown format): a positive
+  control, `` ### `apply_patch` `` must be in the rendering, or the check
+  fails ("the tool list was not in the format briefstack reads"). The
+  format was checked against the real renderings kept from H0.1 (Codex
+  0.167.0: by default `` ### `apply_patch` ``, `` ### `exec_command` ``
+  and `` ### `write_stdin` `` are there; with `--disable shell_tool` only
+  `apply_patch` of the three). Any nested tool whose name says it runs
+  things (shell, command, terminal, stdin, repl, spawn, process) also fails
+  the check.
+- **I3**: at least one check (above).
+- **I4**: the plan's Status updated; the two bounds settings moved to M3
+  in the plan; `docs/api.md` is M6's.
+- **m2**: `codex debug prompt-input --help` (0.167.0) has no
+  `--ignore-user-config` (checked 2026-11-22), so the check renders with
+  the user's `config.toml` while the call skips it. The rendering does not
+  list MCP servers' tools (H0.1: `node_repl` was not in it), so the check
+  measures the built-in tools only; the call's `--ignore-user-config` is
+  what keeps the user's MCP servers out.
+- **m3**: an empty rendering fails the format control, with that text.
+- **m4**: the choice is recorded only when the flow is finally told
+  `approve`; once the implement step started, a code answer is refused
+  (`fixed`); workspace only removes an earlier `code.json`.
+- **m5**: the English and Spanish texts of `creation.invalidCode` come from
+  the UI's catalogue (`codeIssueTexts`), not from constants.
+- **m6**: the tests check the error's code and params, change and
+  re-approve, unticked skills with code, a failing Codex reading.
+- **m7**: the page takes the default fix passes from the server.
+- Not changed: **m1** (Codex availability read when the flow asks, not at
+  the answer) is for M4, which checks again when a call is made; **m8**
+  (one commit carried the next one's i18n keys) is history.

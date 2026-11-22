@@ -19,8 +19,8 @@ Updated 2026-11-22.
 | # | Milestone | State |
 |---|---|---|
 | H0 | Verify before designing (BRIEF §6) | done, decisions.md "Phase 10: H0": the no-shell mode holds (8 real Codex calls of 10) |
-| M1 | The spec checkpoint: code choice, lists, fix passes, Codex checkbox; the no-shell status check | not started |
-| M2 | The `implement` step: the implementer, its tools, the guard, the two commits, a fake implementer | not started |
+| M1 | The spec checkpoint: code choice, lists, fix passes, Codex checkbox; the no-shell status check | done (`2446c90`, `ee4fb98`; CI green on the three systems, run 45035131741). Review: apto con reservas; I1–I4 and m2–m7 fixed with M2 (decisions.md, "Phase 10: review of M1, the fixes"); the bounds settings moved to M3 |
+| M2 | The `implement` step: the implementer, its tools, the guard, the two commits, a fake implementer | in progress |
 | M3 | Checks, fix passes, bounds and the usage reading | not started |
 | M4 | Codex without its shell in the implement step | not started |
 | M5 | The live panel and the result screen | not started |
@@ -74,8 +74,10 @@ Each one is the conservative reading and is in decisions.md.
    hand-off's `briefstack commit` then has nothing to commit.
 6. **The implementer agent** is `.claude/agents/implementer.md` (tools:
    Read, Glob, Grep, Write, Edit and its two MCP tools), model and effort
-   from a new `agents.implementer` entry in every usage profile, written by
-   `usage set` (saver `sonnet`, balanced `sonnet`, max `opus`, as `work`).
+   from the profile's `work` unless a preset names `implementer` in
+   `agents`, written by `usage set` (changed in M2: a user's preset made
+   before phase 10 stays valid; decisions.md, "Decisiones sin Dani (fase
+   10)").
    Its prompt: the brief's deliverables and "done when" as far as the
    bounds allow, then the brief's "Current status" with what is done and
    what is left (brief §2, 10). The generator keeps its rule of never
@@ -113,7 +115,7 @@ Each one is the conservative reading and is in decisions.md.
 
 ### M1 — the spec checkpoint
 
-- Config: `implementMaxMinutes`, `implementMaxToolCalls` (Settings).
+- (Moved to M3: the config `implementMaxMinutes`, `implementMaxToolCalls`.)
 - The spec answer's schema with `code`; the server's validation (type,
   target, lists, fix passes, Codex only when available); the creation's
   `code` record and `code.json`; what the flow is told.
@@ -141,6 +143,7 @@ Each one is the conservative reading and is in decisions.md.
 
 ### M3 — checks, fix passes, bounds, usage
 
+- Config: `implementMaxMinutes`, `implementMaxToolCalls` (Settings).
 - `implement_finish` with the checks and fix passes; the warning when
   they still fail.
 - The clock and tool-call cap in the guard; the usage reading in
