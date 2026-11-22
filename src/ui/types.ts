@@ -277,6 +277,23 @@ export interface CreationState {
   error?: string;
   startedAt: string;
   finishedAt?: string;
+  /** The code chosen at the spec (phase 10); absent for "workspace only". */
+  code?: { commands: string[]; checks: string[]; fixPasses: number; codex: boolean };
+  /** The implement step's record (phase 10). */
+  implement?: ImplementViewUi;
+}
+
+/** The implement step as the server records it (phase 10, `src/creation/implement.ts`). */
+export interface ImplementViewUi {
+  state: 'running' | 'done' | 'notStarted';
+  reason?: string;
+  workspaceCommit?: string;
+  codeCommit?: string;
+  commitWarning?: string;
+  runs: { command: string; exitCode: number | null; timedOut: boolean; output: string; durationMs: number; at: string }[];
+  refused: { command: string; at: string }[];
+  startedAt?: string;
+  finishedAt?: string;
 }
 
 export interface FlowLine {

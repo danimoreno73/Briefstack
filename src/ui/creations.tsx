@@ -81,7 +81,9 @@ export function CreationsPage() {
                       const kind = waitingKind(creation);
                       // What waits for the user is cream; working and cancelling stay quiet (audit M18).
                       const forYou = kind !== 'working' && kind !== 'cancelling';
-                      const stepIndex = creation.currentStep === undefined ? -1 : (STEPS as readonly string[]).indexOf(creation.currentStep);
+                      // Phase 10: `implement` counts only for a creation with code (or once it runs).
+                      const counted = (STEPS as readonly string[]).filter((step) => step !== 'implement' || creation.code !== undefined || creation.currentStep === 'implement');
+                      const stepIndex = creation.currentStep === undefined ? -1 : counted.indexOf(creation.currentStep);
                       return (
                         <li key={creation.id} class={forYou ? 'cr-card dec' : 'cr-card'} data-creation={creation.id}>
                           <div class="cr-meta">
@@ -90,7 +92,7 @@ export function CreationsPage() {
                               {creation.currentStep !== undefined && (
                                 <span class="chip">
                                   {!forYou && kind === 'working' && <span class="dot pulse" />}
-                                  {stepIndex === -1 ? t.stepLabel(creation.currentStep) : t.stepOf(t.stepLabel(creation.currentStep), stepIndex + 1, STEPS.length)}
+                                  {stepIndex === -1 ? t.stepLabel(creation.currentStep) : t.stepOf(t.stepLabel(creation.currentStep), stepIndex + 1, counted.length)}
                                 </span>
                               )}
                             </div>

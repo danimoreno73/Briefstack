@@ -3,7 +3,7 @@ import { LANGS } from '../../src/i18n/index.js';
 import { stepMessages } from '../../src/i18n/steps.js';
 import { uiMessages } from '../../src/i18n/ui.js';
 import { PANEL_STEPS, buildPanelState, type PanelEventInput, type PanelLive } from '../../src/panel/state.js';
-import { stepPosition, stepText, type StepTextInput } from '../../src/panel/steps.js';
+import { countedSteps, stepPosition, stepText, type StepTextInput } from '../../src/panel/steps.js';
 
 const T0 = Date.UTC(2026, 9, 26, 10, 0, 0);
 const at = (seconds: number) => new Date(T0 + seconds * 1000).toISOString();
@@ -37,7 +37,7 @@ describe('stepText', () => {
         const position = stepPosition(state.steps, current);
         if (position === undefined) throw new Error('no position');
         // The panel's "step n / 9" comes from the same position, and its segment shows the same name.
-        expect(stepText(input, lang)).toContain(stepMessages[lang].position(position.index, PANEL_STEPS.length, t.stepLabel(position.step)));
+        expect(stepText(input, lang)).toContain(stepMessages[lang].position(position.index, countedSteps(state.steps, current).length, t.stepLabel(position.step)));
       });
     }
   }
@@ -56,7 +56,15 @@ describe('stepText', () => {
 
   it('between steps, keeps the last step reached, as the panel does', () => {
     expect(SCENES.between.current).toBeUndefined();
-    expect(stepPosition(SCENES.between.state.steps, undefined)).toEqual({ index: 3, step: 'interview' });
+    expect(stepPosition(SCENES.between.state.steps, undefined)).toEqual({ index: 3, step: 'interview', total: 9 });
+  });
+
+  it('counts `implement` only once the flow reached it (phase 10)', () => {
+    const steps = SCENES.between.state.steps;
+    expect(steps.map((item) => item.step)).not.toContain('implement');
+    expect(stepPosition(steps, 'implement')).toEqual({ index: 8, step: 'implement', total: 10 });
+    expect(stepPosition([...steps, { step: 'implement', state: 'ok' }], 'learn')).toEqual({ index: 9, step: 'learn', total: 10 });
+    expect(stepPosition(steps, 'learn')).toEqual({ index: 8, step: 'learn', total: 9 });
   });
 
   it('prefers the step the manager knows open over the recorded ones', () => {

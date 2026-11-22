@@ -19,10 +19,15 @@ export const PANEL_STEPS = [
   'spec',
   'generate',
   'validate-review',
+  'implement',
   'learn',
   'handoff',
 ] as const;
 export type PanelStep = (typeof PANEL_STEPS)[number];
+
+/** Steps only some creations have (phase 10: `implement`, when the user chose code): shown once reached, else not counted. */
+export const OPTIONAL_STEPS: readonly string[] = ['implement'];
+export const isOptionalStep = (step: string): boolean => OPTIONAL_STEPS.includes(step);
 export type PanelStepState = 'waiting' | 'running' | 'ok' | 'skipped' | 'failed';
 
 /** Same default as `STALE_AFTER_MINUTES` in `src/events`. */
@@ -405,7 +410,8 @@ export function buildPanelState(events: readonly PanelEventInput[], options: Pan
     session,
     nodes: builds.map((build) => build.node),
     timeline,
-    steps: PANEL_STEPS.map((step) => ({ step, state: steps[step] })),
+    // `implement` (phase 10) shows only once the flow reached it: a creation without code never has it.
+    steps: PANEL_STEPS.filter((step) => !isOptionalStep(step) || steps[step] !== 'waiting').map((step) => ({ step, state: steps[step] })),
     usage,
     eventCount: events.length,
   };

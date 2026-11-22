@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { PANEL_STEPS, buildPanelState, type PanelEventInput, type PanelLive, type PanelNode, type PanelState, type PanelStepState } from '../panel/state.js';
+import { buildPanelState, type PanelEventInput, type PanelLive, type PanelNode, type PanelState, type PanelStepState } from '../panel/state.js';
 import { stepPosition, type StepPosition } from '../panel/steps.js';
 import { usageHiddenReason } from './claude.js';
 import { useApp, useClaudeStatus, useDocumentTitle, useLoad } from './hooks.js';
@@ -105,7 +105,7 @@ export function StepCount({ position }: { position: StepPosition }) {
   const { t } = useApp();
   return (
     <span class="meta">
-      <span>{t.headStep(position.index, PANEL_STEPS.length)}</span>
+      <span>{t.headStep(position.index, position.total)}</span>
       <span class="m-only" aria-hidden="true">
         ·
       </span>

@@ -17,7 +17,7 @@ import { BriefstackError } from '../errors.js';
 export const EVENTS_FILE = 'events.jsonl';
 export const EVENT_FORMAT = 1;
 
-/** The creation flow, BRIEF-phase-1 §4. */
+/** The creation flow, BRIEF-phase-1 §4. `implement` (phase 10) runs only in the web app, when the user chose code. */
 export const FLOW_STEPS = [
   'idea',
   'gap-analysis',
@@ -26,6 +26,7 @@ export const FLOW_STEPS = [
   'spec',
   'generate',
   'validate-review',
+  'implement',
   'learn',
   'handoff',
 ] as const;

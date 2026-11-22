@@ -9,6 +9,7 @@ export const STEPS = [
   'spec',
   'generate',
   'validate-review',
+  'implement',
   'learn',
   'handoff',
 ] as const;

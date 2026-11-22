@@ -1,6 +1,6 @@
 import type { Lang } from '../i18n/index.js';
 import { stepMessages, stepName } from '../i18n/steps.js';
-import { PANEL_STEPS, type PanelStepState } from './state.js';
+import { PANEL_STEPS, isOptionalStep, type PanelStepState } from './state.js';
 
 /**
  * Where a creation is, as the panel shows it (backlog 2, B10). The panel's
@@ -9,17 +9,28 @@ import { PANEL_STEPS, type PanelStepState } from './state.js';
  */
 
 export interface StepPosition {
-  /** 1-based, in `PANEL_STEPS`. */
+  /** 1-based, among the steps counted (`countedSteps`). */
   index: number;
   step: string;
+  /** How many steps are counted: every step, an optional one only once reached. */
+  total: number;
 }
 
 /** "step 3 / 9" for the step running now or, between steps, the last one reached. */
 export function stepPosition(steps: readonly { step: string; state: PanelStepState }[], current: string | undefined): StepPosition | undefined {
   const reached = current ?? [...steps].reverse().find((item) => item.state !== 'waiting')?.step;
   if (reached === undefined) return undefined;
-  const index = (PANEL_STEPS as readonly string[]).indexOf(reached);
-  return index === -1 ? undefined : { index: index + 1, step: reached };
+  const counted = countedSteps(steps, reached);
+  const index = counted.indexOf(reached);
+  return index === -1 ? undefined : { index: index + 1, step: reached, total: counted.length };
+}
+
+/**
+ * The steps the count runs over: every step, but an optional one (phase 10:
+ * `implement`) only when it is listed, reached or open now.
+ */
+export function countedSteps(steps: readonly { step: string; state: PanelStepState }[], current?: string): string[] {
+  return PANEL_STEPS.filter((step) => !isOptionalStep(step) || step === current || steps.some((item) => item.step === step && item.state !== 'waiting'));
 }
 
 /** What the creation waits for: a request in the browser, or a reply to its last message. */
@@ -44,7 +55,7 @@ export interface StepTextInput {
 export function stepText(input: StepTextInput, lang: Lang): string {
   const m = stepMessages[lang];
   const position = stepPosition(input.steps, input.current);
-  const where = position === undefined ? m.noStep : m.position(position.index, PANEL_STEPS.length, stepName(position.step, lang));
+  const where = position === undefined ? m.noStep : m.position(position.index, position.total, stepName(position.step, lang));
   const what =
     input.status === 'finished'
       ? m.finished(input.outcome)
