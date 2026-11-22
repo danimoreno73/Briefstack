@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -61,5 +62,20 @@ describe('/new-project skill', () => {
     const interviewer = await readFile(path.join(PACKAGE_ROOT, '.claude', 'agents', 'interviewer.md'), 'utf8');
     expect(interviewer).toContain('at least two options in all');
     expect(interviewer).toContain('Never return a question with fewer than two options.');
+  });
+
+  it('the terminal flow is unchanged by phase 10: without its web-only implement section, the skill is the one of phase 9', async () => {
+    const text = (await readFile(SKILL, 'utf8')).replaceAll('\r\n', '\n');
+    const block = /<!-- briefstack:locked implement-web -->\n[\s\S]*?<!-- \/briefstack:locked implement-web -->\n\n/;
+    expect(text).toMatch(block);
+    // The section itself is for the web app with code chosen, and says the terminal skips it.
+    const section = block.exec(text)?.[0] ?? '';
+    expect(section).toContain('Only when `MODE` is web and the spec\'s approval answered `code: true`.');
+    expect(section).toContain('Otherwise skip this whole section and do not record the step.');
+    const before = text
+      .replace(block, '')
+      .replace('`validate-review`, `implement` (web app with code chosen only), `learn`, `handoff`.', '`validate-review`, `learn`, `handoff`.');
+    // SHA-256 of `.claude/skills/new-project/SKILL.md` at 722420b (phase 9, before phase 10), with LF line ends.
+    expect(createHash('sha256').update(before, 'utf8').digest('hex')).toBe('1e4f434bb063d39e08324e3774180618d7d54db1b46b9eb6bc9f6ab383fdc818');
   });
 });

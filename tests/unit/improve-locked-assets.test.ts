@@ -15,6 +15,11 @@ const EXPECTED: Record<string, Record<string, string>> = {
     'spec-web': 'Never ask in plain text and never end the turn instead',
     'spec-checkpoint': 'Nothing is created before the user approves',
     'notes-no-secrets': 'never hold secrets, credentials or sensitive personal data',
+    // Phase 10: the web-only implement step.
+    'implement-web': 'never run a command yourself and never write the code yourself',
+  },
+  '.claude/agents/implementer.md': {
+    'implementer-safety': 'You have no Bash or PowerShell',
   },
   '.claude/agents/generator.md': {
     'generator-scope': 'Write only inside the output folder',

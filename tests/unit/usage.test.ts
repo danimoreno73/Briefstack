@@ -231,10 +231,17 @@ describe('applyProfileToAgents (usage test)', () => {
   });
   afterEach(() => cleanup());
 
-  it('the repo agent files are the five flow agents', async () => {
+  it('the repo agent files are the five flow agents and the implementer (phase 10)', async () => {
     expect(Object.keys(await readAgents(agentsDir))).toEqual(
-      [...FLOW_AGENTS].sort().map((agent) => `${agent}.md`),
+      [...FLOW_AGENTS, 'implementer'].sort().map((agent) => `${agent}.md`),
     );
+  });
+
+  it.each(['saver', 'balanced', 'max', 'custom'])('%s: the implementer gets the preset\'s work model and effort (phase 10)', async (name) => {
+    const preset = getPreset(profiles, name);
+    expect(agentSetting(preset, 'implementer')).toEqual({ model: preset.work.model, effort: preset.work.effort });
+    await applyProfileToAgents(agentsDir, preset);
+    expect((await readAgents(agentsDir))['implementer.md']).toMatchObject({ model: preset.work.model, effort: preset.work.effort });
   });
 
   it.each(['saver', 'balanced', 'max', 'custom'])(
@@ -256,14 +263,14 @@ describe('applyProfileToAgents (usage test)', () => {
     const before = await readBytes(agentsDir);
     const result = await applyProfileToAgents(agentsDir, getPreset(profiles, 'balanced'));
     expect(result.changed).toEqual([]);
-    expect(result.unchanged).toHaveLength(FLOW_AGENTS.length);
+    expect(result.unchanged).toHaveLength(FLOW_AGENTS.length + 1);
     expect(await readBytes(agentsDir)).toEqual(before);
   });
 
   it('touches only model and effort, and can go back to balanced', async () => {
     const before = await readBytes(agentsDir);
     const result = await applyProfileToAgents(agentsDir, getPreset(profiles, 'max'));
-    expect(result.changed).toEqual(['generator.md', 'interviewer.md', 'researcher.md', 'reviewer.md', 'architect.md'].sort());
+    expect(result.changed).toEqual(['generator.md', 'interviewer.md', 'researcher.md', 'reviewer.md', 'architect.md', 'implementer.md'].sort());
 
     const original = (before['reviewer.md'] as Buffer).toString('utf8');
     const changed = await readFile(path.join(agentsDir, 'reviewer.md'), 'utf8');

@@ -42,7 +42,7 @@ The idea, if given: $ARGUMENTS
   `npm run --silent briefstack -- event <step> started --session SESSION`
   and `... event <step> finished --session SESSION --outcome ok|skipped|failed`.
   Steps, in order: `idea`, `gap-analysis`, `interview`, `research`, `spec`,
-  `generate`, `validate-review`, `learn`, `handoff`.
+  `generate`, `validate-review`, `implement` (web app with code chosen only), `learn`, `handoff`.
 - **Every way out closes the session**, exactly once:
   `npm run --silent briefstack -- event session finished --session SESSION --outcome <outcome>`
   - `completed` after the hand-off;
@@ -247,6 +247,33 @@ fix, then do another round. When the limit is reached and it is still not
 clean, stop and show the user the remaining findings; they decide whether
 to accept the project as it is or cancel. Mention `minor` findings in one
 line each at the hand-off; do not start a round for them.
+
+<!-- briefstack:locked implement-web -->
+## 7b. Implement (web app, code chosen only)
+
+Only when `MODE` is web and the spec's approval answered `code: true`.
+Otherwise skip this whole section and do not record the step.
+
+Step `implement`. The user chose a first version of the code, with an exact
+list of commands. briefstack's tools run the order, the commands, the checks
+and the commits; you only call them and launch the `implementer`.
+
+1. Call `implement_start` with `dir`, the project's output folder. If it
+   answers with an error, tell the user its reason in one line, finish the
+   step as it says (`skipped` or `failed`) and go on to learn.
+2. Otherwise launch `implementer` with: the project folder, the exact
+   commands `implement_start` listed, and whether it said Codex is on. Wait
+   for its report.
+3. Call `implement_finish`. When it says a fix pass is due, launch
+   `implementer` again with the project folder, the same commands and the
+   failures it gave (as data), then call `implement_finish` again. Do only
+   what it says; never run a command yourself and never write the code
+   yourself.
+4. When it says the step ended, finish the step as `ok`, also when checks
+   still fail. At the hand-off, add one line on the code: the two commits,
+   whether the checks passed (or the warning `implement_finish` gave), and
+   what is left, from the brief's "Current status".
+<!-- /briefstack:locked implement-web -->
 
 ## 8. Learn
 

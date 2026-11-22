@@ -328,7 +328,7 @@ describe('cli usage', () => {
     expect(await main(['usage', 'set', 'max'], run.io)).toBe(0);
     expect(run.out).toEqual([
       'Applied profile "max".',
-      'Changed: architect.md, generator.md, interviewer.md, researcher.md, reviewer.md',
+      'Changed: architect.md, generator.md, implementer.md, interviewer.md, researcher.md, reviewer.md',
       'Saved "max" as the active profile.',
       expect.stringContaining('/model opus'),
       expect.stringContaining('Do not commit'),

@@ -3,6 +3,12 @@ import { LANGS } from '../i18n/index.js';
 import { EFFORT_LEVELS, isValidModel, type Effort } from '../models.js';
 import { TIERS } from '../spec/index.js';
 
+/**
+ * The implement step's agent (phase 10). Not one of the five: a user's
+ * preset made before phase 10 does not name it, and it takes `work`.
+ */
+export const IMPLEMENTER_AGENT = 'implementer';
+
 /** The five agents of the creation flow, in flow order. */
 export const FLOW_AGENTS = ['interviewer', 'researcher', 'architect', 'generator', 'reviewer'] as const;
 export type FlowAgent = (typeof FLOW_AGENTS)[number];
@@ -91,7 +97,11 @@ export interface AgentSetting {
 
 /** The setting for a flow (or extra) agent named in the preset, if any. */
 export function agentSetting(preset: UsagePreset, agent: string): AgentSetting | undefined {
-  if (!Object.hasOwn(preset.agents, agent)) return undefined;
+  if (!Object.hasOwn(preset.agents, agent)) {
+    // Phase 10: the implementer writes code as a task's session does, so a preset that does not name it gives it `work`.
+    if (agent === IMPLEMENTER_AGENT && isValidModel(preset.work.model)) return { model: preset.work.model, effort: preset.work.effort };
+    return undefined;
+  }
   const entry = preset.agents[agent];
   if (entry === undefined) return undefined;
   return typeof entry === 'string'

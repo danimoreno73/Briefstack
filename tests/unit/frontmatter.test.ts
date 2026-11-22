@@ -126,7 +126,8 @@ describe('setFrontmatterFields', () => {
   it('is a no-op on the repo agent files with their own values', async () => {
     const dir = new URL('../../.claude/agents/', import.meta.url);
     const files = (await readdir(dir)).filter((name) => name.endsWith('.md'));
-    expect(files.length).toBe(5);
+    // The five flow agents and the implementer (phase 10).
+    expect(files.length).toBe(6);
     for (const name of files) {
       const text = await readFile(new URL(name, dir), 'utf8');
       const { data } = parseFrontmatter(text, name);
