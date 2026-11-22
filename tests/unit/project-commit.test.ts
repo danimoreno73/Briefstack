@@ -1,4 +1,4 @@
-import { chmod, stat } from 'node:fs/promises';
+import { chmod, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { git } from '../../src/library/git.js';
@@ -38,6 +38,13 @@ describe('commitProject', () => {
     expect(await exists(path.join(dir, 'hook-ran'))).toBe(false);
     expect(await exists(path.join(dir, 'monitor-ran'))).toBe(false);
     expect((await git(project, ['log', '--format=%s'])).trim()).toBe('Prepare the project with briefstack');
+    // Phase 10: the id of the commit, and a second commit with its own message (the code apart from the workspace).
+    expect(result.commit).toBe((await git(project, ['rev-parse', 'HEAD'])).trim());
+    await writeFile(path.join(project, 'code.js'), 'export const x = 1;\n', 'utf8');
+    const code = await commitProject(project, { message: 'Write the first version of the code with briefstack' });
+    expect(code).toMatchObject({ committed: true, commit: (await git(project, ['rev-parse', 'HEAD'])).trim() });
+    expect((await git(project, ['log', '--format=%s'])).trim().split('\n')).toEqual(['Write the first version of the code with briefstack', 'Prepare the project with briefstack']);
+    expect(await commitProject(project)).toMatchObject({ committed: false, nothingToCommit: true });
   });
 
   it('turns hooks off with an empty folder and fsmonitor off', () => {
