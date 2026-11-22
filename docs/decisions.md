@@ -7163,7 +7163,9 @@ stay out (the user's security decisions).
   a byte order mark, CRLF. The download is a `blob:` link with `download`:
   no directive of the server's CSP (`default-src 'self'`, ...) governs a
   download, so nothing is relaxed. Checked in the e2e test with Chromium:
-  the file arrives and the console shows no CSP refusal.
+  the file arrives and the console shows no CSP refusal. It exports the
+  list as the page shows it: archived projects only when "Show archived"
+  is on (review of step 33, part C).
 - **Usage: a note on the week's window.** No new reading (it costs a
   session): the page uses the last one saved in `<home>/plan-usage.json`,
   which now also keeps each window's `resets_at` when the reading gives it

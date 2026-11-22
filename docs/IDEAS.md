@@ -1121,6 +1121,19 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   Reverting a discarded build does not check whether another build holds
   the project now (its `busy` looks at active tasks only). Review of step
   33, part B.
+- **Pending: minor.** No test of a loop that fails while a cancel is asked
+  (the `cancel-asked` mark makes it cancelled), nor of `finishCancel`
+  keeping the mark when its save fails; a mark can stay beside a build the
+  loop left `finished` or `interrupted` (harmless: Resume removes it).
+  `activity` on the Usage page is tested only with nothing running. The
+  Usage form repeats the agent and effort lists of `src/usage/schema.ts`
+  and `src/models.ts`. An unreadable user presets file answers with its
+  absolute path in the error's `params` (as `GET` and `PUT /api/usage`
+  already did; the page never shows it). Writing a preset rewrites the
+  user's `usage-profiles.json` in the schema's key order. Review of step
+  33, part C.
+- **Noted.** Commits `fde4fe7` (the four controls of part C) and
+  `bfaa9b6` hold several concerns. Review of step 33, part C.
 - **Noted.** Commit `5c6133b` holds the ten items of part B and the fixes
   of part A's review together. Review of step 33, part B.
 - **Noted.** Commit `8e02689` holds the user's decisions 1 and 2 together,
