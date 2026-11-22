@@ -20,6 +20,24 @@ export const MAX_CODEX_INSTRUCTION = 20_000;
 /** How long one `codex exec` call may take before its process tree is ended. */
 export const CODEX_CALL_TIMEOUT_MS = 10 * 60_000;
 
+/**
+ * Codex without its shell (decisions.md, "Phase 10: H0", 1): the measured
+ * set of calls 3–8. Not only the shell: the user's `config.toml` may bring
+ * MCP servers (a Node REPL among them), plugins and apps add tools, hooks
+ * run commands, and the web tool reaches the Internet from OpenAI's side.
+ * Only creations use it; tasks keep Codex with its shell.
+ */
+export const CODEX_NO_SHELL_FEATURES = ['shell_tool', 'multi_agent', 'plugins', 'apps', 'hooks', 'browser_use', 'computer_use'] as const;
+
+/** The no-shell arguments `codex exec` takes (`--ignore-user-config` is an `exec` option). */
+export const CODEX_NO_SHELL_EXEC_ARGS: readonly string[] = ['--ignore-user-config', ...CODEX_NO_SHELL_FEATURES.flatMap((feature) => ['--disable', feature]), '-c', 'web_search="disabled"'];
+
+/** The same features for `codex debug prompt-input`, which has no `--ignore-user-config`. */
+export const CODEX_NO_SHELL_FEATURE_ARGS: readonly string[] = [...CODEX_NO_SHELL_FEATURES.flatMap((feature) => ['--disable', feature]), '-c', 'web_search="disabled"'];
+
+/** Tool names that run commands; the no-shell check fails when the rendered input still names one. */
+export const CODEX_SHELL_TOOL_NAMES = ['exec_command', 'write_stdin', 'shell', 'local_shell', 'unified_exec'] as const;
+
 export function isCodexSandboxMode(value: unknown): value is CodexSandboxMode {
   return typeof value === 'string' && (CODEX_SANDBOX_MODES as readonly string[]).includes(value);
 }

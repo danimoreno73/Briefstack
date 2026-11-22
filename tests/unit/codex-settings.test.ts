@@ -3,7 +3,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { CodexService, codexUnavailableReason, type CodexStatus, type CodexView } from '../../src/codex/service.js';
+import { CODEX_NO_SHELL_FEATURE_ARGS } from '../../src/codex/limits.js';
+import { CodexService, codexUnavailableReason, creationCodexOffered, shellToolsDeclared, type CodexStatus, type CodexView } from '../../src/codex/service.js';
 import { codexSettingsOf, parseConfig, updateConfig, type PathEnv } from '../../src/config/index.js';
 import { startWebServer, TOKEN_HEADER, type WebServer } from '../../src/server/index.js';
 import { fakeCodex } from '../codexWorld.js';
@@ -134,14 +135,36 @@ describe('the service and its routes', { timeout: 60_000 }, () => {
     const view = reply.json as unknown as CodexView;
     expect(view).toMatchObject({ available: true, last: { found: true, ok: true, mode: 'unelevated', platform: 'win32', version: { ok: true, text: 'codex-cli 0.167.0' }, login: { ok: true, text: 'Logged in using ChatGPT' }, sandbox: { ok: true, text: 'machine\\sandbox-user' } } });
     const calls = await logged();
-    expect(calls.map((call) => call.argv)).toEqual([['--version'], ['login', 'status'], ['sandbox', '-c', 'windows.sandbox="unelevated"', '-P', ':workspace', '--', 'whoami']]);
+    expect(calls.map((call) => call.argv)).toEqual([
+      ['--version'],
+      ['login', 'status'],
+      ['sandbox', '-c', 'windows.sandbox="unelevated"', '-P', ':workspace', '--', 'whoami'],
+      ['debug', 'prompt-input', ...CODEX_NO_SHELL_FEATURE_ARGS, 'briefstack no-shell check'],
+    ]);
+    expect(view.last?.noShell).toEqual({ ok: true, text: 'no command tool' });
+    expect(creationCodexOffered(view)).toBe(true);
     // Never our credentials, never CODEX_HOME (so never another auth.json); run in briefstack's own folder.
     expect(calls.flatMap((call) => call.suspect)).toEqual([]);
     // Real paths on both sides: macOS reports its temp folder under /private.
     expect(calls.map((call) => realpathSync(call.cwd))).toEqual(calls.map(() => realpathSync(path.join(home, 'codex', 'check'))));
     // Kept: the next GET runs nothing and shows it.
     expect((await send('GET', '/api/codex')).json).toMatchObject({ available: true, last: { ok: true } });
-    expect(await logged()).toHaveLength(3);
+    expect(await logged()).toHaveLength(4);
+  });
+
+  it('the no-shell check (phase 10): a Codex that still offers a shell tool fails it, tasks keep the tool, creations do not offer it', async () => {
+    await updateConfig(path.join(home, 'config.json'), { codexEnabled: true });
+    const view = await service('win32', 'shellStays').check();
+    expect(view).toMatchObject({ available: true, last: { ok: true, noShell: { ok: false, text: 'still offers: exec_command, write_stdin' } } });
+    expect(creationCodexOffered(view)).toBe(false);
+    // A check from before phase 10 has no noShell: creations wait for the next check.
+    expect(creationCodexOffered({ available: true, last: { ...view.last!, noShell: undefined } as never })).toBe(false);
+    expect(creationCodexOffered({ available: false, last: { ...view.last!, noShell: { ok: true, text: '' } } })).toBe(false);
+  });
+
+  it('shellToolsDeclared reads declarations only, not mentions in a description', () => {
+    expect(shellToolsDeclared('Run code, for example `await tools.exec_command(...)`.\n### `apply_patch`')).toEqual([]);
+    expect(shellToolsDeclared('### `exec_command`\n"name": "shell"')).toEqual(['exec_command', 'shell']);
   });
 
   it('a failed login, a failed sandbox or no Codex: the check does not pass and the reason shows', async () => {
@@ -165,7 +188,7 @@ describe('the service and its routes', { timeout: 60_000 }, () => {
     const view = await linux.check();
     expect(view).toMatchObject({ modeOffered: false, available: true });
     expect(view.last?.mode).toBeUndefined();
-    expect((await logged()).at(-1)?.argv).toEqual(['sandbox', '-P', ':workspace', '--', 'whoami']);
+    expect((await logged()).at(-2)?.argv).toEqual(['sandbox', '-P', ':workspace', '--', 'whoami']);
     expect(await linux.session()).toEqual({ command: fakeCodex(log), maxCalls: 5 });
   });
 

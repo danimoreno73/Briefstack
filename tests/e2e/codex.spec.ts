@@ -65,8 +65,11 @@ test.describe('Codex in Settings', () => {
     await expect(card(page).getByTestId('codex-version')).toContainText('codex-cli 0.167.0');
     await expect(card(page).getByTestId('codex-login')).toContainText('Logged in using ChatGPT');
     await expect(card(page).getByTestId('codex-sandbox')).toHaveAttribute('data-ok', 'true');
+    // Phase 10: the no-shell check of creations, without the model.
+    await expect(card(page).getByTestId('codex-no-shell')).toHaveAttribute('data-ok', 'true');
+    await expect(card(page).getByTestId('codex-no-shell')).toContainText('no command tool');
     const commands = await ran(app);
-    expect(commands.map((argv) => argv.slice(0, 2))).toEqual([['--version'], ['login', 'status'], ['sandbox', ...(windows ? ['-c'] : ['-P'])]]);
+    expect(commands.map((argv) => argv.slice(0, 2))).toEqual([['--version'], ['login', 'status'], ['sandbox', ...(windows ? ['-c'] : ['-P'])], ['debug', 'prompt-input']]);
     // A task round now gets the tool.
     expect(await app.codex.session()).toMatchObject({ maxCalls: 3 });
   });

@@ -18,7 +18,8 @@
 //                  look like credentials or ours
 //   [fake:noisy]   lines that are not JSON among the events
 //   [fake:noout]   no -o file; the agent message stands in
-// Scenarios change the other commands: loggedOut, noSandbox, oldVersion.
+// Scenarios change the other commands: loggedOut, noSandbox, oldVersion,
+// shellStays (`debug prompt-input` still lists the shell tools without it).
 
 import { Buffer } from 'node:buffer';
 import { execFileSync, spawn } from 'node:child_process';
@@ -124,6 +125,16 @@ async function main() {
       process.stderr.write('Error: the Windows sandbox is not set up\n');
       process.exitCode = 1;
     } else process.stdout.write('machine\\sandbox-user\n');
+    return;
+  }
+  if (argv[0] === 'debug' && argv[1] === 'prompt-input') {
+    record({});
+    // As the real one renders it: tool entries, and the nested tools of `exec` as headings. Without the shell
+    // (`--disable shell_tool`) `exec_command` and `write_stdin` are gone, unless the scenario keeps them.
+    const shell = scenario === 'shellStays' || !argv.join(' ').includes('--disable shell_tool');
+    const nested = ['apply_patch', ...(shell ? ['exec_command', 'write_stdin'] : []), 'view_image'];
+    const description = `Run JavaScript code. For example \`await tools.exec_command(...)\`.\n${nested.map((name) => `### \`${name}\``).join('\n')}`;
+    process.stdout.write(`${JSON.stringify([{ type: 'additional_tools', tools: [{ type: 'custom', name: 'exec', description }] }], null, 2)}\n`);
     return;
   }
   if (argv[0] === 'exec') {

@@ -161,6 +161,8 @@ export function CodexCard() {
                           ['version', t.codexVersionLabel, view.last.version],
                           ['login', t.codexLoginLabel, view.last.login],
                           ['sandbox', t.codexSandboxLabel, view.last.sandbox],
+                          // Phase 10: shown once a check measured it; older checks have none.
+                          ...(view.last.noShell === undefined ? [] : [['no-shell', t.codexNoShellLabel, view.last.noShell] as const]),
                         ] as const
                       ).map(([key, label, item]) => (
                         <Fragment key={key}>

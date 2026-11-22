@@ -139,7 +139,7 @@ export interface CodexView {
   mode: CodexModeView;
   maxCalls: number;
   modeOffered: boolean;
-  last?: { at: string; platform: string; mode?: CodexModeView; found: boolean; version: CodexCheckView; login: CodexCheckView; sandbox: CodexCheckView; ok: boolean };
+  last?: { at: string; platform: string; mode?: CodexModeView; found: boolean; version: CodexCheckView; login: CodexCheckView; sandbox: CodexCheckView; noShell?: CodexCheckView; ok: boolean };
   available: boolean;
   reason?: 'off' | 'notChecked' | 'checkFailed' | 'modeChanged';
 }
@@ -323,6 +323,8 @@ export interface SpecView {
     agent?: string;
     library?: { status: string; hasScripts: boolean; network: boolean; license: string | null; description: string };
   }[];
+  /** The code choice (phase 10): offered only for a `software` spec for Claude Code; `codex` shows the checkbox. */
+  code?: { offered: boolean; codex: boolean; maxCommands: number; maxChecks: number; maxFixPasses: number; defaultFixPasses: number };
 }
 
 /** Improvements (phase 5), as `/api/improve` sends them (docs/api.md). */

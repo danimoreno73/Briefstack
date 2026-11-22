@@ -7,7 +7,7 @@ import { hideAbsolutePaths } from '../panel/project.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { findCodex, type CodexCommand } from './command.js';
 import { codexEnvironment } from './env.js';
-import { CODEX_SANDBOX_MODES, type CodexSandboxMode } from './limits.js';
+import { CODEX_NO_SHELL_FEATURE_ARGS, CODEX_SANDBOX_MODES, CODEX_SHELL_TOOL_NAMES, type CodexSandboxMode } from './limits.js';
 import { runCodexProcess, type CodexProcessResult } from './runner.js';
 import type { CodexSession } from './tool.js';
 
@@ -34,6 +34,13 @@ const statusSchema = z.object({
   version: checkSchema,
   login: checkSchema,
   sandbox: checkSchema,
+  /**
+   * Codex without its shell (phase 10): `codex debug prompt-input` with the
+   * no-shell features names no tool that runs commands. Absent in checks
+   * made before phase 10: creations then do not offer Codex until the next
+   * check. Not part of `ok` (tasks use Codex with its shell).
+   */
+  noShell: checkSchema.optional(),
   ok: z.boolean(),
 });
 export type CodexStatus = z.infer<typeof statusSchema>;
@@ -68,6 +75,20 @@ const MAX_CHECK_TEXT = 300;
 
 /** What the page may show of a check's output: one short text, secrets and absolute paths hidden. */
 const shown = (text: string): string => hideAbsolutePaths(redactSecretLines(text.trim())).slice(0, MAX_CHECK_TEXT);
+
+/**
+ * The tools that run commands which `codex debug prompt-input`'s output
+ * declares: as a tool entry (`"name": "<tool>"`) or as a nested tool's
+ * heading (`` ### `<tool>` ``). A mention in a description does not count.
+ */
+export function shellToolsDeclared(rendered: string): string[] {
+  return CODEX_SHELL_TOOL_NAMES.filter((name) => rendered.includes(`"name": "${name}"`) || rendered.includes(`"name":"${name}"`) || rendered.includes(`### \`${name}\``));
+}
+
+/** Whether creations offer the Codex checkbox: tasks would get the tool, and the last check showed the no-shell mode holds. */
+export function creationCodexOffered(view: Pick<CodexView, 'available' | 'last'>): boolean {
+  return view.available && view.last?.noShell?.ok === true;
+}
 
 /** Why task rounds do not get the tool, or `undefined` when they do. */
 export function codexUnavailableReason(settings: { enabled: boolean; mode: CodexSandboxMode }, last: CodexStatus | undefined, platform: NodeJS.Platform): CodexUnavailableReason | undefined {
@@ -151,7 +172,13 @@ export class CodexService {
       // The measured sandbox call, without the model: `-P :workspace` with the mode on Windows, and `whoami` in it.
       const sandboxRun = await run(['sandbox', ...(windows ? ['-c', `windows.sandbox="${mode}"`] : []), '-P', ':workspace', '--', 'whoami']);
       const sandbox = { ok: passed(sandboxRun), text: shown(passed(sandboxRun) ? sandboxRun.stdout : sandboxRun.stderr.trim() !== '' ? sandboxRun.stderr : sandboxRun.stdout) };
-      status = { v: 1, at, platform: this.platform, ...(windows ? { mode } : {}), found: true, version, login, sandbox, ok: version.ok && login.ok && sandbox.ok };
+      // The no-shell mode of creations, without the model: the tools Codex would offer with the no-shell features.
+      const noShellRun = await run(['debug', 'prompt-input', ...CODEX_NO_SHELL_FEATURE_ARGS, 'briefstack no-shell check']);
+      const shellTools = passed(noShellRun) ? shellToolsDeclared(noShellRun.stdout) : [];
+      const noShell = passed(noShellRun)
+        ? { ok: shellTools.length === 0 && noShellRun.stdout.trim() !== '', text: shellTools.length === 0 ? 'no command tool' : `still offers: ${shellTools.join(', ')}` }
+        : { ok: false, text: shown(noShellRun.stderr.trim() !== '' ? noShellRun.stderr : noShellRun.stdout) };
+      status = { v: 1, at, platform: this.platform, ...(windows ? { mode } : {}), found: true, version, login, sandbox, noShell, ok: version.ok && login.ok && sandbox.ok };
     }
     await mkdir(this.folder(), { recursive: true });
     const temp = `${this.statusFile()}.${process.pid}.tmp`;
