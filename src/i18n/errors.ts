@@ -10,6 +10,7 @@ import type {
 } from '../errors.js';
 import { defineCatalogue, type Lang } from './index.js';
 import { formatSpecIssue } from './spec.js';
+import { startIssueFacts, uiMessages } from './ui.js';
 
 const expectationEn: Record<FieldExpectation, string> = {
   text: 'a non-empty text',
@@ -326,7 +327,7 @@ const errors = defineCatalogue<ErrorMessages>({
     'build.projectBusy': (p) => `Project "${p.project}" already has an open build or task (${p.id}). Finish or discard it first.`,
     'build.invalidStart': (p) => `The build cannot start: ${p.issues.join('; ')}.`,
     'build.branchExists': (p) => `The branch ${p.branch} already exists in the project's repository, so the build does not start.`,
-    'build.branchMoved': (p) => `The branch ${p.branch} is not as briefstack left it or as the page showed it (it changed since, holds a commit briefstack did not make, or is checked out in the project folder), so the server does not touch it. Reload the page.`,
+    'build.branchMoved': (p) => `The branch ${p.branch} is not as briefstack left it or as the page showed it (it changed since, or holds a commit briefstack did not make), so the server does not touch it. Reload the page.`,
     'build.branchCheckedOut': (p) => `The branch ${p.branch} is checked out in a folder of the project's repository (the project folder or another worktree), so the server does not move or delete it. Switch that folder to another branch first.`,
     'build.nothingToApply': (p) => `Build ${p.id} has nothing applied on its integration branch.`,
     'build.alreadyOnBranch': (p) => `The whole change of build ${p.id} is already on ${p.branch || 'the default branch'}: there is nothing more to apply.`,
@@ -552,9 +553,13 @@ const errors = defineCatalogue<ErrorMessages>({
     'build.wrongState': (p) => `El build ${p.id} está en estado ${p.state}; eso no se puede hacer ahora.`,
     'build.noBrief': (p) => `El proyecto "${p.project}" no tiene docs/BRIEF.md desde el que planificar. Los builds se planifican desde el brief del proyecto.`,
     'build.projectBusy': (p) => `El proyecto "${p.project}" ya tiene un build o una tarea abiertos (${p.id}). Termínalo o descártalo primero.`,
-    'build.invalidStart': (p) => `El build no puede empezar: ${p.issues.join('; ')}.`,
+    // In Spanish from the codes, as the page says them (review of step 33, B, M7); the English issues without them.
+    'build.invalidStart': (p) => {
+      const said = (p.items ?? []).map(startIssueFacts).flatMap((facts) => (facts === undefined ? [] : [uiMessages.es.buildStartIssue(facts)]));
+      return `El build no puede empezar: ${(said.length > 0 ? said : p.issues).join('; ')}.`;
+    },
     'build.branchExists': (p) => `La rama ${p.branch} ya existe en el repositorio del proyecto, así que el build no empieza.`,
-    'build.branchMoved': (p) => `La rama ${p.branch} no está como la dejó briefstack o como la mostró la página (cambió desde entonces, tiene un commit que briefstack no hizo o está sacada en la carpeta del proyecto), así que el servidor no la toca. Recarga la página.`,
+    'build.branchMoved': (p) => `La rama ${p.branch} no está como la dejó briefstack o como la mostró la página (cambió desde entonces o tiene un commit que briefstack no hizo), así que el servidor no la toca. Recarga la página.`,
     'build.branchCheckedOut': (p) => `La rama ${p.branch} está sacada en una carpeta del repositorio del proyecto (la del proyecto u otro worktree), así que el servidor no la mueve ni la borra. Cambia antes esa carpeta a otra rama.`,
     'build.nothingToApply': (p) => `El build ${p.id} no tiene nada aplicado en su rama de integración.`,
     'build.alreadyOnBranch': (p) => `Todo el cambio del build ${p.id} ya está en ${p.branch || 'la rama por defecto'}: no queda nada que aplicar.`,

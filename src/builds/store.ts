@@ -8,6 +8,7 @@ import { BUILD_ID_RE, buildRecordSchema, type BuildRecord } from './types.js';
  *
  *   <home>/builds/<id>/build.json   the record
  *   <home>/builds/<id>/plan/        the planner session's empty working folder
+ *   <home>/builds/<id>/cancel-asked the user asked to cancel; the loop has not recorded it yet
  *
  * The tasks a build runs are ordinary tasks under `<home>/tasks/`.
  */
@@ -29,6 +30,8 @@ async function retrying<T>(action: () => Promise<T>): Promise<T> {
 const writing = new Map<string, Promise<void>>();
 
 export const buildsRoot = (home: string): string => path.join(home, 'builds');
+
+const CANCEL_FILE = 'cancel-asked';
 
 export class BuildStore {
   constructor(readonly root: string) {}
@@ -80,6 +83,29 @@ export class BuildStore {
     } catch {
       return undefined;
     }
+  }
+
+  /**
+   * The user's cancel, kept in a file of its own (`cancel-asked`) until the
+   * loop records it, so a server stop meanwhile leaves the build cancelled
+   * (step 33). Not in `build.json`: a write there from the cancel could put
+   * an older record over one the loop just saved (review of step 33, B, I1).
+   */
+  async markCancel(id: string, at: string): Promise<void> {
+    await mkdir(this.buildDir(id), { recursive: true });
+    await writeFile(path.join(this.buildDir(id), CANCEL_FILE), `${at}\n`, 'utf8');
+  }
+
+  async cancelMarked(id: string): Promise<boolean> {
+    if (!BUILD_ID_RE.test(id)) return false;
+    return readFile(path.join(this.buildDir(id), CANCEL_FILE), 'utf8').then(
+      () => true,
+      () => false,
+    );
+  }
+
+  async clearCancel(id: string): Promise<void> {
+    await rm(path.join(this.buildDir(id), CANCEL_FILE), { force: true, maxRetries: 5, retryDelay: 50 });
   }
 
   /** Removes the planner's working folder (it never holds anything the build needs). */

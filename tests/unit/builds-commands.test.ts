@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { approvedCommandProblem, approvedListIssues, approvedListProblems, chainParts, COMMAND_PROBLEMS, isApprovedCommand, startIssueText, type StartIssue } from '../../src/builds/commands.js';
 import { startIssueFacts, uiMessages } from '../../src/i18n/ui.js';
+import { BriefstackError } from '../../src/errors.js';
+import { formatError } from '../../src/i18n/errors.js';
 import { buildRoundPrompt, failureText } from '../../src/builds/prompt.js';
 
 // The exact list of a build (BRIEF-phase-9 §2, 6 and §4).
@@ -160,6 +162,13 @@ describe('the issues of a start, as codes the page translates (step 33)', () => 
       expect(said.join(' ')).not.toContain('Too small');
     }
     expect(startIssueText(every[2] as StartIssue)).toBe('task 2: title Too small');
+  });
+
+  it('the server\'s Spanish error text is said from the codes too (review of step 33, B, M7)', () => {
+    const error = new BriefstackError('build.invalidStart', { issues: ['commands line 1: a wildcard'], items: [{ key: 'listLine', what: 'commands', line: 1, problem: 'wildcard' }] });
+    expect(formatError(error, 'es')).toBe('El build no puede empezar: los comandos aprobados, línea 1: tiene un comodín.');
+    expect(formatError(error, 'en')).toBe('The build cannot start: commands line 1: a wildcard.');
+    expect(formatError(new BriefstackError('build.invalidStart', { issues: ['x'] }), 'es')).toBe('El build no puede empezar: x.');
   });
 
   it('an item the page does not know, or with odd fields, is left out or kept to fixed sets', () => {

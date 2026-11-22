@@ -381,8 +381,14 @@ describe('stopping, the shared limit and an unstarted build (review of M3)', () 
     await s.builds.start(id, start(PLAN, { limit: 1 }));
     await until(() => s.tasks.activeIds().length === 1);
     // The cancel is asked, and the server stops before the loop records it.
+    const buildStore = new BuildStore(buildsRoot(world.home));
+    // The round waits (the slow script): nothing else writes the record meanwhile.
+    const before = JSON.stringify(await buildStore.load(id));
     const asked = await s.builds.cancel(id);
     expect(asked.cancelling).toBe(true);
+    // The cancel is in a file of its own; build.json is not written by it (review of step 33, B, I1).
+    expect(await buildStore.cancelMarked(id)).toBe(true);
+    expect(JSON.parse(JSON.stringify(await buildStore.load(id))).updatedAt).toBe(JSON.parse(before).updatedAt);
     s.builds.stop();
     await s.tasks.shutdown();
     await s.builds.shutdown();
@@ -391,7 +397,7 @@ describe('stopping, the shared limit and an unstarted build (review of M3)', () 
       expect(await after.builds.recover()).toBe(1);
       const view = await after.builds.get(id);
       expect(view.state).toBe('cancelled');
-      expect(view.cancelAsked).toBeUndefined();
+      expect(await buildStore.cancelMarked(id)).toBe(false);
       expect(view.tasks[0]?.state).toBe('cancelled');
       await expect(after.builds.resume(id)).rejects.toMatchObject({ code: 'build.wrongState' });
     } finally {

@@ -329,11 +329,6 @@ export class BuildManager {
     }
   }
 
-  /** The issues of a start, in English, or none. */
-  startProblems(input: BuildStartInput): string[] {
-    return this.startIssues(input).map(startIssueText);
-  }
-
   /** The issues of a start, each a code the page translates (step 33), or none. */
   startIssues(input: BuildStartInput): StartIssue[] {
     const issues: StartIssue[] = [];
@@ -657,6 +652,8 @@ export class BuildManager {
     this.refuseWhileStopping();
     const record = await this.load(id);
     if (!['paused', 'interrupted', 'finished'].includes(record.state) || l.loop !== undefined || l.cancelling) throw new BriefstackError('build.wrongState', { id, state: record.state });
+    // A cancel mark left by a failed save is stale once the user resumes (review of step 33, B, M1).
+    await this.options.store.clearCancel(id);
     const tasks: BuildTask[] = [];
     for (const item of await this.takeInApproved(record.tasks)) {
       // A task that could not start, or met the cap of rounds, has no task of its own to handle: it is queued again
@@ -715,8 +712,9 @@ export class BuildManager {
         l.pausing = false;
         if (l.timer !== undefined) clearTimeout(l.timer);
         delete l.timer;
-        // On disk at once: a server stop before the loop records the cancel leaves the build cancelled (step 33).
-        await this.save(await this.load(id)).catch(() => undefined);
+        // On disk at once, in a file of its own: a server stop before the loop records the cancel leaves the build
+        // cancelled (step 33). Never through `build.json`, which the loop writes meanwhile (review of step 33, B, I1).
+        await this.options.store.markCancel(id, this.now().toISOString()).catch(() => undefined);
         l.wake?.();
         void this.finishCancel(id, l);
       }
@@ -751,13 +749,13 @@ export class BuildManager {
         if (this.stopping) return;
         const record = await this.load(id);
         // Running, or paused by the loop just before it saw the cancel: either way the user cancelled it (review of M4, B1).
-        if (record.state !== 'running' && record.state !== 'paused') return;
-        if (l.timer !== undefined) clearTimeout(l.timer);
-        delete l.timer;
-        const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'cancelled' as const } : task));
-        const next: BuildRecord = { ...record, tasks, state: 'cancelled', finishedAt: this.now().toISOString(), updatedAt: this.now().toISOString() };
-        delete next.pause;
-        await this.save(next);
+        if (record.state === 'running' || record.state === 'paused') {
+          if (l.timer !== undefined) clearTimeout(l.timer);
+          delete l.timer;
+          await this.save(this.cancelledNow(record));
+        }
+        // Recorded (or the build had already left those states): the mark is no longer needed. Kept when the save failed.
+        await this.options.store.clearCancel(id);
       } catch {
         // Nothing more to record.
       } finally {
@@ -788,8 +786,9 @@ export class BuildManager {
           const record = await this.options.store.load(id);
           if (record === undefined || record.state !== 'running' || this.stopping) return;
           // A loop that failed while the user cancelled: the build is cancelled, not interrupted (step 33).
-          if (l.cancelling || record.cancelAsked !== undefined) {
-            await this.options.store.save({ ...this.cancelledNow(record), error: await this.message(error) });
+          if (l.cancelling || (await this.options.store.cancelMarked(id))) {
+            await this.save({ ...this.cancelledNow(record), error: await this.message(error) });
+            await this.options.store.clearCancel(id);
             return;
           }
           const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'waiting' as const, reason: 'interrupted' as const } : task));
@@ -1134,9 +1133,10 @@ export class BuildManager {
       if (record.state === 'planning') {
         await this.save({ ...record, state: 'planFailed', error: await this.message(new BriefstackError('build.planStopped', {})), updatedAt: this.now().toISOString() });
         count += 1;
-      } else if ((record.state === 'running' || record.state === 'paused') && record.cancelAsked !== undefined) {
+      } else if ((record.state === 'running' || record.state === 'paused') && (await this.options.store.cancelMarked(record.id))) {
         // The user had asked to cancel it (step 33).
-        await this.options.store.save(this.cancelledNow(record));
+        await this.save(this.cancelledNow(record));
+        await this.options.store.clearCancel(record.id);
         count += 1;
       } else if (record.state === 'running' || record.state === 'paused') {
         const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'waiting' as const, reason: 'interrupted' as const } : task));
@@ -1186,17 +1186,8 @@ export class BuildManager {
     return record;
   }
 
-  /**
-   * Every save of a running or paused build whose cancel was asked carries
-   * `cancelAsked`, whichever path saves it (the loop's own saves read the
-   * record before the cancel came); any other state drops it.
-   */
   private async save(record: BuildRecord): Promise<void> {
-    const next: BuildRecord = { ...record, updatedAt: this.now().toISOString() };
-    const asked = this.live.get(record.id)?.cancelling === true;
-    if ((next.state === 'running' || next.state === 'paused') && (asked || next.cancelAsked !== undefined)) next.cancelAsked ??= this.now().toISOString();
-    else delete next.cancelAsked;
-    await this.options.store.save(next);
+    await this.options.store.save({ ...record, updatedAt: this.now().toISOString() });
   }
 
   /** A running or paused record whose cancel was asked, as cancelled: what a restart or a failed loop leaves. */
@@ -1204,7 +1195,6 @@ export class BuildManager {
     const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'cancelled' as const } : task));
     const next: BuildRecord = { ...record, tasks, state: 'cancelled', finishedAt: this.now().toISOString(), updatedAt: this.now().toISOString() };
     delete next.pause;
-    delete next.cancelAsked;
     return next;
   }
 
