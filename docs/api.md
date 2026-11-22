@@ -272,7 +272,11 @@ Body with at least one of:
 - `codexMode`: `"unelevated"` (default) or `"elevated"`: Codex's Windows
   sandbox mode. Saved on any system; only Windows uses it.
 - `codexMaxCalls`: a whole number from 1 to 10 (default 5): Codex calls per
-  task round.
+  task round, and per implement step of a creation (phase 10).
+- `implementMaxMinutes`: a whole number from 5 to 120 (default 30), and
+  `implementMaxToolCalls`: from 20 to 1000 (default 150): the bounds of a
+  creation's implement step (phase 10). Both views answer them as
+  `implement: { maxMinutes, maxToolCalls }`.
 
 Answers the same as `GET /api/settings`.
 
@@ -351,6 +355,21 @@ Starts a creation session, which runs the `/new-project` flow.
 - `usageReading` is set until the first plan usage reading arrived or failed.
 - `denied` lists the requests denied without asking under the
   `unattended` policy, for the result screen.
+- `code` (phase 10): the code the user chose at the spec, `{ "commands",
+  "checks", "fixPasses", "codex" }`; absent for "workspace only".
+- `implement` (phase 10): the implement step's record, once asked to
+  start: `{ "state": "running | checking | finishing | done | interrupted |
+  notStarted", "reason"?: "notChosen | wrongFolder | notAProject |
+  commitFailed | usage | usageUnread", "usage"?, "workspaceCommit"?,
+  "codeCommit"?, "commitWarning"?, "runs": [{ "command", "exitCode",
+  "timedOut", "output", "durationMs", "at" }], "refused": [{ "command", "at"
+  }], "checks": [{ "pass", "results": [CheckResult] }], "fixPassesUsed",
+  "bounds"?: { "maxMinutes", "maxToolCalls" }, "toolCalls", "limit"?:
+  "time | toolCalls", "warning"?: "checksFailed", "codex": [CodexCall],
+  "codexUnavailable"?, "protectedReverted"?: ["<path>"], "status"?,
+  "startedAt"?, "finishedAt"? }`. Outputs and Codex's messages are cut and
+  redacted; `status` is the brief's "Current status" as the implementer
+  wrote it (data). The last 50 runs and refusals are kept.
 
 `pending.payload` per kind:
 
@@ -367,6 +386,10 @@ The spec the flow last asked the user to approve, for the approval screen:
 `{ "summary": "<markdown or null>", "spec": { "name"?, "slug"?, "summary"?, "type"?, "target"?, "targetChosenBy"?, "targetReason"?, "profile"?, "language"? } | null, "librarySkills": [{ "name", "reason", "agent"?, "library"?: { "status", "hasScripts", "network", "license", "description" } }] }`.
 `librarySkills` are the approved library skills the spec chose (phase 6),
 with what the library says of each (absent when it has no such skill).
+`code` (phase 10): `{ "offered", "codex", "maxCommands", "maxChecks",
+"maxFixPasses", "defaultFixPasses" }`; `offered` only for a `software` spec
+for `claude-code` in the web app, `codex` only when Codex's last check
+passed with its no-shell part.
 Both files must be inside the creation's session folder, and lines that look
 like a secret come back as `[redacted]`. `404 creation.noSpec` before the
 flow has shown a spec.
@@ -387,6 +410,16 @@ pending kind:
 - `409 creation.noPending` when nothing is pending, `409
   creation.wrongPending` when `pendingId` is not the one shown (the page is
   stale: reload the state), `400 creation.invalidAnswer` for a wrong shape.
+- Phase 10: a spec `approve` may carry `"code": { "commands": [], "checks":
+  [], "fixPasses": 0–2, "codex": false }` for "workspace and a first version
+  of the code". The lists are checked as a build's start checks them, at
+  least one check, Codex only when offered: `400 creation.invalidCode` with
+  `params { issues, items, codex, notOffered, noChecks, fixed }` (`items`
+  as `build.invalidStart`'s). The flow is then told `{ "decision":
+  "approve", "code": true, … }` and the choice is recorded (`code` above,
+  and `code.json` in the session folder); "workspace only" tells the flow
+  exactly what it was told before phase 10. Once the implement step
+  started, a new code answer is refused (`fixed`).
 
 ### `POST /api/creations/:id/cancel`
 
@@ -876,6 +909,16 @@ status` (its exit code and stderr; `auth.json` is never read) and `codex
 sandbox [-c windows.sandbox="<mode>"] -P :workspace -- whoami` (the mode
 on Windows only). It passes when all three end with exit code 0. Codex not
 on the PATH is `found: false`.
+
+Phase 10: a fourth command, `codex debug prompt-input` with the no-shell
+features (`--disable shell_tool`, `multi_agent`, `plugins`, `apps`,
+`hooks`, `browser_use`, `computer_use`, `-c web_search="disabled"`), also
+without the model, gives `last.noShell: { "ok", "text" }`: it passes when
+the rendered tools are in the format briefstack reads (`apply_patch` as a
+heading) and declare no tool that runs commands. It is not part of `ok`
+(tasks use Codex with its shell); a creation offers the Codex checkbox only
+when `available` and `noShell.ok`, and uses Codex only when `codex
+--version` still answers the version checked.
 
 ## Builds (phase 9)
 

@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+What phase 10 adds ([brief](docs/BRIEF-phase-10.md), [plan](docs/PLAN-phase-10.md);
+decisions in [`docs/decisions.md`](docs/decisions.md), "Phase 10"). Phase 10
+is not done until the user runs its real check
+(`scripts/real/check-creation-code.ts`) and accepts it.
+
+### A first version of the code in a creation
+
+- At the spec checkpoint of the web app, a `software` project for Claude
+  Code may get "workspace and a first version of the code" (the default
+  stays "workspace only"), with the exact commands the step may run, the
+  checks to run at the end (at least one) and the fix passes (0 to 2).
+- A new step, `implement`, after validate-review: the workspace is
+  committed first; an `implementer` agent with no shell writes the code
+  inside the project folder and runs only the listed commands, through
+  briefstack (anything else is denied without asking anyone and listed);
+  the checks run, a failure gets a fix pass, and the code is committed
+  apart. Checks that still fail leave the code with a warning, never a
+  failed creation. Protected files (briefstack's, Claude Code's settings
+  and hooks, `.mcp.json`) changed by anyone are put back first.
+- Bounds in Settings: the step's minutes (default 30) and the
+  implementer's tool calls (default 150). The plan usage is read before
+  the step; at or above the warning thresholds, or unread, it does not
+  start.
+- The creation page and the result screen show the step: the two
+  commits, the commands run and denied, each run of the checks, Codex's
+  calls and tokens, and the brief's "Current status" (what is left).
+- The terminal `/new-project` flow is unchanged.
+
+### Codex without its shell
+
+- Measured first (8 real calls): with `--disable shell_tool` and the rest
+  of what could run commands off (the user's `config.toml` ignored, web
+  search off), Codex 0.167.0 ran no command, wrote nothing outside the
+  folder and read no text file.
+- A creation may tick Codex (off by default) when Codex is on and its
+  check passed; the check gains a no-model no-shell part. Codex is used
+  only at the version checked, with the calls-per-round limit for the
+  whole step. Tasks keep Codex with its shell as before.
+
 ## 1.1.0 — 2026-11-22
 
 **Upgrading from 1.0.0:**

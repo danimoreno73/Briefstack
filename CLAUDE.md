@@ -5,13 +5,21 @@ each one.
 
 ## Current state
 
-`v1.1.0` is prepared (version in `package.json`, `CHANGELOG.md`
-"1.1.0"); its tag and GitHub release are the user's to make. What comes
-next is not decided yet.
+Phase 10 is built and waits for the user's real check: a creation can
+also write a first version of the code (web app, `software` projects for
+Claude Code, chosen at the spec checkpoint), with an `implementer` agent
+that has no shell, the exact commands the user approved, checks and fix
+passes, two commits, and Codex without its shell when ticked. Brief
+`docs/BRIEF-phase-10.md`, plan `docs/PLAN-phase-10.md` (Status kept
+there), decisions in `docs/decisions.md`, "Phase 10". The real check is
+`scripts/real/check-creation-code.ts`, prepared, run only by the user;
+the phase is not done before the user accepts it. What it leaves open
+is in `docs/IDEAS.md` §10. `v1.1.0` is tagged; the "Unreleased" section
+of `CHANGELOG.md` holds phase 10.
 
 Phases 7, 8 and 9 are done (tags `phase-7-done`, `phase-8-done`,
 `phase-9-done`): tasks in existing projects; Codex in tasks (off by
-default; Codex in the creation flow has no brief yet); builds (from a
+default); builds (from a
 project's brief, briefstack plans a queue of tasks and runs it unattended
 on an integration branch; the user applies the whole build at the end).
 Their briefs and plans are in `docs/history/` (phase 8 has a brief with

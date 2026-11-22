@@ -1156,3 +1156,34 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   round by round), it should require `applied` once its fix round ended
   without the denied command, and judge that the denial stays in the
   build's denied list. decisions.md, "Phase 9: the user's decisions", 4.
+
+## 10. Open items from phase 10
+
+What phase 10 (a first version of the code in a creation, Codex without
+its shell) leaves open. The plan is [PLAN-phase-10.md](PLAN-phase-10.md);
+the decisions are in [decisions.md](decisions.md), "Phase 10".
+
+- **For the user (decision).** Hooks declared in the frontmatter of a
+  project skill or agent the implementer writes (`hooks:`) are not
+  refused in a creation; a task's validation catches them
+  (`declaresHooks`). The protected paths (settings, hook folders,
+  `.mcp.json`, `.briefstack/`) are refused and put back. Review of M4, I6.
+- **Not shown without a real session:** that the `implementer` subagent
+  sees the in-process `briefstack-web` tools, and that the runner rewrites
+  `guard.json` at `implement_start` and `implement_finish` (no runner-level
+  test). The real check shows both. Reviews of M2 and M4.
+- **The usage gate and the bounds have no e2e** (the gate is wired with the
+  real runner only, as the creation's other readings). Review of M3, I4.
+- A Codex call keeps its own 10-minute deadline inside the step's minutes;
+  some of the delegate's texts still say "round"; a failed `symbolic-ref`
+  reads as "Codex not available". Review of M4, m2 and m4.
+- **Not measured:** whether Codex's file tool, without its shell, could
+  write inside the project's `.git` (a filter in `.git/config` the
+  server's `git add` would run); macOS and Linux for the no-shell mode;
+  Codex releases after 0.167.0 (the status check reads the tools again
+  on each check, and a creation uses only the version checked).
+- The creations list counts `implement` in "step n of m" when code was
+  chosen; the live panel only once the step is reached. Review of M2, m8.
+- The terminal `/new-project` never offers code (out of scope by the
+  brief); a terminal creation that wants code goes on with a task or a
+  build.

@@ -67,6 +67,24 @@ the next interview asks less.
   and at the end apply the whole build to your branch as one commit
   (revertable) or discard it. **A build runs code before you read it**:
   see Security and Limitations.
+- **A first version of the code in a creation** (web app, `software`
+  projects for Claude Code, off by default): at the spec checkpoint choose
+  "workspace and a first version of the code" and give the exact commands
+  it may run (install, test, build, lint), the checks to run when it ends
+  (at least one) and the fix passes (0 to 2). After the workspace is
+  validated and committed, an `implementer` agent writes the code from the
+  brief's deliverables and "done when" and updates its "Current status";
+  the checks run, a failure gets a fix pass, and the code is committed
+  apart from the workspace (two commits, never pushed). Checks that still
+  fail leave the code with a clear warning, never a failed creation. The
+  step has a time limit and a limit of tool calls (Settings) and does not
+  start when plan usage is at or above your warning thresholds or cannot
+  be read. When Codex is on and its check passes, you may also tick
+  **Codex without its shell**: Claude can hand pieces of the writing to
+  Codex, which then writes files only and runs nothing. The result screen
+  shows the commits, the commands run and denied, each run of the checks,
+  Codex's calls and tokens, and what is left. **This step runs code a
+  session wrote before you read it**: see Security and Limitations.
 
 ## Requirements
 
@@ -238,6 +256,27 @@ improvements before you move anything.
   no tools: it reads the brief as data and answers with a queue you
   review. A build's rounds never offer Codex. Nothing reaches your branch
   until you apply the whole build; nothing is pushed.
+- **The creation runs code before you read it** when you choose a first
+  version of the code. The implementer has no shell at all; it writes only
+  inside the project folder (never `.git`, `.briefstack/`,
+  `.claude/settings*.json`, `.claude/hooks/`, `.mcp.json` or hook folders)
+  and runs commands only through briefstack, which runs a command in the
+  project folder only when it is exactly one of the commands you approved
+  (or a chain of them with `&&`); anything else is denied without asking
+  anyone and listed at the end. The list limits command lines, not what an
+  approved command runs: `npm test` runs the tests the session wrote, as
+  you, with your files and the network; the checks run with proxies
+  pointed nowhere, which a program can ignore, and native Windows gives
+  them no sandbox. Listed commands and checks get no tokens or keys from
+  your environment. Changes to protected files, by the implementer or by
+  Codex, are put back before the code commit.
+- **Codex without its shell.** In a creation, Codex runs with its shell
+  tool and the rest of what could run commands turned off
+  (`--disable shell_tool` and more, your `config.toml` ignored, web search
+  off), as measured with Codex 0.167.0: asked to run a command, it could
+  not; it could not write outside the project folder, nor read text files.
+  It is used only when you ticked it, only when the version installed is
+  the one your last check measured, and with the same limit of calls.
 
 See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
@@ -299,6 +338,20 @@ See [SECURITY.md](SECURITY.md) to report a vulnerability.
   output, and in brackets with the prompt cache); rounds from before
   this count have none. Discarding an applied or reverted build deletes
   only its branch.
+- **A creation's first version of the code runs code before you read it**,
+  as a build does: the commands you approved at the spec and the checks
+  run on code the implementer has just written, as you, before anyone
+  reads it. Approve only commands you would run on unread code, and read
+  the code commit before you build on it. The step is the web app's only
+  (the terminal `/new-project` prepares the workspace as before), for
+  `software` projects with the `claude-code` target; it writes a first
+  version as far as its limits allow, and the brief's "Current status"
+  says what is left for a task or a build. The implementer's subagent
+  reaching briefstack's own tools was not shown without a real session;
+  the real check (`scripts/real/check-creation-code.ts`, run by you) shows
+  it. Codex without its shell was measured on Windows only, with Codex
+  0.167.0; it cannot read files, so Claude gives it in the instruction
+  what it needs, and it can open images by path.
 - A task's copy has no `node_modules` or other ignored files: a check that
   needs dependencies must install them (`npm ci --offline` works from
   npm's cache), or the session can ask to run the install.
