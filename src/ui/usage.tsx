@@ -22,7 +22,10 @@ function LastPlanUsage({ last, activity }: { last: UsageData['lastPlanUsage']; a
   const { status } = useClaudeStatus();
   const hidden = usageHiddenReason(t, status);
   // The week's window (IDEAS §3; step 33): from the last reading the server saved, never a new one.
-  const resetDay = last?.sevenDayResetsAt === undefined ? undefined : weekdayOf(last.sevenDayResetsAt, lang);
+  // A reset time already past: the window has reset since that reading, so its figure is old (review of step 33, C, M3).
+  const resetPassed = last?.sevenDayResetsAt !== undefined && Date.parse(last.sevenDayResetsAt) <= Date.now();
+  const resetDay = last?.sevenDayResetsAt === undefined || resetPassed ? undefined : weekdayOf(last.sevenDayResetsAt, lang);
+  // `null`: the server could not say what runs; the note does not claim nothing does (review of step 33, C, M2).
   const running = activity === undefined || activity === null ? undefined : activity;
   return (
     <section class="card" aria-labelledby="plan-usage-title" data-testid="last-plan-usage">
@@ -46,7 +49,7 @@ function LastPlanUsage({ last, activity }: { last: UsageData['lastPlanUsage']; a
           </p>
           {last.sevenDay !== null && (
             <Note tone="plain" testId="usage-week-note">
-              {t.usageWeekNote(Math.round(last.sevenDay), resetDay, running?.creations ?? 0, running?.builds ?? 0)}
+              {resetPassed ? t.usageWeekReset(Math.round(last.sevenDay)) : t.usageWeekNote(Math.round(last.sevenDay), resetDay, running)}
             </Note>
           )}
         </>

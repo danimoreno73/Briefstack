@@ -28,7 +28,8 @@ export interface ProjectsCsvHeaders {
  * -, @, a tab or a carriage return) is given a leading apostrophe.
  */
 export function csvField(value: string): string {
-  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  // Also behind leading spaces or a line break, which some spreadsheets skip (review of step 33, C, M8).
+  const safe = /^[\s]*[=+\-@]|^[\t\r\n]/.test(value) ? `'${value}` : value;
   return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 

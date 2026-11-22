@@ -55,6 +55,14 @@ describe('archived creations', () => {
     expect(await readFile(path.join(home, ARCHIVED_SESSIONS_FILE), 'utf8')).toBe('{ not json');
   });
 
+  it('an id such as constructor is never taken for an inherited value (review of step 33, C, M6)', async () => {
+    await appendEvent(sessionsDir, sessionLifecycleEvent('constructor', 'started', undefined, new Date('2026-11-01T10:00:00Z')));
+    await appendEvent(sessionsDir, sessionLifecycleEvent('constructor', 'finished', 'cancelled', new Date('2026-11-01T10:05:00Z')));
+    expect((await readArchivedSessions(home)).constructor).toBeUndefined();
+    expect(await setSessionArchived({ home, sessionsDir, id: 'constructor', archived: true, now: new Date('2026-11-02T00:00:00Z') })).toEqual({ id: 'constructor', archived: '2026-11-02T00:00:00.000Z' });
+    expect((await readArchivedSessions(home)).constructor).toBe('2026-11-02T00:00:00.000Z');
+  });
+
   it('two changes at once both land', async () => {
     await appendEvent(sessionsDir, sessionLifecycleEvent('sess-c', 'started', undefined, new Date('2026-11-01T10:00:00Z')));
     await appendEvent(sessionsDir, sessionLifecycleEvent('sess-c', 'finished', 'cancelled', new Date('2026-11-01T10:05:00Z')));

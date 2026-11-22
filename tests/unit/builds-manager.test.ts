@@ -406,6 +406,29 @@ describe('stopping, the shared limit and an unstarted build (review of M3)', () 
     }
   });
 
+  it('a stale cancel mark never cancels a build the user resumed (review of step 33, B, M1)', async () => {
+    const s = setup({ script: slow });
+    const id = await planned(s);
+    await s.builds.start(id, start(PLAN, { limit: 1 }));
+    await until(() => s.tasks.activeIds().length === 1);
+    s.builds.stop();
+    await s.tasks.shutdown();
+    await s.builds.shutdown();
+    const buildStore = new BuildStore(buildsRoot(world.home));
+    const after = setup();
+    try {
+      expect(await after.builds.recover()).toBe(1);
+      expect((await after.builds.get(id)).state).toBe('interrupted');
+      // A mark left behind (a cancel whose record failed to save, say): Resume removes it.
+      await buildStore.markCancel(id, new Date().toISOString());
+      await after.builds.resume(id);
+      expect(await buildStore.cancelMarked(id)).toBe(false);
+    } finally {
+      await after.builds.shutdown();
+      await after.tasks.shutdown();
+    }
+  });
+
   it('a server stop during a build\'s checks ends them at once (B1)', async () => {
     let began = false;
     const blocking: TaskChecks = {

@@ -674,6 +674,7 @@ export const uiMessages = defineCatalogue({
     usagePlanTitle: 'Plan usage',
     usagePlanLast: (when: string) => `Last known values, read ${when}.`,
     errPresetExists: 'A preset with that name exists already. Choose another name.',
+    errInvalidProfiles: 'The preset is not valid (check each model name), or your usage-profiles.json does not read back. Nothing was saved.',
     newPresetOpen: 'New preset based on…',
     newPresetTitle: 'New preset',
     newPresetHint: 'It starts as a copy of the preset you choose and is saved in your usage-profiles.json. Nothing else changes until you choose it above.',
@@ -686,12 +687,15 @@ export const uiMessages = defineCatalogue({
     newPresetEffort: 'Effort',
     newPresetCreate: 'Create the preset',
     newPresetCreated: (name: string) => `Preset ${name} created. Choose it above to use it.`,
-    usageWeekNote: (week: number, resetDay: string | undefined, creations: number, builds: number): string => {
+    usageWeekNote: (week: number, resetDay: string | undefined, running: { creations: number; builds: number } | undefined): string => {
       const reset = resetDay === undefined ? 'its reset day is not known yet' : `it resets on ${resetDay}`;
+      if (running === undefined) return `The week is at ${week}% (last reading); ${reset}.`;
+      const { creations, builds } = running;
       const parts = [creations > 0 ? `${creations} creation${creations === 1 ? '' : 's'}` : '', builds > 0 ? `${builds} build${builds === 1 ? '' : 's'}` : ''].filter((part) => part !== '');
       const now = parts.length === 0 ? 'Nothing runs now.' : `Running now: ${parts.join(' and ')}; a higher profile with them could reach the limit sooner.`;
       return `The week is at ${week}% (last reading); ${reset}. ${now}`;
     },
+    usageWeekReset: (week: number) => `The last reading said ${week}% for the week, but the week has reset since: the figure is old until the next reading.`,
     usagePlanNone: 'Not read yet. briefstack reads it while a creation runs, before one starts, and when the chat shows the usage.',
 
     settingsTitle: 'Settings',
@@ -1948,6 +1952,7 @@ export const uiMessages = defineCatalogue({
     usagePlanTitle: 'Uso del plan',
     usagePlanLast: (when: string) => `Últimos valores conocidos, leídos el ${when}.`,
     errPresetExists: 'Ya hay un preset con ese nombre. Elige otro.',
+    errInvalidProfiles: 'El preset no es válido (revisa cada nombre de modelo) o tu usage-profiles.json no se puede leer. No se guardó nada.',
     newPresetOpen: 'Nuevo preset basado en…',
     newPresetTitle: 'Nuevo preset',
     newPresetHint: 'Empieza como copia del preset que elijas y se guarda en tu usage-profiles.json. No cambia nada más hasta que lo elijas arriba.',
@@ -1960,12 +1965,15 @@ export const uiMessages = defineCatalogue({
     newPresetEffort: 'Esfuerzo',
     newPresetCreate: 'Crear el preset',
     newPresetCreated: (name: string) => `Preset ${name} creado. Elígelo arriba para usarlo.`,
-    usageWeekNote: (week: number, resetDay: string | undefined, creations: number, builds: number): string => {
+    usageWeekNote: (week: number, resetDay: string | undefined, running: { creations: number; builds: number } | undefined): string => {
       const reset = resetDay === undefined ? 'aún no se sabe qué día se reinicia' : `se reinicia el ${resetDay}`;
+      if (running === undefined) return `La semana va por el ${week} % (última lectura); ${reset}.`;
+      const { creations, builds } = running;
       const parts = [creations > 0 ? `${creations} ${creations === 1 ? 'creación' : 'creaciones'}` : '', builds > 0 ? `${builds} ${builds === 1 ? 'build' : 'builds'}` : ''].filter((part) => part !== '');
       const now = parts.length === 0 ? 'Ahora no se ejecuta nada.' : `En marcha: ${parts.join(' y ')}; un perfil más alto con ellos podría llegar antes al límite.`;
       return `La semana va por el ${week} % (última lectura); ${reset}. ${now}`;
     },
+    usageWeekReset: (week: number) => `La última lectura decía ${week} % para la semana, pero la semana se ha reiniciado desde entonces: la cifra es vieja hasta la próxima lectura.`,
     usagePlanNone: 'Aún no se ha leído. briefstack lo lee mientras corre una creación, antes de empezar una y cuando el chat muestra el uso.',
 
     settingsTitle: 'Ajustes',

@@ -471,10 +471,18 @@ test.describe('usage', () => {
     await expect(page.getByTestId('last-plan-usage-when')).toContainText('2026');
     // The week's note (step 33): the week's figure, no reset day yet, nothing running.
     await expect(page.getByTestId('usage-week-note')).toHaveText('The week is at 63% (last reading); its reset day is not known yet. Nothing runs now.');
-    // With a reset time from a reading, its weekday (2026-10-26 noon UTC is a Monday in any time zone within ±11 h).
-    await saveLastPlanUsage(app.home, { fiveHour: 42, sevenDay: 63, sevenDayResetsAt: '2026-10-26T12:00:00Z' }, new Date('2026-10-25T09:30:00Z'));
+    // With a reset time from a reading, its weekday: the next Monday at noon UTC (a Monday in any time zone within ±11 h).
+    const monday = new Date();
+    monday.setUTCHours(12, 0, 0, 0);
+    do monday.setUTCDate(monday.getUTCDate() + 1);
+    while (monday.getUTCDay() !== 1);
+    await saveLastPlanUsage(app.home, { fiveHour: 42, sevenDay: 63, sevenDayResetsAt: monday.toISOString() }, new Date());
     await page.reload();
     await expect(page.getByTestId('usage-week-note')).toContainText('it resets on Monday');
+    // A reset time already past: the figure is said to be old (review of step 33, C, M3).
+    await saveLastPlanUsage(app.home, { fiveHour: 42, sevenDay: 63, sevenDayResetsAt: '2026-10-26T12:00:00Z' }, new Date('2026-10-25T09:30:00Z'));
+    await page.reload();
+    await expect(page.getByTestId('usage-week-note')).toContainText('the week has reset since');
   });
 
   test('shows qualitative text and no token or cost figures', async ({ page, app }) => {

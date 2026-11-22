@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import { BriefstackError } from '../errors.js';
@@ -42,17 +42,22 @@ async function readFileState(home: string): Promise<{ sessions: Record<string, s
   try {
     text = await readFile(fileOf(home), 'utf8');
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { sessions: {}, readable: true };
-    return { sessions: {}, readable: false };
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { sessions: emptyMap(), readable: true };
+    return { sessions: emptyMap(), readable: false };
   }
   try {
     const parsed = archivedSchema.safeParse(JSON.parse(text));
-    if (!parsed.success) return { sessions: {}, readable: false };
-    return { sessions: Object.fromEntries(Object.entries(parsed.data.sessions).filter(([id]) => isSessionId(id))), readable: true };
+    if (!parsed.success) return { sessions: emptyMap(), readable: false };
+    // A map with no prototype: reading `archived[id]` never finds an inherited value.
+    const sessions = Object.assign(emptyMap(), Object.fromEntries(Object.entries(parsed.data.sessions).filter(([id]) => isSessionId(id))));
+    return { sessions, readable: true };
   } catch {
-    return { sessions: {}, readable: false };
+    return { sessions: emptyMap(), readable: false };
   }
 }
+
+/** An id-to-time map with no prototype. */
+const emptyMap = (): Record<string, string> => Object.create(null) as Record<string, string>;
 
 /**
  * Archives or restores one creation. Archiving needs an interrupted or
@@ -79,7 +84,8 @@ async function setNow(params: { home: string; sessionsDir: string; id: string; a
     const session = (await listSessions(sessionsDir)).find((item) => item.id === id);
     if (session === undefined) throw new BriefstackError('events.sessionNotFound', { session: id });
     if (!isUnfinishedSession(session)) throw new BriefstackError('sessions.notUnfinished', { session: id });
-    sessions[id] ??= (params.now ?? new Date()).toISOString();
+    // Own keys only: an id such as `constructor` is never taken for an inherited value (review of step 33, C, M6).
+    if (!Object.hasOwn(sessions, id)) sessions[id] = (params.now ?? new Date()).toISOString();
   } else {
     delete sessions[id];
   }
@@ -90,8 +96,14 @@ async function setNow(params: { home: string; sessionsDir: string; id: string; a
   await mkdir(home, { recursive: true });
   const target = fileOf(home);
   const temp = `${target}.${process.pid}.${randomBytes(3).toString('hex')}.tmp`;
-  await writeFile(temp, `${JSON.stringify({ v: 1, sessions: Object.fromEntries(kept) }, null, 2)}\n`, 'utf8');
-  await rename(temp, target);
-  const at = sessions[id];
+  try {
+    await writeFile(temp, `${JSON.stringify({ v: 1, sessions: Object.fromEntries(kept) }, null, 2)}\n`, 'utf8');
+    await rename(temp, target);
+  } catch (error) {
+    // No temp file is left in the home (review of step 33, C, M5).
+    await rm(temp, { force: true }).catch(() => undefined);
+    throw error;
+  }
+  const at = Object.hasOwn(sessions, id) ? sessions[id] : undefined;
   return at === undefined ? { id } : { id, archived: at };
 }

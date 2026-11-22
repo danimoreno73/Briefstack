@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { BriefstackError } from '../errors.js';
 import type { Effort } from '../models.js';
@@ -71,7 +71,13 @@ async function createNow(files: PresetFiles, input: NewPresetInput): Promise<{ n
   if (!next.success) throw new BriefstackError('usage.invalidProfiles', { file: path.basename(files.userFile), issues: formatZodIssues(next.error) });
   await mkdir(path.dirname(files.userFile), { recursive: true });
   const temp = `${files.userFile}.${process.pid}.${randomBytes(3).toString('hex')}.tmp`;
-  await writeFile(temp, `${JSON.stringify(next.data, null, 2)}\n`, 'utf8');
-  await rename(temp, files.userFile);
+  try {
+    await writeFile(temp, `${JSON.stringify(next.data, null, 2)}\n`, 'utf8');
+    await rename(temp, files.userFile);
+  } catch (error) {
+    // No temp file is left beside the user's file (review of step 33, C, M5).
+    await rm(temp, { force: true }).catch(() => undefined);
+    throw error;
+  }
   return { name: input.name, preset: parsed.data };
 }

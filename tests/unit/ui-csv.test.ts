@@ -35,6 +35,8 @@ describe('the projects CSV', () => {
     expect(csvField('a,b')).toBe('"a,b"');
     expect(csvField('line\nbreak')).toBe('"line\nbreak"');
     for (const start of ['=', '+', '-', '@']) expect(csvField(`${start}1`)).toBe(`'${start}1`);
+    expect(csvField('  =1')).toBe("'  =1");
+    expect(csvField('\n=1')).toBe(`"'\n=1"`);
   });
 
   it('names the file by the day', () => {

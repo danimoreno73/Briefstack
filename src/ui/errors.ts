@@ -136,6 +136,9 @@ export function describeError(error: unknown, t: Messages): string {
       );
     case 'usage.presetExists':
       return t.errPresetExists;
+    // A model the schema refuses, or a presets file that does not read back (review of step 33, C, M1).
+    case 'usage.invalidProfiles':
+      return t.errInvalidProfiles;
     case 'sessions.notUnfinished':
       return t.errSessionNotUnfinished;
     case 'sessions.archiveUnreadable':
