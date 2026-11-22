@@ -420,6 +420,8 @@ class SdkRun {
         grantedDirs: () => this.granted,
         cancelled: () => this.cancelled,
         approvedLibrarySkills: () => this.approvedLibrarySkills,
+        // Phase 10: the implement step counts each implementer call and says when it may do nothing more.
+        implementerStop: () => (this.io.implement === undefined ? 'The implement step is not available in this session. Stop now and report.' : this.io.implement.implementerCall()),
         pathEnv: this.deps.pathEnv,
       };
       const recordAgent: HookCallback = async (hook) => {
@@ -457,6 +459,7 @@ class SdkRun {
             return decision;
           },
           grantDirectory: (request) => this.whileAsking(() => this.io.grantDirectory(request)),
+          ...(this.io.implement === undefined ? {} : { implement: this.io.implement }),
           claimFolder: (dir) => this.io.claimFolder(dir),
           refreshFolderClaims: async () => this.io.refreshFolderClaims?.(),
         },

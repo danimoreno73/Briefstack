@@ -30,27 +30,31 @@ export function specOffersCode(spec: { type?: unknown; target?: unknown } | null
   return spec !== null && spec !== undefined && spec.type === 'software' && spec.target === 'claude-code';
 }
 
-/** Why the choice cannot be approved: the lists' problems as a build's start says them, and Codex asked when not offered. */
+/**
+ * Why the choice cannot be approved: the lists' problems as a build's start
+ * says them, Codex asked when not offered, and no check at all (review of
+ * M1, I3: code is never written without a check to measure it).
+ */
 export interface CodeChoiceIssues {
   items: StartIssue[];
   codex: boolean;
+  noChecks: boolean;
 }
 
-/** The lists as builds' (`approvedListIssues`), Codex only when it is offered. */
+/** The lists as builds' (`approvedListIssues`), at least one check, Codex only when it is offered. */
 export function codeChoiceIssues(choice: CodeChoice, options: { codexOffered: boolean }): CodeChoiceIssues {
   return {
     items: [...approvedListIssues(choice.commands, 'commands', MAX_CODE_COMMANDS), ...approvedListIssues(choice.checks, 'checks', MAX_CODE_CHECKS)],
     codex: choice.codex && !options.codexOffered,
+    noChecks: choice.checks.length === 0,
   };
 }
 
-export const CODEX_REFUSED_TEXT = 'Codex is not available for creations now: turn it on and check it in Settings';
-export const CODE_NOT_OFFERED_TEXT = 'code is offered only for a software project for Claude Code';
+export const hasCodeIssues = (issues: CodeChoiceIssues): boolean => issues.items.length > 0 || issues.codex || issues.noChecks;
 
-/** The same, in English (empty when the choice can be approved). */
-export function codeChoiceProblems(choice: CodeChoice, options: { codexOffered: boolean }): string[] {
-  const issues = codeChoiceIssues(choice, options);
-  return [...issues.items.map(startIssueText), ...(issues.codex ? [CODEX_REFUSED_TEXT] : [])];
+/** The lists' problems in English, as a build's start says them (the other issues are said from the UI's texts). */
+export function codeListProblems(issues: CodeChoiceIssues): string[] {
+  return issues.items.map(startIssueText);
 }
 
 /** The code part of the spec page (`GET /api/creations/:id/spec`). */

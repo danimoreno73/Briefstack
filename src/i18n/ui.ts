@@ -55,6 +55,22 @@ export function startIssueFacts(value: unknown): StartIssueFacts | undefined {
   };
 }
 
+/**
+ * Each problem of a code choice the spec page sent (phase 10,
+ * `creation.invalidCode`), in `lang`, from its codes and flags only: the
+ * page and the server's error text say the same.
+ */
+export function codeIssueTexts(params: Readonly<Record<string, unknown>>, lang: 'en' | 'es'): string[] {
+  const t = uiMessages[lang];
+  const items = (Array.isArray(params.items) ? params.items : []).map(startIssueFacts).filter((item): item is StartIssueFacts => item !== undefined);
+  const said = items.map((item) => t.buildStartIssue(item));
+  if (params.noChecks === true) said.push(t.specCodeNoChecks);
+  if (params.codex === true) said.push(t.specCodeCodexRefused);
+  if (params.notOffered === true) said.push(t.specCodeNotOffered);
+  if (params.fixed === true) said.push(t.specCodeFixed);
+  return said;
+}
+
 /** Strings of the web UI. Pure module: the browser imports it directly. */
 export const uiMessages = defineCatalogue({
   en: {
@@ -1278,6 +1294,8 @@ export const uiMessages = defineCatalogue({
     specCodeInvalidLead: 'The code choice cannot be approved:',
     specCodeCodexRefused: 'Codex is not available for creations now (turn it on and check it in Settings)',
     specCodeNotOffered: 'code is offered only for a software project for Claude Code',
+    specCodeNoChecks: 'add at least one check: the code is not written without a check to measure it',
+    specCodeFixed: 'the implement step already started, so the code choice no longer changes',
     specSkillKeep: (name: string) => `Keep ${name}`,
     usageWarnTitle: 'Plan usage is high',
     usageWarnBody: (fiveHour: number | null, warnFiveHour: number, week: number | null, warnWeek: number) =>
@@ -2572,6 +2590,8 @@ export const uiMessages = defineCatalogue({
     specCodeInvalidLead: 'La elección de código no se puede aprobar:',
     specCodeCodexRefused: 'Codex no está disponible para las creaciones ahora (actívalo y compruébalo en Ajustes)',
     specCodeNotOffered: 'el código solo se ofrece para un proyecto de software para Claude Code',
+    specCodeNoChecks: 'añade al menos una comprobación: el código no se escribe sin una comprobación que lo mida',
+    specCodeFixed: 'el paso de implementación ya empezó, así que la elección de código ya no cambia',
     specSkillKeep: (name: string) => `Conservar ${name}`,
     usageWarnTitle: 'El uso del plan está alto',
     usageWarnBody: (fiveHour: number | null, warnFiveHour: number, week: number | null, warnWeek: number) =>

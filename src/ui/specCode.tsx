@@ -14,11 +14,12 @@ export interface SpecCodeDraft {
   chosen: boolean;
   commands: string;
   checks: string;
-  fixPasses: number;
+  /** `undefined` until the user picks one: the server's default applies (review of M1, m7). */
+  fixPasses: number | undefined;
   codex: boolean;
 }
 
-export const emptyCodeDraft = (fixPasses: number): SpecCodeDraft => ({ chosen: false, commands: '', checks: '', fixPasses, codex: false });
+export const emptyCodeDraft = (): SpecCodeDraft => ({ chosen: false, commands: '', checks: '', fixPasses: undefined, codex: false });
 
 const lines = (text: string): string[] =>
   text
@@ -27,9 +28,9 @@ const lines = (text: string): string[] =>
     .filter((line) => line !== '');
 
 /** What `approve` carries: nothing for "workspace only", the lists and options for code. */
-export function codeAnswer(draft: SpecCodeDraft, codexOffered: boolean): { commands: string[]; checks: string[]; fixPasses: number; codex: boolean } | undefined {
+export function codeAnswer(draft: SpecCodeDraft, code: { codex: boolean; defaultFixPasses: number }): { commands: string[]; checks: string[]; fixPasses: number; codex: boolean } | undefined {
   if (!draft.chosen) return undefined;
-  return { commands: lines(draft.commands), checks: lines(draft.checks), fixPasses: draft.fixPasses, codex: codexOffered && draft.codex };
+  return { commands: lines(draft.commands), checks: lines(draft.checks), fixPasses: draft.fixPasses ?? code.defaultFixPasses, codex: code.codex && draft.codex };
 }
 
 export function SpecCodeCard({ code, draft, onChange }: { code: NonNullable<SpecView['code']>; draft: SpecCodeDraft; onChange: (draft: SpecCodeDraft) => void }) {
@@ -63,7 +64,7 @@ export function SpecCodeCard({ code, draft, onChange }: { code: NonNullable<Spec
           </label>
           <label class="label">
             {t.specCodeFixPasses}
-            <select class="select" value={String(draft.fixPasses)} onChange={(event) => set({ fixPasses: Number((event.target as HTMLSelectElement).value) })} data-testid="spec-code-fix-passes">
+            <select class="select" value={String(draft.fixPasses ?? code.defaultFixPasses)} onChange={(event) => set({ fixPasses: Number((event.target as HTMLSelectElement).value) })} data-testid="spec-code-fix-passes">
               {Array.from({ length: code.maxFixPasses + 1 }, (_, n) => (
                 <option key={n} value={String(n)}>
                   {String(n)}

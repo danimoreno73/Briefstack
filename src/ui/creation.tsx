@@ -310,7 +310,8 @@ function CreationView({ id }: { id: string }) {
   const replying = pending === undefined && state.awaitingReply !== undefined && !state.cancelling && !finished;
   // What waits for the user, if anything: a request, or a reply to the session's last message.
   const waitingKind = finished ? undefined : (pending?.kind ?? (replying ? 'reply' : undefined));
-  const steps = STEPS.map((step) => ({ step, state: progress.steps[step] }));
+  // Phase 10: `implement` only for a creation with code, or once the flow reached it.
+  const steps = STEPS.filter((step) => step !== 'implement' || state.code !== undefined || progress.steps[step] !== 'waiting').map((step) => ({ step, state: progress.steps[step] }));
   const position = stepPosition(steps, progress.current ?? state.currentStep);
   const stepName = position === undefined ? undefined : t.stepLabel(position.step);
   const usageNow = panel.usage.now ?? panel.usage.start;
@@ -339,7 +340,7 @@ function CreationView({ id }: { id: string }) {
             <span class={finished ? undefined : 'd-only'}>
               <HeadState state={state} waiting={waitingKind !== undefined} stepName={stepName} />
             </span>
-            <MetaLine parts={[position !== undefined && t.headStep(position.index, STEPS.length), t.headSince(formatClock(state.startedAt, lang)), planLine]} />
+            <MetaLine parts={[position !== undefined && t.headStep(position.index, position.total), t.headSince(formatClock(state.startedAt, lang)), planLine]} />
           </div>
           {/* What happens to an unexpected request matters while it runs; once over, the denied list says it. */}
           {!finished && <p class="t-small muted">{t.policyShown(state.policy)}</p>}
@@ -691,9 +692,9 @@ function SpecApproval({ id, idea, pending, answer }: { id: string; idea: string;
   /** Library skills the user unticked (BRIEF-phase-6 §3.5). */
   const [removed, setRemoved] = useState<string[]>([]);
   /** The code choice (phase 10): "workspace only" until the user picks code. */
-  const [code, setCode] = useState<SpecCodeDraft>(emptyCodeDraft(1));
+  const [code, setCode] = useState<SpecCodeDraft>(emptyCodeDraft());
   const approval = (view: SpecView | undefined): Record<string, unknown> => {
-    const chosen = view?.code?.offered === true ? codeAnswer(code, view.code.codex) : undefined;
+    const chosen = view?.code?.offered === true ? codeAnswer(code, view.code) : undefined;
     return { decision: 'approve', ...(removed.length === 0 ? {} : { removeSkills: removed }), ...(chosen === undefined ? {} : { code: chosen }) };
   };
 

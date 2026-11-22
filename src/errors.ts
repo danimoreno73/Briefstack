@@ -88,7 +88,7 @@ export interface ErrorParams {
   'creation.wrongPending': { pendingId: string; expected: string };
   'creation.invalidAnswer': { kind: string; issues: string[] };
   /** Phase 10: the code choice at the spec cannot be approved; `items` as a build's start, `codex` and `notOffered` apart. */
-  'creation.invalidCode': { issues: string[]; items: StartIssue[]; codex: boolean; notOffered: boolean };
+  'creation.invalidCode': { issues: string[]; items: StartIssue[]; codex: boolean; notOffered: boolean; noChecks: boolean; fixed: boolean };
   'creation.noReply': { id: string };
   'chat.unavailable': Record<string, never>;
   'chat.threadNotFound': { id: string };

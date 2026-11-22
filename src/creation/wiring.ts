@@ -3,6 +3,7 @@ import type { Lang } from '../i18n/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import { loadUsageContext, resolveActiveProfile } from '../usage/index.js';
 import { CreationManager, type SkillCatalogue } from './manager.js';
+import { realImplementSystem, type ImplementSystem } from './implementSystem.js';
 import { planUsageReader } from './planUsage.js';
 import { SdkRunner } from './sdkRunner.js';
 import type { CreationRunner, RunnerProfile } from './types.js';
@@ -20,6 +21,8 @@ export interface WebCreationOptions {
   otherActive?: (() => readonly string[]) | undefined;
   /** Whether the spec page offers the Codex checkbox now (phase 10). */
   codexForCreations?: (() => Promise<boolean>) | undefined;
+  /** The implement step's system (phase 10); the real one by default. */
+  implement?: ImplementSystem | undefined;
 }
 
 /** The session model and effort of the active usage profile, read when a creation starts. */
@@ -62,6 +65,8 @@ export async function createWebCreations(options: WebCreationOptions): Promise<C
     ...(options.skills === undefined ? {} : { skills: options.skills }),
     ...(options.otherActive === undefined ? {} : { otherActive: options.otherActive }),
     ...(options.codexForCreations === undefined ? {} : { codexForCreations: options.codexForCreations }),
+    // Phase 10: the implement step's system; with it the spec page offers code for a software spec.
+    implement: options.implement ?? realImplementSystem(),
     // Only with the real runner: the fake one has no plan to read.
     ...(options.runner === undefined ? { planUsage: planUsageReader({ pathEnv, repoDir }) } : {}),
   });

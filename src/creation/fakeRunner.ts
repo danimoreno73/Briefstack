@@ -65,6 +65,12 @@ import type { CreationRunner, RunnerHandle, RunnerOutcome, RunnerStartOptions } 
  *   CLI: `scaffold` of the session's `spec.json` into `projectsDir/dir`
  *   (base templates, no git), then `skills install` when the spec has
  *   library skills (needs the `projectsDir` and `libraryDir` options).
+ *   `"git":true` also makes its git repository, as the real scaffold does.
+ * - `{"do":"implement","action":"start","dir":"garden"}`, `"action":"run"`
+ *   with `"command"`, `"action":"write"` with `"file"` and `"text"`, and
+ *   `"action":"finish"` (phase 10): the implement step through the same
+ *   port the real `briefstack-web` tools call (needs a manager with the
+ *   implement system); `write` stands for the implementer's Write tool.
  * - `{"do":"turnEnd","message":"Which name do you want?"}`: the main session ends
  *   its turn with that text and nothing asked; the run waits for the user's
  *   free-text reply (`sendMessage`), keeps it in `received` (an option), and goes on.
@@ -144,7 +150,21 @@ const stepSchema = z.discriminatedUnion('do', [
   z.object({ do: z.literal('claim'), dir: z.string().min(1), onRefused: label.optional() }),
   z.object({ do: z.literal('turnEnd'), message: z.string() }),
   z.object({ do: z.literal('library'), section: z.string().min(1), name: z.string().min(1).optional(), text: z.string().min(1) }),
-  z.object({ do: z.literal('generate'), dir: z.string().min(1) }),
+  z.object({ do: z.literal('generate'), dir: z.string().min(1), git: z.literal(true).optional() }),
+  // Phase 10: the implement step through the same port the real tools call; `write` is the implementer's Write.
+  z.object({
+    do: z.literal('implement'),
+    action: z.enum(['start', 'run', 'write', 'finish']),
+    /** `start`: the project folder, relative to `projectsDir`. */
+    dir: z.string().min(1).optional(),
+    /** `run`: the command line. */
+    command: z.string().optional(),
+    /** `write`: a file relative to the project folder, and its text. */
+    file: z.string().min(1).optional(),
+    text: z.string().optional(),
+    /** `start`: where to go when the step does not start. */
+    onRefused: label.optional(),
+  }),
   z.object({ do: z.literal('label'), name: label }),
   z.object({ do: z.literal('goto'), label }),
   z.object({ do: z.literal('wait'), ms: z.number().int().min(0) }),
@@ -204,6 +224,8 @@ export interface FakeRunnerOptions {
   received?: string[];
   /** What the flow was told at each spec checkpoint, in order (phase 10 tests). */
   decisions?: unknown[];
+  /** Each implement action and the text its tool answered, in order (phase 10 tests). */
+  implementReplies?: string[];
 }
 
 const STOPPED = Symbol('stopped');
@@ -276,6 +298,8 @@ export class FakeRunner implements CreationRunner {
     const run = async (): Promise<RunnerOutcome> => {
       io.emit({ kind: 'status', status: 'running' });
       let pc = 0;
+      /** The project folder of the implement step, once started. */
+      let implementDir: string | undefined;
       while (pc < steps.length) {
         if (stopped) return { kind: 'stopped' };
         if (cancelRequested && !ignoreCancel) {
@@ -422,9 +446,37 @@ export class FakeRunner implements CreationRunner {
               protectedDirs: [],
               templateRoots: [path.join(PACKAGE_ROOT, 'library', 'templates')],
               profiles: await loadUsageProfiles({ baseFile: baseProfilesFile() }),
-              gitInit: false,
+              gitInit: step.git === true,
             });
             if (spec.librarySkills.length > 0) await installSkills({ projectDir: outDir, skills: new SkillService({ libraryDir: async () => libraryDir }) });
+            break;
+          }
+          case 'implement': {
+            // Phase 10: what the main session and the implementer do through the step's tools, through the same port.
+            const port = io.implement;
+            if (port === undefined) throw new Error('recording: an implement step needs a manager with the implement system');
+            this.options.implementReplies?.push(`${step.action}`);
+            if (step.action === 'start') {
+              implementDir = path.resolve(this.options.projectsDir ?? sessionDir, step.dir ?? '');
+              const reply = await port.start(implementDir);
+              this.options.implementReplies?.push(reply.text);
+              if (reply.isError && step.onRefused !== undefined) pc = jump(step.onRefused);
+            } else if (step.action === 'run') {
+              const stop = port.implementerCall();
+              const reply = stop === undefined ? await port.runCommand(step.command ?? '') : { text: stop, isError: true };
+              this.options.implementReplies?.push(reply.text);
+            } else if (step.action === 'write') {
+              if (implementDir === undefined) throw new Error('recording: implement write before start');
+              if (port.implementerCall() === undefined) {
+                const target = path.join(implementDir, step.file ?? 'file.txt');
+                await mkdir(path.dirname(target), { recursive: true });
+                await writeFile(target, step.text ?? '', 'utf8');
+              }
+            } else {
+              // Called first: `?.push(await …)` would skip the call when nobody keeps the replies.
+              const reply = await port.finish();
+              this.options.implementReplies?.push(reply.text);
+            }
             break;
           }
           case 'label':

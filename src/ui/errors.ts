@@ -1,4 +1,4 @@
-import { startIssueFacts, type StartIssueFacts, type TaskErrorFacts, type uiMessages } from '../i18n/ui.js';
+import { codeIssueTexts, startIssueFacts, uiMessages, type StartIssueFacts, type TaskErrorFacts } from '../i18n/ui.js';
 import { ApiError } from './apiError.js';
 
 type Messages = (typeof uiMessages)['en'];
@@ -145,10 +145,7 @@ export function describeError(error: unknown, t: Messages): string {
       return t.errArchiveUnreadable;
     case 'creation.invalidCode': {
       // Phase 10: each problem in the user's language, from its code, as a build's start says it.
-      const items = (Array.isArray(error.params.items) ? error.params.items : []).map(startIssueFacts).filter((item): item is StartIssueFacts => item !== undefined);
-      const said = items.map((item) => t.buildStartIssue(item));
-      if (error.params.codex === true) said.push(t.specCodeCodexRefused);
-      if (error.params.notOffered === true) said.push(t.specCodeNotOffered);
+      const said = codeIssueTexts(error.params, t === uiMessages.es ? 'es' : 'en');
       return said.length > 0 ? `${t.specCodeInvalidLead} ${said.join('; ')}.` : t.errInvalidAnswer;
     }
     case 'build.invalidStart': {

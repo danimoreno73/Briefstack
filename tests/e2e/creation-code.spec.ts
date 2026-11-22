@@ -67,9 +67,65 @@ test.describe('the code choice at the spec checkpoint', () => {
     await expect(card.getByTestId('spec-code-codex')).not.toBeChecked();
     await card.getByTestId('spec-code-commands').fill('npm test');
     await card.getByTestId('spec-code-codex').check();
+    // No check at all is refused (review of M1, I3), in the page's words.
+    await page.getByRole('button', { name: 'Approve' }).click();
+    await expect(page.getByText('add at least one check')).toBeVisible();
+    await card.getByTestId('spec-code-checks').fill('npm test');
     await page.getByRole('button', { name: 'Approve' }).click();
     await expect(page.getByTestId('result')).toHaveAttribute('data-outcome', 'completed', { timeout: 15_000 });
-    expect(app.manager.list()[0]?.code).toMatchObject({ codex: true, fixPasses: 1, checks: [] });
+    expect(app.manager.list()[0]?.code).toMatchObject({ codex: true, fixPasses: 1, checks: ['npm test'] });
+  });
+});
+
+/** M2: a creation with code, played by the fake runner through the implement step's port, with real git. */
+function codeRecording(): string {
+  return [
+    { do: 'session', phase: 'started' },
+    { do: 'claim', dir: 'garden' },
+    { do: 'flow', step: 'spec', phase: 'started' },
+    { do: 'label', name: 'write' },
+    { do: 'spec', onChange: 'write', spec: JSON.stringify(SOFTWARE), summary: '# Garden\n\nA garden planner.\n' },
+    { do: 'flow', step: 'spec', phase: 'finished', outcome: 'ok' },
+    { do: 'flow', step: 'generate', phase: 'started' },
+    { do: 'generate', dir: 'garden', git: true },
+    { do: 'flow', step: 'generate', phase: 'finished', outcome: 'ok' },
+    { do: 'flow', step: 'implement', phase: 'started' },
+    { do: 'implement', action: 'start', dir: 'garden' },
+    { do: 'hook', type: 'subagent.start', agentId: 'i1', agentType: 'implementer' },
+    { do: 'implement', action: 'write', file: 'src/garden.js', text: 'export const beds = 3;\n' },
+    { do: 'implement', action: 'run', command: 'node --version' },
+    { do: 'implement', action: 'run', command: 'npm publish' },
+    { do: 'hook', type: 'subagent.stop', agentId: 'i1', agentType: 'implementer' },
+    { do: 'implement', action: 'finish' },
+    { do: 'flow', step: 'implement', phase: 'finished', outcome: 'ok' },
+    { do: 'session', phase: 'finished', outcome: 'completed' },
+  ]
+    .map((line) => JSON.stringify(line))
+    .join('\n');
+}
+
+test.describe('a creation with code (M2)', () => {
+  test.use({ appOptions: { recordingText: codeRecording() } });
+
+  test('two commits, the listed command run, the other refused with no dialog', async ({ page, app }) => {
+    await page.goto(app.url);
+    await clickNav(page, 'New project');
+    await page.getByLabel('Describe your idea').fill('A garden planner');
+    await page.getByRole('button', { name: 'Start' }).click();
+    const card = page.getByTestId('spec-code');
+    await card.getByTestId('spec-code-with-code').check();
+    await card.getByTestId('spec-code-commands').fill('node --version');
+    await card.getByTestId('spec-code-checks').fill('node --version');
+    await page.getByRole('button', { name: 'Approve' }).click();
+    await expect(page.getByTestId('result')).toHaveAttribute('data-outcome', 'completed', { timeout: 20_000 });
+    // No permission dialog was ever shown for the refused command.
+    await expect(page.getByTestId('permission')).toHaveCount(0);
+    const state = app.manager.list()[0];
+    expect(state?.implement).toMatchObject({ state: 'done', refused: [{ command: 'npm publish' }] });
+    expect(state?.implement?.runs.map((run) => run.command)).toEqual(['node --version']);
+    expect(state?.implement?.workspaceCommit).toMatch(/^[0-9a-f]{40}$/);
+    expect(state?.implement?.codeCommit).toMatch(/^[0-9a-f]{40}$/);
+    expect(await readFile(path.join(app.projectsDir, 'garden', 'src', 'garden.js'), 'utf8')).toBe('export const beds = 3;\n');
   });
 });
 

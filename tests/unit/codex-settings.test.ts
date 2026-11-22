@@ -4,7 +4,7 @@ import { request } from 'node:http';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CODEX_NO_SHELL_FEATURE_ARGS } from '../../src/codex/limits.js';
-import { CodexService, codexUnavailableReason, creationCodexOffered, shellToolsDeclared, type CodexStatus, type CodexView } from '../../src/codex/service.js';
+import { CodexService, codexUnavailableReason, creationCodexOffered, noShellFormatUnderstood, shellToolsDeclared, type CodexStatus, type CodexView } from '../../src/codex/service.js';
 import { codexSettingsOf, parseConfig, updateConfig, type PathEnv } from '../../src/config/index.js';
 import { startWebServer, TOKEN_HEADER, type WebServer } from '../../src/server/index.js';
 import { fakeCodex } from '../codexWorld.js';
@@ -162,9 +162,19 @@ describe('the service and its routes', { timeout: 60_000 }, () => {
     expect(creationCodexOffered({ available: false, last: { ...view.last!, noShell: { ok: true, text: '' } } })).toBe(false);
   });
 
-  it('shellToolsDeclared reads declarations only, not mentions in a description', () => {
-    expect(shellToolsDeclared('Run code, for example `await tools.exec_command(...)`.\n### `apply_patch`')).toEqual([]);
+  it('shellToolsDeclared reads declarations only, not mentions in a description; a renamed shell tool is caught too', () => {
+    expect(shellToolsDeclared('Run code, for example `await tools.exec_command(...)`.\n### `apply_patch`\n"name": "exec"')).toEqual([]);
     expect(shellToolsDeclared('### `exec_command`\n"name": "shell"')).toEqual(['exec_command', 'shell']);
+    expect(shellToolsDeclared('### `apply_patch`\n### `shell_command`\n### `node_repl__js`')).toEqual(['shell_command', 'node_repl__js']);
+  });
+
+  it('a rendering whose format the parser does not understand fails the no-shell check (review of M1, I2)', async () => {
+    expect(noShellFormatUnderstood('### `apply_patch`')).toBe(true);
+    expect(noShellFormatUnderstood('declare function apply_patch(input: string)')).toBe(false);
+    await updateConfig(path.join(home, 'config.json'), { codexEnabled: true });
+    const view = await service('win32', 'otherFormat').check();
+    expect(view.last?.noShell).toEqual({ ok: false, text: 'the tool list was not in the format briefstack reads' });
+    expect(creationCodexOffered(view)).toBe(false);
   });
 
   it('a failed login, a failed sandbox or no Codex: the check does not pass and the reason shows', async () => {

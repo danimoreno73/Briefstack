@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { SLUG_RE } from '../spec/schema.js';
 import { DEFAULT_MAX_ACTIVE_CREATIONS } from '../config/limits.js';
@@ -28,24 +28,18 @@ import { hideAbsolutePaths, projectEvent } from '../panel/project.js';
 import { settlesWithin } from '../timeLimit.js';
 import { FolderClaims } from './folderClaims.js';
 import { redactSecretLines } from '../validate/secrets.js';
-import {
-  CODE_NOT_OFFERED_TEXT,
-  DEFAULT_FIX_PASSES,
-  MAX_CODE_CHECKS,
-  MAX_CODE_COMMANDS,
-  MAX_FIX_PASSES,
-  codeChoiceIssues,
-  codeChoiceProblems,
-  codeChoiceSchema,
-  specOffersCode,
-  type CodeChoice,
-  type SpecCodeView,
-} from './code.js';
+import { startIssueText, type StartIssue } from '../builds/commands.js';
+import { PROJECT_COMMIT_MESSAGE } from '../scaffold/commit.js';
+import { ImplementStep, type ImplementView } from './implement.js';
+import type { ImplementSystem } from './implementSystem.js';
+import { RUN_COMMAND_TOOL, IMPLEMENTER_AGENT } from './toolNames.js';
+import { DEFAULT_FIX_PASSES, MAX_CODE_CHECKS, MAX_CODE_COMMANDS, MAX_FIX_PASSES, codeChoiceIssues, codeChoiceSchema, hasCodeIssues, specOffersCode, type CodeChoice, type SpecCodeView } from './code.js';
 import type {
   CreationRunner,
   GrantRequest,
   PermissionDecision,
   PermissionPolicy,
+  ImplementPort,
   PermissionRequest,
   QuestionRequest,
   QuestionResult,
@@ -164,6 +158,8 @@ export interface CreationState {
   usageReading?: true;
   /** The code the user chose at the spec checkpoint (phase 10); absent for "workspace only". */
   code?: CodeChoice;
+  /** The implement step's record (phase 10), once it was asked to start. */
+  implement?: ImplementView;
   /** Why the runner failed, when it did. Never contains tool inputs. */
   error?: string;
   startedAt: string;
@@ -249,6 +245,12 @@ export interface CreationManagerOptions {
   /** Whether the spec page offers the Codex checkbox now (phase 10); read when the flow asks for approval. Default no. */
   codexForCreations?: () => Promise<boolean>;
   /**
+   * The implement step's system (phase 10): commits, listed commands, folder
+   * checks. Without it the spec page offers no code at all (review of M1, I1:
+   * the flow is never told to run a step nobody can run).
+   */
+  implement?: ImplementSystem;
+  /**
    * How long `shutdown()` waits for the runners to stop and the streams to
    * close. After it, what is left is marked interrupted and its stream closed
    * without waiting. Default 15 s.
@@ -284,6 +286,8 @@ interface Creation {
   specCode?: { offered: boolean; codex: boolean } | undefined;
   /** Once the implement step started, the code choice no longer changes. */
   codeFixed?: boolean;
+  /** The implement step, once the flow called `implement_start` (phase 10). */
+  implement?: ImplementStep;
   handle?: RunnerHandle;
   runnerDone: boolean;
   /** The server is ending the runner itself: its `done` is not a crash. */
@@ -593,7 +597,7 @@ export class CreationManager {
       const info = await stat(request.specFile);
       if (info.isFile() && info.size <= MAX_SPEC_FILE_BYTES) {
         const text = await readFile(request.specFile, 'utf8');
-        offered = specOffersCode(JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text) as { type?: unknown; target?: unknown });
+        offered = this.options.implement !== undefined && specOffersCode(JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text) as { type?: unknown; target?: unknown });
       }
     } catch {
       offered = false;
@@ -607,12 +611,21 @@ export class CreationManager {
    * the server, read by nobody but the server and the user), and the flow is
    * told that code was chosen, so it runs the implement step.
    */
-  private async approveWithCode(c: Creation, approved: Promise<unknown>): Promise<unknown> {
+  private async recordCode(c: Creation, approved: Promise<unknown>, code: CodeChoice | undefined): Promise<unknown> {
     const result = (await approved) as Record<string, unknown>;
+    // Only a final approval records the choice (review of M1, m4): a fallback to "change" leaves the record as it was.
     if (result.decision !== 'approve') return result;
+    if (code === undefined) {
+      delete c.state.code;
+      // A code.json from an earlier approval of code goes too: the folder says what the user chose last.
+      const session = c.state.sessionId;
+      if (session !== undefined) await rm(systemPathEnv().pathApi.join(this.options.sessionsDir, session, 'code.json'), { force: true }).catch(() => undefined);
+      return result;
+    }
+    c.state.code = structuredClone(code);
+    this.pushStatus(c);
     const session = c.state.sessionId;
-    const code = c.state.code;
-    if (session !== undefined && code !== undefined) {
+    if (session !== undefined) {
       const file = systemPathEnv().pathApi.join(this.options.sessionsDir, session, 'code.json');
       const temp = `${file}.${process.pid}.tmp`;
       try {
@@ -623,6 +636,44 @@ export class CreationManager {
       }
     }
     return { ...result, code: true, codeNote: 'The user chose workspace and a first version of the code: run the implement step after validate-review.' };
+  }
+
+  /** The step of this creation, made on first use (phase 10): its choice is the creation's, its folder the creation's claim. */
+  private implementStep(c: Creation, system: ImplementSystem): ImplementStep {
+    c.implement ??= new ImplementStep(
+      {
+        choice: () => c.state.code,
+        folder: () => this.claims.of(c.state.id),
+        sameFolder: (dir, folder) => system.sameFolder(dir, folder),
+        isProject: (dir) => system.isProject(dir),
+        commit: (dir, message) => system.commit(dir, message),
+        run: (dir, command, signal) => system.run(dir, command, signal),
+        changed: (view) => {
+          // Once it started, the choice is fixed (the brief: "unchanged after approval").
+          if (view.state !== 'notStarted') c.codeFixed = true;
+          c.state.implement = view;
+          this.pushStatus(c);
+        },
+        refused: (command, reason) => {
+          const data: DeniedEventData = { toolName: RUN_COMMAND_TOOL, summary: command, agentType: IMPLEMENTER_AGENT, at: this.now().toISOString(), by: 'runner', reason };
+          this.push(c, { kind: 'denied', data });
+          this.recordDenial(c, 'guard', RUN_COMMAND_TOOL, IMPLEMENTER_AGENT, { reason });
+        },
+        now: () => this.now(),
+      },
+      PROJECT_COMMIT_MESSAGE,
+    );
+    return c.implement;
+  }
+
+  /** What the runner's tools and guard reach of the step (phase 10). */
+  private implementPort(c: Creation, system: ImplementSystem): ImplementPort {
+    return {
+      start: (dir) => this.implementStep(c, system).start(dir),
+      runCommand: (command) => this.implementStep(c, system).runCommand(command),
+      finish: () => this.implementStep(c, system).finish(),
+      implementerCall: () => (c.implement?.running === true ? undefined : 'The implement step is not running, so the implementer may do nothing. Stop now and report.'),
+    };
   }
 
   list(): CreationState[] {
@@ -682,22 +733,22 @@ export class CreationManager {
       // The flow gets the spec as approved: unticked library skills are taken out first.
       if (decision.decision === 'approve') {
         const code = decision.code;
+        const refuse = (fields: Partial<{ items: StartIssue[]; codex: boolean; notOffered: boolean; noChecks: boolean; fixed: boolean }>): never => {
+          const items = fields.items ?? [];
+          throw new BriefstackError('creation.invalidCode', { issues: items.map(startIssueText), items, codex: false, notOffered: false, noChecks: false, fixed: false, ...fields });
+        };
+        // Phase 10, review of M1 (m4): once the implement step started, the choice does not change.
+        if (c.codeFixed === true) refuse({ fixed: true });
         if (code !== undefined) {
-          // Phase 10: only where the page offered it, with lists builds would accept, Codex only when offered.
+          // Phase 10: only where the page offered it, with lists builds would accept, a check at least, Codex only when offered.
           const offer = c.specCode;
-          if (offer === undefined || !offer.offered) throw new BriefstackError('creation.invalidCode', { issues: [CODE_NOT_OFFERED_TEXT], items: [], codex: false, notOffered: true });
-          const issues = codeChoiceIssues(code, { codexOffered: offer.codex });
-          if (issues.items.length > 0 || issues.codex) {
-            throw new BriefstackError('creation.invalidCode', { issues: codeChoiceProblems(code, { codexOffered: offer.codex }), items: issues.items, codex: issues.codex, notOffered: false });
-          }
-        }
-        if (c.codeFixed !== true) {
-          if (code === undefined) delete c.state.code;
-          else c.state.code = structuredClone(code);
+          if (offer === undefined || !offer.offered) refuse({ notOffered: true });
+          const issues = codeChoiceIssues(code, { codexOffered: offer?.codex === true });
+          if (hasCodeIssues(issues)) refuse(issues);
         }
         const approved = decision.removeSkills !== undefined && decision.removeSkills.length > 0 ? this.approveWithout(c, decision.removeSkills) : { decision: 'approve' };
-        // "Workspace only" is told exactly what the flow was told before phase 10.
-        result = code === undefined ? approved : this.approveWithCode(c, Promise.resolve(approved));
+        // "Workspace only" is told exactly what the flow was told before phase 10; the record follows the final answer.
+        result = this.recordCode(c, Promise.resolve(approved), code);
       }
     }
     this.settle(c, result, parsed.data);
@@ -866,6 +917,7 @@ export class CreationManager {
         return this.request(c, 'spec', request);
       },
       grantDirectory: (request) => this.request(c, 'grant', request),
+      ...(this.options.implement === undefined ? {} : { implement: this.implementPort(c, this.options.implement) }),
       claimFolder: (dir) => (this.isFinished(c) ? { ok: true } : this.claims.claim(c.state.id, dir, c.state.idea)),
       folderHeldByOther: (target) => this.claims.heldByOther(c.state.id, target),
       refreshFolderClaims: () => this.readOutsideClaims(),
@@ -1105,6 +1157,8 @@ export class CreationManager {
     }
     c.state.status = 'finished';
     c.state.outcome = outcome;
+    // A command of the implement step still running ends with the creation (phase 10).
+    c.implement?.stop();
     this.claims.release(c.state.id);
     c.state.finishedAt = this.now().toISOString();
     delete c.state.cancelling;

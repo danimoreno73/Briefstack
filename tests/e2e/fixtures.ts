@@ -33,6 +33,7 @@ import { EXFILTRATOR, HARMLESS, INJECTOR } from '../skillFixtures.js';
 import { sampleRepo, startFakeGitHub, type FakeGitHub } from '../skillsWorld.js';
 import { isolateEnvironment } from '../sandboxEnv.js';
 import { CodexService, creationCodexOffered } from '../../src/codex/service.js';
+import { realImplementSystem } from '../../src/creation/implementSystem.js';
 import { fakeCodex } from '../codexWorld.js';
 import type { BuildManager } from '../../src/builds/manager.js';
 import { FakeBuildPlanner } from '../../src/builds/planner.js';
@@ -248,6 +249,8 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   const manager = new CreationManager({
     // As in `briefstack web` (phase 10): the spec page's Codex checkbox follows the last check.
     codexForCreations: async () => (holderCodex.value === undefined ? false : creationCodexOffered(await holderCodex.value.view())),
+    // As in `briefstack web` (phase 10): the real implement step's system (commits, listed commands) in the test's folders.
+    implement: realImplementSystem(),
     skills,
     runner:
       options.recordingText === undefined

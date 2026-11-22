@@ -82,7 +82,21 @@ const shown = (text: string): string => hideAbsolutePaths(redactSecretLines(text
  * heading (`` ### `<tool>` ``). A mention in a description does not count.
  */
 export function shellToolsDeclared(rendered: string): string[] {
-  return CODEX_SHELL_TOOL_NAMES.filter((name) => rendered.includes(`"name": "${name}"`) || rendered.includes(`"name":"${name}"`) || rendered.includes(`### \`${name}\``));
+  const listed = CODEX_SHELL_TOOL_NAMES.filter((name) => rendered.includes(`"name": "${name}"`) || rendered.includes(`"name":"${name}"`) || rendered.includes(`### \`${name}\``));
+  // Review of M1, I2: also any nested tool whose name says it runs things (a renamed or new shell tool).
+  const headings = [...rendered.matchAll(/### `([A-Za-z0-9_.:-]+)`/g)].map((match) => match[1] ?? '');
+  const named = headings.filter((name) => /shell|command|terminal|stdin|repl|spawn|process/i.test(name) && !(listed as string[]).includes(name));
+  return [...listed, ...named];
+}
+
+/**
+ * The positive control of the no-shell check (review of M1, I2): the
+ * rendering must still declare `apply_patch` the way the parser reads it
+ * (`` ### `apply_patch` ``, as Codex 0.167.0 renders it, decisions.md
+ * "Phase 10: H0", 1). A format the parser does not understand fails.
+ */
+export function noShellFormatUnderstood(rendered: string): boolean {
+  return rendered.includes('### `apply_patch`');
 }
 
 /** Whether creations offer the Codex checkbox: tasks would get the tool, and the last check showed the no-shell mode holds. */
@@ -174,10 +188,13 @@ export class CodexService {
       const sandbox = { ok: passed(sandboxRun), text: shown(passed(sandboxRun) ? sandboxRun.stdout : sandboxRun.stderr.trim() !== '' ? sandboxRun.stderr : sandboxRun.stdout) };
       // The no-shell mode of creations, without the model: the tools Codex would offer with the no-shell features.
       const noShellRun = await run(['debug', 'prompt-input', ...CODEX_NO_SHELL_FEATURE_ARGS, 'briefstack no-shell check']);
-      const shellTools = passed(noShellRun) ? shellToolsDeclared(noShellRun.stdout) : [];
-      const noShell = passed(noShellRun)
-        ? { ok: shellTools.length === 0 && noShellRun.stdout.trim() !== '', text: shellTools.length === 0 ? 'no command tool' : `still offers: ${shellTools.join(', ')}` }
-        : { ok: false, text: shown(noShellRun.stderr.trim() !== '' ? noShellRun.stderr : noShellRun.stdout) };
+      let noShell: { ok: boolean; text: string };
+      if (!passed(noShellRun)) noShell = { ok: false, text: shown(noShellRun.stderr.trim() !== '' ? noShellRun.stderr : noShellRun.stdout) };
+      else if (!noShellFormatUnderstood(noShellRun.stdout)) noShell = { ok: false, text: 'the tool list was not in the format briefstack reads' };
+      else {
+        const shellTools = shellToolsDeclared(noShellRun.stdout);
+        noShell = shellTools.length === 0 ? { ok: true, text: 'no command tool' } : { ok: false, text: `still offers: ${shellTools.join(', ')}` };
+      }
       status = { v: 1, at, platform: this.platform, ...(windows ? { mode } : {}), found: true, version, login, sandbox, noShell, ok: version.ok && login.ok && sandbox.ok };
     }
     await mkdir(this.folder(), { recursive: true });
