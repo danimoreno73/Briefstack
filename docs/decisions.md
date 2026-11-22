@@ -7527,7 +7527,8 @@ to.
   shows and counts only once the flow reached it (or, on the creations
   list, when the creation has code), so a creation without code still says
   "step n of 9".
-- **No timeout of ours on `briefstack-web`.** The SDK's default for an
+- **No timeout of ours on `briefstack-web`** (replaced by the review of
+  M2, I2: a timeout of a day, "Phase 10: review of M2, the fixes"). The SDK's default for an
   in-process server is unbounded (`sdk.d.ts`, `createSdkMcpServer`), and
   `approve_spec` waits for the user as long as they need; a listed command
   ends at its own 10-minute deadline (`implementSystem.ts`).
@@ -7583,9 +7584,9 @@ important items and eight minor ones. Fixed in the next commits:
   tools included). Past the minutes or the calls, every further tool of the
   implementer is denied with "stop now and report"; no fix pass follows a
   bound; the checks still run on what was written. The page follows the
-  count every ten calls. The checks' own time is not the implementer's (it
-  is idle then), but the minutes run from the start for the whole step,
-  fix passes included.
+  count every ten calls. The minutes are wall-clock time from the start for
+  the whole step, the checks and the fix passes included (corrected by the
+  review of M3, I3).
 - **Checks** run in `implement_finish`, one after another, offline as a
   task's declared checks (`checkEnv`: proxies pointed nowhere, no Claude
   Code credentials, no briefstack variables), 10 minutes each, output cut
@@ -7682,3 +7683,46 @@ and eleven minor ones. Fixed with M3:
   `[fake:cmd]` makes it say it has no shell tool.
 - **Not shown here:** a real Codex in the implement step (the real check,
   M6, does it, run by the user).
+
+## Phase 10: review of M3, the fixes (2026-11-22)
+
+The review of M3 (`aa1abfd..ba3f2ab`; CI of `ba3f2ab` green on the three
+systems, run 45056801649) said **no apto**: one blocking item, four
+important, eleven minor. M4 had been committed locally (not pushed) when
+the review came; the fixes follow it and nothing was pushed in between.
+
+- **B1** (the command-hook guard denied every implementer write in a real
+  session: `guard.json` had no implementer folder): `guard.json` gets an
+  optional `implementerFolder`, the runner rewrites the rules after
+  `implement_start` and `implement_finish`, and the command hook passes it
+  on. A test of `decideToolUse` covers it. **Not covered by a test:** the
+  runner rewriting the rules at those two moments (the real check shows the
+  implementer writing).
+- **I1**: the protected files are checked as written, resolved and after
+  links; `.mcp.json` joins them; a `:` after the drive (an NTFS stream) or a
+  short name (`~` and a digit) is refused for the implementer.
+- **I2**: the checks get no credentials either (the names Codex's
+  environment drops).
+- **I3**: no fix pass once a bound has run out, checked when the checks
+  end, not only on the implementer's next call; the docs say the minutes
+  are wall-clock time for the whole step.
+- **I4**: tests of the latch, `finish` while a command runs, the
+  implementer during the checks, a stop during the checks, checks that
+  throw, bounds reached before a fix pass, a chain stopped between parts, a
+  usage refusal that is final, `PUT /api/settings` out of range. **Not in
+  e2e:** the usage gate (wired only with the real runner, as the
+  creation's other readings) and the bounds (unit tests only).
+- **m1–m5**: a stop ends the step as `interrupted` (nothing more for the
+  implementer, no folder); a `finishing` state while the code is
+  committed; checks that throw are a failed pass; a stop during the usage
+  reading commits nothing; a command stopped before it ran is an error;
+  the minutes are checked between a chain's parts; a refusal for usage is
+  final.
+- **m6–m7**: one long line of output is cut at a blank, not dropped; the
+  drain ends the tree a command left behind.
+- **m8**: the old entry points to its replacement. **m9**: the Settings
+  help says a failed reading also stops the step, and how to let it run.
+- **Not changed:** m10 (commit history; the settings commit `69ff686` did
+  not build alone because its test imported a function of the next
+  commit); m11 (fixed by M4: the start's answer names Codex only when it
+  is wired and available).
