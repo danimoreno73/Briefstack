@@ -467,6 +467,8 @@ class SdkRun {
         sessionDir: () => (this.claimed === undefined ? undefined : this.sessionDir(this.claimed)),
         protectedDirs: protectedDirs(libraryDir, this.deps.repoDir, this.deps.pathEnv),
         projectsDir,
+        // Phase 10 (review of M3, B1): the command hook learns where the implementer may write, and when it no longer may.
+        onImplementChange: () => this.writeRules(),
         onGrant: (dir) => {
           this.granted.push(dir);
           // Before the grant tool returns, so the next write in that folder is not denied by the command hook.
@@ -570,10 +572,16 @@ class SdkRun {
         cancelled: this.cancelled,
         ...(this.approvedLibrarySkills === undefined ? {} : { librarySkills: [...this.approvedLibrarySkills] }),
         ...(this.claimed === undefined ? {} : { sessionId: this.claimed }),
+        ...(this.implementerFolder() === undefined ? {} : { implementerFolder: this.implementerFolder() }),
       });
     } catch (error) {
       if (strict) throw error;
     }
+  }
+
+  /** The running implement step's project folder (phase 10), for both guards. */
+  private implementerFolder(): string | undefined {
+    return this.io.implement?.projectFolder();
   }
 
   private get runsDir(): string {

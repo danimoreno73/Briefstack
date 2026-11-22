@@ -28,6 +28,12 @@ export interface WebToolsDeps {
   projectsDir: string;
   /** Records a folder the user confirmed, for this session only. */
   onGrant(dir: string): void;
+  /**
+   * After `implement_start` or `implement_finish` answered (phase 10): the
+   * runner rewrites the command-hook guard's rules, which name the running
+   * step's folder (review of M3, B1).
+   */
+  onImplementChange?(): void;
   pathEnv?: PathEnv;
 }
 
@@ -115,7 +121,7 @@ export function createWebToolsServer(deps: WebToolsDeps): McpSdkServerConfigWith
         async (args) => grantDirectory(deps, args),
         { alwaysLoad: true },
       ),
-      ...implementTools(deps.io.implement),
+      ...implementTools(deps.io.implement, () => deps.onImplementChange?.()),
     ],
   });
 }
@@ -132,20 +138,27 @@ const unavailable = (): ToolReply => reply('The implement step is not available 
  * `run_command` and (M4) `delegate_to_codex`. The guard gives each to its
  * own caller only; the step itself (`implement.ts`) checks the rest.
  */
-function implementTools(port: ImplementPort | undefined) {
+function implementTools(port: ImplementPort | undefined, changed: () => void) {
+  const thenChanged = async (reply: Promise<ImplementReply>): Promise<ToolReply> => {
+    try {
+      return asReply(await reply);
+    } finally {
+      changed();
+    }
+  };
   return [
     tool(
       'implement_start',
       'Main session, web app, only when the spec approval said code: true. Starts the implement step for the project folder: checks the plan usage, commits the workspace, and says whether to launch the implementer and with which exact commands.',
       { dir: z.string().min(1) },
-      async (args) => (port === undefined ? unavailable() : asReply(await port.start(args.dir))),
+      async (args) => (port === undefined ? unavailable() : thenChanged(port.start(args.dir))),
       { alwaysLoad: true },
     ),
     tool(
       'implement_finish',
       'Main session, after the implementer reported. Runs the declared checks; says whether a fix pass is due (with the failures) or commits the code apart from the workspace and ends the step.',
       {},
-      async () => (port === undefined ? unavailable() : asReply(await port.finish())),
+      async () => (port === undefined ? unavailable() : thenChanged(port.finish())),
       { alwaysLoad: true },
     ),
     tool(

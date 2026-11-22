@@ -53,6 +53,8 @@ const rulesSchema = z
     librarySkills: z.array(z.string()).optional(),
     /** Once known: a hook input from any other session is denied. */
     sessionId: z.string().optional(),
+    /** Phase 10: the project folder of the running implement step; the implementer writes only there. */
+    implementerFolder: absolute.optional(),
   })
   .strict();
 
@@ -131,6 +133,8 @@ export async function decideToolUse(stdin: string, rulesFile: string): Promise<C
       grantedDirs: () => rules.granted,
       cancelled: () => rules.cancelled,
       approvedLibrarySkills: () => rules.librarySkills,
+      // Phase 10 (review of M3, B1): where the implementer may write while its step runs; absent, nowhere.
+      implementerFolder: () => rules.implementerFolder,
       pathEnv: systemPathEnv(),
     };
     const verdict = await evaluateToolUse(ctx, {

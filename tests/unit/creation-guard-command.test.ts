@@ -114,6 +114,20 @@ describe('the command-hook guard', () => {
     expect(await decide(write(path.join(rules.projectsDir, 'a.txt')))).toMatchObject({ code: 2, message: expect.stringContaining('another session') });
   });
 
+  it('lets the implementer write in the running step\'s folder from the rules, and nowhere without it (phase 10, review of M3, B1)', async () => {
+    const app = path.join(rules.projectsDir, 'app');
+    await mkdir(app, { recursive: true });
+    const implementer = { agent_id: 'i1', agent_type: 'implementer' };
+    const implementerWrite = (file: string) => input('Write', { file_path: file, content: 'x' }, implementer);
+    expect(await decide(implementerWrite(path.join(app, 'src', 'a.js')))).toMatchObject({ code: 2 });
+    writeGuardRulesSync(rulesFile, { ...rules, implementerFolder: app });
+    expect(await decide(implementerWrite(path.join(app, 'src', 'a.js')))).toEqual({ code: 0 });
+    expect(await decide(implementerWrite(path.join(app, '.claude', 'settings.json')))).toMatchObject({ code: 2 });
+    expect(await decide(implementerWrite(path.join(rules.projectsDir, 'other', 'a.js')))).toMatchObject({ code: 2 });
+    // The implementer never gets a shell, whatever the rules say.
+    expect(await decide(input('Bash', { command: 'npm test' }, implementer))).toMatchObject({ code: 2 });
+  });
+
   it('denies exactly what the callback guard denies', async () => {
     await mkdir(path.join(rules.libraryDir, 'skills', 'helper', 'files'), { recursive: true });
     const ctx = {
