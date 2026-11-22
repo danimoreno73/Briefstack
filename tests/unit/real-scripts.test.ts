@@ -1217,3 +1217,49 @@ describe('phase 6 real checks: prepared, guarded, and kept off real data', () =>
     expect(script).toContain('proposed.includes(name)');
   });
 });
+
+describe('phase 10 real check (check-creation-code): prepared, guarded, Codex checked before Claude', { timeout: 60_000 }, () => {
+  const read = () => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-creation-code.ts'), 'utf8');
+
+  it('asks for --yes, works in a temp sandbox on saver, checks Codex (no model) before the usage reading and the creation, and has every verdict of the brief', async () => {
+    const script = await read();
+    expect(script).toContain('requireConfirmation(');
+    expect(script).toMatch(/await sandbox\('creation-code'\)/);
+    expect(script).toContain('check.add(() => box.cleanup())');
+    expect(script).toContain("activeProfile: 'saver'");
+    expect(script).not.toContain('bypassPermissions');
+    // Codex first: nothing is spent on Claude before its check passed with the no-shell part.
+    const checked = script.indexOf('await codex.check()');
+    expect(checked).toBeGreaterThan(0);
+    expect(checked).toBeLessThan(script.indexOf('await readPlanUsage(box, executable)'));
+    expect(checked).toBeLessThan(script.indexOf('await manager.create(IDEA)'));
+    expect(script.match(/await manager\.create\(/g)?.length).toBe(1);
+    // The verdicts of BRIEF-phase-10 §5: two commits, a listed command, an off-list command denied with no dialog, Codex
+    // without its shell, the checks; and the two things only a real session shows (the subagent's tools, its writes).
+    for (const verdict of [
+      'two commits: the workspace, then the code apart',
+      'a listed command ran in the project',
+      'was denied',
+      'nobody was asked during the implement step',
+      'Codex was called without its shell and ran no command',
+      'the checks ran after the implementer',
+      'the implementer called briefstack’s tools',
+      'the code commit holds what the implementer wrote',
+    ]) {
+      expect(script, verdict).toContain(verdict);
+    }
+    // The model not trying something is said as such, never retried.
+    expect(script).toContain('(the model, not briefstack)');
+  });
+
+  it('without --yes it exits with 2 and starts nothing', async () => {
+    const child = spawn(process.execPath, ['--import', 'tsx', path.join('scripts', 'real', 'check-creation-code.ts')], { cwd: PACKAGE_ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    let err = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => (err += chunk));
+    const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
+    expect(code).toBe(2);
+    expect(err).toContain('Run it again with --yes');
+    expect(err).toContain('Codex usage');
+  });
+});
