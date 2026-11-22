@@ -1,5 +1,71 @@
 # Changelog
 
+## Unreleased
+
+What phases 7, 8 and 9 add. The briefs are in [`docs/`](docs/)
+([phase 7](docs/BRIEF-phase-7.md), [phase 8](docs/BRIEF-phase-8.md),
+[phase 9](docs/BRIEF-phase-9.md)); the decisions are in
+[`docs/decisions.md`](docs/decisions.md).
+
+### Tasks in existing projects (phase 7)
+
+- A task on a `claude-code` project briefstack created: Claude works in a
+  separate copy (a git worktree on its own branch), never in the user's
+  folder.
+- Every shell command and web request asks first, in a dialog with the
+  exact command: once, for the rest of the task, or deny.
+- The result is a diff to review, with validations (files outside the
+  copy, settings or hooks, hidden lines, secrets, personal paths); approve
+  applies it as one commit on the project's branch, revert undoes it,
+  discard drops it. Nothing is pushed.
+- The project's declared checks run only after a click and a
+  confirmation on the proposal page.
+- Tasks share the active-sessions limit with creations, one per project
+  at a time.
+
+### Codex in tasks (phase 8)
+
+- Off by default. With the Settings switch on and the status check
+  passed, a task's Claude session may hand code writing to the user's own
+  Codex CLI (`delegate_to_codex`), inside the task's copy; Claude reviews
+  its work, and the diff, the checks and the approval stay the control.
+- The proposal page shows each Codex call, its duration, what it ran and
+  its tokens as Codex counts them; cancelling a task ends Codex's whole
+  process tree.
+- Codex's sandbox on Windows was measured: it can read outside the copy
+  and reach 127.0.0.1 and the Internet; the README and Settings say so.
+
+### Builds (phase 9)
+
+- "Implement" on a project with a `docs/BRIEF.md`: a planner session with
+  no tools proposes a queue of tasks, commands and checks; the user edits
+  and approves it once, with the exact commands a round may run, the
+  checks, fix rounds and usage thresholds.
+- The queue runs unattended on an integration branch: commands off the
+  list are denied without a dialog and recorded, checks run after each
+  round, a failing task gets fix rounds and then waits for the user, its
+  dependents are skipped. Builds never offer Codex.
+- Pause and resume, a pause by plan usage that resumes by itself at the
+  reset, cancel, and a restart that leaves a build interrupted.
+- The build's page: progress, Claude's tokens per task, the whole change,
+  and apply (one commit on the project's branch), revert and discard.
+  Discarding an applied build deletes only its branch; it can still be
+  reverted.
+- Safety: the integration branch is never moved or removed while a folder
+  has it checked out; a start with no checks needs an explicit
+  confirmation; the start page says that the list limits command lines,
+  not what an approved command runs. Tasks and builds need git 2.40 or
+  later.
+
+### Projects and Usage pages
+
+- Archive and restore an interrupted or cancelled creation.
+- Export the projects list as CSV, with no paths.
+- A note on the week's plan window: its figure, its reset day and what
+  runs now.
+- "New preset based on…": a user preset made from another one on the
+  Usage page.
+
 ## 1.0.0 — 2026-10-25
 
 First public release. briefstack was built in phases; the brief and plan of
