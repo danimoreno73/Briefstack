@@ -669,7 +669,19 @@ describe('evaluateToolUse', () => {
       expect(await write(path.join(projectsDir, 'other', 'x.js'))).toBe('deny');
       expect(await write(path.join(sessionsDir, SESSION, 'code.json'))).toBe('deny');
       expect(await write(path.join(outside, 'x.js'))).toBe('deny');
-      for (const file of [path.join(app, '.briefstack', 'spec.json'), path.join(app, '.claude', 'settings.json'), path.join(app, '.claude', 'settings.local.json'), path.join(app, '.CLAUDE', 'Settings.JSON')]) {
+      const forms = [
+        path.join(app, '.briefstack', 'spec.json'),
+        path.join(app, '.claude', 'settings.json'),
+        path.join(app, '.claude', 'settings.local.json'),
+        path.join(app, '.CLAUDE', 'Settings.JSON'),
+        path.join(app, '.mcp.json'),
+        // Review of M3, I1: forms that read as one of those.
+        `${path.join(app, '.claude')}${path.sep}.${path.sep}settings.json`,
+        `${path.join(app, '.claude', 'x')}${path.sep}..${path.sep}settings.json`,
+        `${path.join(app, '.claude', 'settings.json')}::$DATA`,
+        path.join(app, 'CLAUDE~1', 'SETTIN~1.JSO'),
+      ];
+      for (const file of forms) {
         expect(await evaluateToolUse(ctx, input('Write', { file_path: file, content: 'x' }, implementer)), file).toMatchObject({ verdict: 'deny' });
       }
       expect(await verdictOf('Edit', { file_path: path.join(app, '.git', 'config'), old_string: 'a', new_string: 'b' }, implementer)).toBe('deny');

@@ -126,12 +126,36 @@ export function callerOf(input: { agent_id?: string | undefined; agent_type?: st
 
 const IMPLEMENTER_OUTSIDE = 'The implementer writes only inside the project folder of the running implement step. Do not try another path.';
 const IMPLEMENTER_PROTECTED =
-  "The implementer does not write in .briefstack/ or in .claude/settings*.json: briefstack's own files and Claude Code's settings (hooks there would run later) stay as the creation made them.";
+  "The implementer does not write in .briefstack/, .claude/settings*.json or .mcp.json, nor through a stream name (:) or a short name (~1): briefstack's own files and Claude Code's settings and servers (hooks there would run later) stay as the creation made them.";
 
-/** `.briefstack/…` or `.claude/settings*.json` anywhere in the path, ignoring case and the dots and spaces Windows drops. */
+/**
+ * `.briefstack/…`, `.claude/settings*.json` or `.mcp.json` anywhere in the
+ * path, ignoring case and the dots and spaces Windows drops; also any path
+ * Windows could read as something else (review of M3, I1): a `:` after the
+ * drive (an NTFS stream), or a short name with `~` and a digit.
+ */
 export function protectedProjectFile(value: string): boolean {
-  const segments = value.split(/[\\/]+/).map((segment) => segment.toLowerCase().replace(/[. ]+$/, ''));
-  return segments.some((segment, index) => segment === '.briefstack' || (segment === '.claude' && /^settings.*\.json$/.test(segments[index + 1] ?? '')));
+  const withoutDrive = value.replace(/^[A-Za-z]:/, '');
+  if (withoutDrive.includes(':')) return true;
+  const segments = withoutDrive
+    .split(/[\\/]+/)
+    .filter((segment) => segment !== '' && segment !== '.')
+    .map((segment) => segment.toLowerCase().replace(/[. ]+$/, ''));
+  if (segments.some((segment) => /~\d/.test(segment))) return true;
+  return segments.some(
+    (segment, index) => segment === '.briefstack' || segment === '.mcp.json' || (segment === '.claude' && /^settings.*\.json$/.test(segments[index + 1] ?? '')),
+  );
+}
+
+/** `protectedProjectFile` of the path as written, resolved (no `..`) and after links. */
+async function touchesProtectedProjectFile(target: string, pathEnv: PathEnv): Promise<boolean> {
+  const resolved = pathEnv.pathApi.resolve(target);
+  if (protectedProjectFile(target) || protectedProjectFile(resolved)) return true;
+  try {
+    return protectedProjectFile(await realpathNearest(resolved));
+  } catch {
+    return true;
+  }
 }
 
 const IMPLEMENTER_NO_SHELL =
@@ -607,7 +631,7 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
       // Only inside the project of the running step, never its briefstack files or Claude Code settings (hooks there would run later).
       const folder = ctx.implementerFolder?.();
       if (folder === undefined || !(await insideAny(target, [folder], pathEnv))) return deny(IMPLEMENTER_OUTSIDE, target);
-      if (protectedProjectFile(target)) return deny(IMPLEMENTER_PROTECTED, target);
+      if (await touchesProtectedProjectFile(target, pathEnv)) return deny(IMPLEMENTER_PROTECTED, target);
     }
     if (await insideAny(target, roots(), pathEnv)) return { verdict: 'allow', reason: 'inside an allowed folder' };
     return deny(
