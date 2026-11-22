@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-11-22
+
+**Upgrading from 1.0.0:**
+
+- Usage profiles have a `work` entry (the model and effort of a task's
+  session). Every preset needs it, user presets included, so a
+  `usage-profiles.json` of your own from 1.0.0 no longer loads until you
+  add `work` to each preset (the error names the missing field; no
+  default is filled in).
+- Tasks and builds need git 2.40 or later.
 
 What phases 7, 8 and 9 add. The briefs are in [`docs/history/`](docs/history/)
 ([phase 7](docs/history/BRIEF-phase-7.md), [phase 8](docs/history/BRIEF-phase-8.md),
@@ -24,10 +33,7 @@ What phases 7, 8 and 9 add. The briefs are in [`docs/history/`](docs/history/)
 - Tasks start from the project's page or from the chat, with a card to
   confirm.
 - Usage profiles have a `work` entry (the model and effort of a task's
-  session). **Upgrading:** every preset needs it, user presets included,
-  so a `usage-profiles.json` of your own from 1.0.0 no longer loads until
-  you add `work` to each preset (the error names the missing field; no
-  default is filled in).
+  session); see "Upgrading from 1.0.0" above.
 - The project's declared checks run only after a click and a
   confirmation on the proposal page.
 - Tasks share the active-sessions limit with creations, one per project
