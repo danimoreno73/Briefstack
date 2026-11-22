@@ -685,6 +685,13 @@ describe('evaluateToolUse', () => {
         expect(await evaluateToolUse(ctx, input('Write', { file_path: file, content: 'x' }, implementer)), file).toMatchObject({ verdict: 'deny' });
       }
       expect(await verdictOf('Edit', { file_path: path.join(app, '.git', 'config'), old_string: 'a', new_string: 'b' }, implementer)).toBe('deny');
+      // Review of M4, I2: only the part inside the project counts; a short name or a `.briefstack` above it is the user's.
+      const odd = path.join(projectsDir, 'RUNNER~1', '.briefstack', 'app');
+      await mkdir(odd, { recursive: true });
+      ctx = { ...ctx, implementerFolder: () => odd };
+      expect(await write(path.join(odd, 'src', 'index.js'))).toBe('allow');
+      expect(await write(path.join(odd, '.briefstack', 'x.json'))).toBe('deny');
+      ctx = { ...ctx, implementerFolder: () => app };
       expect(await verdictOf('Read', { file_path: path.join(app, 'docs', 'BRIEF.md') }, implementer)).toBe('pass');
       // Other callers keep the creation's roots.
       expect(await verdictOf('Write', { file_path: path.join(projectsDir, 'other', 'x.js'), content: 'x' }, generator)).toBe('allow');

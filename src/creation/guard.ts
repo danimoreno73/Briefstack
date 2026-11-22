@@ -135,6 +135,7 @@ const IMPLEMENTER_PROTECTED =
  * drive (an NTFS stream), or a short name with `~` and a digit.
  */
 export function protectedProjectFile(value: string): boolean {
+  // Called with the part of the path inside the project; a drive there would mean it is not inside.
   const withoutDrive = value.replace(/^[A-Za-z]:/, '');
   if (withoutDrive.includes(':')) return true;
   const segments = withoutDrive
@@ -142,17 +143,29 @@ export function protectedProjectFile(value: string): boolean {
     .filter((segment) => segment !== '' && segment !== '.')
     .map((segment) => segment.toLowerCase().replace(/[. ]+$/, ''));
   if (segments.some((segment) => /~\d/.test(segment))) return true;
+  // Review of M4, I6: hook folders too, as a task's guard refuses them (their code runs later, as the user).
   return segments.some(
-    (segment, index) => segment === '.briefstack' || segment === '.mcp.json' || (segment === '.claude' && /^settings.*\.json$/.test(segments[index + 1] ?? '')),
+    (segment, index) =>
+      segment === '.briefstack' ||
+      segment === '.mcp.json' ||
+      segment === '.husky' ||
+      segment === '.githooks' ||
+      (segment === '.claude' && (/^settings.*\.json$/.test(segments[index + 1] ?? '') || segments[index + 1] === 'hooks')),
   );
 }
 
-/** `protectedProjectFile` of the path as written, resolved (no `..`) and after links. */
-async function touchesProtectedProjectFile(target: string, pathEnv: PathEnv): Promise<boolean> {
-  const resolved = pathEnv.pathApi.resolve(target);
-  if (protectedProjectFile(target) || protectedProjectFile(resolved)) return true;
+/**
+ * `protectedProjectFile` of the part of the path inside the project folder
+ * (review of M4, I2: never the folders above it, whose short names or names
+ * are the user's), resolved (no `..`) and after links on both sides.
+ */
+async function touchesProtectedProjectFile(target: string, folder: string, pathEnv: PathEnv): Promise<boolean> {
+  const { pathApi } = pathEnv;
+  const resolved = pathApi.resolve(target);
+  if (protectedProjectFile(pathApi.relative(pathApi.resolve(folder), resolved))) return true;
   try {
-    return protectedProjectFile(await realpathNearest(resolved));
+    const [realTarget, realFolder] = await Promise.all([realpathNearest(resolved), realpathNearest(pathApi.resolve(folder))]);
+    return protectedProjectFile(pathApi.relative(realFolder, realTarget));
   } catch {
     return true;
   }
@@ -631,7 +644,7 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
       // Only inside the project of the running step, never its briefstack files or Claude Code settings (hooks there would run later).
       const folder = ctx.implementerFolder?.();
       if (folder === undefined || !(await insideAny(target, [folder], pathEnv))) return deny(IMPLEMENTER_OUTSIDE, target);
-      if (await touchesProtectedProjectFile(target, pathEnv)) return deny(IMPLEMENTER_PROTECTED, target);
+      if (await touchesProtectedProjectFile(target, folder, pathEnv)) return deny(IMPLEMENTER_PROTECTED, target);
     }
     if (await insideAny(target, roots(), pathEnv)) return { verdict: 'allow', reason: 'inside an allowed folder' };
     return deny(
