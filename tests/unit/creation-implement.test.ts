@@ -309,6 +309,28 @@ describe('the implement step: overlaps, ends and limits (reviews of M2 and M3)',
     expect(w.runs.map((run) => run.command)).toEqual(['npm install']);
   });
 
+  it('Codex calls never overlap one another nor a command, and finish waits for them (review of M4, I3, m3)', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const w = world({ choice: { ...CHOICE, codex: true } });
+    const deps = (w.step as unknown as { deps: ImplementDeps }).deps;
+    deps.codex = async () => ({
+      call: async () => {
+        await gate;
+        return { text: 'done', isError: false };
+      },
+      stop: () => undefined,
+    });
+    await w.step.start('P');
+    const first = w.step.delegate('a');
+    expect((await w.step.delegate('b')).text).toContain('already working');
+    expect((await w.step.runCommand('npm install')).text).toContain('Codex call is still running');
+    expect((await w.step.finish()).text).toContain('still running');
+    release();
+    expect((await first).isError).toBe(false);
+    expect((await w.step.finish()).isError).toBe(false);
+  });
+
   it('a start refused for usage is final: a retry reads nothing again', async () => {
     let readings = 0;
     const w = world();

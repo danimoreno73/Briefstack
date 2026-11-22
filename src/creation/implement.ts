@@ -91,6 +91,10 @@ export interface ImplementView {
   codex: TaskCodexCall[];
   /** The user ticked Codex but it was not available when the step started (switch off, check failed, mode changed). */
   codexUnavailable?: true;
+  /** The brief's "Current status" when the step ended (what is done, what is left): the implementer's text, as data. */
+  status?: string;
+  /** Protected files someone changed, put back as the workspace commit had them (review of M4, I1). */
+  protectedReverted?: string[];
   startedAt?: string;
   finishedAt?: string;
 }
@@ -127,6 +131,10 @@ export interface ImplementDeps {
    * now. `record` saves each call on the step's record.
    */
   codex?(dir: string, record: (call: TaskCodexCall) => void): Promise<CodexPort | undefined>;
+  /** Puts back protected files changed since the workspace commit (review of M4, I1); returns their paths. */
+  revertProtected?(dir: string): Promise<string[]>;
+  /** The brief's "Current status", read when the step ends (M5); without it none is shown. */
+  currentStatus?(dir: string): Promise<string | undefined>;
   /** Told after every change, so the page and the record follow. */
   changed(view: ImplementView): void;
   /** Told of each command refused (shown text), so it is listed with the creation's other denials. */
@@ -264,6 +272,9 @@ export class ImplementStep {
     if (!this.running) return { text: 'The implement step is not running, so Codex was not called. Stop and report.', isError: true };
     if (this.choice?.codex !== true) return { text: 'The user did not tick Codex for this creation, so it is not called. Go on without it.', isError: true };
     if (this.codex === undefined) return { text: 'Codex is not available now (its switch, its check or its mode changed), so it is not called. Go on without it.', isError: true };
+    // One at a time, and never beside a listed command in the same folder (review of M4, I3 and m3).
+    if (this.codexBusy || this.busy) return { text: 'Codex or a command is already working in the project folder. Wait for its result, then call again if you still need it.', isError: true };
+    if (this.abort.signal.aborted) return { text: 'The creation ended, so Codex was not called. Stop now.', isError: true };
     this.codexBusy = true;
     try {
       return await this.codex.call(instruction);
@@ -334,7 +345,10 @@ export class ImplementStep {
     // The creation ended while the plan was read (review of M3, m3): nothing is committed.
     if (this.abort.signal.aborted) return { text: 'The creation ended. Stop now.', isError: true };
     const bounds = await this.deps.bounds();
+    if (this.abort.signal.aborted) return { text: 'The creation ended. Stop now.', isError: true };
     const workspace = await this.deps.commit(folder, this.workspaceMessage);
+    // A stop during the commit (review of M4, m1): the step does not become running on an ended creation.
+    if (this.abort.signal.aborted) return { text: 'The creation ended. Stop now.', isError: true };
     if (!workspace.committed && !workspace.nothingToCommit) {
       this.record = { ...this.record, reason: 'commitFailed', ...(workspace.warning === undefined ? {} : { commitWarning: workspace.warning }) };
       this.changed();
@@ -344,6 +358,10 @@ export class ImplementStep {
     this.choice = choice;
     // Codex is asked again now (review of M1, m1): the switch, the check or the mode may have changed since the spec page.
     this.codex = choice.codex ? await this.deps.codex?.(folder, (call) => this.recordCodex(call)).catch(() => undefined) : undefined;
+    if (this.abort.signal.aborted) {
+      this.codex?.stop();
+      return { text: 'The creation ended. Stop now.', isError: true };
+    }
     const codexUnavailable = choice.codex && this.codex === undefined;
     this.startedMs = this.nowDate().getTime();
     this.record = {
@@ -415,7 +433,7 @@ export class ImplementStep {
       this.deps.refused?.(shown, text);
       return { text, isError: true };
     }
-    if (this.busy) return { text: 'Another command is still running. Wait for it, then call run_command again.', isError: true };
+    if (this.busy || this.codexBusy) return { text: 'Another command or a Codex call is still running. Wait for it, then call run_command again.', isError: true };
     this.busy = true;
     try {
       // Each part on its own (review of M2, I1): cmd would not read `&&`'s parts as builds' Bash does, so the step
@@ -455,6 +473,12 @@ export class ImplementStep {
     if (!this.running || this.dir === undefined || this.choice === undefined) return { text: 'The implement step is not running. Go on to learn.', isError: true };
     if (this.busy || this.codexBusy) return { text: 'A command or a Codex call of the implementer is still running. Wait for the implementer to report, then call implement_finish.', isError: true };
     const { dir, choice } = this;
+    // Protected files changed since the workspace commit go back first, whoever changed them (review of M4, I1).
+    const reverted = await this.deps.revertProtected?.(dir).catch(() => [] as string[]);
+    if (reverted !== undefined && reverted.length > 0) {
+      this.record.protectedReverted = [...new Set([...(this.record.protectedReverted ?? []), ...reverted])].slice(0, MAX_KEPT_ENTRIES);
+      this.changed();
+    }
     let results: CheckResult[] = [];
     if (choice.checks.length > 0) {
       this.record.state = 'checking';
@@ -493,6 +517,7 @@ export class ImplementStep {
     this.changed();
     const code = await this.deps.commit(dir, CODE_COMMIT_MESSAGE);
     if (this.abort.signal.aborted) return { text: 'The creation ended while the code was committed. Stop now.', isError: true };
+    const status = await this.deps.currentStatus?.(dir).catch(() => undefined);
     this.record = {
       ...this.record,
       state: 'done',
@@ -500,6 +525,7 @@ export class ImplementStep {
       ...(code.commit === undefined ? {} : { codeCommit: code.commit }),
       ...(code.warning === undefined ? {} : { commitWarning: code.warning }),
       ...(failures.length > 0 ? { warning: 'checksFailed' as const } : {}),
+      ...(status === undefined ? {} : { status }),
     };
     this.changed();
     const lines = [code.committed ? 'The code is committed apart from the workspace.' : code.nothingToCommit ? 'The implementer changed nothing, so there is no code commit.' : 'The code could not be committed; it stays in the folder.'];
@@ -512,6 +538,7 @@ export class ImplementStep {
     }
     if (this.record.limit !== undefined) lines.push(`The implementer stopped at a limit (${this.record.limit === 'time' ? 'time' : 'tool calls'}).`);
     if (this.record.refused.length > 0) lines.push(`${this.record.refused.length} command(s) off the list were denied; the result screen lists them.`);
+    if ((this.record.protectedReverted ?? []).length > 0) lines.push(`Changes to protected files (briefstack's files, Claude Code's settings or hooks) were put back: ${(this.record.protectedReverted ?? []).join(', ')}. Tell the user.`);
     lines.push('Finish the implement step as ok and go on to learn. At the hand-off, say in one line what the first version does and what is left (the brief\'s "Current status").');
     return { text: lines.join('\n'), isError: false };
   }

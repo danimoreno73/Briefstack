@@ -1,6 +1,9 @@
 import { spawn } from 'node:child_process';
-import { stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
+import { noRepoCodeArgs } from '../scaffold/commit.js';
+import { protectedProjectFile } from './guard.js';
 import { isDroppedForCodex } from '../codex/env.js';
 import { isPathInside, systemPathEnv } from '../config/paths.js';
 import { offlineEnv } from '../improve/verify.js';
@@ -26,6 +29,36 @@ export interface ImplementSystem {
   checks(dir: string, commands: readonly string[], signal: AbortSignal): Promise<CheckResult[]>;
   isProject(dir: string): Promise<boolean>;
   sameFolder(dir: string, folder: string): Promise<boolean>;
+  /** The brief's "Current status" section (M5: what is done and what is left), cut and redacted; `undefined` when none. */
+  currentStatus(dir: string): Promise<string | undefined>;
+  /**
+   * Puts back, as the workspace commit has them, the protected files
+   * changed since it (`protectedProjectFile`: briefstack's files, Claude
+   * Code's settings and hooks, `.mcp.json`, hook folders), whoever changed
+   * them (Codex's file tool does not pass through the guard: review of M4,
+   * I1). Returns the paths put back, relative to the project.
+   */
+  revertProtected(dir: string): Promise<string[]>;
+}
+
+/** The most of the brief's "Current status" the record keeps. */
+const MAX_STATUS_CHARS = 3000;
+
+/**
+ * The "## Current status" section of a brief: from its heading to the next
+ * heading of the same or a higher level, cut, secrets hidden, absolute
+ * paths hidden. It is the implementer's text, shown as data.
+ */
+export function currentStatusOf(brief: string, dir: string): string | undefined {
+  const lines = brief.replaceAll('\r\n', '\n').split('\n');
+  const start = lines.findIndex((line) => /^##\s+Current status\s*$/i.test(line.trim()));
+  if (start === -1) return undefined;
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => /^#{1,2}\s/.test(line));
+  const body = (end === -1 ? rest : rest.slice(0, end)).join('\n').trim();
+  if (body === '') return undefined;
+  const cut = body.length > MAX_STATUS_CHARS ? `${body.slice(0, MAX_STATUS_CHARS)}\n[cut]` : body;
+  return cleanCommandOutput(cut, dir);
 }
 
 /** Each listed command gets this long before its process tree is ended (as a declared check). */
@@ -160,6 +193,35 @@ export function runCommandLine(dir: string, command: string, options: { signal: 
   });
 }
 
+/**
+ * The protected paths changed since HEAD (the workspace commit, before the
+ * code commit), put back: a tracked one restored from HEAD, a new one
+ * removed. git runs with hooks and `fsmonitor` off, as `commitProject`.
+ */
+export async function revertProtectedChanges(dir: string): Promise<string[]> {
+  const emptyDir = await mkdtemp(path.join(os.tmpdir(), 'briefstack-no-hooks-'));
+  try {
+    const config = noRepoCodeArgs(emptyDir);
+    const status = await git(dir, [...config, 'status', '--porcelain', '-z', '--untracked-files=all']);
+    const reverted: string[] = [];
+    const entries = status.split('\0').filter((entry) => entry !== '');
+    for (let i = 0; i < entries.length; i += 1) {
+      const entry = entries[i] ?? '';
+      const code = entry.slice(0, 2);
+      const file = entry.slice(3);
+      // A rename lists its old path next: both are looked at.
+      if (code.startsWith('R') || code.startsWith('C')) i += 1;
+      if (!protectedProjectFile(file)) continue;
+      if (code === '??') await rm(path.join(dir, file), { force: true, recursive: true });
+      else await git(dir, [...config, 'checkout', 'HEAD', '--', file]).catch(async () => rm(path.join(dir, file), { force: true, recursive: true }));
+      reverted.push(file);
+    }
+    return reverted;
+  } finally {
+    await rm(emptyDir, { recursive: true, force: true });
+  }
+}
+
 /** The head's commit id, or `undefined`. */
 async function headOf(dir: string): Promise<string | undefined> {
   try {
@@ -198,6 +260,17 @@ export function realImplementSystem(): ImplementSystem {
         results.push(await runCommandLine(dir, command, { signal, env: checkEnvironment(process.env) }));
       }
       return results;
+    },
+    revertProtected: async (dir) => revertProtectedChanges(dir),
+    currentStatus: async (dir) => {
+      try {
+        const file = path.join(dir, 'docs', 'BRIEF.md');
+        const info = await stat(file);
+        if (!info.isFile() || info.size > 512 * 1024) return undefined;
+        return currentStatusOf(await readFile(file, 'utf8'), dir);
+      } catch {
+        return undefined;
+      }
     },
     isProject: async (dir) => {
       try {

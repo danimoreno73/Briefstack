@@ -1,7 +1,8 @@
-import { mkdir, symlink, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdir, readFile, stat, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkEnvironment, cleanCommandOutput, commandEnv, realImplementSystem, runCommandLine } from '../../src/creation/implementSystem.js';
+import { checkEnvironment, cleanCommandOutput, commandEnv, currentStatusOf, realImplementSystem, revertProtectedChanges, runCommandLine } from '../../src/creation/implementSystem.js';
 import { approvedParts, MAX_KEPT_ENTRIES } from '../../src/creation/implement.js';
 import { tempDir } from '../helpers.js';
 
@@ -57,6 +58,21 @@ describe('cleanCommandOutput', () => {
   });
 });
 
+describe('currentStatusOf (M5)', () => {
+  it('takes the brief\'s "Current status" up to the next heading, hides secrets and paths, and none when absent', () => {
+    const dir = path.join(path.parse(process.cwd()).root, 'work', 'garden');
+    const secret = ['sk', 'ant', 'c'.repeat(40)].join('-');
+    const brief = `# Garden\n\n## Done when\n\n- x\n\n## Current status\n\nDone: beds.\nLeft: watering.\nkey ${secret}\n\n### Detail\nkept\n\n## Setup\n\nnot this\n`;
+    const status = currentStatusOf(brief, dir) ?? '';
+    expect(status).toContain('Done: beds.');
+    expect(status).toContain('### Detail');
+    expect(status).not.toContain('not this');
+    expect(status).not.toContain(secret);
+    expect(currentStatusOf('# x\n\n## Setup\n', dir)).toBeUndefined();
+    expect(currentStatusOf('## Current status\n\n\n## Setup\n', dir)).toBeUndefined();
+  });
+});
+
 describe('approvedParts', () => {
   const list = ['npm install', 'npm test'];
   it('takes an item, or a chain of && of items; never ; or ||', () => {
@@ -100,6 +116,28 @@ describe('the folder checks', () => {
     await mkdir(path.join(dir, '.briefstack'), { recursive: true });
     await writeFile(path.join(dir, '.briefstack', 'profile.json'), '{}', 'utf8');
     expect(await system.isProject(dir)).toBe(true);
+  });
+
+  it('puts back protected files changed since the workspace commit, whoever changed them (review of M4, I1)', async () => {
+    await mkdir(path.join(dir, '.claude'), { recursive: true });
+    await writeFile(path.join(dir, '.claude', 'settings.json'), '{}\n', 'utf8');
+    await writeFile(path.join(dir, 'README.md'), 'x\n', 'utf8');
+    const run = (args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    run(['init', '-q']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'add', '-A']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'workspace']);
+    await writeFile(path.join(dir, '.claude', 'settings.json'), '{"hooks":{}}\n', 'utf8');
+    await mkdir(path.join(dir, '.claude', 'hooks'), { recursive: true });
+    await writeFile(path.join(dir, '.claude', 'hooks', 'run.sh'), 'echo\n', 'utf8');
+    await writeFile(path.join(dir, '.mcp.json'), '{}\n', 'utf8');
+    await mkdir(path.join(dir, 'src'), { recursive: true });
+    await writeFile(path.join(dir, 'src', 'a.js'), 'ok\n', 'utf8');
+    const reverted = await revertProtectedChanges(dir);
+    expect(reverted.sort()).toEqual(['.claude/hooks/run.sh', '.claude/settings.json', '.mcp.json']);
+    // As git checks it out (core.autocrlf may turn \n into \r\n on Windows).
+    expect((await readFile(path.join(dir, '.claude', 'settings.json'), 'utf8')).replaceAll('\r\n', '\n')).toBe('{}\n');
+    await expect(stat(path.join(dir, '.mcp.json'))).rejects.toThrow();
+    expect(await readFile(path.join(dir, 'src', 'a.js'), 'utf8')).toBe('ok\n');
   });
 
   it('a commit in a folder that is no longer a project is a warning, not an error', async () => {

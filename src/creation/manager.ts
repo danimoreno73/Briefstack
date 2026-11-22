@@ -663,6 +663,8 @@ export class CreationManager {
         commit: (dir, message) => system.commit(dir, message),
         run: (dir, command, signal) => system.run(dir, command, signal),
         checks: (dir, commands, signal) => system.checks(dir, commands, signal),
+        currentStatus: (dir) => system.currentStatus(dir),
+        revertProtected: (dir) => system.revertProtected(dir),
         bounds: async () => (await this.options.implementBounds?.().catch(() => undefined)) ?? { maxMinutes: DEFAULT_IMPLEMENT_MINUTES, maxToolCalls: DEFAULT_IMPLEMENT_TOOL_CALLS },
         ...(this.options.implementUsage === undefined ? {} : { usage: this.options.implementUsage }),
         ...(this.options.implementCodex === undefined ? {} : { codex: (dir, record) => this.creationCodex(c, dir, record) }),
