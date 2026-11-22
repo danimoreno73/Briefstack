@@ -95,6 +95,8 @@ export interface ImplementView {
   status?: string;
   /** Protected files someone changed, put back as the workspace commit had them (review of M4, I1). */
   protectedReverted?: string[];
+  /** Putting protected files back failed, so the code was not committed (review of M5, I3). */
+  revertFailed?: true;
   startedAt?: string;
   finishedAt?: string;
 }
@@ -132,7 +134,9 @@ export interface ImplementDeps {
    */
   codex?(dir: string, record: (call: TaskCodexCall) => void): Promise<CodexPort | undefined>;
   /** Puts back protected files changed since the workspace commit (review of M4, I1); returns their paths. */
-  revertProtected?(dir: string): Promise<string[]>;
+  revertProtected?(dir: string, snapshot: ReadonlyMap<string, Buffer>): Promise<string[]>;
+  /** The protected files git ignores, as they are when the step starts (review of M5, B1). */
+  snapshotProtected?(dir: string): Promise<ReadonlyMap<string, Buffer>>;
   /** The brief's "Current status", read when the step ends (M5); without it none is shown. */
   currentStatus?(dir: string): Promise<string | undefined>;
   /** Told after every change, so the page and the record follow. */
@@ -203,6 +207,8 @@ export class ImplementStep {
   private choice: CodeChoice | undefined;
   private codex: CodexPort | undefined;
   private codexBusy = false;
+  /** The ignored protected files when the step started (review of M5, B1). */
+  private snapshot: ReadonlyMap<string, Buffer> = new Map();
   private startedMs = 0;
   private busy = false;
   private moving = false;
@@ -243,6 +249,8 @@ export class ImplementStep {
     if (this.record.state === 'running' || this.record.state === 'checking' || this.record.state === 'finishing') {
       this.record = { ...this.record, state: 'interrupted', finishedAt: this.now() };
       this.changed();
+      // Protected files go back even then (review of M5, I2): uncommitted, they would still be read later.
+      if (this.dir !== undefined) void this.putBack(this.dir);
     }
   }
 
@@ -254,6 +262,38 @@ export class ImplementStep {
     if (this.nowDate().getTime() - this.startedMs > bounds.maxMinutes * 60_000) this.record.limit = 'time';
     else if (this.record.toolCalls >= bounds.maxToolCalls) this.record.limit = 'toolCalls';
     return this.record.limit !== undefined;
+  }
+
+  /**
+   * Puts back the protected files changed since the workspace commit (and
+   * the ignored ones as the snapshot had them); records what went back.
+   * `false` when it failed (review of M5, I3): the code is then not
+   * committed.
+   */
+  private async putBack(dir: string): Promise<boolean> {
+    if (this.deps.revertProtected === undefined) return true;
+    try {
+      const reverted = await this.deps.revertProtected(dir, this.snapshot);
+      if (reverted.length > 0) {
+        this.record.protectedReverted = [...new Set([...(this.record.protectedReverted ?? []), ...reverted])].slice(0, MAX_KEPT_ENTRIES);
+        this.changed();
+      }
+      return true;
+    } catch {
+      this.record.revertFailed = true;
+      this.changed();
+      return false;
+    }
+  }
+
+  /** The step ends without a code commit: protected files could not be put back (review of M5, I3). */
+  private endWithoutCommit(): StepReply {
+    this.record = { ...this.record, state: 'done', finishedAt: this.now(), revertFailed: true };
+    this.changed();
+    return {
+      text: 'Protected files (briefstack\'s, Claude Code\'s settings or hooks) were changed and could not be put back, so the code was not committed; it stays in the folder. Tell the user clearly in one line, finish the implement step as ok and go on to learn.',
+      isError: false,
+    };
   }
 
   /** Saves one Codex call on the record (the `CodexDelegate`'s `record`). */
@@ -271,7 +311,7 @@ export class ImplementStep {
   async delegate(instruction: unknown): Promise<StepReply> {
     if (!this.running) return { text: 'The implement step is not running, so Codex was not called. Stop and report.', isError: true };
     if (this.choice?.codex !== true) return { text: 'The user did not tick Codex for this creation, so it is not called. Go on without it.', isError: true };
-    if (this.codex === undefined) return { text: 'Codex is not available now (its switch, its check or its mode changed), so it is not called. Go on without it.', isError: true };
+    if (this.codex === undefined) return { text: 'Codex was not available when the step started (its switch, its check, its version or its mode changed; the user can check it again in Settings), so it is not called. Go on without it.', isError: true };
     // One at a time, and never beside a listed command in the same folder (review of M4, I3 and m3).
     if (this.codexBusy || this.busy) return { text: 'Codex or a command is already working in the project folder. Wait for its result, then call again if you still need it.', isError: true };
     if (this.abort.signal.aborted) return { text: 'The creation ended, so Codex was not called. Stop now.', isError: true };
@@ -356,6 +396,8 @@ export class ImplementStep {
     }
     this.dir = folder;
     this.choice = choice;
+    // What git ignores and a commit never shows: kept now, to be put back as it was (review of M5, B1).
+    this.snapshot = (await this.deps.snapshotProtected?.(folder).catch(() => undefined)) ?? new Map();
     // Codex is asked again now (review of M1, m1): the switch, the check or the mode may have changed since the spec page.
     this.codex = choice.codex ? await this.deps.codex?.(folder, (call) => this.recordCodex(call)).catch(() => undefined) : undefined;
     if (this.abort.signal.aborted) {
@@ -473,16 +515,13 @@ export class ImplementStep {
     if (!this.running || this.dir === undefined || this.choice === undefined) return { text: 'The implement step is not running. Go on to learn.', isError: true };
     if (this.busy || this.codexBusy) return { text: 'A command or a Codex call of the implementer is still running. Wait for the implementer to report, then call implement_finish.', isError: true };
     const { dir, choice } = this;
+    // Nothing for the implementer from here (review of M5, I1: no late write after the files are put back).
+    this.record.state = 'checking';
+    this.changed();
     // Protected files changed since the workspace commit go back first, whoever changed them (review of M4, I1).
-    const reverted = await this.deps.revertProtected?.(dir).catch(() => [] as string[]);
-    if (reverted !== undefined && reverted.length > 0) {
-      this.record.protectedReverted = [...new Set([...(this.record.protectedReverted ?? []), ...reverted])].slice(0, MAX_KEPT_ENTRIES);
-      this.changed();
-    }
+    if (!(await this.putBack(dir))) return this.endWithoutCommit();
     let results: CheckResult[] = [];
     if (choice.checks.length > 0) {
-      this.record.state = 'checking';
-      this.changed();
       try {
         results = await this.deps.checks(dir, choice.checks, this.abort.signal);
       } catch (error) {
@@ -515,6 +554,8 @@ export class ImplementStep {
     // Nothing for the implementer while the code is committed (review of M3, m2).
     this.record.state = 'finishing';
     this.changed();
+    // Once more right before the commit: the checks ran code the implementer wrote (review of M5, I1).
+    if (!(await this.putBack(dir))) return this.endWithoutCommit();
     const code = await this.deps.commit(dir, CODE_COMMIT_MESSAGE);
     if (this.abort.signal.aborted) return { text: 'The creation ended while the code was committed. Stop now.', isError: true };
     const status = await this.deps.currentStatus?.(dir).catch(() => undefined);
@@ -538,7 +579,9 @@ export class ImplementStep {
     }
     if (this.record.limit !== undefined) lines.push(`The implementer stopped at a limit (${this.record.limit === 'time' ? 'time' : 'tool calls'}).`);
     if (this.record.refused.length > 0) lines.push(`${this.record.refused.length} command(s) off the list were denied; the result screen lists them.`);
-    if ((this.record.protectedReverted ?? []).length > 0) lines.push(`Changes to protected files (briefstack's files, Claude Code's settings or hooks) were put back: ${(this.record.protectedReverted ?? []).join(', ')}. Tell the user.`);
+    const putBack = this.record.protectedReverted ?? [];
+    // The names are the implementer's data (review of M5, m9): counted and shown on the result screen, not quoted here.
+    if (putBack.length > 0) lines.push(`Changes to ${putBack.length} protected file(s) (briefstack's files, Claude Code's settings or hooks) were put back; the result screen lists them. Tell the user in one line.`);
     lines.push('Finish the implement step as ok and go on to learn. At the hand-off, say in one line what the first version does and what is left (the brief\'s "Current status").');
     return { text: lines.join('\n'), isError: false };
   }

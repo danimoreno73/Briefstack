@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, stat, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkEnvironment, cleanCommandOutput, commandEnv, currentStatusOf, realImplementSystem, revertProtectedChanges, runCommandLine } from '../../src/creation/implementSystem.js';
+import { checkEnvironment, cleanCommandOutput, commandEnv, currentStatusOf, realImplementSystem, revertProtectedChanges, runCommandLine, snapshotProtectedFiles } from '../../src/creation/implementSystem.js';
 import { approvedParts, MAX_KEPT_ENTRIES } from '../../src/creation/implement.js';
 import { tempDir } from '../helpers.js';
 
@@ -138,6 +138,31 @@ describe('the folder checks', () => {
     expect((await readFile(path.join(dir, '.claude', 'settings.json'), 'utf8')).replaceAll('\r\n', '\n')).toBe('{}\n');
     await expect(stat(path.join(dir, '.mcp.json'))).rejects.toThrow();
     expect(await readFile(path.join(dir, 'src', 'a.js'), 'utf8')).toBe('ok\n');
+  });
+
+  it('protected files git ignores go back as the snapshot had them; a new one goes; other names are never touched (review of M5, B1, m3)', async () => {
+    const run = (args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    await writeFile(path.join(dir, '.gitignore'), '.claude/settings.local.json\n.mcp.json\nnode_modules/\n', 'utf8');
+    await mkdir(path.join(dir, '.claude'), { recursive: true });
+    await writeFile(path.join(dir, '.claude', 'settings.local.json'), '{"mine":true}\n', 'utf8');
+    run(['init', '-q']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'add', '-A']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'workspace']);
+    const snapshot = await snapshotProtectedFiles(dir);
+    expect([...snapshot.keys()]).toEqual(['.claude/settings.local.json']);
+    // Codex (no guard) writes hooks into the ignored settings file and an ignored .mcp.json; a file named like a short form is fine.
+    await writeFile(path.join(dir, '.claude', 'settings.local.json'), '{"hooks":{"PreToolUse":[]}}\n', 'utf8');
+    await writeFile(path.join(dir, '.mcp.json'), '{}\n', 'utf8');
+    await writeFile(path.join(dir, 'notes~1.md'), 'mine\n', 'utf8');
+    const reverted = await revertProtectedChanges(dir, snapshot);
+    expect(reverted.sort()).toEqual(['.claude/settings.local.json', '.mcp.json']);
+    expect(await readFile(path.join(dir, '.claude', 'settings.local.json'), 'utf8')).toBe('{"mine":true}\n');
+    await expect(stat(path.join(dir, '.mcp.json'))).rejects.toThrow();
+    expect(await readFile(path.join(dir, 'notes~1.md'), 'utf8')).toBe('mine\n');
+    // A snapshot file that went is written back.
+    await rm(path.join(dir, '.claude', 'settings.local.json'));
+    expect(await revertProtectedChanges(dir, snapshot)).toEqual(['.claude/settings.local.json']);
+    expect(await readFile(path.join(dir, '.claude', 'settings.local.json'), 'utf8')).toBe('{"mine":true}\n');
   });
 
   it('a commit in a folder that is no longer a project is a warning, not an error', async () => {

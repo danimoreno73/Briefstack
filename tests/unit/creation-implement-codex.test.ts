@@ -134,6 +134,6 @@ describe('Codex without its shell in a creation', { timeout: 60_000 }, () => {
     expect(calls).toEqual([]);
     expect(final.implement).toMatchObject({ codexUnavailable: true, codex: [] });
     expect(replies.find((text) => text.startsWith('The implement step started'))).toContain('not available now');
-    expect(replies.some((text) => text.includes('Codex is not available now'))).toBe(true);
+    expect(replies.some((text) => text.includes('Codex was not available when the step started'))).toBe(true);
   });
 });

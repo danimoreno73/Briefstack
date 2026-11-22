@@ -1,9 +1,9 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { noRepoCodeArgs } from '../scaffold/commit.js';
-import { protectedProjectFile } from './guard.js';
+import { protectedProjectName } from './guard.js';
 import { isDroppedForCodex } from '../codex/env.js';
 import { isPathInside, systemPathEnv } from '../config/paths.js';
 import { offlineEnv } from '../improve/verify.js';
@@ -38,7 +38,54 @@ export interface ImplementSystem {
    * them (Codex's file tool does not pass through the guard: review of M4,
    * I1). Returns the paths put back, relative to the project.
    */
-  revertProtected(dir: string): Promise<string[]>;
+  revertProtected(dir: string, snapshot: ProtectedSnapshot): Promise<string[]>;
+  /**
+   * The protected files git ignores, as they are when the step starts
+   * (review of M5, B1: `.claude/settings.local.json` is ignored in every
+   * generated project, and a commit never shows them).
+   */
+  snapshotProtected(dir: string): Promise<ProtectedSnapshot>;
+}
+
+/** Ignored protected files and their bytes, by path relative to the project. */
+export type ProtectedSnapshot = ReadonlyMap<string, Buffer>;
+
+/** The pathspecs of the protected names, at any depth (`protectedProjectName`). */
+const PROTECTED_PATHSPECS = [
+  ':(glob,icase)**/.briefstack/**',
+  ':(glob,icase)**/.claude/settings*.json',
+  ':(glob,icase)**/.claude/hooks/**',
+  ':(glob,icase)**/.mcp.json',
+  ':(glob,icase)**/.husky/**',
+  ':(glob,icase)**/.githooks/**',
+];
+
+/** One porcelain `-z` listing of the protected paths (no renames: each path on its own), ignored ones included. */
+async function protectedStatus(dir: string, config: readonly string[]): Promise<{ code: string; file: string }[]> {
+  const status = await git(dir, [...config, 'status', '--porcelain', '-z', '--no-renames', '--untracked-files=all', '--ignored=matching', '--', ...PROTECTED_PATHSPECS]);
+  return status
+    .split('\0')
+    .filter((entry) => entry.length > 3)
+    .map((entry) => ({ code: entry.slice(0, 2), file: entry.slice(3) }))
+    .filter((entry) => protectedProjectName(entry.file));
+}
+
+async function withNoHooks<T>(work: (config: readonly string[]) => Promise<T>): Promise<T> {
+  const emptyDir = await mkdtemp(path.join(os.tmpdir(), 'briefstack-no-hooks-'));
+  try {
+    return await work(noRepoCodeArgs(emptyDir));
+  } finally {
+    await rm(emptyDir, { recursive: true, force: true });
+  }
+}
+
+/** Removes a file only when it really is inside the project (review of M5, m4: no link leads it out). */
+async function removeInside(dir: string, file: string): Promise<void> {
+  const target = path.join(dir, file);
+  const pathEnv = systemPathEnv();
+  const [real, root] = await Promise.all([realpathNearest(target), realpathNearest(dir)]);
+  if (!isPathInside(real, root, pathEnv) || real === root) throw new Error(`not inside the project: ${file}`);
+  await rm(target, { force: true, recursive: true });
 }
 
 /** The most of the brief's "Current status" the record keeps. */
@@ -57,7 +104,9 @@ export function currentStatusOf(brief: string, dir: string): string | undefined 
   const end = rest.findIndex((line) => /^#{1,2}\s/.test(line));
   const body = (end === -1 ? rest : rest.slice(0, end)).join('\n').trim();
   if (body === '') return undefined;
-  const cut = body.length > MAX_STATUS_CHARS ? `${body.slice(0, MAX_STATUS_CHARS)}\n[cut]` : body;
+  // Cut at a line's end before redacting (review of M5, m6): no line, and no secret in it, is split in half.
+  const head = body.slice(0, MAX_STATUS_CHARS);
+  const cut = body.length > MAX_STATUS_CHARS ? `${head.slice(0, Math.max(0, head.lastIndexOf('\n')))}\n[cut]` : body;
   return cleanCommandOutput(cut, dir);
 }
 
@@ -198,28 +247,55 @@ export function runCommandLine(dir: string, command: string, options: { signal: 
  * code commit), put back: a tracked one restored from HEAD, a new one
  * removed. git runs with hooks and `fsmonitor` off, as `commitProject`.
  */
-export async function revertProtectedChanges(dir: string): Promise<string[]> {
-  const emptyDir = await mkdtemp(path.join(os.tmpdir(), 'briefstack-no-hooks-'));
-  try {
-    const config = noRepoCodeArgs(emptyDir);
-    const status = await git(dir, [...config, 'status', '--porcelain', '-z', '--untracked-files=all']);
-    const reverted: string[] = [];
-    const entries = status.split('\0').filter((entry) => entry !== '');
-    for (let i = 0; i < entries.length; i += 1) {
-      const entry = entries[i] ?? '';
-      const code = entry.slice(0, 2);
-      const file = entry.slice(3);
-      // A rename lists its old path next: both are looked at.
-      if (code.startsWith('R') || code.startsWith('C')) i += 1;
-      if (!protectedProjectFile(file)) continue;
-      if (code === '??') await rm(path.join(dir, file), { force: true, recursive: true });
-      else await git(dir, [...config, 'checkout', 'HEAD', '--', file]).catch(async () => rm(path.join(dir, file), { force: true, recursive: true }));
-      reverted.push(file);
+export async function snapshotProtectedFiles(dir: string): Promise<ProtectedSnapshot> {
+  return withNoHooks(async (config) => {
+    const snapshot = new Map<string, Buffer>();
+    for (const entry of await protectedStatus(dir, config)) {
+      if (entry.code !== '!!') continue;
+      try {
+        snapshot.set(entry.file, await readFile(path.join(dir, entry.file)));
+      } catch {
+        // A folder or a file gone meanwhile: nothing to keep.
+      }
     }
-    return reverted;
-  } finally {
-    await rm(emptyDir, { recursive: true, force: true });
-  }
+    return snapshot;
+  });
+}
+
+/**
+ * Puts back the protected files changed since the workspace commit: a
+ * tracked one from HEAD (its whole state at the commit), an untracked one
+ * removed, an ignored one as the snapshot had it (written back, or removed
+ * when it did not exist then), and one of the snapshot that went, written
+ * back. Throws when any of it fails, so the step does not commit unseen.
+ */
+export async function revertProtectedChanges(dir: string, snapshot: ProtectedSnapshot = new Map()): Promise<string[]> {
+  return withNoHooks(async (config) => {
+    const reverted = new Set<string>();
+    const seen = new Set<string>();
+    for (const { code, file } of await protectedStatus(dir, config)) {
+      seen.add(file);
+      if (code === '!!') {
+        const before = snapshot.get(file);
+        if (before === undefined) await removeInside(dir, file);
+        else {
+          const now = await readFile(path.join(dir, file)).catch(() => undefined);
+          if (now !== undefined && now.equals(before)) continue;
+          await writeFile(path.join(dir, file), before);
+        }
+      } else if (code === '??') await removeInside(dir, file);
+      // A name git reported, read as it is, never as a pattern (review of M5, m4).
+      else await git(dir, ['--literal-pathspecs', ...config, 'checkout', 'HEAD', '--', file]).catch(async () => removeInside(dir, file));
+      reverted.add(file);
+    }
+    for (const [file, bytes] of snapshot) {
+      if (seen.has(file)) continue;
+      await mkdir(path.dirname(path.join(dir, file)), { recursive: true });
+      await writeFile(path.join(dir, file), bytes);
+      reverted.add(file);
+    }
+    return [...reverted];
+  });
 }
 
 /** The head's commit id, or `undefined`. */
@@ -261,7 +337,8 @@ export function realImplementSystem(): ImplementSystem {
       }
       return results;
     },
-    revertProtected: async (dir) => revertProtectedChanges(dir),
+    revertProtected: (dir, snapshot) => revertProtectedChanges(dir, snapshot),
+    snapshotProtected: (dir) => snapshotProtectedFiles(dir),
     currentStatus: async (dir) => {
       try {
         const file = path.join(dir, 'docs', 'BRIEF.md');

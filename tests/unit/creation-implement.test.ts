@@ -331,6 +331,30 @@ describe('the implement step: overlaps, ends and limits (reviews of M2 and M3)',
     expect((await w.step.finish()).isError).toBe(false);
   });
 
+  it('protected files are put back before the checks and again before the commit; a failure means no code commit (review of M5, I1, I3)', async () => {
+    const w = world();
+    const deps = (w.step as unknown as { deps: ImplementDeps }).deps;
+    const calls: string[] = [];
+    deps.revertProtected = async () => {
+      calls.push(w.step.view().state);
+      return calls.length === 1 ? ['.claude/settings.json'] : [];
+    };
+    await w.step.start('P');
+    await w.step.finish();
+    // Never while the implementer may still act.
+    expect(calls).toEqual(['checking', 'finishing']);
+    expect(w.step.view()).toMatchObject({ state: 'done', protectedReverted: ['.claude/settings.json'], codeCommit: 'c2' });
+    const failing = world();
+    (failing.step as unknown as { deps: ImplementDeps }).deps.revertProtected = async () => {
+      throw new Error('git failed');
+    };
+    await failing.step.start('P');
+    expect((await failing.step.finish()).text).toContain('not committed');
+    expect(failing.step.view()).toMatchObject({ state: 'done', revertFailed: true });
+    expect(failing.step.view().codeCommit).toBeUndefined();
+    expect(failing.commits).toHaveLength(1);
+  });
+
   it('a start refused for usage is final: a retry reads nothing again', async () => {
     let readings = 0;
     const w = world();

@@ -680,6 +680,10 @@ describe('evaluateToolUse', () => {
         `${path.join(app, '.claude', 'x')}${path.sep}..${path.sep}settings.json`,
         `${path.join(app, '.claude', 'settings.json')}::$DATA`,
         path.join(app, 'CLAUDE~1', 'SETTIN~1.JSO'),
+        // Review of M4, I6: hook folders.
+        path.join(app, '.claude', 'hooks', 'pre.sh'),
+        path.join(app, '.husky', 'pre-commit'),
+        path.join(app, '.githooks', 'pre-push'),
       ];
       for (const file of forms) {
         expect(await evaluateToolUse(ctx, input('Write', { file_path: file, content: 'x' }, implementer)), file).toMatchObject({ verdict: 'deny' });

@@ -138,11 +138,21 @@ export function protectedProjectFile(value: string): boolean {
   // Called with the part of the path inside the project; a drive there would mean it is not inside.
   const withoutDrive = value.replace(/^[A-Za-z]:/, '');
   if (withoutDrive.includes(':')) return true;
-  const segments = withoutDrive
+  if (withoutDrive.split(/[\\/]+/).some((segment) => /~\d/.test(segment))) return true;
+  return protectedProjectName(withoutDrive);
+}
+
+/**
+ * By name only (review of M5, m3): `.briefstack/…`, `.claude/settings*.json`,
+ * `.claude/hooks/…`, `.mcp.json`, `.husky/…`, `.githooks/…` anywhere in the
+ * path, ignoring case and the dots and spaces Windows drops. For names git
+ * reports, which are real names, not stream or short forms.
+ */
+export function protectedProjectName(value: string): boolean {
+  const segments = value
     .split(/[\\/]+/)
     .filter((segment) => segment !== '' && segment !== '.')
     .map((segment) => segment.toLowerCase().replace(/[. ]+$/, ''));
-  if (segments.some((segment) => /~\d/.test(segment))) return true;
   // Review of M4, I6: hook folders too, as a task's guard refuses them (their code runs later, as the user).
   return segments.some(
     (segment, index) =>
