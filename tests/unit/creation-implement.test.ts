@@ -220,3 +220,105 @@ describe('the implement step: checks, fix passes, bounds, usage (M3)', () => {
     expect((await fine.step.start('P')).isError).toBe(false);
   });
 });
+
+describe('the implement step: overlaps, ends and limits (reviews of M2 and M3)', () => {
+  it('start and finish are latched: a second call while one runs is refused, not interleaved', async () => {
+    const w = world();
+    const [first, second] = await Promise.all([w.step.start('P'), w.step.start('P')]);
+    expect(first.isError).toBe(false);
+    expect(second.text).toContain('already starting or finishing');
+    expect(w.commits).toHaveLength(1);
+  });
+
+  it('finish waits while a command runs; nothing for the implementer while the checks run or the code is committed', async () => {
+    let release: () => void = () => undefined;
+    const w = world();
+    const step = w.step;
+    await step.start('P');
+    // A command that stays running until released.
+    const deps = (step as unknown as { deps: ImplementDeps }).deps;
+    const slow = new Promise<void>((resolve) => (release = resolve));
+    deps.run = async (_dir, command) => {
+      await slow;
+      return { command, exitCode: 0, timedOut: false, output: '', durationMs: 1 };
+    };
+    const running = step.runCommand('npm install');
+    expect((await step.finish()).text).toContain('still running');
+    release();
+    await running;
+    let seen: string | undefined;
+    deps.checks = async (_dir, commands) => {
+      seen = step.implementerCall();
+      return commands.map((command) => ({ command, exitCode: 0, timedOut: false, output: '', durationMs: 1 }));
+    };
+    await step.finish();
+    expect(seen).toContain('checks are running');
+  });
+
+  it('a stop (cancel, the creation\'s end) during the checks: interrupted, nothing committed, nothing more for the implementer', async () => {
+    const w = world();
+    await w.step.start('P');
+    const deps = (w.step as unknown as { deps: ImplementDeps }).deps;
+    deps.checks = async (_dir, commands) => {
+      w.step.stop();
+      return commands.map((command) => ({ command, exitCode: null, timedOut: false, output: '', durationMs: 1 }));
+    };
+    expect((await w.step.finish()).text).toContain('ended while the checks ran');
+    expect(w.step.view().state).toBe('interrupted');
+    expect(w.commits).toHaveLength(1);
+    expect(w.step.implementerCall()).toContain('not running');
+    expect(w.step.projectFolder).toBeUndefined();
+  });
+
+  it('checks that throw are a failed pass, not a stuck step', async () => {
+    const w = world({ choice: { ...CHOICE, fixPasses: 0 } });
+    await w.step.start('P');
+    (w.step as unknown as { deps: ImplementDeps }).deps.checks = async () => {
+      throw new Error('spawn failed');
+    };
+    await w.step.finish();
+    expect(w.step.view()).toMatchObject({ state: 'done', warning: 'checksFailed' });
+    expect(w.step.view().checks[0]?.results[0]?.output).toContain('spawn failed');
+  });
+
+  it('no fix pass once a bound has run out, even if no call noticed it yet', async () => {
+    const timeUp = world({ checkExits: [[1]], bounds: { maxMinutes: 5, maxToolCalls: 150 } });
+    await timeUp.step.start('P');
+    timeUp.clock.ms += 6 * 60_000;
+    await timeUp.step.finish();
+    expect(timeUp.step.view()).toMatchObject({ state: 'done', limit: 'time', fixPassesUsed: 0, warning: 'checksFailed' });
+    const callsUp = world({ checkExits: [[1]], bounds: { maxMinutes: 30, maxToolCalls: 20 } });
+    await callsUp.step.start('P');
+    for (let i = 0; i < 20; i += 1) callsUp.step.implementerCall();
+    await callsUp.step.finish();
+    expect(callsUp.step.view()).toMatchObject({ state: 'done', limit: 'toolCalls', fixPassesUsed: 0 });
+  });
+
+  it('a chain stops between its parts once the minutes ran out', async () => {
+    const w = world({ bounds: { maxMinutes: 5, maxToolCalls: 150 } });
+    await w.step.start('P');
+    const deps = (w.step as unknown as { deps: ImplementDeps }).deps;
+    const original = deps.run;
+    deps.run = async (dir, command, signal) => {
+      w.clock.ms += 6 * 60_000;
+      return original(dir, command, signal);
+    };
+    const reply = await w.step.runCommand('npm install && npm test');
+    expect(reply.isError).toBe(true);
+    expect(reply.text).toContain('ran out');
+    expect(w.runs.map((run) => run.command)).toEqual(['npm install']);
+  });
+
+  it('a start refused for usage is final: a retry reads nothing again', async () => {
+    let readings = 0;
+    const w = world();
+    const deps = (w.step as unknown as { deps: ImplementDeps }).deps;
+    deps.usage = async () => {
+      readings += 1;
+      return { go: false, reason: 'usage' };
+    };
+    await w.step.start('P');
+    expect((await w.step.start('P')).text).toContain('already refused for plan usage');
+    expect(readings).toBe(1);
+  });
+});

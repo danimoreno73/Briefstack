@@ -27,7 +27,12 @@ import type { CodeChoice } from './code.js';
  *   with a warning when checks still fail (never as failed).
  */
 
-export const IMPLEMENT_STATES = ['running', 'checking', 'done', 'notStarted'] as const;
+/**
+ * `finishing`: the code is being committed (review of M3, m2);
+ * `interrupted`: the creation ended or was cancelled while the step ran
+ * (review of M3, m1). Neither lets the implementer do anything.
+ */
+export const IMPLEMENT_STATES = ['running', 'checking', 'finishing', 'done', 'interrupted', 'notStarted'] as const;
 export type ImplementState = (typeof IMPLEMENT_STATES)[number];
 
 /** Why the step did not start. */
@@ -226,6 +231,21 @@ export class ImplementStep {
   stop(): void {
     this.abort.abort();
     this.codex?.stop();
+    // Nothing more for the implementer, and the record says the step did not end by itself (review of M3, m1).
+    if (this.record.state === 'running' || this.record.state === 'checking' || this.record.state === 'finishing') {
+      this.record = { ...this.record, state: 'interrupted', finishedAt: this.now() };
+      this.changed();
+    }
+  }
+
+  /** Whether a bound has run out: sets `limit` (review of M3, I3: checked before a fix pass, not only on a call). */
+  private boundReached(): boolean {
+    if (this.record.limit !== undefined) return true;
+    const bounds = this.record.bounds;
+    if (bounds === undefined) return false;
+    if (this.nowDate().getTime() - this.startedMs > bounds.maxMinutes * 60_000) this.record.limit = 'time';
+    else if (this.record.toolCalls >= bounds.maxToolCalls) this.record.limit = 'toolCalls';
+    return this.record.limit !== undefined;
   }
 
   /** Saves one Codex call on the record (the `CodexDelegate`'s `record`). */
@@ -285,6 +305,10 @@ export class ImplementStep {
 
   private async startNow(dirInput: unknown): Promise<StepReply> {
     if (this.record.state !== 'notStarted') return { text: 'The implement step already started in this creation. Do not start it again.', isError: true };
+    // A start refused for plan usage is final for this creation (review of M3, m5): no reading again on a retry.
+    if (this.record.reason === 'usage' || this.record.reason === 'usageUnread') {
+      return { text: 'The implement step was already refused for plan usage in this creation. Finish it as skipped and go on to learn.', isError: true };
+    }
     const choice = this.deps.choice();
     if (choice === undefined) return this.notStarted('notChosen', 'The user chose "workspace only" for this creation: skip the implement step (finish it as skipped) and go on to learn.');
     const folder = this.deps.folder();
@@ -307,6 +331,8 @@ export class ImplementStep {
         return this.notStarted(gate.reason, text, usage);
       }
     }
+    // The creation ended while the plan was read (review of M3, m3): nothing is committed.
+    if (this.abort.signal.aborted) return { text: 'The creation ended. Stop now.', isError: true };
     const bounds = await this.deps.bounds();
     const workspace = await this.deps.commit(folder, this.workspaceMessage);
     if (!workspace.committed && !workspace.nothingToCommit) {
@@ -354,7 +380,7 @@ export class ImplementStep {
    * why it may do nothing more, or `undefined`.
    */
   implementerCall(): string | undefined {
-    if (this.record.state === 'checking') return 'The checks are running. Stop now and report.';
+    if (this.record.state === 'checking' || this.record.state === 'finishing') return 'The checks are running or the code is being committed. Stop now and report.';
     if (!this.running) return 'The implement step is not running, so the implementer may do nothing. Stop now and report.';
     if (this.record.limit !== undefined) return LIMIT_TEXT[this.record.limit];
     const bounds = this.record.bounds;
@@ -396,8 +422,17 @@ export class ImplementStep {
       // runs them one after the other itself and stops at the first that fails, as `&&` does.
       const lines = [DATA_NOTICE];
       let ok = true;
+      let ranAny = false;
       for (const part of parts) {
         if (this.abort.signal.aborted) break;
+        // Between the parts of a chain too: past the step's minutes, no next part starts (review of M3, m4).
+        if (ranAny && this.boundReached()) {
+          this.changed();
+          lines.push(LIMIT_TEXT[this.record.limit ?? 'time']);
+          ok = false;
+          break;
+        }
+        ranAny = true;
         const ran = await this.deps.run(this.dir, part, this.abort.signal);
         keepLast(this.record.runs, { ...ran, at: this.now() });
         this.changed();
@@ -408,6 +443,8 @@ export class ImplementStep {
           break;
         }
       }
+      // Stopped before anything ran (review of M3, m3): an error, not an empty success.
+      if (!ranAny) return { text: 'The creation ended before the command ran. Stop now.', isError: true };
       return { text: lines.join('\n'), isError: !ok };
     } finally {
       this.busy = false;
@@ -422,17 +459,23 @@ export class ImplementStep {
     if (choice.checks.length > 0) {
       this.record.state = 'checking';
       this.changed();
-      results = await this.deps.checks(dir, choice.checks, this.abort.signal);
+      try {
+        results = await this.deps.checks(dir, choice.checks, this.abort.signal);
+      } catch (error) {
+        // A runner that failed is a failed check, not a stuck step (review of M3, m3).
+        results = [{ command: choice.checks[0] ?? '', exitCode: null, timedOut: false, output: `The checks could not run: ${error instanceof Error ? error.message : String(error)}`.slice(0, 500), durationMs: 0 }];
+      }
       this.record.checks.push({ pass: this.record.checks.length + 1, results });
-      this.record.state = 'running';
       if (this.abort.signal.aborted) {
+        // `stop()` already ended the step as interrupted; the partial pass stays on the record.
         this.changed();
         return { text: 'The creation ended while the checks ran. Stop now.', isError: true };
       }
     }
     const failures = results.filter(failed);
-    // A fix pass: checks failed, one is left, and no bound stops the implementer.
-    if (failures.length > 0 && this.record.fixPassesUsed < choice.fixPasses && this.record.limit === undefined) {
+    // A fix pass: checks failed, one is left, and no bound has run out (review of M3, I3: checked now, not only on a call).
+    if (failures.length > 0 && this.record.fixPassesUsed < choice.fixPasses && !this.boundReached()) {
+      this.record.state = 'running';
       this.record.fixPassesUsed += 1;
       this.changed();
       const lines = [
@@ -445,7 +488,11 @@ export class ImplementStep {
       lines.push('---');
       return { text: lines.join('\n'), isError: false };
     }
+    // Nothing for the implementer while the code is committed (review of M3, m2).
+    this.record.state = 'finishing';
+    this.changed();
     const code = await this.deps.commit(dir, CODE_COMMIT_MESSAGE);
+    if (this.abort.signal.aborted) return { text: 'The creation ended while the code was committed. Stop now.', isError: true };
     this.record = {
       ...this.record,
       state: 'done',
