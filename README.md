@@ -270,9 +270,10 @@ improvements before you move anything.
   commands and checks itself, with no operating-system sandbox on any
   system. Listed commands and checks get no tokens or keys from your
   environment. Changes to protected files, by the implementer or by
-  Codex, are put back before the code commit, as far as briefstack can
-  see them: an approved command runs any code, so it can also write
-  outside the project or hide a change from git. When protected files
+  Codex, are put back before the code commit, and so are skills, commands
+  and agents written with hooks in their frontmatter (`hooks:`), as far as
+  briefstack can see them: an approved command runs any code, so it can
+  also write outside the project or hide a change from git. When they
   cannot be put back, the code is not committed.
 - **Codex without its shell.** In a creation, Codex runs with its shell
   tool and the rest of what could run commands turned off

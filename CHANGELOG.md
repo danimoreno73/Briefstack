@@ -20,7 +20,9 @@ is not done until the user runs its real check
   the checks run, a failure gets a fix pass, and the code is committed
   apart. Checks that still fail leave the code with a warning, never a
   failed creation. Protected files (briefstack's, Claude Code's settings
-  and hooks, `.mcp.json`) changed by anyone are put back first.
+  and hooks, `.mcp.json`) changed by anyone are put back first, and so are
+  skills, commands and agents that declare hooks in their frontmatter, as
+  a task refuses them; the result screen lists them with the reason.
 - Bounds in Settings: the step's minutes (default 30) and the
   implementer's tool calls (default 150). The plan usage is read before
   the step; at or above the warning thresholds, or unread, it does not

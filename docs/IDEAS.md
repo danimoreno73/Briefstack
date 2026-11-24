@@ -1163,11 +1163,13 @@ What phase 10 (a first version of the code in a creation, Codex without
 its shell) leaves open. The plan is [PLAN-phase-10.md](PLAN-phase-10.md);
 the decisions are in [decisions.md](decisions.md), "Phase 10".
 
-- **For the user (decision).** Hooks declared in the frontmatter of a
-  project skill or agent the implementer writes (`hooks:`) are not
-  refused in a creation; a task's validation catches them
-  (`declaresHooks`). The protected paths (settings, hook folders,
-  `.mcp.json`, `.briefstack/`) are refused and put back. Review of M4, I6.
+- **Done (2026-11-24, the user's decision).** Hooks declared in the
+  frontmatter of a project skill, command or agent the implementer or
+  Codex writes (`hooks:`) are put back before the code commit, as the
+  protected paths are, and listed with the reason (`declaresHooks`, the
+  tasks' test). Not refused at the write: Codex's file tool does not pass
+  through the guard, so the put-back is the one place for both. Review of
+  M4, I6.
 - **Not shown without a real session:** that the `implementer` subagent
   sees the in-process `briefstack-web` tools, and that the runner rewrites
   `guard.json` at `implement_start` and `implement_finish` (no runner-level

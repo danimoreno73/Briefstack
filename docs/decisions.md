@@ -7898,3 +7898,36 @@ Fixed in one pass:
   back), m4 (a failed snapshot means pre-existing ignored protected files
   are removed). The commit `a9e426e` mixing several fixes stays as it is
   (no history rewrite).
+
+## Phase 10: the user's decisions (2026-11-24)
+
+The user's decisions after the real check (proposed by the advisor,
+accepted by the user on 2026-11-24).
+
+1. **A creation refuses hooks in the frontmatter of the skills, commands
+   and agents the implementer or Codex writes**, as a task does. Done as a
+   put-back, not a refusal at the write: before the checks and again
+   before the code commit, every definition (`.claude/{skills,commands,
+   agents}/**.md`, at any depth, any case) changed since the workspace
+   commit whose frontmatter declares hooks, or cannot be read well enough
+   to tell, goes back as the workspace had it: a tracked one from HEAD, a
+   new one removed, an ignored one as the step's snapshot had it. A link
+   is not read through, and goes back too. The detection is the tasks'
+   own (`declaresHooks`, `isDefinitionFile`, imported from
+   `src/tasks/guard.ts`, which is not changed). Why a put-back: Codex's
+   file tool does not pass through the guard, so the put-back is the one
+   place that covers both writers; the implementer is told not to write
+   them. The result screen lists them with the reason
+   (`hooksReverted`); a failure means no code commit (`revertFailed`), as
+   for protected files. Only hooks: MCP servers, a permission mode or
+   foreign skills in an agent (which stop a task) are not put back in a
+   creation. Wholly ignored `.claude`, `.husky`, `.githooks` and
+   `.briefstack` folders are opened file by file; other ignored folders
+   (`node_modules/`) are not.
+2. **Codex without its shell keeps ignoring the user's `config.toml`**
+   (`--ignore-user-config`, "Phase 10: H0", 1): unchanged.
+3. **Phase 10 is accepted with `run_command`'s refusal not seen in real.**
+   In the real check the implementer never tried the command off the
+   list (it wrote in the brief that it was not approved), so that verdict
+   failed on the model, not on briefstack; the refusal is covered by the
+   unit, flow and e2e tests only (`IDEAS.md` §10).
