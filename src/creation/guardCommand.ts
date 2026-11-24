@@ -55,6 +55,8 @@ const rulesSchema = z
     sessionId: z.string().optional(),
     /** Phase 10: the project folder of the running implement step; the implementer writes only there. */
     implementerFolder: absolute.optional(),
+    /** Phase 10 (review of M6, I5): set while the hand-off's commit is refused, with the reason. */
+    handoffCommitRefusal: z.string().optional(),
   })
   .strict();
 
@@ -135,6 +137,7 @@ export async function decideToolUse(stdin: string, rulesFile: string): Promise<C
       approvedLibrarySkills: () => rules.librarySkills,
       // Phase 10 (review of M3, B1): where the implementer may write while its step runs; absent, nowhere.
       implementerFolder: () => rules.implementerFolder,
+      handoffCommitRefusal: () => rules.handoffCommitRefusal,
       pathEnv: systemPathEnv(),
     };
     const verdict = await evaluateToolUse(ctx, {

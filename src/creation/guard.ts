@@ -301,6 +301,12 @@ export interface GuardContext {
    * step; the implementer writes only inside it. `undefined`: nowhere.
    */
   implementerFolder?(): string | undefined;
+  /**
+   * Phase 10 (review of M6, I5): why the hand-off's `briefstack commit` may
+   * not run now (the implement step is running, or protected files could
+   * not be put back), or `undefined`.
+   */
+  handoffCommitRefusal?(): string | undefined;
   pathEnv?: PathEnv;
 }
 
@@ -593,6 +599,11 @@ export async function evaluateToolUse(ctx: GuardContext, input: GuardInput): Pro
           : `The briefstack command \`${parsed.argv.slice(0, 2).join(' ')}\` is not allowed for ${caller === 'main' ? 'the main session' : `the ${caller} agent`}.`,
         summary,
       );
+    }
+    // Phase 10: the hand-off's commit would take in unchecked code or protected changes the step could not put back.
+    if (sub[0] === 'commit') {
+      const refusal = ctx.handoffCommitRefusal?.();
+      if (refusal !== undefined) return deny(refusal, summary);
     }
     // Commands that write on their own must point inside the folders a creation may write to.
     if (sub[0] === 'scaffold' || sub[0] === 'commit' || sub[0] === 'skills') {

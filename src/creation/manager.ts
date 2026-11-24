@@ -720,6 +720,7 @@ export class CreationManager {
       delegate: (instruction) => this.implementStep(c, system).delegate(instruction),
       // `undefined` from the step means "go on": not a missing step.
       projectFolder: () => c.implement?.projectFolder,
+      handoffCommitRefusal: () => c.implement?.handoffCommitRefusal,
       implementerCall: () => (c.implement === undefined ? 'The implement step is not running, so the implementer may do nothing. Stop now and report.' : c.implement.implementerCall()),
     };
   }

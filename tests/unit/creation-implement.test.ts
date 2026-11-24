@@ -353,6 +353,54 @@ describe('the implement step: overlaps, ends and limits (reviews of M2 and M3)',
     expect(failing.step.view()).toMatchObject({ state: 'done', revertFailed: true });
     expect(failing.step.view().codeCommit).toBeUndefined();
     expect(failing.commits).toHaveLength(1);
+    // The hand-off's commit is refused then (review of M6, I5), and while a step runs; free once it ended well.
+    expect(failing.step.handoffCommitRefusal).toContain('could not be put back');
+    const running = world();
+    await running.step.start('P');
+    expect(running.step.handoffCommitRefusal).toContain('has not ended');
+    await running.step.finish();
+    expect(running.step.handoffCommitRefusal).toBeUndefined();
+  });
+
+  it('a stop puts protected files back too, never beside the finish\'s put-back, and the step stays interrupted (review of M6, m5)', async () => {
+    const w = world();
+    const deps = (w.step as unknown as { deps: ImplementDeps }).deps;
+    const states: string[] = [];
+    let active = 0;
+    let most = 0;
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    deps.revertProtected = async () => {
+      active += 1;
+      most = Math.max(most, active);
+      states.push(w.step.view().state);
+      if (states.length === 1) await held;
+      active -= 1;
+      throw new Error('index.lock');
+    };
+    await w.step.start('P');
+    const finishing = w.step.finish();
+    while (states.length === 0) await new Promise((resolve) => setTimeout(resolve, 1));
+    w.step.stop();
+    release();
+    await finishing;
+    while (states.length < 2) await new Promise((resolve) => setTimeout(resolve, 1));
+    expect(states).toEqual(['checking', 'interrupted']);
+    expect(most).toBe(1);
+    expect(w.step.view()).toMatchObject({ state: 'interrupted', revertFailed: true });
+    expect(w.step.view().codeCommit).toBeUndefined();
+    expect(w.step.handoffCommitRefusal).toContain('could not be put back');
+    // A stop while the implementer works puts the files back once, after it.
+    const stopped = world();
+    const backs: string[] = [];
+    (stopped.step as unknown as { deps: ImplementDeps }).deps.revertProtected = async () => {
+      backs.push(stopped.step.view().state);
+      return [];
+    };
+    await stopped.step.start('P');
+    stopped.step.stop();
+    while (backs.length === 0) await new Promise((resolve) => setTimeout(resolve, 1));
+    expect(backs).toEqual(['interrupted']);
   });
 
   it('a start refused for usage is final: a retry reads nothing again', async () => {

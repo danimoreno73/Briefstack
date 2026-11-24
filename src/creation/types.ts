@@ -140,6 +140,8 @@ export interface ImplementPort {
   implementerCall(): string | undefined;
   /** The project folder of the running step, where the implementer may write; `undefined` when it is not running. */
   projectFolder(): string | undefined;
+  /** Why the hand-off's `briefstack commit` may not run now, or `undefined` (review of M6, I5). */
+  handoffCommitRefusal(): string | undefined;
 }
 
 export type ClaimResult = { ok: true } | { ok: false; holder: string };

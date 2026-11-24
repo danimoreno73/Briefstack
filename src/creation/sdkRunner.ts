@@ -423,6 +423,7 @@ class SdkRun {
         // Phase 10: the implement step counts each implementer call and says when it may do nothing more.
         implementerStop: () => (this.io.implement === undefined ? 'The implement step is not available in this session. Stop now and report.' : this.io.implement.implementerCall()),
         implementerFolder: () => this.io.implement?.projectFolder(),
+        handoffCommitRefusal: () => this.io.implement?.handoffCommitRefusal(),
         pathEnv: this.deps.pathEnv,
       };
       const recordAgent: HookCallback = async (hook) => {
@@ -573,6 +574,7 @@ class SdkRun {
         ...(this.approvedLibrarySkills === undefined ? {} : { librarySkills: [...this.approvedLibrarySkills] }),
         ...(this.claimed === undefined ? {} : { sessionId: this.claimed }),
         ...(this.implementerFolder() === undefined ? {} : { implementerFolder: this.implementerFolder() }),
+        ...(this.io.implement?.handoffCommitRefusal() === undefined ? {} : { handoffCommitRefusal: this.io.implement.handoffCommitRefusal() }),
       });
     } catch (error) {
       if (strict) throw error;

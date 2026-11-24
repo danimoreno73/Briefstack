@@ -128,6 +128,15 @@ describe('the command-hook guard', () => {
     expect(await decide(input('Bash', { command: 'npm test' }, implementer))).toMatchObject({ code: 2 });
   });
 
+  it('refuses the hand-off commit while the rules say so (phase 10, review of M6, I5)', async () => {
+    const app = path.join(rules.projectsDir, 'app');
+    await mkdir(app, { recursive: true });
+    const commit = input('Bash', { command: `npm run --silent briefstack -- commit "${app.replaceAll(String.fromCharCode(92), '/')}"` });
+    expect(await decide(commit)).toEqual({ code: 0 });
+    writeGuardRulesSync(rulesFile, { ...rules, handoffCommitRefusal: 'The implement step has not ended.' });
+    expect(await decide(commit)).toMatchObject({ code: 2, message: expect.stringContaining('has not ended') });
+  });
+
   it('denies exactly what the callback guard denies', async () => {
     await mkdir(path.join(rules.libraryDir, 'skills', 'helper', 'files'), { recursive: true });
     const ctx = {

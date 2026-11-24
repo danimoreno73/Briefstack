@@ -79,6 +79,21 @@ async function withNoHooks<T>(work: (config: readonly string[]) => Promise<T>): 
   }
 }
 
+/**
+ * Writes a snapshot's bytes back only inside the project (review of M6,
+ * m1): its folder must really be inside it, and whatever stands at the path
+ * (a link included) is removed first, so the write never follows a link.
+ */
+async function writeInside(dir: string, file: string, bytes: Buffer): Promise<void> {
+  const target = path.join(dir, file);
+  const pathEnv = systemPathEnv();
+  await mkdir(path.dirname(target), { recursive: true });
+  const [parent, root] = await Promise.all([realpathNearest(path.dirname(target)), realpathNearest(dir)]);
+  if (!isPathInside(parent, root, pathEnv)) throw new Error(`not inside the project: ${file}`);
+  await rm(target, { force: true, recursive: true });
+  await writeFile(target, bytes, { flag: 'wx' });
+}
+
 /** Removes a file only when it really is inside the project (review of M5, m4: no link leads it out). */
 async function removeInside(dir: string, file: string): Promise<void> {
   const target = path.join(dir, file);
@@ -106,7 +121,9 @@ export function currentStatusOf(brief: string, dir: string): string | undefined 
   if (body === '') return undefined;
   // Cut at a line's end before redacting (review of M5, m6): no line, and no secret in it, is split in half.
   const head = body.slice(0, MAX_STATUS_CHARS);
-  const cut = body.length > MAX_STATUS_CHARS ? `${head.slice(0, Math.max(0, head.lastIndexOf('\n')))}\n[cut]` : body;
+  // One long first line (review of M6, m6): cut at a blank instead, never inside a word.
+  const cutAt = head.lastIndexOf('\n') > 0 ? head.lastIndexOf('\n') : Math.max(0, head.search(/\s\S*$/));
+  const cut = body.length > MAX_STATUS_CHARS ? `${head.slice(0, cutAt)}\n[cut]` : body;
   return cleanCommandOutput(cut, dir);
 }
 
@@ -281,7 +298,7 @@ export async function revertProtectedChanges(dir: string, snapshot: ProtectedSna
         else {
           const now = await readFile(path.join(dir, file)).catch(() => undefined);
           if (now !== undefined && now.equals(before)) continue;
-          await writeFile(path.join(dir, file), before);
+          await writeInside(dir, file, before);
         }
       } else if (code === '??') await removeInside(dir, file);
       // A name git reported, read as it is, never as a pattern (review of M5, m4).
@@ -290,8 +307,7 @@ export async function revertProtectedChanges(dir: string, snapshot: ProtectedSna
     }
     for (const [file, bytes] of snapshot) {
       if (seen.has(file)) continue;
-      await mkdir(path.dirname(path.join(dir, file)), { recursive: true });
-      await writeFile(path.join(dir, file), bytes);
+      await writeInside(dir, file, bytes);
       reverted.add(file);
     }
     return [...reverted];

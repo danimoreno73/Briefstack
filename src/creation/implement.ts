@@ -207,6 +207,8 @@ export class ImplementStep {
   private choice: CodeChoice | undefined;
   private codex: CodexPort | undefined;
   private codexBusy = false;
+  /** Put-backs run one after another (review of M6, m5). */
+  private backChain: Promise<void> = Promise.resolve();
   /** The ignored protected files when the step started (review of M5, B1). */
   private snapshot: ReadonlyMap<string, Buffer> = new Map();
   private startedMs = 0;
@@ -229,6 +231,23 @@ export class ImplementStep {
 
   view(): ImplementView {
     return structuredClone(this.record);
+  }
+
+  /**
+   * Why the hand-off's `briefstack commit` may not run now (review of M6,
+   * I5): while the step runs, checks or commits, it would take in code
+   * nobody checked; after protected files could not be put back, it would
+   * commit them.
+   */
+  get handoffCommitRefusal(): string | undefined {
+    const { state } = this.record;
+    if (state === 'running' || state === 'checking' || state === 'finishing') {
+      return 'The implement step has not ended: call implement_finish and do as it says before the hand-off commit.';
+    }
+    if (this.record.revertFailed === true) {
+      return 'Protected files changed in the implement step could not be put back, so the project is not committed. Do not commit it: tell the user at the hand-off.';
+    }
+    return undefined;
   }
 
   /** The project folder while the step runs (the implementer writes only there); `undefined` otherwise. */
@@ -270,7 +289,17 @@ export class ImplementStep {
    * `false` when it failed (review of M5, I3): the code is then not
    * committed.
    */
-  private async putBack(dir: string): Promise<boolean> {
+  private putBack(dir: string): Promise<boolean> {
+    // One at a time (review of M6, m5): a stop's put-back never runs beside the finish's.
+    const run = this.backChain.then(() => this.putBackNow(dir));
+    this.backChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private async putBackNow(dir: string): Promise<boolean> {
     if (this.deps.revertProtected === undefined) return true;
     try {
       const reverted = await this.deps.revertProtected(dir, this.snapshot);
@@ -288,10 +317,11 @@ export class ImplementStep {
 
   /** The step ends without a code commit: protected files could not be put back (review of M5, I3). */
   private endWithoutCommit(): StepReply {
-    this.record = { ...this.record, state: 'done', finishedAt: this.now(), revertFailed: true };
+    // A stop meanwhile keeps the step interrupted (review of M6, m5).
+    this.record = { ...this.record, state: this.record.state === 'interrupted' ? 'interrupted' : 'done', finishedAt: this.now(), revertFailed: true };
     this.changed();
     return {
-      text: 'Protected files (briefstack\'s, Claude Code\'s settings or hooks) were changed and could not be put back, so the code was not committed; it stays in the folder. Tell the user clearly in one line, finish the implement step as ok and go on to learn.',
+      text: 'Protected files (briefstack\'s, Claude Code\'s settings or hooks) were changed and could not be put back, so the code was not committed; it stays in the folder. Tell the user clearly in one line, finish the implement step as ok, do not run the hand-off commit (it is refused), and go on to learn.',
       isError: false,
     };
   }

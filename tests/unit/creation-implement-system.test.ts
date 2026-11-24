@@ -71,6 +71,14 @@ describe('currentStatusOf (M5)', () => {
     expect(currentStatusOf('# x\n\n## Setup\n', dir)).toBeUndefined();
     expect(currentStatusOf('## Current status\n\n\n## Setup\n', dir)).toBeUndefined();
   });
+
+  it('a long first line is cut at a blank, never down to only "[cut]" (review of M6, m6)', () => {
+    const dir = path.join(path.parse(process.cwd()).root, 'work', 'garden');
+    const status = currentStatusOf(`## Current status\n\n${'word '.repeat(2000)}\n`, dir) ?? '';
+    expect(status.endsWith('[cut]')).toBe(true);
+    expect(status.length).toBeGreaterThan(1000);
+    expect(status.replace('\n[cut]', '').trim().split(' ').every((w) => w === 'word')).toBe(true);
+  });
 });
 
 describe('approvedParts', () => {
@@ -163,6 +171,39 @@ describe('the folder checks', () => {
     await rm(path.join(dir, '.claude', 'settings.local.json'));
     expect(await revertProtectedChanges(dir, snapshot)).toEqual(['.claude/settings.local.json']);
     expect(await readFile(path.join(dir, '.claude', 'settings.local.json'), 'utf8')).toBe('{"mine":true}\n');
+  });
+
+  it('a link in place of a protected file or its folder never leads the write-back out of the project (review of M6, m1)', async () => {
+    const project = path.join(dir, 'garden');
+    const outside = path.join(dir, 'outside');
+    await mkdir(path.join(project, '.claude'), { recursive: true });
+    await mkdir(outside, { recursive: true });
+    const run = (args: string[]) => execFileSync('git', args, { cwd: project, encoding: 'utf8' });
+    await writeFile(path.join(project, '.gitignore'), '.claude/settings.local.json\n', 'utf8');
+    await writeFile(path.join(project, '.claude', 'settings.local.json'), '{"mine":true}\n', 'utf8');
+    run(['init', '-q']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'add', '-A']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'workspace']);
+    const snapshot = await snapshotProtectedFiles(project);
+    const target = path.join(outside, 'settings.local.json');
+    await writeFile(target, 'theirs\n', 'utf8');
+    // The file itself a link to a file outside (needs the right to make file links on Windows).
+    await rm(path.join(project, '.claude', 'settings.local.json'));
+    try {
+      await symlink(target, path.join(project, '.claude', 'settings.local.json'), 'file');
+      await revertProtectedChanges(project, snapshot);
+      expect(await readFile(path.join(project, '.claude', 'settings.local.json'), 'utf8')).toBe('{"mine":true}\n');
+    } catch {
+      // No right to make file links here: the folder case below still runs.
+    }
+    expect(await readFile(target, 'utf8')).toBe('theirs\n');
+    // The folder a link (a junction on Windows) to a folder outside: refused, nothing written there.
+    await rm(path.join(project, '.claude'), { recursive: true, force: true });
+    await rm(target, { force: true });
+    await writeFile(target, 'theirs\n', 'utf8');
+    await symlink(outside, path.join(project, '.claude'), 'junction');
+    await revertProtectedChanges(project, snapshot).catch(() => undefined);
+    expect(await readFile(target, 'utf8')).toBe('theirs\n');
   });
 
   it('a commit in a folder that is no longer a project is a warning, not an error', async () => {
