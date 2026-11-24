@@ -990,9 +990,13 @@ describe('phase 9 second real check (check-build-deny): a denied command, a fix 
     const script = await read();
     const name = '1. task 1 was applied once its fix round ended without the command (round by round)';
     expect(script).toContain(`verdict('${name}', t1?.state === 'applied' && t1.commit !== undefined && t1.rounds === 2, applied1)`);
-    // A fix round that calls the command again is the model's doing, not judged as the build's.
-    expect(script).toContain(`if (retried) notControlled('${name}'`);
-    expect(script).toContain('tried.some((call) => call.sessionId === lastSession1)');
+    // Any command off the list in the fix round is the model's doing (review of step 37 part C, I1); the build is still
+    // judged then: task 1 waiting for the denial, with no commit (I2).
+    expect(script).toContain("const lastSession1 = rounds1.at(-1)?.sessionId;");
+    expect(script).toContain('shellCalls.filter((call) => call.sessionId === lastSession1 && !isApprovedCommand(commandOf(call.input), [COMMAND]))');
+    expect(script).toContain(`notControlled('${name}'`);
+    expect(script).toContain("verdict('1. a fix round with a denied command leaves task 1 waiting, not applied (round by round)', t1?.state === 'waiting' && t1.reason === 'denied' && t1.rounds === 2 && t1.commit === undefined, applied1)");
+    expect(script).toContain('In a fix round, do not call the command again and run no other command');
     // Inside the block that runs only when the session tried the command, after the denied list is judged.
     const block = script.slice(script.indexOf('if (tried.length >= 1) {'), script.indexOf('// ---- 2. The deterministic fix round ----'));
     expect(block).toContain(name);

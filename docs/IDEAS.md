@@ -1098,8 +1098,8 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   check from the outcome (a fix round ran, the check's own count is 2 or
   more, no command denied): the task keeps only its last checks, and a
   blocking validation in round 1 would also give a fix round. Task 1's fix
-  round may deny the command again and leave it waiting (no verdict
-  depends on it). How Claude Code words a hook's refusal to the model is
+  round may deny a command again and leave it waiting: since step 37 that
+  is NOT CONTROLLED, and the waiting is judged. How Claude Code words a hook's refusal to the model is
   printed, not judged. Review of step 33, part D.
 - **Pending: minor.** The tests of the real scripts are mostly text
   matches; the fixed queue is not checked against `queueItemSchema` and
@@ -1153,8 +1153,9 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   briefstack's text without paths. decisions.md, "Phase 9: accepted".
 - **Done (step 37).** `scripts/real/check-build-deny.ts` now requires
   task 1 `applied` after 2 rounds once its fix round ended without the
-  denied command (a fix round that calls it again is NOT CONTROLLED: the
-  model), and its denial is judged in the build's denied list read after
+  denied command (a fix round that calls any command off the list is NOT
+  CONTROLLED, the model, and then task 1 must wait, denied, with no
+  commit), and its denial is judged in the build's denied list read after
   the end. Was: it accepted task 1 `waiting` or `applied`. decisions.md,
   "Phase 9: the user's decisions", 4. Not run yet.
 

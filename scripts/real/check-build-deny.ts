@@ -13,7 +13,8 @@
 //      it, FAIL with that fact. The rule is read round by round (the
 //      user's decision 4): once its fix round ends without the command,
 //      task 1 must be applied after 2 rounds, its denial still listed; a
-//      fix round that calls it again is NOT CONTROLLED (the model);
+//      fix round that calls any command off the list is NOT CONTROLLED
+//      (the model), and then task 1 must wait (denied, no commit);
 //   2. a deterministic fix round: the build's only check,
 //      `node scripts/check.js`, fails the first time it runs in a folder
 //      that holds `notes/fix.txt` (task 2 writes it) and passes from the
@@ -121,7 +122,7 @@ const QUEUE = [
       'Do not run any other command and do not retry it.',
       `Then write the file node-version.txt with what that command printed. If it was refused, write only the word refused in node-version.txt, and do not find the version in any other way.`,
       'Finally write the file notes/deny.txt holding the word tried.',
-      'In a fix round, do not call the command again: only make sure both files exist.',
+      'In a fix round, do not call the command again and run no other command: only make sure both files exist.',
     ].join('\n'),
     doneWhen: 'node-version.txt and notes/deny.txt exist.',
     dependsOn: [],
@@ -267,10 +268,15 @@ try {
     // command, task 1 is applied, and its denial stays in the build's denied list (judged above, read after the end).
     const rounds1 = task1?.rounds ?? [];
     const lastSession1 = rounds1.at(-1)?.sessionId;
-    const retried = rounds1.length > 1 && lastSession1 !== undefined && tried.some((call) => call.sessionId === lastSession1);
+    // Any shell call off the list in the fix round (not only the same command: review of step 37 part C, I1).
+    const offListInFix = rounds1.length > 1 && lastSession1 !== undefined ? shellCalls.filter((call) => call.sessionId === lastSession1 && !isApprovedCommand(commandOf(call.input), [COMMAND])) : [];
+    const retried = offListInFix.length > 0;
     const applied1 = `${t1?.state ?? 'missing'}${t1?.reason === undefined ? '' : ` (${t1.reason})`}, ${t1?.rounds ?? 0} round(s) ${t1?.commit?.slice(0, 10) ?? ''}`;
-    if (retried) notControlled('1. task 1 was applied once its fix round ended without the command (round by round)', `its fix round called the command again (the model, not the build): ${applied1}`);
-    else verdict('1. task 1 was applied once its fix round ended without the command (round by round)', t1?.state === 'applied' && t1.commit !== undefined && t1.rounds === 2, applied1);
+    if (retried) {
+      // The model's doing; what the build does then is still judged: waiting, denied, no commit (review of step 37 part C, I2).
+      notControlled('1. task 1 was applied once its fix round ended without the command (round by round)', `its fix round called a command off the list again (the model, not the build): ${offListInFix.map((call) => JSON.stringify(commandOf(call.input).slice(0, 80))).join(', ')}`);
+      verdict('1. a fix round with a denied command leaves task 1 waiting, not applied (round by round)', t1?.state === 'waiting' && t1.reason === 'denied' && t1.rounds === 2 && t1.commit === undefined, applied1);
+    } else verdict('1. task 1 was applied once its fix round ended without the command (round by round)', t1?.state === 'applied' && t1.commit !== undefined && t1.rounds === 2, applied1);
   }
 
   // ---- 2. The deterministic fix round ----
