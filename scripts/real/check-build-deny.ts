@@ -10,7 +10,10 @@
 //      list, and nobody was asked: no `pending` on the task while it ran, no
 //      `approval` item in the task's stream, and the denial recorded as the
 //      build's rule (`tool.denied` by `policy`). If the session never tries
-//      it, FAIL with that fact;
+//      it, FAIL with that fact. The rule is read round by round (the
+//      user's decision 4): once its fix round ends without the command,
+//      task 1 must be applied after 2 rounds, its denial still listed; a
+//      fix round that calls it again is NOT CONTROLLED (the model);
 //   2. a deterministic fix round: the build's only check,
 //      `node scripts/check.js`, fails the first time it runs in a folder
 //      that holds `notes/fix.txt` (task 2 writes it) and passes from the
@@ -260,6 +263,14 @@ try {
       verdict('1. nobody was asked: no pending dialog while it ran and no approval item in the task\'s stream', pending1.length === 0 && !items.includes('approval') && !items.includes('question'), `${pending1.length} pending, ${items.filter((item) => item === 'approval').length} approval item(s) of ${items.length}`);
     }
     verdict('1. each denial was recorded as the build\'s rule (tool.denied by policy)', policy.length === tried.length, `${policy.length} of ${tried.length}`);
+    // The rule is read round by round (phase 9, the user's decision 4): once its fix round ends without the denied
+    // command, task 1 is applied, and its denial stays in the build's denied list (judged above, read after the end).
+    const rounds1 = task1?.rounds ?? [];
+    const lastSession1 = rounds1.at(-1)?.sessionId;
+    const retried = rounds1.length > 1 && lastSession1 !== undefined && tried.some((call) => call.sessionId === lastSession1);
+    const applied1 = `${t1?.state ?? 'missing'}${t1?.reason === undefined ? '' : ` (${t1.reason})`}, ${t1?.rounds ?? 0} round(s) ${t1?.commit?.slice(0, 10) ?? ''}`;
+    if (retried) notControlled('1. task 1 was applied once its fix round ended without the command (round by round)', `its fix round called the command again (the model, not the build): ${applied1}`);
+    else verdict('1. task 1 was applied once its fix round ended without the command (round by round)', t1?.state === 'applied' && t1.commit !== undefined && t1.rounds === 2, applied1);
   }
 
   // ---- 2. The deterministic fix round ----

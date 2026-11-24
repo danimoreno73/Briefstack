@@ -1151,11 +1151,12 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
   approved command, and it sees local paths (the hook's command line).
   To find out how a hook's refusal reaches the model and make it carry
   briefstack's text without paths. decisions.md, "Phase 9: accepted".
-- **Pending.** `scripts/real/check-build-deny.ts` accepts task 1
-  `waiting` or `applied`: after the user's decision 4 (the rule is read
-  round by round), it should require `applied` once its fix round ended
-  without the denied command, and judge that the denial stays in the
-  build's denied list. decisions.md, "Phase 9: the user's decisions", 4.
+- **Done (step 37).** `scripts/real/check-build-deny.ts` now requires
+  task 1 `applied` after 2 rounds once its fix round ended without the
+  denied command (a fix round that calls it again is NOT CONTROLLED: the
+  model), and its denial is judged in the build's denied list read after
+  the end. Was: it accepted task 1 `waiting` or `applied`. decisions.md,
+  "Phase 9: the user's decisions", 4. Not run yet.
 
 ## 10. Open items from phase 10
 

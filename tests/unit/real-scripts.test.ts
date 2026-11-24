@@ -986,6 +986,19 @@ describe('phase 9 second real check (check-build-deny): a denied command, a fix 
     expect(script).toContain("event.type === 'tool.denied' && event.toolUseId === call.id && event.by === 'policy'");
   });
 
+  it('task 1 must be applied once its fix round ended without the denied command: the rule is read round by round (IDEAS 9 (b))', async () => {
+    const script = await read();
+    const name = '1. task 1 was applied once its fix round ended without the command (round by round)';
+    expect(script).toContain(`verdict('${name}', t1?.state === 'applied' && t1.commit !== undefined && t1.rounds === 2, applied1)`);
+    // A fix round that calls the command again is the model's doing, not judged as the build's.
+    expect(script).toContain(`if (retried) notControlled('${name}'`);
+    expect(script).toContain('tried.some((call) => call.sessionId === lastSession1)');
+    // Inside the block that runs only when the session tried the command, after the denied list is judged.
+    const block = script.slice(script.indexOf('if (tried.length >= 1) {'), script.indexOf('// ---- 2. The deterministic fix round ----'));
+    expect(block).toContain(name);
+    expect(block.indexOf("1. it is in the build's denied list")).toBeLessThan(block.indexOf(name));
+  });
+
   it('its check is deterministic: state only in .check-state/, which git ignores', async () => {
     const script = await read();
     expect(script).toContain("'.gitignore': 'node_modules/\\n.check-state/\\n'");
