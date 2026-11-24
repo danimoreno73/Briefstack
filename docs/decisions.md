@@ -7307,7 +7307,7 @@ Windows only).
 
 ## Phase 10: H0 (2026-11-22, Codex CLI 0.167.0, SDK 0.3.286, git 2.55, Windows 11)
 
-The five points of [BRIEF-phase-10.md](BRIEF-phase-10.md) §6, checked
+The five points of [BRIEF-phase-10.md](history/BRIEF-phase-10.md) §6, checked
 before the plan. The tag `phase-10-start` was refused to Claude Code by
 the auto mode's classifier; the user creates it (at `722420b`). None of
 the points makes a decision of the brief's §2 impossible or unsafe, so the

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-What phase 10 adds ([brief](docs/BRIEF-phase-10.md), [plan](docs/PLAN-phase-10.md);
+What phase 10 adds ([brief](docs/history/BRIEF-phase-10.md), [plan](docs/history/PLAN-phase-10.md);
 decisions in [`docs/decisions.md`](docs/decisions.md), "Phase 10"). Phase 10
 is not done until the user runs its real check
 (`scripts/real/check-creation-code.ts`) and accepts it.

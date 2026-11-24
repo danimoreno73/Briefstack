@@ -1162,7 +1162,7 @@ milestone). Each ends with its source, "Review of M<n>". The plan is
 ## 10. Open items from phase 10
 
 What phase 10 (a first version of the code in a creation, Codex without
-its shell) leaves open. The plan is [PLAN-phase-10.md](PLAN-phase-10.md);
+its shell) leaves open. The plan is [PLAN-phase-10.md](history/PLAN-phase-10.md);
 the decisions are in [decisions.md](decisions.md), "Phase 10".
 
 - **Done (2026-11-24, the user's decision).** Hooks declared in the

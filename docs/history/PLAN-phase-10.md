@@ -1,7 +1,7 @@
 # briefstack — Phase 10 plan: the creation writes the first version of the code
 
 Plan for [BRIEF-phase-10.md](BRIEF-phase-10.md). H0 is in
-[decisions.md](decisions.md), "Phase 10: H0", with sources and dates; this
+[decisions.md](../decisions.md), "Phase 10: H0", with sources and dates; this
 plan follows from it. Work happens on `main`, from `722420b` (the tag
 `phase-10-start` was refused to Claude Code; the user creates it). Small
 commits, one concern each; build, lint, unit and e2e tests green before
