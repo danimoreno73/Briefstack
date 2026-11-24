@@ -1193,18 +1193,18 @@ the decisions are in [decisions.md](decisions.md), "Phase 10".
   build.
 - **Done (step 37): the put-back of ignored protected files, edge cases**
   (review of M6, m2–m4). A wholly ignored `.husky/`, `.githooks/`,
-  `.briefstack/` or `.claude/` is read file by file (what was there stays,
-  what is new goes; a new `.claude/settings.local.json` in a wholly ignored
-  `.claude/` is caught); a snapshot file that turns untracked goes back as
-  the snapshot had it; when the snapshot cannot be read the step does not
-  start (`snapshotFailed`), so nothing is removed. Still open: protected
-  names under another wholly ignored folder (`sub/.husky/`,
-  `node_modules/`) are not opened.
+  `.briefstack/` or `.claude/`, or a protected folder under one
+  (`.claude/hooks/`, `.husky/_/`), is read file by file (what was there
+  stays, what is new goes; a new `.claude/settings.local.json` in a wholly
+  ignored `.claude/` is caught); a snapshot file that turns untracked goes
+  back as the snapshot had it and is ignored again through `info/exclude`;
+  when the snapshot cannot be read the step does not start
+  (`snapshotFailed`, final), so nothing is removed. Still open: protected
+  names under a wholly ignored folder that is not protected itself
+  (`vendor/` ignored whole, holding `vendor/.husky/`; `node_modules/`) are
+  not opened; `snapshotFailed` has no e2e.
 - **The put-back of definitions with hooks, edge cases** (review of step
-  37, part A, m2, m3, m4, m7, m8): an ignored definition with hooks that
-  was there before the step and turns untracked (its ignore line removed)
-  goes into the code commit with its hooks (the creation did not add
-  them); a definition that was a link at the
+  37, part A, m4, m7, m8; m2 and m3 done in part B): a definition that was a link at the
   start and is still one is written back as a plain file; a nested git
   repository (Codex's file tool could write a `.git` inside a skill's
   folder) hides the definitions in it, since git lists it as one folder;

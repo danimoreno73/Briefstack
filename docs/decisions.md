@@ -7943,7 +7943,10 @@ accepted by the user on 2026-11-24).
 
 - **m2:** the protected paths are listed in `matching` mode, and a wholly
   ignored folder that is a protected name or a `.claude` folder (git lists
-  it as one entry) is listed again file by file in `traditional` mode.
+  it as one entry), or a folder under one (`.claude/hooks/`, `.husky/_/`:
+  review of step 37 part B, B1), is listed again file by file in
+  `traditional` mode; a folder git still lists whole inside (a nested
+  repository) is put back whole, as before.
   What was there before the step is in the snapshot file by file and
   stays; what is new goes; a wholly ignored `.claude/` is opened, so a new
   `.claude/settings.local.json` in it is put back. Other ignored folders
@@ -7953,13 +7956,18 @@ accepted by the user on 2026-11-24).
   at any depth (decision 1 above), since Claude Code finds skills in
   nested folders.
 - **m3:** a protected file ignored at the start whose ignore line was
-  removed (now untracked) goes back as the snapshot had it, not removed;
-  unchanged, it is left alone (and the code commit takes it, as the
-  changed `.gitignore` says).
+  removed (now untracked) goes back as the snapshot had it, not removed,
+  and is ignored again (review of step 37 part B, I1): briefstack adds its
+  path, escaped, to the repository's own `info/exclude` (never committed,
+  it only adds ignores; it must be inside the project), so the code commit
+  does not take the user's local settings. The project's `.gitignore`
+  stays as the step left it. The same holds for an ignored definition with
+  hooks that turns untracked (part A, m2).
 - **m4:** when the snapshot of the ignored files cannot be read, the step
-  does not start (`snapshotFailed`, after the workspace commit): the
-  put-back could only remove what was there before. Conservative: no
-  code rather than a destructive put-back.
+  does not start (`snapshotFailed`, after the workspace commit), and that
+  is final for the creation, as a refusal for plan usage (review of step
+  37 part B, m1): the put-back could only remove what was there before.
+  Conservative: no code rather than a destructive put-back.
 - **Not done:** the other §10 items need a real session or a measurement,
   or touch what the step must not (Codex's delegate texts are shared with
   tasks). The step counter of review of M2, m8 already uses the same rule
