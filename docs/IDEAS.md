@@ -1186,25 +1186,37 @@ the decisions are in [decisions.md](decisions.md), "Phase 10".
   on each check, and a creation uses only the version checked).
 - The creations list counts `implement` in "step n of m" when code was
   chosen; the live panel only once the step is reached. Review of M2, m8.
+  Checked in step 37: both now count it once code is chosen
+  (`src/ui/creations.tsx` and `src/ui/creation.tsx`, `code !== undefined`).
 - The terminal `/new-project` never offers code (out of scope by the
   brief); a terminal creation that wants code goes on with a task or a
   build.
-- **The put-back of ignored protected files, edge cases** (review of M6,
-  m2–m4): git reports a wholly ignored protected folder (`.husky/`) as one
-  entry, so one that existed before the step is removed on the revert,
-  and whether the pathspecs catch a new wholly ignored `.claude/hooks/` is
-  not tested; a snapshot file that turns untracked (its ignore line
-  removed) is removed, not written back; a failed snapshot means
-  pre-existing ignored protected files are removed (safe, but
-  destructive and not recorded).
+- **Done (step 37): the put-back of ignored protected files, edge cases**
+  (review of M6, m2–m4). A wholly ignored `.husky/`, `.githooks/`,
+  `.briefstack/` or `.claude/` is read file by file (what was there stays,
+  what is new goes; a new `.claude/settings.local.json` in a wholly ignored
+  `.claude/` is caught); a snapshot file that turns untracked goes back as
+  the snapshot had it; when the snapshot cannot be read the step does not
+  start (`snapshotFailed`), so nothing is removed. Still open: protected
+  names under another wholly ignored folder (`sub/.husky/`,
+  `node_modules/`) are not opened.
 - **The put-back of definitions with hooks, edge cases** (review of step
   37, part A, m2, m3, m4, m7, m8): an ignored definition with hooks that
   was there before the step and turns untracked (its ignore line removed)
   goes into the code commit with its hooks (the creation did not add
-  them); a failed snapshot removes pre-existing ignored definitions with
-  hooks, as for protected files; a definition that was a link at the
+  them); a definition that was a link at the
   start and is still one is written back as a plain file; a nested git
   repository (Codex's file tool could write a `.git` inside a skill's
   folder) hides the definitions in it, since git lists it as one folder;
   the implementer gets no word at the write, only the put-back (the guard
   could refuse a `Write` with `hooks:`).
+- **Pending: `run_command`'s refusal not seen in real.** In the real check
+  of 2026-11-24 the implementer never tried the command off the list (it
+  wrote in the brief that it was not approved), so the refusal is covered
+  by the unit, flow and e2e tests only; the user accepted phase 10 so
+  ("Phase 10: the user's decisions", 3).
+- **Pending: `scripts/real/check-creation-code.ts` FAILs when the model
+  does not try the command off the list**, a fact about the model, not
+  about briefstack. Idea: ask for it more plainly, or report that verdict
+  as NOT CONTROLLED when nothing was tried (it would then prove less).
+  Not changed yet.
