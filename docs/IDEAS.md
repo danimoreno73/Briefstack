@@ -1197,3 +1197,14 @@ the decisions are in [decisions.md](decisions.md), "Phase 10".
   removed) is removed, not written back; a failed snapshot means
   pre-existing ignored protected files are removed (safe, but
   destructive and not recorded).
+- **The put-back of definitions with hooks, edge cases** (review of step
+  37, part A, m2, m3, m4, m7, m8): an ignored definition with hooks that
+  was there before the step and turns untracked (its ignore line removed)
+  goes into the code commit with its hooks (the creation did not add
+  them); a failed snapshot removes pre-existing ignored definitions with
+  hooks, as for protected files; a definition that was a link at the
+  start and is still one is written back as a plain file; a nested git
+  repository (Codex's file tool could write a `.git` inside a skill's
+  folder) hides the definitions in it, since git lists it as one folder;
+  the implementer gets no word at the write, only the put-back (the guard
+  could refuse a `Write` with `hooks:`).

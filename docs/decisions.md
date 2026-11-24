@@ -7912,7 +7912,8 @@ accepted by the user on 2026-11-24).
    commit whose frontmatter declares hooks, or cannot be read well enough
    to tell, goes back as the workspace had it: a tracked one from HEAD, a
    new one removed, an ignored one as the step's snapshot had it. A link
-   is not read through, and goes back too. The detection is the tasks'
+   is not read through: it goes itself, never what it points to, even
+   outside the project. The detection is the tasks'
    own (`declaresHooks`, `isDefinitionFile`, imported from
    `src/tasks/guard.ts`, which is not changed). Why a put-back: Codex's
    file tool does not pass through the guard, so the put-back is the one
@@ -7921,9 +7922,13 @@ accepted by the user on 2026-11-24).
    (`hooksReverted`); a failure means no code commit (`revertFailed`), as
    for protected files. Only hooks: MCP servers, a permission mode or
    foreign skills in an agent (which stop a task) are not put back in a
-   creation. Wholly ignored `.claude`, `.husky`, `.githooks` and
-   `.briefstack` folders are opened file by file; other ignored folders
-   (`node_modules/`) are not.
+   creation. The definitions are listed with `git status
+   --ignored=traditional --untracked-files=all`, which names each ignored
+   file under any ignored folder (`sub/`, `node_modules/`), where
+   `matching` names a wholly ignored folder once (review of part A, I1):
+   a package installed in the step with a skill that declares hooks loses
+   that file, and it is listed. git names a nested repository as one
+   folder, so a definition inside one is not seen (`IDEAS.md` §10).
 2. **Codex without its shell keeps ignoring the user's `config.toml`**
    (`--ignore-user-config`, "Phase 10: H0", 1): unchanged.
 3. **Phase 10 is accepted with `run_command`'s refusal not seen in real.**
