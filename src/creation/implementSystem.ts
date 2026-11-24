@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { lstat, mkdir, mkdtemp, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises';
+import { appendFile, lstat, mkdir, mkdtemp, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { noRepoCodeArgs } from '../scaffold/commit.js';
@@ -114,10 +114,11 @@ const OPENED_FOLDER = /(^|\/)(\.claude|\.husky|\.githooks|\.briefstack)\/$/i;
 async function protectedStatus(dir: string, config: readonly string[]): Promise<StatusEntry[]> {
   const found: StatusEntry[] = [];
   for (const entry of await statusEntries(dir, [...config, 'status', '--porcelain', '-z', '--no-renames', '--untracked-files=all', '--ignored=matching', '--', ...PROTECTED_PATHSPECS])) {
-    if (entry.code === '!!' && entry.file.endsWith('/')) {
-      if (!OPENED_FOLDER.test(entry.file)) continue;
+    // A protected folder under one (`.claude/hooks/`, `.husky/_/`) is opened too (review of step 37 part B, B1).
+    if (entry.code === '!!' && entry.file.endsWith('/') && (OPENED_FOLDER.test(entry.file) || protectedProjectName(entry.file))) {
       const inside = await statusEntries(dir, ['--literal-pathspecs', ...config, 'status', '--porcelain', '-z', '--no-renames', '--untracked-files=all', '--ignored=traditional', '--', entry.file]);
-      found.push(...inside.filter((file) => file.code === '!!' && !file.file.endsWith('/')));
+      // A folder git still lists whole (a nested repository) stays an entry: put back whole, as before.
+      found.push(...inside.filter((file) => file.code === '!!'));
     } else found.push(entry);
   }
   return found.filter((entry) => protectedProjectName(entry.file));
@@ -154,6 +155,32 @@ async function removeInside(dir: string, file: string): Promise<void> {
   const [real, root] = await Promise.all([realpathNearest(target), realpathNearest(dir)]);
   if (!isPathInside(real, root, pathEnv) || real === root) throw new Error(`not inside the project: ${file}`);
   await rm(target, { force: true, recursive: true });
+}
+
+/** A gitignore pattern for `file` alone, from the top: every character that means something is escaped. */
+export function literalIgnorePattern(file: string): string {
+  return `/${file.replace(/[\\*?[\]!# ]/g, (char) => `\\${char}`)}`;
+}
+
+/**
+ * Keeps the files git ignored when the step started out of the code commit
+ * (review of step 37 part B, I1): their ignore line may be gone from the
+ * project's `.gitignore`, so their paths go to the repository's own
+ * `info/exclude`, which is never committed and only adds ignores. The
+ * `.gitignore` stays as the step left it.
+ */
+async function keepIgnored(dir: string, config: readonly string[], files: readonly string[]): Promise<void> {
+  if (files.length === 0) return;
+  const exclude = path.resolve(dir, (await git(dir, [...config, 'rev-parse', '--git-path', 'info/exclude'])).trim());
+  await mkdir(path.dirname(exclude), { recursive: true });
+  const [real, root] = await Promise.all([realpathNearest(exclude), realpathNearest(dir)]);
+  if (!isPathInside(real, root, systemPathEnv())) throw new Error('info/exclude is not inside the project');
+  const current = await readFile(exclude, 'utf8').catch(() => '');
+  const have = new Set(current.split(/\r?\n/));
+  const lines = files.map(literalIgnorePattern).filter((line) => !have.has(line));
+  if (lines.length === 0) return;
+  const lead = current === '' || current.endsWith('\n') ? '' : '\n';
+  await appendFile(exclude, `${lead}# briefstack: ignored when the first version of the code was written\n${lines.join('\n')}\n`, 'utf8');
 }
 
 /**
@@ -348,7 +375,8 @@ export async function snapshotProtectedFiles(dir: string): Promise<ProtectedSnap
 /**
  * Puts back the protected files changed since the workspace commit: a
  * tracked one from HEAD (its whole state at the commit), an untracked one
- * removed (unless the snapshot had it: then as an ignored one), an ignored
+ * removed (unless the snapshot had it: then ignored again through
+ * `info/exclude`, and as an ignored one), an ignored
  * one as the snapshot had it (written back, or removed when it did not
  * exist then), and one of the snapshot that went, written back. Throws when
  * any of it fails, so the step does not commit unseen.
@@ -357,9 +385,12 @@ export async function revertProtectedChanges(dir: string, snapshot: ProtectedSna
   return withNoHooks(async (config) => {
     const reverted = new Set<string>();
     const seen = new Set<string>();
-    for (const { code, file } of await protectedStatus(dir, config)) {
+    const entries = await protectedStatus(dir, config);
+    // Ignored at the start and untracked now (its ignore line removed: review of M6, m3): ignored again, out of the
+    // code commit (review of step 37 part B, I1), and as the snapshot had it.
+    await keepIgnored(dir, config, entries.filter((entry) => entry.code === '??' && snapshot.has(entry.file)).map((entry) => entry.file));
+    for (const { code, file } of entries) {
       seen.add(file);
-      // Ignored at the start and untracked now (its ignore line removed: review of M6, m3): as the snapshot had it.
       if (code === '!!' || (code === '??' && snapshot.has(file))) {
         const before = snapshot.get(file);
         if (before === undefined) await removeInside(dir, file);
@@ -402,6 +433,8 @@ export async function revertHookDefinitions(dir: string, snapshot: ProtectedSnap
       if (info === undefined || info.isDirectory()) continue;
       if (!info.isSymbolicLink() && !declaresHooks(await readFile(target, 'utf8'))) continue;
       const before = code === '??' || code === '!!' ? snapshot.get(file) : undefined;
+      // Ignored at the start and untracked now: ignored again, so its hooks stay out of the code commit (part A, m2).
+      if (code === '??' && before !== undefined) await keepIgnored(dir, config, [file]);
       if (before !== undefined) {
         // There before the step: as it was then, and left alone when unchanged.
         if (!info.isSymbolicLink() && (await readFile(target)).equals(before)) continue;

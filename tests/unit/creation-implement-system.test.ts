@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { lstat, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkEnvironment, cleanCommandOutput, commandEnv, currentStatusOf, realImplementSystem, revertHookDefinitions, revertProtectedChanges, runCommandLine, snapshotProtectedFiles } from '../../src/creation/implementSystem.js';
+import { checkEnvironment, cleanCommandOutput, commandEnv, currentStatusOf, literalIgnorePattern, realImplementSystem, revertHookDefinitions, revertProtectedChanges, runCommandLine, snapshotProtectedFiles } from '../../src/creation/implementSystem.js';
 import { approvedParts, MAX_KEPT_ENTRIES } from '../../src/creation/implement.js';
 import { tempDir } from '../helpers.js';
 
@@ -204,6 +204,69 @@ describe('the folder checks', () => {
     await writeFile(path.join(claude, '.claude', 'hooks', 'run.sh'), 'echo\n', 'utf8');
     expect((await revertProtectedChanges(claude, empty)).sort()).toEqual(['.claude/hooks/run.sh', '.claude/settings.local.json']);
     await expect(stat(path.join(claude, '.claude', 'settings.local.json'))).rejects.toThrow();
+  });
+
+  it('a protected folder ignored whole under another (.claude/hooks/, .husky/_/) is read file by file too; a whole .claude keeps what was there (review of step 37 part B, B1, m3)', async () => {
+    const run = (args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    await writeFile(path.join(dir, '.gitignore'), '.claude/hooks/\n.husky/_/\n', 'utf8');
+    await mkdir(path.join(dir, '.claude', 'hooks'), { recursive: true });
+    await mkdir(path.join(dir, '.husky', '_'), { recursive: true });
+    await writeFile(path.join(dir, '.claude', 'hooks', 'old.sh'), 'mine\n', 'utf8');
+    await writeFile(path.join(dir, '.husky', '_', 'pre-commit'), 'mine\n', 'utf8');
+    run(['init', '-q']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'add', '-A']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'workspace']);
+    const snapshot = await snapshotProtectedFiles(dir);
+    expect([...snapshot.keys()].sort()).toEqual(['.claude/hooks/old.sh', '.husky/_/pre-commit']);
+    await writeFile(path.join(dir, '.claude', 'hooks', 'new.sh'), 'theirs\n', 'utf8');
+    await writeFile(path.join(dir, '.husky', '_', 'pre-commit'), 'theirs\n', 'utf8');
+    expect((await revertProtectedChanges(dir, snapshot)).sort()).toEqual(['.claude/hooks/new.sh', '.husky/_/pre-commit']);
+    expect(await readFile(path.join(dir, '.claude', 'hooks', 'old.sh'), 'utf8')).toBe('mine\n');
+    expect(await readFile(path.join(dir, '.husky', '_', 'pre-commit'), 'utf8')).toBe('mine\n');
+    await expect(stat(path.join(dir, '.claude', 'hooks', 'new.sh'))).rejects.toThrow();
+
+    // A whole .claude ignored, with a local settings file and an agent with hooks there before the step: both stay.
+    const whole = path.join(dir, 'whole');
+    const runWhole = (args: string[]) => execFileSync('git', args, { cwd: whole, encoding: 'utf8' });
+    await mkdir(path.join(whole, '.claude', 'agents'), { recursive: true });
+    await writeFile(path.join(whole, '.gitignore'), '.claude/\n', 'utf8');
+    await writeFile(path.join(whole, '.claude', 'settings.local.json'), '{"mine":true}\n', 'utf8');
+    await writeFile(path.join(whole, '.claude', 'agents', 'mine.md'), '---\nname: mine\nhooks:\n  Stop: []\n---\n', 'utf8');
+    runWhole(['init', '-q']);
+    runWhole(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'add', '-A']);
+    runWhole(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'workspace']);
+    const kept = await snapshotProtectedFiles(whole);
+    expect([...kept.keys()].sort()).toEqual(['.claude/agents/mine.md', '.claude/settings.local.json']);
+    expect(await revertProtectedChanges(whole, kept)).toEqual([]);
+    expect(await revertHookDefinitions(whole, kept)).toEqual([]);
+    expect(await readFile(path.join(whole, '.claude', 'settings.local.json'), 'utf8')).toBe('{"mine":true}\n');
+  });
+
+  it('an ignored file that turns untracked is ignored again through info/exclude, out of the code commit (review of step 37 part B, I1)', async () => {
+    const run = (args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    const hooked = '---\nname: mine\nhooks:\n  Stop: []\n---\n';
+    await writeFile(path.join(dir, '.gitignore'), '.claude/settings.local.json\n.claude/agents/mine.md\n', 'utf8');
+    await mkdir(path.join(dir, '.claude', 'agents'), { recursive: true });
+    await writeFile(path.join(dir, '.claude', 'settings.local.json'), '{"mine":true}\n', 'utf8');
+    await writeFile(path.join(dir, '.claude', 'agents', 'mine.md'), hooked, 'utf8');
+    run(['init', '-q']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'add', '-A']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'workspace']);
+    const snapshot = await snapshotProtectedFiles(dir);
+    // Both ignore lines removed: both untracked now, unchanged.
+    await writeFile(path.join(dir, '.gitignore'), 'node_modules/\n', 'utf8');
+    expect(await revertProtectedChanges(dir, snapshot)).toEqual([]);
+    expect(await revertHookDefinitions(dir, snapshot)).toEqual([]);
+    // Still there, as they were, and git ignores them again: the code commit does not take them.
+    expect(await readFile(path.join(dir, '.claude', 'settings.local.json'), 'utf8')).toBe('{"mine":true}\n');
+    expect(await readFile(path.join(dir, '.claude', 'agents', 'mine.md'), 'utf8')).toBe(hooked);
+    expect(run(['status', '--porcelain', '--untracked-files=all']).trim()).toBe('M .gitignore');
+    expect(await readFile(path.join(dir, '.git', 'info', 'exclude'), 'utf8')).toContain('/.claude/settings.local.json');
+  });
+
+  it('a literal ignore pattern escapes what means something to git', () => {
+    expect(literalIgnorePattern('.claude/settings.local.json')).toBe('/.claude/settings.local.json');
+    expect(literalIgnorePattern('a b/#x[1]*?!.md')).toBe('/a\\ b/\\#x\\[1\\]\\*\\?\\!.md');
   });
 
   it('an ignored protected file that turns untracked goes back as the snapshot had it, not removed (review of M6, m3)', async () => {

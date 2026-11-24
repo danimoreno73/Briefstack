@@ -449,8 +449,12 @@ describe('the implement step: overlaps, ends and limits (reviews of M2 and M3)',
     expect(w.step.view()).toMatchObject({ state: 'notStarted', reason: 'snapshotFailed', workspaceCommit: 'c1' });
     expect(w.step.running).toBe(false);
     expect((await w.step.runCommand('npm install')).text).toContain('not running');
+    // Final (review of step 37 part B, m1, m2): finish puts nothing back and commits nothing; a retry starts nothing.
+    expect((await w.step.finish()).text).toContain('not running');
+    expect((await w.step.start('P')).text).toContain('already refused');
     expect(putBacks).toBe(0);
     expect(w.commits).toHaveLength(1);
+    expect(w.step.view()).toMatchObject({ state: 'notStarted', reason: 'snapshotFailed' });
   });
 
   it('a start refused for usage is final: a retry reads nothing again', async () => {

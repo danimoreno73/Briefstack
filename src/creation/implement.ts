@@ -399,6 +399,10 @@ export class ImplementStep {
     if (this.record.reason === 'usage' || this.record.reason === 'usageUnread') {
       return { text: 'The implement step was already refused for plan usage in this creation. Finish it as skipped and go on to learn.', isError: true };
     }
+    // As final (review of step 37 part B, m1): the reply said no code is written in this creation.
+    if (this.record.reason === 'snapshotFailed') {
+      return { text: 'The implement step was already refused in this creation (the ignored protected files could not be read). Finish it as failed and go on to learn.', isError: true };
+    }
     const choice = this.deps.choice();
     if (choice === undefined) return this.notStarted('notChosen', 'The user chose "workspace only" for this creation: skip the implement step (finish it as skipped) and go on to learn.');
     const folder = this.deps.folder();
