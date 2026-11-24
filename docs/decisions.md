@@ -7786,7 +7786,7 @@ M5, pushed together:
 - `GET /api/creations/:id` carries `code` and `implement` (the creation's
   state).
 
-## Phase 10: review of M5, the fixes (2026-11-23)
+## Phase 10: review of M5, the fixes (2026-11-22)
 
 The review of M5 and the M4 fixes (`5b2382e..18a6993`) said **no apto**:
 one blocking item, four important, ten minor. Fixed with M6:
@@ -7853,3 +7853,48 @@ one blocking item, four important, ten minor. Fixed with M6:
   waited for text, no process left. NOT CONTROLLED: whether the checks
   passed (the model's code), what the brief says is left. Its static
   checks are in `tests/unit/real-scripts.test.ts`.
+
+## Phase 10: review of M6, the fixes (2026-11-24)
+
+The review of M6 and the M5 fixes (`18a6993..0b790aa`) said **apto con
+reservas**: no blocking item, six important, six minor and smaller points.
+Fixed in one pass:
+
+- **I1–I4, the real check's verdicts:** Codex passes only with a call that
+  completed with its usage read, no command in any call, and `src/sum.js`
+  (the file handed to Codex) in the code commit; the off-list command
+  passes only on `run_command`'s own refusal of an npm line and no
+  implementer denial by a dialog; "nobody was asked" counts every kind of
+  pending, not only permissions; "the code commit holds what the
+  implementer wrote" needs a file other than `src/sum.js` and no Write or
+  Edit of the implementer denied; new verdicts: nothing written in the
+  work folder outside the projects folder and the temp home, the repo's
+  git status unchanged. The temp config puts the step's usage gate (95% /
+  99%) above the script's start limits (70% / 95%) and the step's time at
+  20 minutes inside the script's 45; when the spec page does not offer
+  code with Codex, the script cancels at once. Exactly two commits, HEAD
+  the step's code commit and HEAD~1 its workspace commit; "no protected
+  file changed" also fails on `revertFailed`.
+- **I5** (the hand-off's `briefstack commit` would commit unchecked code
+  and the protected changes that could not be put back): the guard refuses
+  `briefstack commit` while the implement step runs, checks or commits,
+  and after `revertFailed`, with the reason (both guards: the callback and
+  the command hook, through `guard.json`'s `handoffCommitRefusal`, which
+  the runner rewrites on every change of the step). The reply to the main
+  session says not to run it. This supersedes "the hand-off finds nothing
+  to commit" in "Phase 10: H0", 4, for those cases.
+- **I6:** README says briefstack starts listed commands and checks with no
+  operating-system sandbox on any system, and that the put-back is as far
+  as briefstack can see (an approved command runs any code).
+- **m1:** a snapshot file is written back only after its folder's real path
+  is inside the project and whatever stands at the path (a link included)
+  is removed; the write never follows a link. **m5:** put-backs run one at
+  a time; a stop during the finish keeps the step `interrupted`; tested.
+  **m6:** a long first line in the brief's status is cut at a blank.
+  `docs/api.md` names `revertFailed`; the M5 fixes' date is the commits'.
+- **Not changed, in `IDEAS.md` §10:** m2 (a wholly ignored protected folder
+  is one entry for git: lost on the revert if it existed, maybe missed if
+  new), m3 (a snapshot file that turns untracked is removed, not written
+  back), m4 (a failed snapshot means pre-existing ignored protected files
+  are removed). The commit `a9e426e` mixing several fixes stays as it is
+  (no history rewrite).

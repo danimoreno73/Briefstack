@@ -366,10 +366,14 @@ Starts a creation session, which runs the `/new-project` flow.
   }], "checks": [{ "pass", "results": [CheckResult] }], "fixPassesUsed",
   "bounds"?: { "maxMinutes", "maxToolCalls" }, "toolCalls", "limit"?:
   "time | toolCalls", "warning"?: "checksFailed", "codex": [CodexCall],
-  "codexUnavailable"?, "protectedReverted"?: ["<path>"], "status"?,
-  "startedAt"?, "finishedAt"? }`. Outputs and Codex's messages are cut and
-  redacted; `status` is the brief's "Current status" as the implementer
-  wrote it (data). The last 50 runs and refusals are kept.
+  "codexUnavailable"?, "protectedReverted"?: ["<path>"], "revertFailed"?:
+  true, "status"?, "startedAt"?, "finishedAt"? }`. Outputs and Codex's
+  messages are cut and redacted; `status` is the brief's "Current status"
+  as the implementer wrote it (data). The last 50 runs and refusals are
+  kept. `revertFailed`: protected files changed in the step could not be
+  put back, so the code was not committed; the hand-off's
+  `briefstack commit` of the project is refused then, and while the step
+  runs, checks or commits.
 
 `pending.payload` per kind:
 

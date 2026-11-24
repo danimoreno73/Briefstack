@@ -266,10 +266,14 @@ improvements before you move anything.
   anyone and listed at the end. The list limits command lines, not what an
   approved command runs: `npm test` runs the tests the session wrote, as
   you, with your files and the network; the checks run with proxies
-  pointed nowhere, which a program can ignore, and native Windows gives
-  them no sandbox. Listed commands and checks get no tokens or keys from
-  your environment. Changes to protected files, by the implementer or by
-  Codex, are put back before the code commit.
+  pointed nowhere, which a program can ignore. briefstack starts listed
+  commands and checks itself, with no operating-system sandbox on any
+  system. Listed commands and checks get no tokens or keys from your
+  environment. Changes to protected files, by the implementer or by
+  Codex, are put back before the code commit, as far as briefstack can
+  see them: an approved command runs any code, so it can also write
+  outside the project or hide a change from git. When protected files
+  cannot be put back, the code is not committed.
 - **Codex without its shell.** In a creation, Codex runs with its shell
   tool and the rest of what could run commands turned off
   (`--disable shell_tool` and more, your `config.toml` ignored, web search

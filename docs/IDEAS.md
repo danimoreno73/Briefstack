@@ -1187,3 +1187,11 @@ the decisions are in [decisions.md](decisions.md), "Phase 10".
 - The terminal `/new-project` never offers code (out of scope by the
   brief); a terminal creation that wants code goes on with a task or a
   build.
+- **The put-back of ignored protected files, edge cases** (review of M6,
+  m2–m4): git reports a wholly ignored protected folder (`.husky/`) as one
+  entry, so one that existed before the step is removed on the revert,
+  and whether the pathspecs catch a new wholly ignored `.claude/hooks/` is
+  not tested; a snapshot file that turns untracked (its ignore line
+  removed) is removed, not written back; a failed snapshot means
+  pre-existing ignored protected files are removed (safe, but
+  destructive and not recorded).
