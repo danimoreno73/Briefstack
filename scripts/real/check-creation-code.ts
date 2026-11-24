@@ -8,7 +8,9 @@
 //     tools (`run_command`, `delegate_to_codex` on `briefstack-web`), which
 //     the docs do not say for an SDK server (decisions.md, "Phase 10: H0", 5);
 //   - that the command-hook guard lets it write in the project (review of
-//     M3, B1) and nowhere else;
+//     M3, B1): no write of its own denied, and a file Codex was not asked
+//     for in the code commit; and nothing written outside the projects
+//     folder and the temp home, nor in this repo (review of M6, I3);
 //   - the two commits, a listed command run, a command off the list denied
 //     without a dialog, Codex called without its shell, and the checks.
 //
@@ -30,8 +32,13 @@
 // Spends: one short creation on the saver profile (interview, spec,
 // generation, review, implement) and real Codex usage (about 20 000 to
 // 80 000 Codex input tokens, mostly cached, per H0.1), plus free plan
-// readings. It stops after 40 minutes. Nothing is pushed; the real library,
-// projects and agent files are not touched.
+// readings. It stops after 45 minutes (the step itself after 20). When the
+// spec page does not offer code with Codex it cancels at once, so nothing
+// more is spent. The temp config sets the step's usage thresholds above the
+// script's own start limits (review of M6, I4). Nothing is pushed; the real
+// library, projects and agent files are not touched; Claude Code and Codex
+// still write their own logs in the user's profile, as in the other real
+// checks (they need the user's login).
 // Run:  npx tsx scripts/real/check-creation-code.ts --yes
 
 import { execFileSync } from 'node:child_process';
@@ -43,7 +50,21 @@ import { CODE_COMMIT_MESSAGE } from '../../src/creation/implement.js';
 import { PROJECT_COMMIT_MESSAGE } from '../../src/scaffold/commit.js';
 import { createWebCreations } from '../../src/creation/wiring.js';
 import { PACKAGE_ROOT } from '../../src/packageRoot.js';
-import { CheckStop, autoAnswer, claudeExecutable, processesMentioning, readPlanUsage, report, requireConfirmation, sandbox, sandboxLibrary, show, startCheck } from './common.js';
+import {
+  CheckStop,
+  GIT_STATUS_ARGS,
+  autoAnswer,
+  claudeExecutable,
+  filesOutside,
+  processesMentioning,
+  readPlanUsage,
+  report,
+  requireConfirmation,
+  sandbox,
+  sandboxLibrary,
+  show,
+  startCheck,
+} from './common.js';
 
 requireConfirmation(
   'Phase 10 real check: one short creation that writes a first version of the code, with Codex without its shell, in a temp home. It spends one creation on the saver profile and real Codex usage with your ChatGPT login (about 20 000 to 80 000 Codex input tokens, mostly cached).',
@@ -59,7 +80,9 @@ const IDEA = [
 /** The code choice the script approves at the spec (docs/api.md, "POST /api/creations/:id/answer"). */
 const CODE = { commands: ['node --test'], checks: ['node --test'], fixPasses: 1, codex: true };
 const OFF_LIST = 'npm --version';
-const LIMIT_MS = 40 * 60_000;
+const LIMIT_MS = 45 * 60_000;
+/** The file the idea asks the implementer to hand to Codex; the others in the code commit are the implementer's own. */
+const CODEX_FILE = 'src/sum.js';
 
 /** A verdict the script cannot decide from outside. */
 const notControlled = (name: string, detail: string): void => console.log(`NOT CONTROLLED  ${name}: ${detail}`);
@@ -71,7 +94,16 @@ try {
   const box = await sandbox('creation-code');
   check.add(() => box.cleanup());
   const pathEnv = await sandboxLibrary(box);
-  await updateConfig(path.join(box.home, 'config.json'), { activeProfile: 'saver', permissionPolicy: 'ask', codexEnabled: true, codexMode: 'unelevated' });
+  // The step's own usage gate above the script's start limits (70% / 95%), and a step shorter than the script's limit.
+  await updateConfig(path.join(box.home, 'config.json'), {
+    activeProfile: 'saver',
+    permissionPolicy: 'ask',
+    codexEnabled: true,
+    codexMode: 'unelevated',
+    usageWarnFiveHour: 95,
+    usageWarnWeek: 99,
+    implementMaxMinutes: 20,
+  });
 
   // Codex first: nothing is spent on Claude before its check passed, with the no-shell part.
   const codex = new CodexService({ pathEnv });
@@ -86,6 +118,11 @@ try {
     throw new CheckStop(2, 'Plan usage is above 70% of the 5-hour window or 95% of the week: not starting.');
   }
 
+  // Writes outside the projects folder and the temp home, and in this repo, are compared before and after (review of M6, I3).
+  const allowed = [box.projects, box.home, box.project, box.sessions];
+  const filesBefore = await filesOutside(box.dir, allowed);
+  const gitBefore = execFileSync('git', [...GIT_STATUS_ARGS], { cwd: PACKAGE_ROOT, encoding: 'utf8' });
+
   const manager = await createWebCreations({
     pathEnv,
     repoDir: PACKAGE_ROOT,
@@ -99,16 +136,15 @@ try {
   const answered = new Set<string>();
   let offered = false;
   let replies = 0;
-  /** Permission requests the page was asked while the implement step ran: there must be none. */
+  /** Anything the page was asked while the implement step ran (any kind): there must be nothing. */
   const askedDuringImplement: string[] = [];
   while (manager.get(id).status !== 'finished' && Date.now() < deadline) {
     const state = manager.get(id);
     const pending = state.pending;
     if (pending !== undefined && !answered.has(pending.id)) {
       answered.add(pending.id);
-      if (pending.kind === 'permission' && (state.currentStep === 'implement' || state.implement?.state === 'running')) {
-        askedDuringImplement.push(`${pending.payload.toolName}: ${pending.payload.summary}`);
-      }
+      const implementing = state.currentStep === 'implement' || state.implement?.state === 'running' || state.implement?.state === 'checking' || state.implement?.state === 'finishing';
+      if (implementing) askedDuringImplement.push(pending.kind === 'permission' ? `permission ${pending.payload.toolName}: ${pending.payload.summary}` : pending.kind);
       const spec = pending.kind === 'spec' ? await manager.readSpec(id).catch(() => undefined) : undefined;
       const decision = autoAnswer(pending, box.projects, { summary: spec?.summary ?? null });
       if (decision.kind === 'cancel') {
@@ -116,9 +152,15 @@ try {
         manager.cancel(id);
       } else if (pending.kind === 'spec') {
         offered = spec?.code.offered === true && spec.code.codex;
-        const answer = offered ? { decision: 'approve', code: CODE } : decision.answer;
-        console.log(`spec → ${JSON.stringify(answer)}`);
-        manager.answer(id, pending.id, answer);
+        if (!offered) {
+          // Nothing to check without code and Codex: stop before the rest is spent (review of M6, I4).
+          console.log(`spec → cancel: code offered ${String(spec?.code.offered)}, Codex offered ${String(spec?.code.codex)}`);
+          manager.cancel(id);
+        } else {
+          const answer = { decision: 'approve', code: CODE };
+          console.log(`spec → ${JSON.stringify(answer)}`);
+          manager.answer(id, pending.id, answer);
+        }
       } else {
         console.log(`${pending.kind} → ${JSON.stringify(decision.answer).slice(0, 120)}`);
         manager.answer(id, pending.id, decision.answer);
@@ -144,14 +186,32 @@ try {
   ok = report('the creation completed', final.outcome === 'completed', final.outcome ?? final.status) && ok;
   ok = report('the implement step ran to its end', step?.state === 'done', step?.state ?? 'never asked') && ok;
 
+  // The session's own lines: the guard's denials of the implementer, with who denied them.
+  const events = await sessionLines(box.sessions, final.sessionId);
+  const implementerDenials = events.filter((line) => line.type === 'tool.denied' && line.agentType === 'implementer');
+  const writeDenials = implementerDenials.filter((line) => line.tool === 'Write' || line.tool === 'Edit').map((line) => `${String(line.tool)} (${String(line.by)}): ${String(line.reason ?? '').slice(0, 100)}`);
+
   // The project and its two commits.
   const dir = await projectOf(box.projects);
+  let codeFiles: string[] = [];
   if (dir !== undefined) {
-    const log = execFileSync('git', ['log', '--format=%s'], { cwd: dir, encoding: 'utf8' }).trim().split('\n');
-    ok = report('two commits: the workspace, then the code apart', log[0] === CODE_COMMIT_MESSAGE && log.includes(PROJECT_COMMIT_MESSAGE), log.slice(0, 3).join(' | ')) && ok;
-    const codeFiles = execFileSync('git', ['show', '--name-only', '--format=', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-    // The implementer (a subagent) wrote in the project: the command hook knew its folder (review of M3, B1).
-    ok = report('the code commit holds what the implementer wrote', codeFiles.length > 0, codeFiles.join(', ') || 'empty') && ok;
+    // Exactly two: HEAD the code (the step's code commit), HEAD~1 the workspace (its workspace commit).
+    const log = execFileSync('git', ['log', '--format=%H %s'], { cwd: dir, encoding: 'utf8' }).trim().split('\n');
+    const [head, parent] = log.map((line) => ({ sha: line.slice(0, line.indexOf(' ')), subject: line.slice(line.indexOf(' ') + 1) }));
+    const twoCommits =
+      log.length === 2 &&
+      head?.subject === CODE_COMMIT_MESSAGE &&
+      parent?.subject === PROJECT_COMMIT_MESSAGE &&
+      step?.codeCommit !== undefined &&
+      head.sha.startsWith(step.codeCommit) &&
+      step.workspaceCommit !== undefined &&
+      parent.sha.startsWith(step.workspaceCommit);
+    ok = report('two commits: the workspace, then the code apart', twoCommits, log.slice(0, 3).join(' | ')) && ok;
+    codeFiles = execFileSync('git', ['show', '--name-only', '--format=', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+    // The implementer (a subagent) wrote in the project itself: the command hook knew its folder (review of M3, B1). Codex's
+    // file tool bypasses the hook, so a file Codex was not asked for must be there, and no write of the implementer denied.
+    const ownFiles = codeFiles.filter((file) => file !== CODEX_FILE);
+    ok = report('the code commit holds what the implementer wrote', ownFiles.length > 0 && writeDenials.length === 0, `${codeFiles.join(', ') || 'empty'}${writeDenials.length > 0 ? `; denied: ${writeDenials.join(' | ')}` : ''}`) && ok;
     const status = execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).trim();
     ok = report('the project tree is clean after the hand-off', status === '', status || 'clean') && ok;
     const brief = await readFile(path.join(dir, 'docs', 'BRIEF.md'), 'utf8').catch(() => '');
@@ -163,23 +223,44 @@ try {
   ok = report('the implementer called briefstack’s tools (run_command or delegate_to_codex)', usedTools, `${step?.runs.length ?? 0} run(s), ${step?.refused.length ?? 0} refused, ${step?.codex.length ?? 0} Codex call(s)`) && ok;
   ok = report('a listed command ran in the project', (step?.runs ?? []).some((run) => CODE.commands.includes(run.command)), (step?.runs ?? []).map((run) => `${run.command} → ${run.exitCode}`).join(', ') || 'none') && ok;
 
-  // The command off the list: denied (by run_command or by the guard, the implementer having no shell), and nobody asked.
-  const events = await sessionLines(box.sessions, final.sessionId);
-  const guardDenials = events.filter((line) => line.type === 'tool.denied' && line.agentType === 'implementer').map((line) => `${String(line.tool)} (${String(line.by)})`);
+  // The command off the list: refused by run_command (the implementer's only route to a command: it has no shell), by
+  // briefstack and never by a dialog (review of M6, I2).
   const refused = (step?.refused ?? []).map((r) => r.command);
-  const tried = refused.some((command) => command.includes('npm')) || guardDenials.length > 0;
-  ok = report(`a command off the list (${OFF_LIST}) was denied`, tried, tried ? [...refused, ...guardDenials].join(', ') : 'the implementer never tried a command off the list (the model, not briefstack)') && ok;
+  const byUser = implementerDenials.filter((line) => line.by === 'user').map((line) => String(line.tool));
+  const tried = refused.some((command) => command.includes('npm'));
+  ok = report(
+    `a command off the list (${OFF_LIST}) was denied`,
+    tried && byUser.length === 0,
+    tried ? `${refused.join(', ')}${byUser.length > 0 ? `; denied in a dialog: ${byUser.join(', ')}` : ''}` : `${refused.join(', ') || 'nothing refused'}: the implementer never tried npm off the list (the model, not briefstack)`,
+  ) && ok;
   ok = report('nobody was asked during the implement step', askedDuringImplement.length === 0, askedDuringImplement.join(' | ') || 'no dialog') && ok;
 
-  // Codex, without its shell.
+  // Codex, without its shell: at least one call that completed with its usage read, none ran a command, and the file
+  // handed to it is in the code commit (review of M6, I1). That no shell was offered at all is shown by the no-shell
+  // check above, run with the same arguments.
   const calls = step?.codex ?? [];
-  ok = report('Codex was called without its shell and ran no command', calls.length > 0 && calls.every((call) => call.commands === 0), calls.length === 0 ? 'the implementer never called Codex (the model, not briefstack)' : calls.map((call) => `#${call.n} ${call.outcome}, ${call.commands} command(s), ${call.usage?.input ?? 0} input tokens`).join('; ')) && ok;
+  const completed = calls.some((call) => call.outcome === 'completed' && call.usage !== undefined);
+  ok = report(
+    'Codex was called without its shell and ran no command',
+    completed && calls.every((call) => call.commands === 0) && codeFiles.includes(CODEX_FILE),
+    calls.length === 0
+      ? 'the implementer never called Codex (the model, not briefstack)'
+      : `${calls.map((call) => `#${call.n} ${call.outcome}, ${call.commands} command(s), ${call.usage?.input ?? 0} input tokens`).join('; ')}; ${CODEX_FILE} ${codeFiles.includes(CODEX_FILE) ? 'in' : 'not in'} the code commit`,
+  ) && ok;
 
   // The checks.
   const passes = step?.checks ?? [];
   ok = report('the checks ran after the implementer', passes.length > 0, passes.map((pass) => `run ${pass.pass}: ${pass.results.map((r) => `${r.command} → ${r.timedOut ? 'timed out' : r.exitCode}`).join(', ')}`).join('; ') || 'never') && ok;
   notControlled('whether the checks passed (the model wrote the code)', step?.warning === 'checksFailed' ? `still failing after ${step.fixPassesUsed} fix pass(es)` : 'passed');
-  ok = report('no protected file was changed', (step?.protectedReverted ?? []).length === 0, (step?.protectedReverted ?? []).join(', ') || 'none') && ok;
+  ok = report(
+    'no protected file was changed',
+    (step?.protectedReverted ?? []).length === 0 && step?.revertFailed !== true,
+    `${(step?.protectedReverted ?? []).join(', ') || 'none'}${step?.revertFailed === true ? '; the put-back failed' : ''}`,
+  ) && ok;
+  const added = (await filesOutside(box.dir, allowed)).filter((file) => !filesBefore.includes(file));
+  ok = report('nothing was written in the work folder outside the projects folder and the temp home', added.length === 0, added.join(', ') || 'none') && ok;
+  const gitAfter = execFileSync('git', [...GIT_STATUS_ARGS], { cwd: PACKAGE_ROOT, encoding: 'utf8' });
+  ok = report('the repo git status did not change', gitAfter === gitBefore, gitAfter.trim() || 'clean') && ok;
   ok = report('no turn ended waiting for a text answer', replies === 0, String(replies)) && ok;
   const left = await processesMentioning(box.dir);
   ok = report('no process of the sandbox is left', left.length === 0, left.map((p) => `${p.pid} ${p.command.slice(0, 80)}`).join(' | ') || 'none') && ok;

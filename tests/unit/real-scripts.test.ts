@@ -1250,6 +1250,15 @@ describe('phase 10 real check (check-creation-code): prepared, guarded, Codex ch
     }
     // The model not trying something is said as such, never retried.
     expect(script).toContain('(the model, not briefstack)');
+    // Review of M6: verdicts that pass only on facts that prove them.
+    expect(script).toContain("call.outcome === 'completed' && call.usage !== undefined"); // I1: a Codex call that worked
+    expect(script).toContain('codeFiles.includes(CODEX_FILE)'); // I1: its file committed
+    expect(script).toContain("refused.some((command) => command.includes('npm'))"); // I2: run_command's own refusal
+    expect(script).not.toContain('guardDenials.length > 0'); // I2: not any denial
+    expect(script).toContain('codeFiles.filter((file) => file !== CODEX_FILE)'); // I3: a file of the implementer's own
+    expect(script).toContain('await filesOutside(box.dir, allowed)'); // I3: nowhere else
+    expect(script).toContain('usageWarnWeek'); // I4: the step's gate above the script's start limits
+    expect(script).toContain('spec → cancel'); // I4: no code and Codex offered, nothing more spent
   });
 
   it('without --yes it exits with 2 and starts nothing', async () => {
