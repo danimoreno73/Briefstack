@@ -173,6 +173,57 @@ describe('the folder checks', () => {
     expect(await readFile(path.join(dir, '.claude', 'settings.local.json'), 'utf8')).toBe('{"mine":true}\n');
   });
 
+  it('a wholly ignored protected folder is read file by file: what was there stays, what is new goes; a wholly ignored .claude is opened (review of M6, m2)', async () => {
+    const commit = async (project: string) => {
+      const run = (args: string[]) => execFileSync('git', args, { cwd: project, encoding: 'utf8' });
+      run(['init', '-q']);
+      run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'add', '-A']);
+      run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'workspace']);
+    };
+    const husky = path.join(dir, 'husky');
+    await mkdir(path.join(husky, '.husky'), { recursive: true });
+    await writeFile(path.join(husky, '.gitignore'), '.husky/\n', 'utf8');
+    await writeFile(path.join(husky, '.husky', 'pre-commit'), 'mine\n', 'utf8');
+    await commit(husky);
+    const snapshot = await snapshotProtectedFiles(husky);
+    expect([...snapshot.keys()]).toEqual(['.husky/pre-commit']);
+    await writeFile(path.join(husky, '.husky', 'post-checkout'), 'theirs\n', 'utf8');
+    expect(await revertProtectedChanges(husky, snapshot)).toEqual(['.husky/post-checkout']);
+    expect(await readFile(path.join(husky, '.husky', 'pre-commit'), 'utf8')).toBe('mine\n');
+    await expect(stat(path.join(husky, '.husky', 'post-checkout'))).rejects.toThrow();
+
+    const claude = path.join(dir, 'claude');
+    await mkdir(claude, { recursive: true });
+    await writeFile(path.join(claude, '.gitignore'), '.claude/\n', 'utf8');
+    await commit(claude);
+    // Nothing in .claude when the step started: the snapshot is empty, and both new files go.
+    const empty = await snapshotProtectedFiles(claude);
+    expect(empty.size).toBe(0);
+    await mkdir(path.join(claude, '.claude', 'hooks'), { recursive: true });
+    await writeFile(path.join(claude, '.claude', 'settings.local.json'), '{"hooks":{}}\n', 'utf8');
+    await writeFile(path.join(claude, '.claude', 'hooks', 'run.sh'), 'echo\n', 'utf8');
+    expect((await revertProtectedChanges(claude, empty)).sort()).toEqual(['.claude/hooks/run.sh', '.claude/settings.local.json']);
+    await expect(stat(path.join(claude, '.claude', 'settings.local.json'))).rejects.toThrow();
+  });
+
+  it('an ignored protected file that turns untracked goes back as the snapshot had it, not removed (review of M6, m3)', async () => {
+    const run = (args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    await writeFile(path.join(dir, '.gitignore'), '.claude/settings.local.json\n', 'utf8');
+    await mkdir(path.join(dir, '.claude'), { recursive: true });
+    await writeFile(path.join(dir, '.claude', 'settings.local.json'), '{"mine":true}\n', 'utf8');
+    run(['init', '-q']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'add', '-A']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'workspace']);
+    const snapshot = await snapshotProtectedFiles(dir);
+    // Its ignore line removed: untracked now, unchanged first, then with hooks.
+    await writeFile(path.join(dir, '.gitignore'), 'node_modules/\n', 'utf8');
+    expect(await revertProtectedChanges(dir, snapshot)).toEqual([]);
+    expect(await readFile(path.join(dir, '.claude', 'settings.local.json'), 'utf8')).toBe('{"mine":true}\n');
+    await writeFile(path.join(dir, '.claude', 'settings.local.json'), '{"hooks":{}}\n', 'utf8');
+    expect(await revertProtectedChanges(dir, snapshot)).toEqual(['.claude/settings.local.json']);
+    expect(await readFile(path.join(dir, '.claude', 'settings.local.json'), 'utf8')).toBe('{"mine":true}\n');
+  });
+
   it('a link in place of a protected file or its folder never leads the write-back out of the project (review of M6, m1)', async () => {
     const project = path.join(dir, 'garden');
     const outside = path.join(dir, 'outside');

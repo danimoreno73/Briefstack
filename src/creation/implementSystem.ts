@@ -99,14 +99,28 @@ async function changedEntries(dir: string, config: readonly string[], pathspecs:
   return entries.filter((entry) => keep(entry.file));
 }
 
-/** One porcelain `-z` listing of the protected paths (no renames: each path on its own), ignored ones included. */
-async function protectedStatus(dir: string, config: readonly string[]): Promise<{ code: string; file: string }[]> {
-  const status = await git(dir, [...config, 'status', '--porcelain', '-z', '--no-renames', '--untracked-files=all', '--ignored=matching', '--', ...PROTECTED_PATHSPECS]);
-  return status
-    .split('\0')
-    .filter((entry) => entry.length > 3)
-    .map((entry) => ({ code: entry.slice(0, 2), file: entry.slice(3) }))
-    .filter((entry) => protectedProjectName(entry.file));
+/** A wholly ignored folder that is a protected name or a `.claude` folder: opened, since git lists it as one entry. */
+const OPENED_FOLDER = /(^|\/)(\.claude|\.husky|\.githooks|\.briefstack)\/$/i;
+
+/**
+ * One porcelain `-z` listing of the protected paths (no renames: each path
+ * on its own), ignored ones included, file by file. In `matching` mode git
+ * lists a wholly ignored folder as one entry (review of M6, m2): `.husky/`,
+ * `.claude/hooks/` or a whole `.claude/` is listed again file by file.
+ * Other ignored folders (`node_modules/`) are not opened: Claude Code reads
+ * settings and `.mcp.json` from the project's own top, and a package's
+ * files would only crowd the list.
+ */
+async function protectedStatus(dir: string, config: readonly string[]): Promise<StatusEntry[]> {
+  const found: StatusEntry[] = [];
+  for (const entry of await statusEntries(dir, [...config, 'status', '--porcelain', '-z', '--no-renames', '--untracked-files=all', '--ignored=matching', '--', ...PROTECTED_PATHSPECS])) {
+    if (entry.code === '!!' && entry.file.endsWith('/')) {
+      if (!OPENED_FOLDER.test(entry.file)) continue;
+      const inside = await statusEntries(dir, ['--literal-pathspecs', ...config, 'status', '--porcelain', '-z', '--no-renames', '--untracked-files=all', '--ignored=traditional', '--', entry.file]);
+      found.push(...inside.filter((file) => file.code === '!!' && !file.file.endsWith('/')));
+    } else found.push(entry);
+  }
+  return found.filter((entry) => protectedProjectName(entry.file));
 }
 
 async function withNoHooks<T>(work: (config: readonly string[]) => Promise<T>): Promise<T> {
@@ -334,9 +348,10 @@ export async function snapshotProtectedFiles(dir: string): Promise<ProtectedSnap
 /**
  * Puts back the protected files changed since the workspace commit: a
  * tracked one from HEAD (its whole state at the commit), an untracked one
- * removed, an ignored one as the snapshot had it (written back, or removed
- * when it did not exist then), and one of the snapshot that went, written
- * back. Throws when any of it fails, so the step does not commit unseen.
+ * removed (unless the snapshot had it: then as an ignored one), an ignored
+ * one as the snapshot had it (written back, or removed when it did not
+ * exist then), and one of the snapshot that went, written back. Throws when
+ * any of it fails, so the step does not commit unseen.
  */
 export async function revertProtectedChanges(dir: string, snapshot: ProtectedSnapshot = new Map()): Promise<string[]> {
   return withNoHooks(async (config) => {
@@ -344,7 +359,8 @@ export async function revertProtectedChanges(dir: string, snapshot: ProtectedSna
     const seen = new Set<string>();
     for (const { code, file } of await protectedStatus(dir, config)) {
       seen.add(file);
-      if (code === '!!') {
+      // Ignored at the start and untracked now (its ignore line removed: review of M6, m3): as the snapshot had it.
+      if (code === '!!' || (code === '??' && snapshot.has(file))) {
         const before = snapshot.get(file);
         if (before === undefined) await removeInside(dir, file);
         else {
