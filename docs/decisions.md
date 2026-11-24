@@ -8002,7 +8002,7 @@ record, the brief's text or a local path):
   status": the first version written, `src/sum.js` by Codex, `node --test`
   passing 6 tests; left: run `npm --version` "not run: not an approved
   command", and `npm test` and the CLI examples by hand)
-- PASS "the implementer called briefstack's tools (run_command or
+- PASS "the implementer called briefstack’s tools (run_command or
   delegate_to_codex): 1 run(s), 0 refused, 1 Codex call(s)"
 - PASS "a listed command ran in the project: node --test → 0"
 - FAIL "a command off the list (npm --version) was denied: nothing
@@ -8028,12 +8028,15 @@ refused. Shown in real besides: the `implementer` subagent sees the
 in-process `briefstack-web` tools (H0, 5; one of the "not shown without a
 real session" items of `IDEAS.md` §10).
 
-**Not shown in real** (shown by unit, flow and e2e tests only):
-`run_command`'s refusal of a command off the list; Codex without its shell
-on macOS and Linux, and in Codex releases after 0.167.0 (the status check
-reads the tools again on each check, and a creation uses only the version
-checked); the usage gate and the bounds; a fix pass; the put-back of
-protected files and of definitions with hooks; the runner's rewrite of
-`guard.json` at `implement_start` and `implement_finish` (seen working
-only through the implementer's writes being allowed). Open in
-`IDEAS.md` §10.
+**Not shown in real**, among others (shown by unit, flow and e2e tests
+only): `run_command`'s refusal of a command off the list; Codex without
+its shell on macOS and Linux, and in Codex releases after 0.167.0 (the
+status check reads the tools again on each check, and a creation uses only
+the version checked); the usage gate refusing (it let the step start) and
+the bounds; a fix pass; the put-back of protected files and of definitions
+with hooks, `revertFailed` and `snapshotFailed`; the guard's refusals of
+the implementer's writes outside the project or in protected files, and of
+the hand-off's `briefstack commit`; the runner's rewrite of `guard.json`
+at `implement_finish` (the one at `implement_start` is shown only
+indirectly: the implementer's writes were allowed). Open in `IDEAS.md`
+§10.
