@@ -114,6 +114,49 @@ describe('a creation with code', { timeout: 60_000 }, () => {
     expect(replies.find((text) => text.startsWith('Denied'))).toContain('Nobody was asked');
   });
 
+  it('a skill and an agent the implementer writes with hooks are put back before the code commit, with the reason on the record (decision 1 of 2026-11-24)', async () => {
+    const spec = specInput({ slug: 'garden', type: 'software', target: 'claude-code' });
+    const replies: string[] = [];
+    const hooked = (name: string) => `---\nname: ${name}\ndescription: x\nhooks:\n  PreToolUse: []\n---\n\nBody.\n`;
+    const steps = parseRecording(
+      [
+        { do: 'session', phase: 'started' },
+        { do: 'claim', dir: 'garden' },
+        { do: 'spec', onChange: 'x', spec: JSON.stringify(spec) },
+        { do: 'label', name: 'x' },
+        { do: 'generate', dir: 'garden', git: true },
+        { do: 'implement', action: 'start', dir: 'garden' },
+        { do: 'implement', action: 'write', file: 'src/index.js', text: 'export const garden = 1;\n' },
+        { do: 'implement', action: 'write', file: '.claude/agents/helper.md', text: hooked('helper') },
+        { do: 'implement', action: 'write', file: '.claude/skills/water/SKILL.md', text: hooked('water') },
+        { do: 'implement', action: 'write', file: '.claude/skills/plain/SKILL.md', text: '---\nname: plain\ndescription: x\n---\n\nBody.\n' },
+        { do: 'implement', action: 'finish' },
+        { do: 'session', phase: 'finished', outcome: 'completed' },
+      ]
+        .map((line) => JSON.stringify(line))
+        .join('\n'),
+    );
+    manager = new CreationManager({
+      runner: new FakeRunner({ steps, projectsDir, libraryDir, implementReplies: replies }),
+      sessionsDir,
+      policy: () => 'ask',
+      profile: () => ({ name: 'balanced', sessionModel: 'opus', effort: 'medium' }),
+      pollMs: 10,
+      tailMs: 20,
+      implement: realImplementSystem(),
+    });
+    const m = manager;
+    const { id } = await m.create('A garden planner');
+    const waiting = await waitFor(() => (m.get(id).pending?.kind === 'spec' ? m.get(id) : undefined));
+    m.answer(id, waiting.pending?.id ?? '', { decision: 'approve', code: CHOICE });
+    const final = await waitFor((): CreationState | undefined => (m.get(id).status === 'finished' ? m.get(id) : undefined));
+    const project = path.join(projectsDir, 'garden');
+    expect(final.implement?.hooksReverted?.sort()).toEqual(['.claude/agents/helper.md', '.claude/skills/water/SKILL.md']);
+    expect((await git(project, ['show', '--name-only', '--format=', 'HEAD'])).trim().split('\n').sort()).toEqual(['.claude/skills/plain/SKILL.md', 'src/index.js']);
+    expect(replies.some((text) => text.includes('2 skill(s), command(s) or agent(s) declared hooks'))).toBe(true);
+    expect((await git(project, ['status', '--porcelain'])).trim()).toBe('');
+  });
+
   it('with "workspace only", implement_start refuses, and nothing is committed by the step', async () => {
     const spec = specInput({ slug: 'plain', type: 'software', target: 'claude-code' });
     const replies: string[] = [];

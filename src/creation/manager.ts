@@ -665,6 +665,7 @@ export class CreationManager {
         checks: (dir, commands, signal) => system.checks(dir, commands, signal),
         currentStatus: (dir) => system.currentStatus(dir),
         revertProtected: (dir, snapshot) => system.revertProtected(dir, snapshot),
+        revertHooks: (dir, snapshot) => system.revertHookDefinitions(dir, snapshot),
         snapshotProtected: (dir) => system.snapshotProtected(dir),
         bounds: async () => (await this.options.implementBounds?.().catch(() => undefined)) ?? { maxMinutes: DEFAULT_IMPLEMENT_MINUTES, maxToolCalls: DEFAULT_IMPLEMENT_TOOL_CALLS },
         ...(this.options.implementUsage === undefined ? {} : { usage: this.options.implementUsage }),

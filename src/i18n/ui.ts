@@ -1318,9 +1318,11 @@ export const uiMessages = defineCatalogue({
     implementLimit: (limit: 'time' | 'toolCalls') => (limit === 'time' ? 'The implementer stopped at the time limit.' : 'The implementer stopped at its limit of tool calls.'),
     implementCodexUnavailable: 'You ticked Codex, but it was not available when the step started, so it was not used.',
     implementProtectedReverted: (files: string) => `These files are briefstack’s or Claude Code’s settings and hooks; the changes made to them were put back as the workspace had them: ${files}.`,
+    implementHooksReverted: (files: string) =>
+      `These skills, commands or agents declared hooks in their frontmatter (hooks:), which would run as you once Claude Code loads them. A creation never adds hooks, so they were put back as the workspace had them (removed when new): ${files}.`,
     implementCommitWarning: (code: string): string =>
       `A commit was not made: ${({ gitUnavailable: 'git was not found', notAGitRepo: 'the folder is not a git repository', notABriefstackProject: 'the folder is no longer a briefstack project', gitFailed: 'git failed (for example, commit signing)', commitFailed: 'git failed' } as Record<string, string>)[code] ?? 'git failed'}. What was written stays in the folder.`,
-    implementRevertFailed: 'Protected files (briefstack’s, Claude Code’s settings or hooks) were changed and could not be put back, so the code was not committed. Read the folder before you open it with Claude Code.',
+    implementRevertFailed: 'Protected files (briefstack’s, Claude Code’s settings or hooks, or a skill or agent that declares hooks) were changed and could not be put back, so the code was not committed. Read the folder before you open it with Claude Code.',
     implementWorkspaceCommit: 'Workspace commit',
     implementCodeCommit: 'Code commit',
     implementBounds: 'Limits',
@@ -2663,9 +2665,11 @@ export const uiMessages = defineCatalogue({
     implementLimit: (limit: 'time' | 'toolCalls') => (limit === 'time' ? 'El implementador paró en el límite de tiempo.' : 'El implementador paró en su límite de llamadas a herramientas.'),
     implementCodexUnavailable: 'Marcaste Codex, pero no estaba disponible cuando empezó el paso, así que no se usó.',
     implementProtectedReverted: (files: string) => `Estos ficheros son de briefstack o ajustes y hooks de Claude Code; los cambios que se les hicieron se devolvieron a como los tenía el espacio de trabajo: ${files}.`,
+    implementHooksReverted: (files: string) =>
+      `Estas skills, comandos o agentes declaraban hooks en su frontmatter (hooks:), que se ejecutarían como tú en cuanto Claude Code los cargue. Una creación nunca añade hooks, así que se devolvieron a como los tenía el espacio de trabajo (se quitaron si eran nuevos): ${files}.`,
     implementCommitWarning: (code: string): string =>
       `No se hizo un commit: ${({ gitUnavailable: 'no se encontró git', notAGitRepo: 'la carpeta no es un repositorio git', notABriefstackProject: 'la carpeta ya no es un proyecto de briefstack', gitFailed: 'git falló (por ejemplo, al firmar el commit)', commitFailed: 'git falló' } as Record<string, string>)[code] ?? 'git falló'}. Lo escrito sigue en la carpeta.`,
-    implementRevertFailed: 'Se cambiaron ficheros protegidos (de briefstack, o ajustes y hooks de Claude Code) y no se pudieron devolver, así que no se hizo commit del código. Revisa la carpeta antes de abrirla con Claude Code.',
+    implementRevertFailed: 'Se cambiaron ficheros protegidos (de briefstack, ajustes y hooks de Claude Code, o una skill o un agente que declara hooks) y no se pudieron devolver, así que no se hizo commit del código. Revisa la carpeta antes de abrirla con Claude Code.',
     implementWorkspaceCommit: 'Commit del espacio de trabajo',
     implementCodeCommit: 'Commit del código',
     implementBounds: 'Límites',

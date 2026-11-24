@@ -200,7 +200,9 @@ function codexRecording(): string {
     { do: 'generate', dir: 'garden', git: true },
     { do: 'flow', step: 'implement', phase: 'started' },
     { do: 'implement', action: 'start', dir: 'garden' },
-    { do: 'implement', action: 'codex', text: 'Write codex-note.txt.' },
+    { do: 'implement', action: 'codex', text: 'Write codex-note.txt. [fake:hooks]' },
+    // Decision 1 of 2026-11-24: a skill with hooks from the implementer and an agent with hooks from Codex both go back.
+    { do: 'implement', action: 'write', file: '.claude/skills/water/SKILL.md', text: '---\nname: water\ndescription: x\nhooks:\n  Stop: []\n---\n\nBody.\n' },
     { do: 'implement', action: 'finish' },
     { do: 'flow', step: 'implement', phase: 'finished', outcome: 'ok' },
     { do: 'session', phase: 'finished', outcome: 'completed' },
@@ -240,6 +242,11 @@ test.describe('a creation with code and Codex (M4)', () => {
     const shown = page.getByTestId('implement');
     await expect(shown.getByTestId('implement-codex-call')).toHaveCount(1);
     await expect(shown.getByTestId('implement-codex-tokens')).toContainText('tokens');
+    // Decision 1 of 2026-11-24: the skill and the agent with hooks were put back, and the screen says why.
+    await expect(shown.getByTestId('implement-hooks')).toContainText('declared hooks in their frontmatter');
+    await expect(shown.getByTestId('implement-hooks')).toContainText('.claude/agents/codex-agent.md');
+    await expect(shown.getByTestId('implement-hooks')).toContainText('.claude/skills/water/SKILL.md');
+    await expect(readFile(path.join(app.projectsDir, 'garden', '.claude', 'agents', 'codex-agent.md'), 'utf8')).rejects.toThrow();
   });
 });
 

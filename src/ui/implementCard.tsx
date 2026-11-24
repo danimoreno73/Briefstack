@@ -69,6 +69,11 @@ export function ImplementCard({ state }: { state: CreationState }) {
           {t.implementProtectedReverted((step.protectedReverted ?? []).join(', '))}
         </Note>
       )}
+      {(step.hooksReverted ?? []).length > 0 && (
+        <Note tone="danger" testId="implement-hooks">
+          {t.implementHooksReverted((step.hooksReverted ?? []).join(', '))}
+        </Note>
+      )}
       {step.commitWarning !== undefined && <Note tone="warn">{t.implementCommitWarning(step.commitWarning)}</Note>}
 
       <dl class="kv" data-testid="implement-facts">

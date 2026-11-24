@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { noRepoCodeArgs } from '../scaffold/commit.js';
@@ -11,6 +11,7 @@ import { git } from '../library/git.js';
 import { hideAbsolutePaths } from '../panel/project.js';
 import { commitProject } from '../scaffold/commit.js';
 import { realpathNearest } from '../scaffold/outputDir.js';
+import { declaresHooks, isDefinitionFile } from '../tasks/guard.js';
 import type { CheckResult } from '../tasks/types.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import type { CommandRun, CommitOutcome } from './implement.js';
@@ -40,9 +41,16 @@ export interface ImplementSystem {
    */
   revertProtected(dir: string, snapshot: ProtectedSnapshot): Promise<string[]>;
   /**
-   * The protected files git ignores, as they are when the step starts
-   * (review of M5, B1: `.claude/settings.local.json` is ignored in every
-   * generated project, and a commit never shows them).
+   * Puts back, as the workspace had them, the skills, commands and agents
+   * changed since the workspace commit whose frontmatter declares hooks
+   * (`declaresHooks`, as a task refuses them: the user's decision of
+   * 2026-11-24), whoever wrote them. Returns their paths.
+   */
+  revertHookDefinitions(dir: string, snapshot: ProtectedSnapshot): Promise<string[]>;
+  /**
+   * The protected files and the definitions git ignores, as they are when
+   * the step starts (review of M5, B1: `.claude/settings.local.json` is
+   * ignored in every generated project, and a commit never shows them).
    */
   snapshotProtected(dir: string): Promise<ProtectedSnapshot>;
 }
@@ -59,6 +67,46 @@ const PROTECTED_PATHSPECS = [
   ':(glob,icase)**/.husky/**',
   ':(glob,icase)**/.githooks/**',
 ];
+
+/** Where Claude Code reads skills, commands and agents, at any depth (`isDefinitionFile`). */
+const DEFINITION_PATHSPECS = [':(glob,icase)**/.claude/skills/**', ':(glob,icase)**/.claude/commands/**', ':(glob,icase)**/.claude/agents/**'];
+
+/** A definition on every system as on Windows, where `.Claude/Agents/x.MD` is one. */
+const isDefinition = (file: string): boolean => isDefinitionFile(file, { ...systemPathEnv(), caseInsensitive: true });
+
+interface StatusEntry {
+  code: string;
+  file: string;
+}
+
+/** One porcelain `-z` listing (no renames: each path on its own). */
+async function statusEntries(dir: string, args: readonly string[]): Promise<StatusEntry[]> {
+  return (await git(dir, [...args]))
+    .split('\0')
+    .filter((entry) => entry.length > 3)
+    .map((entry) => ({ code: entry.slice(0, 2), file: entry.slice(3) }));
+}
+
+/** Ignored folders that may hold protected names or definitions: git lists them whole, so they are opened. */
+const OPENED_FOLDER = /(^|\/)(\.claude|\.husky|\.githooks|\.briefstack)(\/|$)/i;
+
+/**
+ * The changed paths under `pathspecs`, ignored ones included, kept by
+ * `keep`. In `matching` mode git lists a wholly ignored folder as one entry
+ * (`.claude/agents/`); one that may hold what `keep` looks for is listed
+ * again file by file. Other ignored folders (`node_modules/`) are not opened.
+ */
+async function changedEntries(dir: string, config: readonly string[], pathspecs: readonly string[], keep: (file: string) => boolean): Promise<StatusEntry[]> {
+  const found: StatusEntry[] = [];
+  for (const entry of await statusEntries(dir, [...config, 'status', '--porcelain', '-z', '--no-renames', '--untracked-files=all', '--ignored=matching', '--', ...pathspecs])) {
+    if (entry.code === '!!' && entry.file.endsWith('/')) {
+      if (!OPENED_FOLDER.test(entry.file)) continue;
+      const inside = await statusEntries(dir, ['--literal-pathspecs', ...config, 'status', '--porcelain', '-z', '--no-renames', '--untracked-files=all', '--ignored=traditional', '--', entry.file]);
+      found.push(...inside.filter((file) => file.code === '!!' && !file.file.endsWith('/')));
+    } else found.push(entry);
+  }
+  return found.filter((entry) => keep(entry.file));
+}
 
 /** One porcelain `-z` listing of the protected paths (no renames: each path on its own), ignored ones included. */
 async function protectedStatus(dir: string, config: readonly string[]): Promise<{ code: string; file: string }[]> {
@@ -267,7 +315,8 @@ export function runCommandLine(dir: string, command: string, options: { signal: 
 export async function snapshotProtectedFiles(dir: string): Promise<ProtectedSnapshot> {
   return withNoHooks(async (config) => {
     const snapshot = new Map<string, Buffer>();
-    for (const entry of await protectedStatus(dir, config)) {
+    const ignoredDefinitions = await changedEntries(dir, config, DEFINITION_PATHSPECS, isDefinition);
+    for (const entry of [...(await protectedStatus(dir, config)), ...ignoredDefinitions]) {
       if (entry.code !== '!!') continue;
       try {
         snapshot.set(entry.file, await readFile(path.join(dir, entry.file)));
@@ -306,11 +355,44 @@ export async function revertProtectedChanges(dir: string, snapshot: ProtectedSna
       reverted.add(file);
     }
     for (const [file, bytes] of snapshot) {
-      if (seen.has(file)) continue;
+      // The snapshot keeps ignored definitions too: those are `revertHookDefinitions`' own.
+      if (seen.has(file) || !protectedProjectName(file)) continue;
       await writeInside(dir, file, bytes);
       reverted.add(file);
     }
     return [...reverted];
+  });
+}
+
+/**
+ * Puts back the skills, commands and agents changed since the workspace
+ * commit whose frontmatter declares hooks, or that cannot be read well
+ * enough to tell (`declaresHooks`, the tasks' own test; a link is not read
+ * through): a tracked one from HEAD, an untracked one removed, an ignored
+ * one as the snapshot had it (removed when it did not exist then). A
+ * definition without hooks, or one deleted, stays as it is. Throws when any
+ * of it fails, so the step does not commit unseen.
+ */
+export async function revertHookDefinitions(dir: string, snapshot: ProtectedSnapshot = new Map()): Promise<string[]> {
+  return withNoHooks(async (config) => {
+    const reverted: string[] = [];
+    for (const { code, file } of await changedEntries(dir, config, DEFINITION_PATHSPECS, isDefinition)) {
+      const target = path.join(dir, file);
+      const info = await lstat(target).catch(() => undefined);
+      // Deleted (nothing loads it) or a folder (its files are listed on their own).
+      if (info === undefined || info.isDirectory()) continue;
+      if (!info.isSymbolicLink() && !declaresHooks(await readFile(target, 'utf8'))) continue;
+      const before = code === '??' || code === '!!' ? snapshot.get(file) : undefined;
+      if (before !== undefined) {
+        // There before the step: as it was then, and left alone when unchanged.
+        if (!info.isSymbolicLink() && (await readFile(target)).equals(before)) continue;
+        await writeInside(dir, file, before);
+      } else if (code === '??' || code === '!!') await removeInside(dir, file);
+      // A name git reported, read as it is, never as a pattern (review of M5, m4).
+      else await git(dir, ['--literal-pathspecs', ...config, 'checkout', 'HEAD', '--', file]).catch(async () => removeInside(dir, file));
+      reverted.push(file);
+    }
+    return reverted;
   });
 }
 
@@ -354,6 +436,7 @@ export function realImplementSystem(): ImplementSystem {
       return results;
     },
     revertProtected: (dir, snapshot) => revertProtectedChanges(dir, snapshot),
+    revertHookDefinitions: (dir, snapshot) => revertHookDefinitions(dir, snapshot),
     snapshotProtected: (dir) => snapshotProtectedFiles(dir),
     currentStatus: async (dir) => {
       try {

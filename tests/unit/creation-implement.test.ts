@@ -403,6 +403,36 @@ describe('the implement step: overlaps, ends and limits (reviews of M2 and M3)',
     expect(backs).toEqual(['interrupted']);
   });
 
+  it('skills and agents with hooks go back with the protected files, before the checks and the commit; a failure means no code commit (decision 1 of 2026-11-24)', async () => {
+    const w = world();
+    const deps = (w.step as unknown as { deps: ImplementDeps }).deps;
+    const order: string[] = [];
+    deps.revertProtected = async () => {
+      order.push(`protected:${w.step.view().state}`);
+      return [];
+    };
+    deps.revertHooks = async (_dir, snapshot) => {
+      order.push(`hooks:${w.step.view().state}:${snapshot.size}`);
+      return order.length === 2 ? ['.claude/agents/helper.md', '.claude/skills/plan/SKILL.md'] : [];
+    };
+    deps.snapshotProtected = async () => new Map([['.claude/agents/local/mine.md', Buffer.from('x')]]);
+    await w.step.start('P');
+    const done = await w.step.finish();
+    expect(order).toEqual(['protected:checking', 'hooks:checking:1', 'protected:finishing', 'hooks:finishing:1']);
+    expect(done.text).toContain('2 skill(s), command(s) or agent(s) declared hooks');
+    expect(w.step.view()).toMatchObject({ state: 'done', hooksReverted: ['.claude/agents/helper.md', '.claude/skills/plan/SKILL.md'], codeCommit: 'c2' });
+    expect(w.step.view().protectedReverted).toBeUndefined();
+    const failing = world();
+    (failing.step as unknown as { deps: ImplementDeps }).deps.revertHooks = async () => {
+      throw new Error('git failed');
+    };
+    await failing.step.start('P');
+    expect((await failing.step.finish()).text).toContain('a skill or agent that declares hooks');
+    expect(failing.step.view()).toMatchObject({ state: 'done', revertFailed: true });
+    expect(failing.commits).toHaveLength(1);
+    expect(failing.step.handoffCommitRefusal).toContain('could not be put back');
+  });
+
   it('a start refused for usage is final: a retry reads nothing again', async () => {
     let readings = 0;
     const w = world();

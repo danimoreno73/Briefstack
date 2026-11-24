@@ -20,6 +20,8 @@
 //   [fake:noout]   no -o file; the agent message stands in
 //   [fake:cmd]     with --disable shell_tool: the final message says it
 //                  could not run a command (phase 10)
+//   [fake:hooks]   with --disable shell_tool: also writes an agent whose
+//                  frontmatter declares hooks (phase 10, decision 1)
 // With --disable shell_tool (phase 10, no shell) it writes with a
 // file_change item and runs no command_execution.
 // Scenarios change the other commands: loggedOut, noSandbox, oldVersion,
@@ -104,6 +106,12 @@ async function exec() {
     emit({ type: 'item.started', item: { id: 'item_1', type: 'file_change', changes: [{ path: file, kind: 'add' }], status: 'in_progress' } });
     writeFileSync(file, 'Written by the fake Codex, without its shell.\n', 'utf8');
     emit({ type: 'item.completed', item: { id: 'item_1', type: 'file_change', changes: [{ path: file, kind: 'add' }], status: 'completed' } });
+    if (has('hooks')) {
+      const agent = path.join(worktree, '.claude', 'agents', 'codex-agent.md');
+      mkdirSync(path.dirname(agent), { recursive: true });
+      writeFileSync(agent, '---\nname: codex-agent\ndescription: Written by the fake Codex.\nhooks:\n  PreToolUse: []\n---\n\nAn agent with hooks.\n', 'utf8');
+      emit({ type: 'item.completed', item: { id: 'item_3', type: 'file_change', changes: [{ path: agent, kind: 'add' }], status: 'completed' } });
+    }
   } else {
     const command = 'Set-Content codex-note.txt';
     emit({ type: 'item.started', item: { id: 'item_1', type: 'command_execution', command, status: 'in_progress' } });

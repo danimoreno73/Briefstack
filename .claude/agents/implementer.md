@@ -19,6 +19,8 @@ Rules:
 - **Inside the project folder only.** Write and edit files with Write and Edit,
   absolute paths, inside the project folder. Never touch `.git`, `.briefstack/`
   or `.claude/settings*.json`. Read what you need with Read, Glob and Grep.
+  Never write `hooks:` in the frontmatter of a skill, command or agent:
+  briefstack puts such a file back before the code commit.
 - **No shell.** You have no Bash or PowerShell: your shell would run in
   briefstack's own folder, not the project. Run a command only with
   `run_command`, written exactly as it appears in the list (a chain of `&&`

@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkEnvironment, cleanCommandOutput, commandEnv, currentStatusOf, realImplementSystem, revertProtectedChanges, runCommandLine, snapshotProtectedFiles } from '../../src/creation/implementSystem.js';
+import { checkEnvironment, cleanCommandOutput, commandEnv, currentStatusOf, realImplementSystem, revertHookDefinitions, revertProtectedChanges, runCommandLine, snapshotProtectedFiles } from '../../src/creation/implementSystem.js';
 import { approvedParts, MAX_KEPT_ENTRIES } from '../../src/creation/implement.js';
 import { tempDir } from '../helpers.js';
 
@@ -204,6 +204,47 @@ describe('the folder checks', () => {
     await symlink(outside, path.join(project, '.claude'), 'junction');
     await revertProtectedChanges(project, snapshot).catch(() => undefined);
     expect(await readFile(target, 'utf8')).toBe('theirs\n');
+  });
+
+  it('skills, commands and agents that declare hooks go back as the workspace had them; others stay (decision 1 of 2026-11-24)', async () => {
+    const run = (args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    const hooked = (name: string) => `---\nname: ${name}\ndescription: x\nhooks:\n  PreToolUse: []\n---\n\nBody.\n`;
+    const plain = (name: string) => `---\nname: ${name}\ndescription: x\n---\n\nBody.\n`;
+    const put = async (file: string, text: string) => {
+      await mkdir(path.dirname(path.join(dir, file)), { recursive: true });
+      await writeFile(path.join(dir, file), text, 'utf8');
+    };
+    // The workspace: a tracked skill, an ignored folder of agents with one already there (hooks and all: not the step's).
+    await put('.gitignore', '.claude/agents/local/\n');
+    await put('.claude/skills/plan/SKILL.md', plain('plan'));
+    await put('.claude/agents/local/mine.md', hooked('mine'));
+    run(['init', '-q']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'add', '-A']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'workspace']);
+    const snapshot = await snapshotProtectedFiles(dir);
+    expect([...snapshot.keys()]).toEqual(['.claude/agents/local/mine.md']);
+    // The step: hooks added to the tracked skill, a new agent and a new command with hooks, one in the ignored folder,
+    // a frontmatter that cannot be read, a new skill without hooks, and the code.
+    await put('.claude/skills/plan/SKILL.md', hooked('plan'));
+    await put('.claude/agents/helper.md', hooked('helper'));
+    await put('sub/.Claude/Commands/go.md', hooked('go'));
+    await put('.claude/agents/local/new.md', hooked('new'));
+    await put('.claude/agents/broken.md', '---\nname: [unclosed\n---\n');
+    await put('.claude/skills/fine/SKILL.md', plain('fine'));
+    await put('src/a.js', 'ok\n');
+    const reverted = await revertHookDefinitions(dir, snapshot);
+    expect(reverted.sort()).toEqual(['.claude/agents/broken.md', '.claude/agents/helper.md', '.claude/agents/local/new.md', '.claude/skills/plan/SKILL.md', 'sub/.Claude/Commands/go.md']);
+    expect((await readFile(path.join(dir, '.claude', 'skills', 'plan', 'SKILL.md'), 'utf8')).replaceAll('\r\n', '\n')).toBe(plain('plan'));
+    for (const gone of ['.claude/agents/helper.md', 'sub/.Claude/Commands/go.md', '.claude/agents/local/new.md', '.claude/agents/broken.md']) await expect(stat(path.join(dir, gone)), gone).rejects.toThrow();
+    expect(await readFile(path.join(dir, '.claude', 'agents', 'local', 'mine.md'), 'utf8')).toBe(hooked('mine'));
+    expect(await readFile(path.join(dir, '.claude', 'skills', 'fine', 'SKILL.md'), 'utf8')).toBe(plain('fine'));
+    expect(await readFile(path.join(dir, 'src', 'a.js'), 'utf8')).toBe('ok\n');
+    // The ignored one that was there, changed: written back as it was; the protected put-back never writes it.
+    await put('.claude/agents/local/mine.md', hooked('changed'));
+    expect(await revertProtectedChanges(dir, snapshot)).toEqual([]);
+    expect(await revertHookDefinitions(dir, snapshot)).toEqual(['.claude/agents/local/mine.md']);
+    expect(await readFile(path.join(dir, '.claude', 'agents', 'local', 'mine.md'), 'utf8')).toBe(hooked('mine'));
+    expect(await revertHookDefinitions(dir, snapshot)).toEqual([]);
   });
 
   it('a commit in a folder that is no longer a project is a warning, not an error', async () => {

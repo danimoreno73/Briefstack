@@ -95,6 +95,8 @@ export interface ImplementView {
   status?: string;
   /** Protected files someone changed, put back as the workspace commit had them (review of M4, I1). */
   protectedReverted?: string[];
+  /** Skills, commands or agents someone wrote with `hooks:` in their frontmatter, put back (the user's decision of 2026-11-24). */
+  hooksReverted?: string[];
   /** Putting protected files back failed, so the code was not committed (review of M5, I3). */
   revertFailed?: true;
   startedAt?: string;
@@ -135,6 +137,8 @@ export interface ImplementDeps {
   codex?(dir: string, record: (call: TaskCodexCall) => void): Promise<CodexPort | undefined>;
   /** Puts back protected files changed since the workspace commit (review of M4, I1); returns their paths. */
   revertProtected?(dir: string, snapshot: ReadonlyMap<string, Buffer>): Promise<string[]>;
+  /** Puts back skills, commands and agents changed since the workspace commit that declare hooks; returns their paths. */
+  revertHooks?(dir: string, snapshot: ReadonlyMap<string, Buffer>): Promise<string[]>;
   /** The protected files git ignores, as they are when the step starts (review of M5, B1). */
   snapshotProtected?(dir: string): Promise<ReadonlyMap<string, Buffer>>;
   /** The brief's "Current status", read when the step ends (M5); without it none is shown. */
@@ -300,11 +304,16 @@ export class ImplementStep {
   }
 
   private async putBackNow(dir: string): Promise<boolean> {
-    if (this.deps.revertProtected === undefined) return true;
     try {
-      const reverted = await this.deps.revertProtected(dir, this.snapshot);
+      const reverted = (await this.deps.revertProtected?.(dir, this.snapshot)) ?? [];
       if (reverted.length > 0) {
         this.record.protectedReverted = [...new Set([...(this.record.protectedReverted ?? []), ...reverted])].slice(0, MAX_KEPT_ENTRIES);
+        this.changed();
+      }
+      // A creation never adds hooks in a skill's or an agent's frontmatter either, whoever wrote it (implementer or Codex).
+      const hooks = (await this.deps.revertHooks?.(dir, this.snapshot)) ?? [];
+      if (hooks.length > 0) {
+        this.record.hooksReverted = [...new Set([...(this.record.hooksReverted ?? []), ...hooks])].slice(0, MAX_KEPT_ENTRIES);
         this.changed();
       }
       return true;
@@ -321,7 +330,7 @@ export class ImplementStep {
     this.record = { ...this.record, state: this.record.state === 'interrupted' ? 'interrupted' : 'done', finishedAt: this.now(), revertFailed: true };
     this.changed();
     return {
-      text: 'Protected files (briefstack\'s, Claude Code\'s settings or hooks) were changed and could not be put back, so the code was not committed; it stays in the folder. Tell the user clearly in one line, finish the implement step as ok, do not run the hand-off commit (it is refused), and go on to learn.',
+      text: 'Protected files (briefstack\'s, Claude Code\'s settings or hooks, or a skill or agent that declares hooks) were changed and could not be put back, so the code was not committed; it stays in the folder. Tell the user clearly in one line, finish the implement step as ok, do not run the hand-off commit (it is refused), and go on to learn.',
       isError: false,
     };
   }
@@ -612,6 +621,10 @@ export class ImplementStep {
     const putBack = this.record.protectedReverted ?? [];
     // The names are the implementer's data (review of M5, m9): counted and shown on the result screen, not quoted here.
     if (putBack.length > 0) lines.push(`Changes to ${putBack.length} protected file(s) (briefstack's files, Claude Code's settings or hooks) were put back; the result screen lists them. Tell the user in one line.`);
+    const hooks = this.record.hooksReverted ?? [];
+    if (hooks.length > 0) {
+      lines.push(`${hooks.length} skill(s), command(s) or agent(s) declared hooks in their frontmatter (hooks:), which a creation never adds, so they were put back as the workspace had them (removed when new); the result screen lists them. Tell the user in one line.`);
+    }
     lines.push('Finish the implement step as ok and go on to learn. At the hand-off, say in one line what the first version does and what is left (the brief\'s "Current status").');
     return { text: lines.join('\n'), isError: false };
   }
