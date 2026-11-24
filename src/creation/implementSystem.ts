@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { noRepoCodeArgs } from '../scaffold/commit.js';
@@ -87,25 +87,16 @@ async function statusEntries(dir: string, args: readonly string[]): Promise<Stat
     .map((entry) => ({ code: entry.slice(0, 2), file: entry.slice(3) }));
 }
 
-/** Ignored folders that may hold protected names or definitions: git lists them whole, so they are opened. */
-const OPENED_FOLDER = /(^|\/)(\.claude|\.husky|\.githooks|\.briefstack)(\/|$)/i;
-
 /**
- * The changed paths under `pathspecs`, ignored ones included, kept by
- * `keep`. In `matching` mode git lists a wholly ignored folder as one entry
- * (`.claude/agents/`); one that may hold what `keep` looks for is listed
- * again file by file. Other ignored folders (`node_modules/`) are not opened.
+ * The changed paths under `pathspecs`, ignored ones included, file by file,
+ * kept by `keep`. `traditional` with every untracked file lists each
+ * ignored file under any ignored folder (`sub/`, `node_modules/`), where
+ * `matching` lists a wholly ignored folder as one entry (review of part A,
+ * I1); git still lists a nested repository as one folder.
  */
 async function changedEntries(dir: string, config: readonly string[], pathspecs: readonly string[], keep: (file: string) => boolean): Promise<StatusEntry[]> {
-  const found: StatusEntry[] = [];
-  for (const entry of await statusEntries(dir, [...config, 'status', '--porcelain', '-z', '--no-renames', '--untracked-files=all', '--ignored=matching', '--', ...pathspecs])) {
-    if (entry.code === '!!' && entry.file.endsWith('/')) {
-      if (!OPENED_FOLDER.test(entry.file)) continue;
-      const inside = await statusEntries(dir, ['--literal-pathspecs', ...config, 'status', '--porcelain', '-z', '--no-renames', '--untracked-files=all', '--ignored=traditional', '--', entry.file]);
-      found.push(...inside.filter((file) => file.code === '!!' && !file.file.endsWith('/')));
-    } else found.push(entry);
-  }
-  return found.filter((entry) => keep(entry.file));
+  const entries = await statusEntries(dir, [...config, 'status', '--porcelain', '-z', '--no-renames', '--untracked-files=all', '--ignored=traditional', '--', ...pathspecs]);
+  return entries.filter((entry) => keep(entry.file));
 }
 
 /** One porcelain `-z` listing of the protected paths (no renames: each path on its own), ignored ones included. */
@@ -149,6 +140,18 @@ async function removeInside(dir: string, file: string): Promise<void> {
   const [real, root] = await Promise.all([realpathNearest(target), realpathNearest(dir)]);
   if (!isPathInside(real, root, pathEnv) || real === root) throw new Error(`not inside the project: ${file}`);
   await rm(target, { force: true, recursive: true });
+}
+
+/**
+ * Removes a link itself, never what it points to (review of part A, I2):
+ * only its folder must really be inside the project.
+ */
+async function removeLinkInside(dir: string, file: string): Promise<void> {
+  const target = path.join(dir, file);
+  const pathEnv = systemPathEnv();
+  const [parent, root] = await Promise.all([realpathNearest(path.dirname(target)), realpathNearest(dir)]);
+  if (!isPathInside(parent, root, pathEnv)) throw new Error(`not inside the project: ${file}`);
+  await unlink(target);
 }
 
 /** The most of the brief's "Current status" the record keeps. */
@@ -387,9 +390,13 @@ export async function revertHookDefinitions(dir: string, snapshot: ProtectedSnap
         // There before the step: as it was then, and left alone when unchanged.
         if (!info.isSymbolicLink() && (await readFile(target)).equals(before)) continue;
         await writeInside(dir, file, before);
-      } else if (code === '??' || code === '!!') await removeInside(dir, file);
+      } else if (code === '??' || code === '!!') {
+        // A link goes itself, wherever it points (review of part A, I2).
+        if (info.isSymbolicLink()) await removeLinkInside(dir, file);
+        else await removeInside(dir, file);
+      }
       // A name git reported, read as it is, never as a pattern (review of M5, m4).
-      else await git(dir, ['--literal-pathspecs', ...config, 'checkout', 'HEAD', '--', file]).catch(async () => removeInside(dir, file));
+      else await git(dir, ['--literal-pathspecs', ...config, 'checkout', 'HEAD', '--', file]).catch(async () => (info.isSymbolicLink() ? removeLinkInside(dir, file) : removeInside(dir, file)));
       reverted.push(file);
     }
     return reverted;

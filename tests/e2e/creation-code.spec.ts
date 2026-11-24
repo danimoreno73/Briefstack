@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { updateConfig } from '../../src/config/index.js';
@@ -246,7 +247,13 @@ test.describe('a creation with code and Codex (M4)', () => {
     await expect(shown.getByTestId('implement-hooks')).toContainText('declared hooks in their frontmatter');
     await expect(shown.getByTestId('implement-hooks')).toContainText('.claude/agents/codex-agent.md');
     await expect(shown.getByTestId('implement-hooks')).toContainText('.claude/skills/water/SKILL.md');
-    await expect(readFile(path.join(app.projectsDir, 'garden', '.claude', 'agents', 'codex-agent.md'), 'utf8')).rejects.toThrow();
+    await expect(shown.getByTestId('implement-hooks')).toContainText('.claude/skills/codex-skill/SKILL.md');
+    const garden = path.join(app.projectsDir, 'garden');
+    for (const gone of [['.claude', 'agents', 'codex-agent.md'], ['.claude', 'skills', 'codex-skill', 'SKILL.md'], ['.claude', 'skills', 'water', 'SKILL.md']]) {
+      await expect(readFile(path.join(garden, ...gone), 'utf8')).rejects.toThrow();
+    }
+    const codeCommit = execFileSync('git', ['show', '--name-only', '--format=', implement?.codeCommit ?? 'HEAD'], { cwd: garden, encoding: 'utf8' });
+    expect(codeCommit.trim().split('\n')).toEqual(['codex-note.txt']);
   });
 });
 

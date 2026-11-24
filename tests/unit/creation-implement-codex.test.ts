@@ -118,11 +118,12 @@ describe('Codex without its shell in a creation', { timeout: 60_000 }, () => {
   it('an agent Codex writes with hooks is put back before the code commit, with the reason on the record (decision 1 of 2026-11-24)', async () => {
     const { final, replies } = await run(CHOICE, { command: fakeCodex(log), maxCalls: 2, ...(process.platform === 'win32' ? { mode: 'unelevated' as const } : {}) }, ['Write codex-note.txt. [fake:hooks]']);
     expect(final.implement?.codex[0]).toMatchObject({ outcome: 'completed', commands: 0 });
-    expect(final.implement?.hooksReverted).toEqual(['.claude/agents/codex-agent.md']);
+    expect(final.implement?.hooksReverted?.sort()).toEqual(['.claude/agents/codex-agent.md', '.claude/skills/codex-skill/SKILL.md']);
     const project = path.join(projectsDir, 'garden');
     await expect(readFile(path.join(project, '.claude', 'agents', 'codex-agent.md'), 'utf8')).rejects.toThrow();
+    await expect(readFile(path.join(project, '.claude', 'skills', 'codex-skill', 'SKILL.md'), 'utf8')).rejects.toThrow();
     expect((await git(project, ['show', '--name-only', '--format=', 'HEAD'])).trim().split('\n')).toEqual(['codex-note.txt']);
-    expect(replies.some((text) => text.includes('1 skill(s), command(s) or agent(s) declared hooks'))).toBe(true);
+    expect(replies.some((text) => text.includes('2 skill(s), command(s) or agent(s) declared hooks'))).toBe(true);
   });
 
   it('caps the calls for the whole step', async () => {

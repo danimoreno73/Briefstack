@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkEnvironment, cleanCommandOutput, commandEnv, currentStatusOf, realImplementSystem, revertHookDefinitions, revertProtectedChanges, runCommandLine, snapshotProtectedFiles } from '../../src/creation/implementSystem.js';
@@ -215,8 +215,9 @@ describe('the folder checks', () => {
       await writeFile(path.join(dir, file), text, 'utf8');
     };
     // The workspace: a tracked skill, an ignored folder of agents with one already there (hooks and all: not the step's).
-    await put('.gitignore', '.claude/agents/local/\n');
+    await put('.gitignore', '.claude/agents/local/\nvendor/\n');
     await put('.claude/skills/plan/SKILL.md', plain('plan'));
+    await put('.claude/skills/old/SKILL.md', plain('old'));
     await put('.claude/agents/local/mine.md', hooked('mine'));
     run(['init', '-q']);
     run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'add', '-A']);
@@ -232,10 +233,24 @@ describe('the folder checks', () => {
     await put('.claude/agents/broken.md', '---\nname: [unclosed\n---\n');
     await put('.claude/skills/fine/SKILL.md', plain('fine'));
     await put('src/a.js', 'ok\n');
+    // Review of part A, I1: under a parent folder git ignores whole, and a capital extension.
+    await put('vendor/.claude/skills/x/SKILL.md', hooked('x'));
+    await put('.claude/agents/upper.MD', hooked('upper'));
+    // A tracked definition deleted stays deleted.
+    await rm(path.join(dir, '.claude', 'skills', 'old', 'SKILL.md'));
     const reverted = await revertHookDefinitions(dir, snapshot);
-    expect(reverted.sort()).toEqual(['.claude/agents/broken.md', '.claude/agents/helper.md', '.claude/agents/local/new.md', '.claude/skills/plan/SKILL.md', 'sub/.Claude/Commands/go.md']);
+    expect(reverted.sort()).toEqual([
+      '.claude/agents/broken.md',
+      '.claude/agents/helper.md',
+      '.claude/agents/local/new.md',
+      '.claude/agents/upper.MD',
+      '.claude/skills/plan/SKILL.md',
+      'sub/.Claude/Commands/go.md',
+      'vendor/.claude/skills/x/SKILL.md',
+    ]);
     expect((await readFile(path.join(dir, '.claude', 'skills', 'plan', 'SKILL.md'), 'utf8')).replaceAll('\r\n', '\n')).toBe(plain('plan'));
-    for (const gone of ['.claude/agents/helper.md', 'sub/.Claude/Commands/go.md', '.claude/agents/local/new.md', '.claude/agents/broken.md']) await expect(stat(path.join(dir, gone)), gone).rejects.toThrow();
+    await expect(stat(path.join(dir, '.claude', 'skills', 'old', 'SKILL.md'))).rejects.toThrow();
+    for (const gone of ['.claude/agents/helper.md', 'sub/.Claude/Commands/go.md', '.claude/agents/local/new.md', '.claude/agents/broken.md', 'vendor/.claude/skills/x/SKILL.md', '.claude/agents/upper.MD']) await expect(stat(path.join(dir, gone)), gone).rejects.toThrow();
     expect(await readFile(path.join(dir, '.claude', 'agents', 'local', 'mine.md'), 'utf8')).toBe(hooked('mine'));
     expect(await readFile(path.join(dir, '.claude', 'skills', 'fine', 'SKILL.md'), 'utf8')).toBe(plain('fine'));
     expect(await readFile(path.join(dir, 'src', 'a.js'), 'utf8')).toBe('ok\n');
@@ -245,6 +260,30 @@ describe('the folder checks', () => {
     expect(await revertHookDefinitions(dir, snapshot)).toEqual(['.claude/agents/local/mine.md']);
     expect(await readFile(path.join(dir, '.claude', 'agents', 'local', 'mine.md'), 'utf8')).toBe(hooked('mine'));
     expect(await revertHookDefinitions(dir, snapshot)).toEqual([]);
+  });
+
+  it('a definition that is a link goes itself, never what it points to, even outside the project (review of part A, I2)', async () => {
+    const project = path.join(dir, 'garden');
+    const outside = path.join(dir, 'outside');
+    await mkdir(path.join(project, '.claude', 'agents'), { recursive: true });
+    await mkdir(outside, { recursive: true });
+    const run = (args: string[]) => execFileSync('git', args, { cwd: project, encoding: 'utf8' });
+    await writeFile(path.join(project, 'README.md'), 'x\n', 'utf8');
+    run(['init', '-q']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'add', '-A']);
+    run(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'workspace']);
+    const theirs = path.join(outside, 'agent.md');
+    await writeFile(theirs, '---\nname: theirs\nhooks:\n  Stop: []\n---\n', 'utf8');
+    const link = path.join(project, '.claude', 'agents', 'linked.md');
+    try {
+      await symlink(theirs, link, 'file');
+    } catch {
+      // No right to make file links here (Windows without developer mode): nothing to test.
+      return;
+    }
+    expect(await revertHookDefinitions(project)).toEqual(['.claude/agents/linked.md']);
+    await expect(lstat(link)).rejects.toThrow();
+    expect(await readFile(theirs, 'utf8')).toContain('name: theirs');
   });
 
   it('a commit in a folder that is no longer a project is a warning, not an error', async () => {

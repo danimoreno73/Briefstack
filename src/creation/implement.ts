@@ -249,7 +249,7 @@ export class ImplementStep {
       return 'The implement step has not ended: call implement_finish and do as it says before the hand-off commit.';
     }
     if (this.record.revertFailed === true) {
-      return 'Protected files changed in the implement step could not be put back, so the project is not committed. Do not commit it: tell the user at the hand-off.';
+      return 'Protected files, or skills or agents with hooks, changed in the implement step could not be put back, so the project is not committed. Do not commit it: tell the user at the hand-off.';
     }
     return undefined;
   }
