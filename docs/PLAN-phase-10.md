@@ -14,7 +14,8 @@ the user is in decisions.md, "Decisiones sin Dani (fase 10)".
 
 ## 0. Status
 
-Updated 2026-11-24.
+Updated 2026-11-24. **Phase 10 is accepted** (decisions.md, "Phase 10:
+accepted").
 
 | # | Milestone | State |
 |---|---|---|
@@ -25,8 +26,9 @@ Updated 2026-11-24.
 | M4 | Codex without its shell in the implement step | done (`236f5b3..74d73ff`). Review (with the M3 fixes): apto con reservas; Windows CI of `5b2382e` red (short temp path, I2), green again with M5; I1–I3, I5, I6, m1, m3 fixed with M5 (decisions.md, "Phase 10: review of M4, the fixes") |
 | M5 | The live panel and the result screen | done (`0e0cd9d..18a6993`, with the M4 review fixes; decisions.md, "Phase 10: M5"; CI green on the three systems, run 45082839222). Review: no apto (B1: ignored protected files never put back); B1, I1–I3, m1, m3–m10 fixed with M6 (decisions.md, "Phase 10: review of M5, the fixes") |
 | M6 | Docs and the real check script (prepared, not run) | done (`2827cdd..0b790aa`; CI green on the three systems, run 45084609772; decisions.md, "Phase 10: M6"). Review: apto con reservas; I1–I6, m1, m5, m6 fixed after it (decisions.md, "Phase 10: review of M6, the fixes"). `scripts/real/check-creation-code.ts` **not run**; the user runs it (`npx tsx scripts/real/check-creation-code.ts --yes`) |
-| Real | `scripts/real/check-creation-code.ts`, run by the user | pending |
-| Accepted | The user's acceptance | pending; no `phase-10-done` before it |
+| Real | `scripts/real/check-creation-code.ts`, run by the user | 2026-11-24, Windows 11, saver profile, Codex CLI 0.167.0: every verdict PASS but one FAIL on the model (the implementer never tried the command off the list, so `run_command`'s refusal was not seen in real), 2 NOT CONTROLLED. Shown: the no-shell check, the two commits with what the implementer wrote, the in-process tools seen by the subagent (1 `run_command`, 1 `delegate_to_codex`), a listed command run, the checks after the implementer, nobody asked, Codex without its shell (1 call, 0 commands, its file in the code commit), no protected file changed, no process left |
+| Accepted | The user's acceptance | 2026-11-24, tag `phase-10-done` (on `373137b`, made by the user); decisions.md "Phase 10: accepted" |
+| After | Step 37 (the user's decisions of 2026-11-24 and IDEAS §10) | hooks in a skill's or agent's frontmatter put back; the put-back's edge cases (decisions.md "Phase 10: the user's decisions", "Phase 10: the put-back's edge cases") |
 
 ## 1. Design decisions taken from H0
 

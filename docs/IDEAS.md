@@ -1175,7 +1175,10 @@ the decisions are in [decisions.md](decisions.md), "Phase 10".
 - **Not shown without a real session:** that the `implementer` subagent
   sees the in-process `briefstack-web` tools, and that the runner rewrites
   `guard.json` at `implement_start` and `implement_finish` (no runner-level
-  test). The real check shows both. Reviews of M2 and M4.
+  test). The real check shows both. Reviews of M2 and M4. The real check
+  of 2026-11-24 showed the first (1 `run_command`, 1 `delegate_to_codex`)
+  and the second only indirectly (the implementer's writes were allowed);
+  decisions.md, "Phase 10: accepted".
 - **The usage gate and the bounds have no e2e** (the gate is wired with the
   real runner only, as the creation's other readings). Review of M3, I4.
 - A Codex call keeps its own 10-minute deadline inside the step's minutes;

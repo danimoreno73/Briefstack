@@ -7973,3 +7973,67 @@ accepted by the user on 2026-11-24).
   tasks). The step counter of review of M2, m8 already uses the same rule
   in the list and the live panel (`code !== undefined`), so nothing was
   changed there.
+
+## Phase 10: accepted (2026-11-24)
+
+**The user's decision (2026-11-24):** phase 10 is accepted, on the real
+check below, run by the user on Windows 11 with the saver profile, with
+`run_command`'s refusal not seen in real ("Phase 10: the user's
+decisions", 3). The user created the tag `phase-10-done` on `373137b`.
+
+**The real check** (`npx tsx scripts/real/check-creation-code.ts --yes`,
+2026-11-24, Codex CLI 0.167.0; plan usage 20% → 26% of the 5-hour window,
+48% → 49% of the week): every verdict PASS but one FAIL, 2 NOT
+CONTROLLED. Its verdicts, as printed (details cut where they hold a
+record, the brief's text or a local path):
+
+- PASS "Codex is checked and its no-shell mode holds (no model): no
+  command tool"
+- PASS "the spec page offered code and Codex: true"
+- PASS "the creation completed: completed"
+- PASS "the implement step ran to its end: done"
+- PASS "two commits: the workspace, then the code apart" (the code commit
+  "Write the first version of the code with briefstack" on the workspace
+  commit "Prepare the project with briefstack")
+- PASS "the code commit holds what the implementer wrote: bin/sum.js,
+  docs/BRIEF.md, package.json, src/sum.js, test/sum.test.js"
+- PASS "the project tree is clean after the hand-off: clean"
+- NOT CONTROLLED "what the brief says is left" (the implementer's "Current
+  status": the first version written, `src/sum.js` by Codex, `node --test`
+  passing 6 tests; left: run `npm --version` "not run: not an approved
+  command", and `npm test` and the CLI examples by hand)
+- PASS "the implementer called briefstack's tools (run_command or
+  delegate_to_codex): 1 run(s), 0 refused, 1 Codex call(s)"
+- PASS "a listed command ran in the project: node --test → 0"
+- FAIL "a command off the list (npm --version) was denied: nothing
+  refused: the implementer never tried npm off the list (the model, not
+  briefstack)"
+- PASS "nobody was asked during the implement step: no dialog"
+- PASS "Codex was called without its shell and ran no command: #1
+  completed, 0 command(s), 42276 input tokens; src/sum.js in the code
+  commit"
+- PASS "the checks ran after the implementer: run 1: node --test → 0"
+- NOT CONTROLLED "whether the checks passed (the model wrote the code):
+  passed"
+- PASS "no protected file was changed: none"
+- PASS "nothing was written in the work folder outside the projects
+  folder and the temp home: none"
+- PASS "the repo git status did not change: clean"
+- PASS "no turn ended waiting for a text answer: 0"
+- PASS "no process of the sandbox is left: none"
+
+The FAIL is on the model: the implementer kept to the list on its own and
+wrote in the brief that the command was not approved, so nothing was
+refused. Shown in real besides: the `implementer` subagent sees the
+in-process `briefstack-web` tools (H0, 5; one of the "not shown without a
+real session" items of `IDEAS.md` §10).
+
+**Not shown in real** (shown by unit, flow and e2e tests only):
+`run_command`'s refusal of a command off the list; Codex without its shell
+on macOS and Linux, and in Codex releases after 0.167.0 (the status check
+reads the tools again on each check, and a creation uses only the version
+checked); the usage gate and the bounds; a fix pass; the put-back of
+protected files and of definitions with hooks; the runner's rewrite of
+`guard.json` at `implement_start` and `implement_finish` (seen working
+only through the implementer's writes being allowed). Open in
+`IDEAS.md` §10.
