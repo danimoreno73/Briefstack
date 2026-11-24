@@ -1305,6 +1305,8 @@ export const uiMessages = defineCatalogue({
           return 'The code was not written: plan usage could not be read when the step was to start. The workspace is ready; a task or a build can write the code later.';
         case 'commitFailed':
           return 'The code was not written: the workspace could not be committed first.';
+        case 'snapshotFailed':
+          return 'The code was not written: the files git ignores that the step protects (Claude Code’s local settings, hooks, skills and agents) could not be read first, so they could not be kept as they are. The workspace is ready and committed; a task or a build can write the code later.';
         case 'notAProject':
         case 'wrongFolder':
           return 'The code was not written: the step did not find this creation’s project folder.';
@@ -2652,6 +2654,8 @@ export const uiMessages = defineCatalogue({
           return 'El código no se escribió: no se pudo leer el uso del plan cuando iba a empezar el paso. El espacio de trabajo está listo; una tarea o un build pueden escribir el código después.';
         case 'commitFailed':
           return 'El código no se escribió: antes no se pudo hacer el commit del espacio de trabajo.';
+        case 'snapshotFailed':
+          return 'El código no se escribió: antes no se pudieron leer los ficheros que git ignora y que el paso protege (ajustes locales de Claude Code, hooks, skills y agentes), así que no se podían conservar como están. El espacio de trabajo está listo y con commit; una tarea o un build pueden escribir el código después.';
         case 'notAProject':
         case 'wrongFolder':
           return 'El código no se escribió: el paso no encontró la carpeta del proyecto de esta creación.';

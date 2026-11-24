@@ -288,7 +288,7 @@ export interface CreationState {
 /** The implement step as the server records it (phase 10, `src/creation/implement.ts`). */
 export interface ImplementViewUi {
   state: 'running' | 'checking' | 'finishing' | 'done' | 'interrupted' | 'notStarted';
-  reason?: 'notChosen' | 'wrongFolder' | 'notAProject' | 'commitFailed' | 'usage' | 'usageUnread';
+  reason?: 'notChosen' | 'wrongFolder' | 'notAProject' | 'commitFailed' | 'usage' | 'usageUnread' | 'snapshotFailed';
   usage?: { fiveHour: number | null; sevenDay: number | null };
   workspaceCommit?: string;
   codeCommit?: string;

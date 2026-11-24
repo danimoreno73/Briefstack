@@ -433,6 +433,26 @@ describe('the implement step: overlaps, ends and limits (reviews of M2 and M3)',
     expect(failing.step.handoffCommitRefusal).toContain('could not be put back');
   });
 
+  it('ignored protected files that cannot be read first: no code is written, nothing is put back (review of M6, m4)', async () => {
+    const w = world();
+    const deps = (w.step as unknown as { deps: ImplementDeps }).deps;
+    let putBacks = 0;
+    deps.snapshotProtected = async () => {
+      throw new Error('git failed');
+    };
+    deps.revertProtected = async () => {
+      putBacks += 1;
+      return [];
+    };
+    const started = await w.step.start('P');
+    expect(started).toMatchObject({ isError: true, text: expect.stringContaining('could not be read') });
+    expect(w.step.view()).toMatchObject({ state: 'notStarted', reason: 'snapshotFailed', workspaceCommit: 'c1' });
+    expect(w.step.running).toBe(false);
+    expect((await w.step.runCommand('npm install')).text).toContain('not running');
+    expect(putBacks).toBe(0);
+    expect(w.commits).toHaveLength(1);
+  });
+
   it('a start refused for usage is final: a retry reads nothing again', async () => {
     let readings = 0;
     const w = world();

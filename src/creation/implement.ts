@@ -36,7 +36,7 @@ export const IMPLEMENT_STATES = ['running', 'checking', 'finishing', 'done', 'in
 export type ImplementState = (typeof IMPLEMENT_STATES)[number];
 
 /** Why the step did not start. */
-export type NotStartedReason = 'notChosen' | 'wrongFolder' | 'notAProject' | 'commitFailed' | 'usage' | 'usageUnread';
+export type NotStartedReason = 'notChosen' | 'wrongFolder' | 'notAProject' | 'commitFailed' | 'usage' | 'usageUnread' | 'snapshotFailed';
 
 /** One listed command the implementer ran. */
 export interface CommandRun {
@@ -433,10 +433,25 @@ export class ImplementStep {
       this.changed();
       return { text: 'The workspace could not be committed, so no code is written in this creation. Tell the user in one line, finish the implement step as failed and go on to learn.', isError: true };
     }
+    // What git ignores and a commit never shows: kept now, to be put back as it was (review of M5, B1). Unread, the
+    // put-back could only remove what was there before, so no code is written (review of M6, m4).
+    let snapshot: ReadonlyMap<string, Buffer> = new Map();
+    if (this.deps.snapshotProtected !== undefined) {
+      const read = await this.deps.snapshotProtected(folder).catch(() => undefined);
+      if (read === undefined) {
+        this.record = { ...this.record, reason: 'snapshotFailed', ...(workspace.commit === undefined ? {} : { workspaceCommit: workspace.commit }) };
+        this.changed();
+        return {
+          text: 'The files git ignores that the step protects (Claude Code\'s local settings, hooks, skills and agents) could not be read before the code, so they could not be kept as they are; no code is written in this creation. Tell the user in one line, finish the implement step as failed and go on to learn.',
+          isError: true,
+        };
+      }
+      snapshot = read;
+    }
+    if (this.abort.signal.aborted) return { text: 'The creation ended. Stop now.', isError: true };
     this.dir = folder;
     this.choice = choice;
-    // What git ignores and a commit never shows: kept now, to be put back as it was (review of M5, B1).
-    this.snapshot = (await this.deps.snapshotProtected?.(folder).catch(() => undefined)) ?? new Map();
+    this.snapshot = snapshot;
     // Codex is asked again now (review of M1, m1): the switch, the check or the mode may have changed since the spec page.
     this.codex = choice.codex ? await this.deps.codex?.(folder, (call) => this.recordCodex(call)).catch(() => undefined) : undefined;
     if (this.abort.signal.aborted) {

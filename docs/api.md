@@ -360,7 +360,8 @@ Starts a creation session, which runs the `/new-project` flow.
 - `implement` (phase 10): the implement step's record, once asked to
   start: `{ "state": "running | checking | finishing | done | interrupted |
   notStarted", "reason"?: "notChosen | wrongFolder | notAProject |
-  commitFailed | usage | usageUnread", "usage"?, "workspaceCommit"?,
+  commitFailed | usage | usageUnread | snapshotFailed", "usage"?,
+  "workspaceCommit"?,
   "codeCommit"?, "commitWarning"?, "runs": [{ "command", "exitCode",
   "timedOut", "output", "durationMs", "at" }], "refused": [{ "command", "at"
   }], "checks": [{ "pass", "results": [CheckResult] }], "fixPassesUsed",
