@@ -48,8 +48,25 @@ function gitEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
-/** Runs git; a non-zero exit is a result, a missing git an exception (`ENOENT`). */
-export function runGit(cwd: string, args: readonly string[], input?: string): Promise<GitResult> {
+/**
+ * Git could not read a configuration file at its start, before doing
+ * anything: on Windows, while another git of the same repository rewrites
+ * `.git/config` (`branch -D` does, for a card applied or redone while
+ * another card commits; phase 11, step 38). Only this message counts.
+ */
+const CONFIG_READ_FAILED = /fatal: unknown error occurred while reading the configuration files/;
+const CONFIG_READ_TRIES = 20;
+
+/** Runs git; a non-zero exit is a result, a missing git an exception (`ENOENT`). A failed read of its configuration is tried again. */
+export async function runGit(cwd: string, args: readonly string[], input?: string): Promise<GitResult> {
+  for (let attempt = 1; ; attempt += 1) {
+    const result = await runGitOnce(cwd, args, input);
+    if (result.code === 0 || attempt >= CONFIG_READ_TRIES || !CONFIG_READ_FAILED.test(result.stderr)) return result;
+    await new Promise((resolve) => setTimeout(resolve, 25 * attempt));
+  }
+}
+
+function runGitOnce(cwd: string, args: readonly string[], input?: string): Promise<GitResult> {
   return new Promise((resolve, reject) => {
     const child = execFile(
       'git',

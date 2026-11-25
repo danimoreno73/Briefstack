@@ -507,13 +507,42 @@ export const uiMessages = defineCatalogue({
         notStarted: 'it could not start',
         notApplied: 'it could not be applied to the build’s branch',
         roundsCap: 'the build reached its limit of rounds',
+        conflict: 'it collided with other cards twice, even after being redone',
+        joinChecksFailed: 'its checks failed together with other cards’ changes, even after being redone',
       })[reason] ?? reason,
     buildSkippedFor: (n: number) => `depends on task ${n}`,
+    // The board (phase 11).
+    buildCardAreaLabel: 'Area (paths or folders it is expected to change, separated by commas)',
+    buildCardAreaHint:
+      'Cards whose areas do not overlap may run at the same time, each in its own copy of the project. A card with no area counts as touching the whole project. An area is a hint for planning, not a limit: a card may still change other files, and its join catches the rest.',
+    buildCardSizeLabel: 'Size',
+    buildCardSize: (size: string): string => ({ S: 'Small', M: 'Medium', L: 'Large' })[size] ?? size,
+    buildCardAdd: 'Add a card',
+    buildSlotsLabel: 'Cards at once (1 to 4)',
+    buildSlotsNote:
+      'Each card at work is a session in the shared limit of active sessions. Parallel cards spend the plan’s 5-hour window faster: more work at once, not more work per window. With 1, the build runs as before, one card after another.',
+    buildBoardTitle: 'The board',
+    buildBoardSlots: (slots: number) => (slots === 1 ? 'One card at a time.' : `Up to ${slots} cards at once, never two whose areas overlap.`),
+    buildColumn: (column: string): string =>
+      ({ pending: 'Pending', blocked: 'Blocked', running: 'Running', waiting: 'Waiting for you', done: 'Done', skipped: 'Skipped' })[column] ?? column,
+    buildCardWholeProject: 'the whole project',
+    buildCardRounds: (n: number) => `${n} round${n === 1 ? '' : 's'}`,
+    buildCardTokens: 'tokens',
+    buildCardRedo: (reason: string) => (reason === 'conflict' ? 'Redone once: it collided with another card when joined.' : 'Redone once: its checks failed together with other cards’ changes.'),
+    buildCardJoin: (outcome: string, merged: boolean): string =>
+      outcome === 'applied'
+        ? merged
+          ? 'Joined onto other cards’ changes, checked again there.'
+          : 'Joined.'
+        : outcome === 'conflict'
+          ? 'Its last join collided in:'
+          : 'Its last join failed the checks with the other cards’ changes.',
+    buildCardDenied: (n: number) => `${n} command${n === 1 ? '' : 's'} denied`,
     buildPlanning: 'Planning the queue from the project’s brief… This takes a minute or two.',
     buildPlanFailedTitle: 'The queue could not be planned',
     buildStartTitle: 'Review and start',
     buildStartIntro: 'This is what the planner proposed. Nothing runs until you start the build; once it starts, none of this changes.',
-    buildQueueTitle: 'The queue',
+    buildQueueTitle: 'The board: its cards in order of priority',
     buildTaskLabel: (n: number) => `Task ${n}`,
     buildTaskTitleLabel: 'Title',
     buildTaskInstructionLabel: 'What to do',
@@ -608,7 +637,7 @@ export const uiMessages = defineCatalogue({
     buildPausedUsage: (until: string) => `Paused: the plan usage is at or above its threshold. It resumes by itself at ${until} while briefstack runs.`,
     buildPausedUnread: (until: string) => `Paused: the plan usage could not be read. It reads it again at ${until}.`,
     buildPausedUser: 'Paused by you. It resumes when you press Resume.',
-    buildPausing: 'Pausing after the current task…',
+    buildPausing: 'Pausing once the cards at work end…',
     buildInterrupted: 'briefstack stopped while this build ran. Nothing resumes by itself: press Resume to go on.',
     buildPause: 'Pause',
     buildResume: 'Resume',
@@ -1871,13 +1900,42 @@ export const uiMessages = defineCatalogue({
         notStarted: 'no pudo empezar',
         notApplied: 'no se pudo aplicar a la rama del build',
         roundsCap: 'el build llegó a su tope de rondas',
+        conflict: 'chocó con otras tarjetas dos veces, también al rehacerla',
+        joinChecksFailed: 'sus comprobaciones fallaron junto a los cambios de otras tarjetas, también al rehacerla',
       })[reason] ?? reason,
     buildSkippedFor: (n: number) => `depende de la tarea ${n}`,
+    // El tablero (fase 11).
+    buildCardAreaLabel: 'Zona (rutas o carpetas que se espera que cambie, separadas por comas)',
+    buildCardAreaHint:
+      'Las tarjetas cuyas zonas no se solapan pueden ejecutarse a la vez, cada una en su propia copia del proyecto. Una tarjeta sin zona cuenta como si tocara todo el proyecto. La zona es una pista para planificar, no un límite: una tarjeta puede cambiar otros ficheros, y su unión recoge el resto.',
+    buildCardSizeLabel: 'Tamaño',
+    buildCardSize: (size: string): string => ({ S: 'Pequeña', M: 'Mediana', L: 'Grande' })[size] ?? size,
+    buildCardAdd: 'Añadir una tarjeta',
+    buildSlotsLabel: 'Tarjetas a la vez (de 1 a 4)',
+    buildSlotsNote:
+      'Cada tarjeta en marcha es una sesión dentro del límite compartido de sesiones activas. Las tarjetas en paralelo gastan antes la ventana de 5 horas del plan: más trabajo a la vez, no más trabajo por ventana. Con 1, el build funciona como antes, una tarjeta tras otra.',
+    buildBoardTitle: 'El tablero',
+    buildBoardSlots: (slots: number) => (slots === 1 ? 'Una tarjeta cada vez.' : `Hasta ${slots} tarjetas a la vez, nunca dos cuyas zonas se solapen.`),
+    buildColumn: (column: string): string =>
+      ({ pending: 'Pendientes', blocked: 'Bloqueadas', running: 'En marcha', waiting: 'Esperándote', done: 'Hechas', skipped: 'Saltadas' })[column] ?? column,
+    buildCardWholeProject: 'todo el proyecto',
+    buildCardRounds: (n: number) => `${n} ronda${n === 1 ? '' : 's'}`,
+    buildCardTokens: 'tokens',
+    buildCardRedo: (reason: string) => (reason === 'conflict' ? 'Rehecha una vez: chocó con otra tarjeta al unirla.' : 'Rehecha una vez: sus comprobaciones fallaron junto a los cambios de otras tarjetas.'),
+    buildCardJoin: (outcome: string, merged: boolean): string =>
+      outcome === 'applied'
+        ? merged
+          ? 'Unida sobre los cambios de otras tarjetas, comprobada otra vez allí.'
+          : 'Unida.'
+        : outcome === 'conflict'
+          ? 'Su última unión chocó en:'
+          : 'Su última unión falló las comprobaciones con los cambios de otras tarjetas.',
+    buildCardDenied: (n: number) => `${n} comando${n === 1 ? '' : 's'} denegado${n === 1 ? '' : 's'}`,
     buildPlanning: 'Planificando la cola desde el brief del proyecto… Tarda un minuto o dos.',
     buildPlanFailedTitle: 'No se pudo planificar la cola',
     buildStartTitle: 'Revisar y empezar',
     buildStartIntro: 'Esto es lo que propone el planificador. No se ejecuta nada hasta que empieces el build; una vez empezado, nada de esto cambia.',
-    buildQueueTitle: 'La cola',
+    buildQueueTitle: 'El tablero: sus tarjetas por orden de prioridad',
     buildTaskLabel: (n: number) => `Tarea ${n}`,
     buildTaskTitleLabel: 'Título',
     buildTaskInstructionLabel: 'Qué hacer',
@@ -1972,7 +2030,7 @@ export const uiMessages = defineCatalogue({
     buildPausedUsage: (until: string) => `En pausa: el uso del plan está en su umbral o por encima. Se reanuda solo a las ${until} mientras briefstack esté en marcha.`,
     buildPausedUnread: (until: string) => `En pausa: no se pudo leer el uso del plan. Lo vuelve a leer a las ${until}.`,
     buildPausedUser: 'En pausa por ti. Se reanuda cuando pulses Reanudar.',
-    buildPausing: 'Pausando después de la tarea actual…',
+    buildPausing: 'Pausando cuando terminen las tarjetas en marcha…',
     buildInterrupted: 'briefstack se paró mientras este build trabajaba. Nada se reanuda solo: pulsa Reanudar para seguir.',
     buildPause: 'Pausar',
     buildResume: 'Reanudar',

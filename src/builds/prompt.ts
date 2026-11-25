@@ -23,6 +23,8 @@ export interface BuildRoundInput {
   lang: 'en' | 'es';
   /** A fix round: what failed in the round before. */
   fix?: { round: number; failures: string };
+  /** The card's redo (phase 11): why its first attempt could not be joined. */
+  redo?: 'conflict' | 'checksFailed';
 }
 
 const list = (items: readonly string[]): string => (items.length === 0 ? '(none)' : items.map((item) => `- ${item}`).join('\n'));
@@ -44,6 +46,14 @@ export function buildRoundPrompt(input: BuildRoundInput): string {
     'Done when:',
     input.doneWhen,
   ];
+  if (input.redo !== undefined) {
+    lines.push(
+      '',
+      input.redo === 'conflict'
+        ? 'This task is being done a second time. Other tasks of the build ran at the same time, and the first attempt changed the same lines as one of them, so it could not be joined. This folder already holds their changes: do the task on top of them, keeping them.'
+        : 'This task is being done a second time. Other tasks of the build ran at the same time, and with their changes joined to the first attempt the checks failed. This folder already holds their changes: do the task so that it works together with them.',
+    );
+  }
   if (input.fix !== undefined) {
     lines.push('', `This is fix round ${input.fix.round}. The changes of the earlier rounds are already in this folder, committed. They were not applied because:`, input.fix.failures);
   }

@@ -5,7 +5,8 @@ import type { Lang } from '../i18n/index.js';
 import type { Effort } from '../models.js';
 import { hideAbsolutePaths } from '../panel/project.js';
 import { checkTaskPreconditions } from '../tasks/preconditions.js';
-import type { TaskManager, TaskView } from '../tasks/manager.js';
+import type { BuildJoin, TaskManager, TaskView, UnattendedRound } from '../tasks/manager.js';
+import type { CheckResult } from '../tasks/types.js';
 import { proposalDiff, type ProposalDiff } from '../tasks/proposal.js';
 import { newTaskId } from '../tasks/store.js';
 import { claudeTokens } from '../tasks/runner.js';
@@ -29,6 +30,8 @@ import {
   MAX_ROUNDS_CAP,
   MAX_SLOTS,
   areaProblem,
+  areasOverlap,
+  type JoinFailure,
   CARD_SIZES,
   queueItemSchema,
   SETTLED_BUILD_STATES,
@@ -103,18 +106,37 @@ interface Live {
   cancelling: boolean;
   /** The user resumed: the next task starts without reading the usage. */
   skipUsage: boolean;
-  /** The task at work now. */
-  taskId?: string;
+  /** The cards at work now, by their number (phase 11: one with one slot). */
+  running: Map<number, RunningCard>;
   timer?: NodeJS.Timeout;
   planAbort?: AbortController;
   planning?: Promise<void>;
-  /** The shared limit is full: the build waits for a free place before its next round or checks. */
-  waitingSlot?: boolean;
-  /** Ends the current wait (for a free place, or for the usage reading) at once: a stop or a cancel. */
-  wake?: () => void;
+  /** The cards waiting for a free place in the shared limit before their next round, checks or join. */
+  waitingSlots: Set<number>;
+  /** End the current waits (for a free place, for the usage reading, for a card) at once: a stop or a cancel. */
+  wakers: Set<() => void>;
   /** The end of the changes of state queued on the build (`serial`). */
   chain: Promise<unknown>;
+  /** The end of the changes of the record queued by the cards and the loop (`edit`): load, change, save, in turn. */
+  edits: Promise<unknown>;
+  /** The end of the joins queued on the build: one join at a time (BRIEF-phase-11 §2, 9). */
+  joins: Promise<unknown>;
+  /** Something a card did not expect: no card starts, and the loop fails once none is at work. */
+  failure?: { error: unknown };
 }
+
+/** A card at work (phase 11). */
+interface RunningCard {
+  n: number;
+  area: readonly string[] | undefined;
+  /** Its task, once started. */
+  taskId?: string;
+  /** Settles when the card's work ended (never rejects). */
+  done: Promise<void>;
+}
+
+/** How many times a join is tried again when the integration head moved between its read and the compare and swap. */
+const JOIN_TRIES = 3;
 
 /** What the build's page shows of a task's own record (M5): its state, checks and Codex calls. */
 export interface BuildTaskSummary {
@@ -211,7 +233,7 @@ export class BuildManager {
     const l = this.live.get(record.id);
     if (l?.pausing === true && record.state === 'running') view.pausing = true;
     if (l?.cancelling === true) view.cancelling = true;
-    if (l?.waitingSlot === true && record.state === 'running') view.waitingSlot = true;
+    if (l !== undefined && l.waitingSlots.size > 0 && record.state === 'running') view.waitingSlot = true;
     return view;
   }
 
@@ -612,7 +634,7 @@ export class BuildManager {
 
   /** Whether a build's loop drives this task now: its round, its checks or its apply (the task manager refuses the user's actions on it). */
   drives(taskId: string): boolean {
-    for (const l of this.live.values()) if (l.taskId === taskId) return true;
+    for (const l of this.live.values()) for (const card of l.running.values()) if (card.taskId === taskId) return true;
     return false;
   }
 
@@ -692,6 +714,21 @@ export class BuildManager {
         tasks.push(queued);
         continue;
       }
+      // With more than one slot, a card a server stop interrupted starts again at the integration head, its task
+      // discarded (BRIEF-phase-11 §3). With one slot it waits for the user, as in phase 9 (decisions.md, "Decisiones sin
+      // Dani (fase 11)").
+      if ((record.settings?.slots ?? 1) > 1 && item.state === 'waiting' && item.reason === 'interrupted') {
+        if (item.taskId !== undefined) {
+          const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
+          if (task !== undefined && OPEN_TASK_STATES.includes(task.state)) await this.options.tasks.discard(item.taskId);
+        }
+        const queued: BuildTask = { ...item, state: 'queued' };
+        delete queued.reason;
+        delete queued.detail;
+        delete queued.taskId;
+        tasks.push(queued);
+        continue;
+      }
       tasks.push(item);
     }
     const next: BuildRecord = { ...record, tasks, state: 'running', updatedAt: this.now().toISOString() };
@@ -736,7 +773,7 @@ export class BuildManager {
         // On disk at once, in a file of its own: a server stop before the loop records the cancel leaves the build
         // cancelled (step 33). Never through `build.json`, which the loop writes meanwhile (review of step 33, B, I1).
         await this.options.store.markCancel(id, this.now().toISOString()).catch(() => undefined);
-        l.wake?.();
+        this.wakeAll(l);
         void this.finishCancel(id, l);
       }
       return this.view(record);
@@ -755,13 +792,17 @@ export class BuildManager {
     }
   }
 
-  /** Keeps ending what the loop's task runs until the loop stops (a round or checks may start just after the click), then records `cancelled`. */
+  /**
+   * Keeps ending what every running card's task runs until the loop stops
+   * (a round or checks may start just after the click; phase 11: every
+   * card's tree), then records `cancelled`.
+   */
   private async finishCancel(id: string, l: Live): Promise<void> {
     const loop = l.loop;
     let settled = loop === undefined;
     void loop?.finally(() => (settled = true));
     while (!settled && !this.stopping) {
-      if (l.taskId !== undefined) this.cancelIfAsked(l, l.taskId);
+      for (const card of l.running.values()) if (card.taskId !== undefined) this.cancelIfAsked(l, card.taskId);
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     await loop?.catch(() => undefined);
@@ -790,7 +831,7 @@ export class BuildManager {
   private liveOf(id: string): Live {
     let l = this.live.get(id);
     if (l === undefined) {
-      l = { pausing: false, cancelling: false, skipUsage: false, chain: Promise.resolve() };
+      l = { pausing: false, cancelling: false, skipUsage: false, running: new Map(), waitingSlots: new Set(), wakers: new Set(), chain: Promise.resolve(), edits: Promise.resolve(), joins: Promise.resolve() };
       this.live.set(id, l);
     }
     return l;
@@ -820,8 +861,14 @@ export class BuildManager {
       })
       .finally(() => {
         delete l.loop;
-        delete l.waitingSlot;
+        delete l.failure;
+        l.waitingSlots.clear();
       });
+  }
+
+  /** Ends every wait of the build at once: a stop or a cancel. */
+  private wakeAll(l: Live): void {
+    for (const wake of [...l.wakers]) wake();
   }
 
   /** Waits `ms`, or less when a stop or a cancel wakes it. */
@@ -829,52 +876,72 @@ export class BuildManager {
     return new Promise((resolve) => {
       const done = () => {
         clearTimeout(timer);
-        if (l.wake === done) delete l.wake;
+        l.wakers.delete(done);
         resolve();
       };
       const timer = setTimeout(done, ms);
       timer.unref();
-      l.wake = done;
+      l.wakers.add(done);
     });
   }
 
   /**
    * Runs one call into the task manager, waiting for a free place while the
    * shared limit of active sessions is full (`task.limit`), so a full limit
-   * pauses the queue instead of failing its tasks (review of M3, I2). Gives
-   * up, with the error, once a stop or a cancel began.
+   * pauses the card instead of failing it (review of M3, I2). Gives up, with
+   * the error, once a stop or a cancel began.
    */
-  private async withSlot<T>(l: Live, call: () => Promise<T>): Promise<T> {
+  private async withSlot<T>(l: Live, n: number, call: () => Promise<T>): Promise<T> {
     for (;;) {
       try {
         const result = await call();
-        delete l.waitingSlot;
+        l.waitingSlots.delete(n);
         return result;
       } catch (error) {
         if (!isBriefstackError(error) || error.code !== 'task.limit' || this.stopping || l.cancelling) {
-          delete l.waitingSlot;
+          l.waitingSlots.delete(n);
           throw error;
         }
-        l.waitingSlot = true;
+        l.waitingSlots.add(n);
         await this.sleep(l, this.options.slotRetryMs ?? SLOT_RETRY_MS);
         if (this.stopping || l.cancelling) {
-          delete l.waitingSlot;
+          l.waitingSlots.delete(n);
           throw error;
         }
       }
     }
   }
 
+  /**
+   * The scheduler (BRIEF-phase-11 §3; PLAN-phase-11 §1, 10 and 11). Each
+   * pass starts, while a slot is free, the first queued card in priority
+   * order whose dependencies are applied and whose area overlaps no running
+   * card's, under "how many to run" and the cap of rounds, after one reading
+   * of the plan usage; then waits for a card to end. With one slot this is
+   * phase 9's loop: one task, its end, the next. A pause, the usage over its
+   * threshold, a cancel or a stop start nothing more; the loop ends once no
+   * card is at work.
+   */
   private async loop(id: string): Promise<void> {
     const l = this.liveOf(id);
     for (;;) {
-      if (this.stopping) return;
+      if (this.stopping || l.cancelling || l.failure !== undefined) {
+        await this.drain(l);
+        if (l.failure !== undefined) throw l.failure.error;
+        return;
+      }
       let record = await this.load(id);
-      if (record.state !== 'running') return;
+      if (record.state !== 'running' || record.settings === undefined) {
+        await this.drain(l);
+        return;
+      }
       const settings = record.settings;
-      if (settings === undefined) return;
-      if (l.cancelling) return;
       if (l.pausing) {
+        // The cards at work go on to their end; the build pauses once none is (phase 11).
+        if (l.running.size > 0) {
+          await this.anyCardEnd(l);
+          continue;
+        }
         // Under the build's lock, read again: a cancel that came meanwhile wins (review of M4, I1).
         await this.serial(l, async () => {
           const fresh = await this.load(id);
@@ -884,10 +951,11 @@ export class BuildManager {
         });
         return;
       }
-      record = this.skipBlocked(record);
+      if (this.skipBlocked(record).tasks.some((task, i) => task.state !== record.tasks[i]?.state)) record = await this.edit(l, id, (fresh) => this.skipBlocked(fresh));
       const started = record.tasks.filter((task) => task.state !== 'queued' && task.state !== 'skipped').length;
       const next = record.tasks.find((task) => task.state === 'queued' && task.dependsOn.every((n) => record.tasks[n - 1]?.state === 'applied'));
-      if (next === undefined || started >= settings.limit || record.roundsRun >= settings.maxRounds) {
+      const canStart = next !== undefined && started < settings.limit && record.roundsRun < settings.maxRounds;
+      if (l.running.size === 0 && !canStart) {
         const capped = next !== undefined && started < settings.limit;
         const ended = record;
         await this.serial(l, async () => {
@@ -897,24 +965,83 @@ export class BuildManager {
         });
         return;
       }
-      // The plan usage before each task, unless the user just resumed it.
+      const batch = canStart ? this.readyCards(record, l, settings.slots ?? 1, settings.limit - started) : [];
+      if (batch.length === 0) {
+        await this.anyCardEnd(l);
+        continue;
+      }
+      // The plan usage before the cards of this pass start, unless the user just resumed it (H0, 5).
       if (l.skipUsage) l.skipUsage = false;
-      else if (await this.pausedForUsage(l, record)) return;
-      // A pause or a cancel asked during the reading is taken before the task starts (review of M4, B1).
+      else {
+        const gate = await this.usageGate(l, record);
+        if (gate === 'paused') return;
+        if (gate === 'wait') {
+          await this.anyCardEnd(l);
+          continue;
+        }
+        if (gate === 'woken') continue;
+      }
+      // A pause or a cancel asked during the reading is taken before a card starts (review of M4, B1).
       if (l.cancelling || l.pausing || this.stopping) continue;
-      await this.runTask(record, next.n);
+      for (const card of batch) this.launch(l, record, card);
     }
+  }
+
+  /**
+   * The cards a pass may start: queued, their dependencies applied, in the
+   * order of the board, each area overlapping no running card's nor one
+   * started before it in the pass (BRIEF-phase-11 §2, 4), while slots are
+   * free and under how many may still start.
+   */
+  private readyCards(record: BuildRecord, l: Live, slots: number, left: number): BuildTask[] {
+    const busy: (readonly string[] | undefined)[] = [...l.running.values()].map((card) => card.area);
+    const out: BuildTask[] = [];
+    for (const task of record.tasks) {
+      if (out.length >= Math.min(slots - l.running.size, left)) break;
+      if (task.state !== 'queued' || l.running.has(task.n)) continue;
+      if (!task.dependsOn.every((n) => record.tasks[n - 1]?.state === 'applied')) continue;
+      if (busy.some((area) => areasOverlap(area, task.area))) continue;
+      busy.push(task.area);
+      out.push(task);
+    }
+    return out;
+  }
+
+  /** Starts a card's work without waiting for it; it is in `running` before any await. */
+  private launch(l: Live, record: BuildRecord, task: BuildTask): void {
+    const card: RunningCard = { n: task.n, area: task.area, done: Promise.resolve() };
+    l.running.set(task.n, card);
+    card.done = this.runCard(record, task.n, card)
+      .catch((error: unknown) => {
+        // A card that failed in a way the loop did not expect: nothing more starts, and the loop fails once no card is at work.
+        l.failure ??= { error };
+      })
+      .finally(() => {
+        l.running.delete(task.n);
+        l.waitingSlots.delete(task.n);
+      });
+  }
+
+  /** Waits until a running card ends, or a stop or a cancel wakes the build. */
+  private async anyCardEnd(l: Live): Promise<void> {
+    if (l.running.size === 0) return;
+    await this.whileAwake(l, Promise.race([...l.running.values()].map((card) => card.done)));
+  }
+
+  /** Waits until no card is at work (a stop or a cancel ends their rounds and checks). */
+  private async drain(l: Live): Promise<void> {
+    while (l.running.size > 0) await Promise.all([...l.running.values()].map((card) => card.done));
   }
 
   /** Waits for `promise`, or gives `undefined` at once when a stop or a cancel wakes the build. */
   private whileAwake<T>(l: Live, promise: Promise<T>): Promise<T | undefined> {
     return new Promise<T | undefined>((resolve) => {
       const done = (value: T | undefined) => {
-        if (l.wake === interrupt) delete l.wake;
+        l.wakers.delete(interrupt);
         resolve(value);
       };
       const interrupt = () => done(undefined);
-      l.wake = interrupt;
+      l.wakers.add(interrupt);
       if (this.stopping || l.cancelling) interrupt();
       promise.then(done, () => done(undefined));
     });
@@ -939,16 +1066,23 @@ export class BuildManager {
     return { ...record, tasks };
   }
 
-  /** Reads the usage; at or above a threshold the build pauses and resumes by itself at the time the reading gives. */
-  private async pausedForUsage(l: Live, record: BuildRecord): Promise<boolean> {
+  /**
+   * Reads the usage before the cards of a pass start: `go`; `woken` when a
+   * stop or a cancel ended the reading; at or above a threshold, `wait`
+   * while cards are at work (they go on; a reading is made again when one
+   * ends and another could start), else `paused`: the build pauses and
+   * resumes by itself at the time the reading gives (BRIEF-phase-11 §2, 6).
+   */
+  private async usageGate(l: Live, record: BuildRecord): Promise<'go' | 'woken' | 'wait' | 'paused'> {
     const read = this.options.usage;
     const thresholds = record.settings?.thresholds;
-    if (read === undefined || thresholds === undefined) return false;
+    if (read === undefined || thresholds === undefined) return 'go';
     // A stop or a cancel does not wait for the reading (review of M4, B1 and I2).
     const reading = await this.whileAwake(l, read().catch((error: unknown): UsageReading => ({ kind: 'failed', message: String(error) })));
-    if (reading === undefined) return true;
+    if (reading === undefined) return 'woken';
     const decision = decideUsage(reading, thresholds, this.now(), this.options.usageRetryMs ?? USAGE_RETRY_MS);
-    if (decision.go) return false;
+    if (decision.go) return 'go';
+    if (l.running.size > 0) return 'wait';
     await this.serial(l, async () => {
       const fresh = await this.load(record.id);
       // A cancel or a stop that came during the reading wins: no pause, no timer (review of M4, B1).
@@ -973,7 +1107,7 @@ export class BuildManager {
       });
       this.wakeAt(record.id, decision.until);
     });
-    return true;
+    return 'paused';
   }
 
   /** A paused build resumes by itself at `until` (the usage's reset), while this server runs. */
@@ -1007,37 +1141,107 @@ export class BuildManager {
     return { ...record, tasks, updatedAt: this.now().toISOString() };
   }
 
-  /** Changes one task of the build on disk, from the record as it is now. */
-  private async updateTask(id: string, n: number, change: Partial<BuildTask>, extra: Partial<BuildRecord> = {}): Promise<BuildRecord> {
-    const record = await this.load(id);
-    const next = { ...this.withTask(record, n, change), ...extra };
-    await this.save(next);
-    return next;
+  /** Changes the record, from what it is on disk now, behind every other change the cards and the loop asked for (H0, 1). */
+  private edit(l: Live, id: string, change: (record: BuildRecord) => BuildRecord): Promise<BuildRecord> {
+    const run = l.edits.then(async () => {
+      const next = change(await this.load(id));
+      await this.save(next);
+      return next;
+    });
+    l.edits = run.catch(() => undefined);
+    return run;
   }
 
-  /** One task: its first round and fix rounds, its checks after each, then applied to the integration branch or left waiting. */
-  private async runTask(record: BuildRecord, n: number): Promise<void> {
+  /** Changes one task of the build on disk, from the record as it is now. */
+  private updateTask(id: string, n: number, change: Partial<BuildTask>, extra: Partial<BuildRecord> = {}): Promise<BuildRecord> {
+    return this.edit(this.liveOf(id), id, (record) => ({ ...this.withTask(record, n, change), ...extra }));
+  }
+
+  /**
+   * One card (phase 9's task): its first round and fix rounds, its checks
+   * after each, then its join onto the integration branch (phase 11), or
+   * left waiting. A join that conflicts, or whose checks fail on the joined
+   * commit, redoes the card once at the integration head; a second time it
+   * waits for the user (BRIEF-phase-11 §2, 4 and 9).
+   */
+  private async runCard(record: BuildRecord, n: number, card: RunningCard): Promise<void> {
     const l = this.liveOf(record.id);
     const settings = record.settings;
     const item = record.tasks[n - 1];
     if (settings === undefined || item === undefined) return;
     const lang = await this.options.lang();
     const denied: { tool: string; text: string }[] = [];
+    let redo: JoinFailure | undefined;
     const round = (fix?: { round: number; failures: string }) => ({
       commands: settings.commands,
-      prompt: buildRoundPrompt({ title: item.title, instruction: item.instruction, doneWhen: item.doneWhen, n, total: record.tasks.length, commands: settings.commands, checks: settings.checks, lang, ...(fix === undefined ? {} : { fix }) }),
+      prompt: buildRoundPrompt({
+        title: item.title,
+        instruction: item.instruction,
+        doneWhen: item.doneWhen,
+        n,
+        total: record.tasks.length,
+        commands: settings.commands,
+        checks: settings.checks,
+        lang,
+        ...(fix === undefined ? {} : { fix }),
+        ...(redo === undefined ? {} : { redo }),
+      }),
       onDenied: (entry: { tool: string; text: string }) => denied.push(entry),
     });
-    const head = await this.integrationHeadOf(record);
+    for (;;) {
+      const outcome = await this.attempt(record, n, card, round, denied);
+      if (outcome === 'done') return;
+      // The join failed: the one redo, at the integration head, with a fresh task (the first one discarded).
+      const previous = card.taskId as string;
+      const now = await this.load(record.id);
+      if (redo !== undefined || now.tasks[n - 1]?.redo !== undefined || now.roundsRun >= settings.maxRounds) {
+        await this.updateTask(record.id, n, { state: 'waiting', reason: outcome === 'conflict' ? 'conflict' : 'joinChecksFailed' });
+        return;
+      }
+      redo = outcome;
+      try {
+        await this.options.tasks.discardForBuild(previous);
+      } catch (error) {
+        if (this.stopping) return;
+        await this.updateTask(record.id, n, { state: 'waiting', reason: outcome === 'conflict' ? 'conflict' : 'joinChecksFailed', detail: await this.message(error) });
+        return;
+      }
+      delete card.taskId;
+      denied.length = 0;
+      await this.edit(l, record.id, (fresh) => {
+        const next = this.withTask(fresh, n, { redo: { reason: outcome, previousTask: previous } });
+        const task = next.tasks[n - 1];
+        if (task !== undefined) delete task.taskId;
+        return next;
+      });
+    }
+  }
+
+  /**
+   * One attempt of a card: a task at the integration head, its rounds and
+   * checks, then its join. `done` when the card was applied, left waiting or
+   * cancelled (or a stop came); otherwise why its join failed.
+   */
+  private async attempt(
+    record: BuildRecord,
+    n: number,
+    card: RunningCard,
+    round: (fix?: { round: number; failures: string }) => UnattendedRound,
+    denied: { tool: string; text: string }[],
+  ): Promise<'done' | JoinFailure> {
+    const l = this.liveOf(record.id);
+    const settings = record.settings as NonNullable<BuildRecord['settings']>;
+    const item = record.tasks[n - 1] as BuildTask;
     let task: TaskView;
     try {
+      const head = await this.integrationHeadOf(record);
       await this.updateTask(record.id, n, { state: 'running' });
       // A cancel that came meanwhile starts no session (review of M4, B1).
       if (l.cancelling) {
         await this.updateTask(record.id, n, { state: 'cancelled' });
-        return;
+        return 'done';
       }
-      task = await this.withSlot(l, () =>
+      task = await this.withSlot(l, n, () =>
         this.options.tasks.startForBuild(record.project, {
           build: { id: record.id, n },
           base: { branch: record.branch, commit: head },
@@ -1047,92 +1251,137 @@ export class BuildManager {
       );
     } catch (error) {
       // A stop leaves the record as an abrupt stop does, for `recover()` (review of M3, B1).
-      if (this.stopping) return;
+      if (this.stopping) return 'done';
       if (l.cancelling) {
         await this.updateTask(record.id, n, { state: 'cancelled' });
-        return;
+        return 'done';
       }
       await this.updateTask(record.id, n, { state: 'waiting', reason: 'notStarted', detail: await this.message(error) });
-      return;
+      return 'done';
     }
-    l.taskId = task.id;
+    card.taskId = task.id;
     // A cancel that came while the task was starting did not know its id: its round is cancelled now.
     this.cancelIfAsked(l, task.id);
     await this.updateTask(record.id, n, { taskId: task.id });
-    try {
-      let fixesLeft = settings.fixRounds;
-      for (;;) {
-        task = await this.options.tasks.roundSettled(task.id);
-        const counted = await this.load(record.id);
+    let fixesLeft = settings.fixRounds;
+    for (;;) {
+      task = await this.options.tasks.roundSettled(task.id);
+      const kept = [...denied];
+      await this.edit(l, record.id, (counted) => {
         const before = counted.tasks[n - 1];
-        const capped = capDenied(before?.denied ?? [], before?.deniedOmitted ?? 0, denied);
-        await this.save({
-          ...this.withTask(counted, n, { rounds: (before?.rounds ?? 0) + 1, denied: capped.denied, ...(capped.deniedOmitted > 0 ? { deniedOmitted: capped.deniedOmitted } : {}) }),
-          roundsRun: counted.roundsRun + 1,
-        });
-        if (this.stopping) return;
-        if (l.cancelling) {
-          await this.updateTask(record.id, n, { state: 'cancelled' });
-          return;
-        }
-        if (task.state !== 'proposal') {
-          await this.updateTask(record.id, n, { state: 'waiting', reason: task.state === 'interrupted' ? 'interrupted' : 'roundFailed', ...(task.error === undefined ? {} : { detail: clean(task.error) }) });
-          return;
-        }
-        if (settings.checks.length > 0) {
-          const id = task.id;
-          try {
-            task = await this.withSlot(l, () => this.options.tasks.runBuildChecks(id, settings.checks));
-          } catch (error) {
-            if (this.stopping) return;
-            await this.updateTask(record.id, n, l.cancelling ? { state: 'cancelled' } : { state: 'waiting', reason: 'roundFailed', detail: await this.message(error) });
-            return;
-          }
-        }
-        if (this.stopping) return;
-        if (l.cancelling) {
-          await this.updateTask(record.id, n, { state: 'cancelled' });
-          return;
-        }
-        if (task.state !== 'proposal') {
-          await this.updateTask(record.id, n, { state: 'waiting', reason: 'roundFailed', ...(task.error === undefined ? {} : { detail: clean(task.error) }) });
-          return;
-        }
-        const blocking = (task.validations ?? []).filter((validation) => validation.level === 'error');
-        const failed = (task.checks ?? []).filter((check) => check.exitCode !== 0 || check.timedOut);
-        const reason: WaitReason | undefined = blocking.length > 0 ? 'blocked' : failed.length > 0 ? 'checksFailed' : denied.length > 0 ? 'denied' : undefined;
-        if (reason === undefined) {
-          try {
-            const applied = await this.options.tasks.applyForBuild(task.id);
-            await this.updateTask(record.id, n, { state: 'applied', ...(applied.applied === undefined ? {} : { commit: applied.applied.commit }) });
-          } catch (error) {
-            if (this.stopping) return;
-            await this.updateTask(record.id, n, { state: 'waiting', reason: 'notApplied', detail: await this.message(error) });
-          }
-          return;
-        }
-        const now = await this.load(record.id);
-        if (fixesLeft <= 0 || now.roundsRun >= settings.maxRounds) {
-          await this.updateTask(record.id, n, { state: 'waiting', reason });
-          return;
-        }
-        fixesLeft -= 1;
-        const failures = failureText({ checks: task.checks ?? [], denied, validations: task.validations ?? [] });
-        denied.length = 0;
-        const roundNumber = task.rounds.length + 1;
+        const capped = capDenied(before?.denied ?? [], before?.deniedOmitted ?? 0, kept);
+        return { ...this.withTask(counted, n, { rounds: (before?.rounds ?? 0) + 1, denied: capped.denied, ...(capped.deniedOmitted > 0 ? { deniedOmitted: capped.deniedOmitted } : {}) }), roundsRun: counted.roundsRun + 1 };
+      });
+      if (this.stopping) return 'done';
+      if (l.cancelling) {
+        await this.updateTask(record.id, n, { state: 'cancelled' });
+        return 'done';
+      }
+      if (task.state !== 'proposal') {
+        await this.updateTask(record.id, n, { state: 'waiting', reason: task.state === 'interrupted' ? 'interrupted' : 'roundFailed', ...(task.error === undefined ? {} : { detail: clean(task.error) }) });
+        return 'done';
+      }
+      if (settings.checks.length > 0) {
         const id = task.id;
         try {
-          await this.withSlot(l, () => this.options.tasks.newBuildRound(id, `Fix round ${roundNumber}`, round({ round: roundNumber, failures })));
-          this.cancelIfAsked(l, id);
+          task = await this.withSlot(l, n, () => this.options.tasks.runBuildChecks(id, settings.checks));
         } catch (error) {
-          if (this.stopping) return;
-          await this.updateTask(record.id, n, l.cancelling ? { state: 'cancelled' } : { state: 'waiting', reason, detail: await this.message(error) });
-          return;
+          if (this.stopping) return 'done';
+          await this.updateTask(record.id, n, l.cancelling ? { state: 'cancelled' } : { state: 'waiting', reason: 'roundFailed', detail: await this.message(error) });
+          return 'done';
         }
       }
-    } finally {
-      delete l.taskId;
+      if (this.stopping) return 'done';
+      if (l.cancelling) {
+        await this.updateTask(record.id, n, { state: 'cancelled' });
+        return 'done';
+      }
+      if (task.state !== 'proposal') {
+        await this.updateTask(record.id, n, { state: 'waiting', reason: 'roundFailed', ...(task.error === undefined ? {} : { detail: clean(task.error) }) });
+        return 'done';
+      }
+      const blocking = (task.validations ?? []).filter((validation) => validation.level === 'error');
+      const failed = (task.checks ?? []).filter((check) => check.exitCode !== 0 || check.timedOut);
+      const reason: WaitReason | undefined = blocking.length > 0 ? 'blocked' : failed.length > 0 ? 'checksFailed' : denied.length > 0 ? 'denied' : undefined;
+      if (reason === undefined) return this.joinCard(record, n, task.id, settings.checks);
+      const now = await this.load(record.id);
+      if (fixesLeft <= 0 || now.roundsRun >= settings.maxRounds) {
+        await this.updateTask(record.id, n, { state: 'waiting', reason });
+        return 'done';
+      }
+      fixesLeft -= 1;
+      const failures = failureText({ checks: task.checks ?? [], denied, validations: task.validations ?? [] });
+      denied.length = 0;
+      const roundNumber = task.rounds.length + 1;
+      const id = task.id;
+      try {
+        await this.withSlot(l, n, () => this.options.tasks.newBuildRound(id, `Fix round ${roundNumber}`, round({ round: roundNumber, failures })));
+        this.cancelIfAsked(l, id);
+      } catch (error) {
+        if (this.stopping) return 'done';
+        await this.updateTask(record.id, n, l.cancelling ? { state: 'cancelled' } : { state: 'waiting', reason, detail: await this.message(error) });
+        return 'done';
+      }
     }
+  }
+
+  /**
+   * A card's join, one at a time per build (BRIEF-phase-11 §2, 9): applied
+   * (on the head it started at, or merged onto one that moved and checked
+   * again there), or why it failed for its redo. A head moved between the
+   * join's read and its compare and swap is joined again, a few times.
+   */
+  private joinCard(record: BuildRecord, n: number, taskId: string, checks: readonly string[]): Promise<'done' | JoinFailure> {
+    const l = this.liveOf(record.id);
+    const run = l.joins.then(async (): Promise<'done' | JoinFailure> => {
+      for (let tries = 0; tries < JOIN_TRIES; tries += 1) {
+        if (this.stopping) return 'done';
+        if (l.cancelling) {
+          await this.updateTask(record.id, n, { state: 'cancelled' });
+          return 'done';
+        }
+        let joined: BuildJoin;
+        try {
+          joined = await this.withSlot(l, n, () => this.options.tasks.joinForBuild(taskId, checks));
+        } catch (error) {
+          if (this.stopping) return 'done';
+          await this.updateTask(record.id, n, l.cancelling ? { state: 'cancelled' } : { state: 'waiting', reason: 'notApplied', detail: await this.message(error) });
+          return 'done';
+        }
+        const summary = (results: readonly CheckResult[] | undefined) => (results === undefined ? {} : { checks: results.map((check) => ({ command: check.command, exitCode: check.exitCode, timedOut: check.timedOut })) });
+        switch (joined.kind) {
+          case 'applied':
+            await this.updateTask(record.id, n, {
+              state: 'applied',
+              ...(joined.task.applied === undefined ? {} : { commit: joined.task.applied.commit }),
+              join: { outcome: 'applied', merged: joined.merged, ...summary(joined.checks) },
+            });
+            return 'done';
+          case 'conflict':
+            await this.updateTask(record.id, n, { join: { outcome: 'conflict', merged: true, files: joined.files } });
+            return 'conflict';
+          case 'checksFailed':
+            await this.updateTask(record.id, n, { join: { outcome: 'checksFailed', merged: true, ...summary(joined.checks) } });
+            return 'checksFailed';
+          case 'moved':
+            continue;
+          case 'aborted':
+            if (this.stopping) return 'done';
+            await this.updateTask(record.id, n, l.cancelling ? { state: 'cancelled' } : { state: 'waiting', reason: 'interrupted' });
+            return 'done';
+          case 'empty':
+            await this.updateTask(record.id, n, { state: 'waiting', reason: 'notApplied', detail: await this.message(new BriefstackError('task.noChanges', { id: taskId })) });
+            return 'done';
+          case 'failed':
+            await this.updateTask(record.id, n, { state: 'waiting', reason: 'notApplied', detail: clean(joined.message) });
+            return 'done';
+        }
+      }
+      await this.updateTask(record.id, n, { state: 'waiting', reason: 'notApplied', detail: await this.message(new BriefstackError('build.branchMoved', { branch: record.branch })) });
+      return 'done';
+    });
+    l.joins = run.catch(() => undefined);
+    return run;
   }
 
   private async integrationHeadOf(record: BuildRecord): Promise<string> {
@@ -1182,7 +1431,7 @@ export class BuildManager {
     for (const l of this.live.values()) {
       if (l.timer !== undefined) clearTimeout(l.timer);
       l.planAbort?.abort();
-      l.wake?.();
+      this.wakeAll(l);
     }
   }
 

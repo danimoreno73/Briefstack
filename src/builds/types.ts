@@ -186,7 +186,11 @@ export const BUILD_TASK_STATES = ['queued', 'running', 'applied', 'waiting', 'sk
 export type BuildTaskState = (typeof BUILD_TASK_STATES)[number];
 
 /** Why a task waits. */
-export const WAIT_REASONS = ['checksFailed', 'denied', 'blocked', 'roundFailed', 'interrupted', 'notStarted', 'notApplied', 'roundsCap'] as const;
+export const WAIT_REASONS = ['checksFailed', 'denied', 'blocked', 'roundFailed', 'interrupted', 'notStarted', 'notApplied', 'roundsCap', 'conflict', 'joinChecksFailed'] as const;
+
+/** Why a card was redone, or waits after its redo (phase 11): a textual conflict, or checks failing on the joined commit. */
+export const JOIN_FAILURES = ['conflict', 'checksFailed'] as const;
+export type JoinFailure = (typeof JOIN_FAILURES)[number];
 export type WaitReason = (typeof WAIT_REASONS)[number];
 
 const buildTaskSchema = z.object({
@@ -215,6 +219,21 @@ const buildTaskSchema = z.object({
   deniedOmitted: z.int().min(0).optional(),
   /** Rounds the build ran for it (the first and fix rounds). */
   rounds: z.int().min(0),
+  /** Its one redo (phase 11): why, and the task of the first attempt, discarded. */
+  redo: z.object({ reason: z.enum(JOIN_FAILURES), previousTask: z.string().regex(TASK_ID_RE) }).optional(),
+  /**
+   * Its last join onto the integration branch (phase 11): applied onto the
+   * head it started at, or `merged` onto one that moved (with the checks run
+   * on the joined commit), or why it failed (the conflicted files).
+   */
+  join: z
+    .object({
+      outcome: z.enum(['applied', ...JOIN_FAILURES]),
+      merged: z.boolean(),
+      files: z.array(z.string()).optional(),
+      checks: z.array(z.object({ command: z.string(), exitCode: z.int().nullable(), timedOut: z.boolean() })).optional(),
+    })
+    .optional(),
 });
 export type BuildTask = z.infer<typeof buildTaskSchema>;
 
