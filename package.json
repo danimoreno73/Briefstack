@@ -1,6 +1,6 @@
 {
   "name": "briefstack",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A local tool that turns an idea into a ready-to-use Claude project by running your own Claude Code, and learns from each one.",
   "license": "MIT",
   "author": "danimoreno73",
