@@ -27,6 +27,7 @@ import {
   MAX_FIX_ROUNDS,
   MAX_QUEUE,
   MAX_ROUNDS_CAP,
+  MAX_SLOTS,
   queueItemSchema,
   SETTLED_BUILD_STATES,
   type BuildRecord,
@@ -55,6 +56,8 @@ export interface BuildStartInput {
   thresholds: { fiveHour: number; week: number };
   /** The user confirmed a start with no checks (every task with no denied command is then applied). */
   noChecks?: boolean;
+  /** How many cards run at once (phase 11), 1 to `MAX_SLOTS`; one when absent, as in phase 9. */
+  slots?: number;
 }
 
 export interface BuildManagerOptions {
@@ -349,6 +352,7 @@ export class BuildManager {
     issues.push(...approvedListIssues(input.commands, 'commands', MAX_COMMANDS));
     issues.push(...approvedListIssues(input.checks, 'checks', MAX_BUILD_CHECKS));
     if (!Number.isInteger(input.fixRounds) || input.fixRounds < 0 || input.fixRounds > MAX_FIX_ROUNDS) issues.push({ key: 'fixRounds', max: MAX_FIX_ROUNDS });
+    if (input.slots !== undefined && (!Number.isInteger(input.slots) || input.slots < 1 || input.slots > MAX_SLOTS)) issues.push({ key: 'slots', max: MAX_SLOTS });
     for (const [name, value] of Object.entries(input.thresholds ?? {})) {
       if (typeof value !== 'number' || !Number.isFinite(value) || value < 1 || value > 100) issues.push({ key: 'threshold', name });
     }
@@ -385,9 +389,12 @@ export class BuildManager {
       instruction: task.instruction.trim(),
       doneWhen: task.doneWhen.trim(),
       dependsOn: [...task.dependsOn],
+      ...(task.area === undefined ? {} : { area: task.area.map((item) => item.trim()) }),
+      ...(task.size === undefined ? {} : { size: task.size }),
       state: 'queued',
       rounds: 0,
     }));
+    const slots = input.slots ?? 1;
     const next: BuildRecord = {
       ...record,
       state: 'running',
@@ -399,8 +406,10 @@ export class BuildManager {
         commands: [...input.commands],
         checks: [...input.checks],
         fixRounds,
-        maxRounds: Math.min(this.options.roundsCap ?? MAX_ROUNDS_CAP, tasks.length * (1 + fixRounds)),
+        // With more than one slot each card may be redone once after a conflict (phase 11): twice the rounds, same cap.
+        maxRounds: Math.min(this.options.roundsCap ?? MAX_ROUNDS_CAP, tasks.length * (1 + fixRounds) * (slots > 1 ? 2 : 1)),
         thresholds: { ...input.thresholds },
+        ...(input.slots === undefined ? {} : { slots }),
       },
       startedAt: this.now().toISOString(),
       updatedAt: this.now().toISOString(),

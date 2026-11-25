@@ -23,18 +23,18 @@ export interface TaskErrorFacts {
  * `undefined` when the item is not one the page knows.
  */
 export interface StartIssueFacts {
-  key: 'emptyQueue' | 'tooManyTasks' | 'taskInvalid' | 'laterDependency' | 'limit' | 'listTooLong' | 'listLine' | 'listDuplicate' | 'fixRounds' | 'threshold' | 'noChecks';
+  key: 'emptyQueue' | 'tooManyTasks' | 'taskInvalid' | 'laterDependency' | 'limit' | 'listTooLong' | 'listLine' | 'listDuplicate' | 'fixRounds' | 'slots' | 'threshold' | 'noChecks';
   n: number;
   max: number;
   line: number;
   checks: boolean;
-  fields: ('title' | 'instruction' | 'doneWhen' | 'dependsOn')[];
+  fields: ('title' | 'instruction' | 'doneWhen' | 'dependsOn' | 'area' | 'size')[];
   problem: 'empty' | 'spaces' | 'lines' | 'long' | 'secret' | 'invisible' | 'compound' | 'wildcard' | 'chars' | 'quote' | undefined;
   threshold: 'fiveHour' | 'week' | undefined;
 }
 
-const START_ISSUE_KEYS = new Set(['emptyQueue', 'tooManyTasks', 'taskInvalid', 'laterDependency', 'limit', 'listTooLong', 'listLine', 'listDuplicate', 'fixRounds', 'threshold', 'noChecks']);
-const START_ISSUE_FIELDS = new Set(['title', 'instruction', 'doneWhen', 'dependsOn']);
+const START_ISSUE_KEYS = new Set(['emptyQueue', 'tooManyTasks', 'taskInvalid', 'laterDependency', 'limit', 'listTooLong', 'listLine', 'listDuplicate', 'fixRounds', 'slots', 'threshold', 'noChecks']);
+const START_ISSUE_FIELDS = new Set(['title', 'instruction', 'doneWhen', 'dependsOn', 'area', 'size']);
 const START_ISSUE_PROBLEMS = new Set(['empty', 'spaces', 'lines', 'long', 'secret', 'invisible', 'compound', 'wildcard', 'chars', 'quote']);
 
 /** Reads one item of `build.invalidStart`'s `items` into what the page may show. */
@@ -528,7 +528,7 @@ export const uiMessages = defineCatalogue({
     buildInvalidStartLead: 'The build cannot start:',
     buildStartIssue: (i: StartIssueFacts): string => {
       const list = i.checks ? 'checks' : 'approved commands';
-      const fields: Record<StartIssueFacts['fields'][number], string> = { title: 'title', instruction: 'instruction', doneWhen: '“done when”', dependsOn: 'depends on' };
+      const fields: Record<StartIssueFacts['fields'][number], string> = { title: 'title', instruction: 'instruction', doneWhen: '“done when”', dependsOn: 'depends on', area: 'area', size: 'size' };
       const problems: Record<NonNullable<StartIssueFacts['problem']>, string> = {
         empty: 'it is empty',
         spaces: 'it has spaces at the start or end',
@@ -560,6 +560,8 @@ export const uiMessages = defineCatalogue({
           return `the same command is twice in the ${list}`;
         case 'fixRounds':
           return `fix rounds must be from 0 to ${i.max}`;
+        case 'slots':
+          return `cards at once must be from 1 to ${i.max}`;
         case 'threshold':
           return `the ${i.threshold === 'week' ? 'weekly' : '5-hour'} usage threshold must be from 1 to 100`;
         case 'noChecks':
@@ -1877,7 +1879,7 @@ export const uiMessages = defineCatalogue({
     buildInvalidStartLead: 'El build no puede empezar:',
     buildStartIssue: (i: StartIssueFacts): string => {
       const list = i.checks ? 'las comprobaciones' : 'los comandos aprobados';
-      const fields: Record<StartIssueFacts['fields'][number], string> = { title: 'título', instruction: 'instrucción', doneWhen: '«hecha cuando»', dependsOn: 'depende de' };
+      const fields: Record<StartIssueFacts['fields'][number], string> = { title: 'título', instruction: 'instrucción', doneWhen: '«hecha cuando»', dependsOn: 'depende de', area: 'zona', size: 'tamaño' };
       const problems: Record<NonNullable<StartIssueFacts['problem']>, string> = {
         empty: 'está vacía',
         spaces: 'tiene espacios al principio o al final',
@@ -1909,6 +1911,8 @@ export const uiMessages = defineCatalogue({
           return `el mismo comando está dos veces en ${list}`;
         case 'fixRounds':
           return `las rondas de arreglo deben ir de 0 a ${i.max}`;
+        case 'slots':
+          return `las tarjetas a la vez deben ir de 1 a ${i.max}`;
         case 'threshold':
           return `el umbral de uso ${i.threshold === 'week' ? 'semanal' : 'de 5 horas'} debe ir de 1 a 100`;
         case 'noChecks':

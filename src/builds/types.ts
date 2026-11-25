@@ -64,12 +64,75 @@ export const isOpenBuild = (state: BuildState): boolean => OPEN_BUILD_STATES.inc
 export const isRevertable = (record: { state: BuildState; applied?: unknown; reverted?: unknown }): boolean =>
   record.applied !== undefined && record.reverted === undefined && (record.state === 'applied' || record.state === 'discarded');
 
-/** One item of a queue, as the planner proposes it and the user edits it. `dependsOn`: 1-based positions of earlier items. */
+/** A card's expected size (BRIEF-phase-11 §2, 7). */
+export const CARD_SIZES = ['S', 'M', 'L'] as const;
+export type CardSize = (typeof CARD_SIZES)[number];
+/** How many paths a card's area may name, and how long each may be. */
+export const MAX_AREA_PATHS = 10;
+export const MAX_AREA_PATH = 200;
+/** How many cards a build may run at once (BRIEF-phase-11 §2, 5). */
+export const MAX_SLOTS = 4;
+/** What the start page offers; the API's default, without a value, is 1 (phase 9's behaviour). */
+export const DEFAULT_PAGE_SLOTS = 2;
+
+/** Control characters, and characters that print nothing or turn the text's direction. */
+const hiddenCode = (code: number): boolean =>
+  code < 0x20 || code === 0x7f || (code >= 0x200b && code <= 0x200f) || (code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069) || code === 0xfeff;
+
+/** Why a path cannot be in a card's area (a code the page translates), or `undefined`. */
+export function areaPathProblem(value: string): 'empty' | 'long' | 'absolute' | 'parent' | 'chars' | undefined {
+  if (value.trim() === '') return 'empty';
+  if (value.length > MAX_AREA_PATH) return 'long';
+  // Only relative paths with `/`: no backslash, wildcard, control or invisible character.
+  if (/[\\*?[\]{}<>|"]/.test(value) || [...value].some((ch) => hiddenCode(ch.codePointAt(0) ?? 0))) return 'chars';
+  if (value.startsWith('/') || /^[A-Za-z]:/.test(value) || value.startsWith('~')) return 'absolute';
+  if (value.split('/').some((part) => part === '..')) return 'parent';
+  return undefined;
+}
+
+/** A path of a card's area: relative to the project, with `/`; `.` is the whole project. */
+const areaPathSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(MAX_AREA_PATH)
+  .refine((value) => areaPathProblem(value) === undefined, { message: 'must be a relative path inside the project, with /' });
+
+/** A path's parts, without `.`, empty parts and case: what the overlap compares. `[]` is the whole project. */
+const areaParts = (value: string): string[] =>
+  value
+    .trim()
+    .toLowerCase()
+    .split('/')
+    .filter((part) => part !== '' && part !== '.');
+
+/**
+ * Whether two cards' areas may touch the same files (BRIEF-phase-11 §2, 4):
+ * a path of one equal to, or a folder above or below, a path of the other,
+ * without case (the conservative side on Windows and macOS). No area, an
+ * empty one, or `.` is the whole project and overlaps everything.
+ */
+export function areasOverlap(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
+  if (a === undefined || b === undefined || a.length === 0 || b.length === 0) return true;
+  const within = (outer: string[], inner: string[]): boolean => outer.length <= inner.length && outer.every((part, i) => part === inner[i]);
+  return a.map(areaParts).some((x) => b.map(areaParts).some((y) => within(x, y) || within(y, x)));
+}
+
+/**
+ * One item of a queue, as the planner proposes it and the user edits it: a
+ * card of the board (phase 11). `dependsOn`: 1-based positions of earlier
+ * items. `area` and `size` are optional here, so builds planned before
+ * phase 11 and phase 9's API read as they did; the planner is asked for
+ * both (`plannerOutputSchema`).
+ */
 export const queueItemSchema = z.strictObject({
   title: z.string().trim().min(1).max(120),
   instruction: z.string().trim().min(1).max(4000),
   doneWhen: z.string().trim().min(1).max(1000),
   dependsOn: z.array(z.int().min(1).max(MAX_QUEUE)).max(MAX_QUEUE),
+  /** Paths or folders the card is expected to touch: a scheduling hint, not a boundary (BRIEF-phase-11 §4). */
+  area: z.array(areaPathSchema).min(1).max(MAX_AREA_PATHS).optional(),
+  size: z.enum(CARD_SIZES).optional(),
 });
 export type QueueItem = z.infer<typeof queueItemSchema>;
 
@@ -82,6 +145,11 @@ export const planOutputSchema = z.strictObject({
   checks: z.array(z.string().max(MAX_COMMAND_LENGTH)).max(MAX_BUILD_CHECKS),
 });
 export type PlanOutput = z.infer<typeof planOutputSchema>;
+
+/** What the planner session is asked for (its JSON schema): every card with its area and size (phase 11). */
+export const plannerOutputSchema = planOutputSchema.extend({
+  tasks: z.array(queueItemSchema.extend({ area: z.array(areaPathSchema).min(1).max(MAX_AREA_PATHS), size: z.enum(CARD_SIZES) })).min(1).max(MAX_QUEUE),
+});
 
 /**
  * - `queued`: not started yet.
@@ -105,6 +173,9 @@ const buildTaskSchema = z.object({
   instruction: z.string(),
   doneWhen: z.string(),
   dependsOn: z.array(z.int().min(1)),
+  /** The card's area and size (phase 11); absent in builds started before, and then the whole project. */
+  area: z.array(z.string()).optional(),
+  size: z.enum(CARD_SIZES).optional(),
   state: z.enum(BUILD_TASK_STATES),
   /** The phase 7 task that does it, once started. */
   taskId: z.string().regex(TASK_ID_RE).optional(),
@@ -136,6 +207,8 @@ export const buildSettingsSchema = z.object({
   maxRounds: z.int().min(1).max(MAX_ROUNDS_CAP),
   /** Plan usage at or above these pauses the build (percent). */
   thresholds: z.object({ fiveHour: z.number().min(1).max(100), week: z.number().min(1).max(100) }),
+  /** How many cards run at once (phase 11); absent in builds started before, and then one. */
+  slots: z.int().min(1).max(MAX_SLOTS).optional(),
 });
 export type BuildSettings = z.infer<typeof buildSettingsSchema>;
 

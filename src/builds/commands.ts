@@ -93,6 +93,7 @@ export type StartIssue =
   | { key: 'listLine'; what: 'commands' | 'checks'; line: number; problem: CommandProblem }
   | { key: 'listDuplicate'; what: 'commands' | 'checks' }
   | { key: 'fixRounds'; max: number }
+  | { key: 'slots'; max: number }
   | { key: 'threshold'; name: string }
   | { key: 'noChecks' };
 
@@ -116,6 +117,8 @@ export function startIssueText(issue: StartIssue): string {
       return `${issue.what}: the same command twice`;
     case 'fixRounds':
       return `fix rounds: 0 to ${issue.max}`;
+    case 'slots':
+      return `cards at once: 1 to ${issue.max}`;
     case 'threshold':
       return `usage threshold ${issue.name}: 1 to 100`;
     case 'noChecks':
