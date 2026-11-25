@@ -7,7 +7,7 @@ import { formatWhen } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { ConfirmModal, ErrorNote, LoadState, Note, UsageWarningModal, usageWarningIn } from './kit.js';
 import { routeHash } from './route.js';
-import type { BuildViewUi, ProjectBuildsUi, QueueItemUi, TaskProposalUi, UsageWarningView } from './types.js';
+import type { BuildTaskUi, BuildViewUi, ProjectBuildsUi, QueueItemUi, TaskProposalUi, UsageWarningView } from './types.js';
 
 /**
  * Builds (BRIEF-phase-9 §3): the project page's section with the
@@ -134,18 +134,35 @@ export function ProjectBuilds({ slug }: { slug: string }) {
 
 // ---- the start page ------------------------------------------------------------------------------
 
-/** A queue item being edited: its dependencies are kept by key, so moving or removing items keeps them right. */
-interface Draft extends Omit<QueueItemUi, 'dependsOn'> {
+/** A card being edited: its dependencies are kept by key, so moving or removing cards keeps them right; its area as typed. */
+interface Draft extends Omit<QueueItemUi, 'dependsOn' | 'area' | 'size'> {
   key: number;
   deps: number[];
+  area: string;
+  size: 'S' | 'M' | 'L';
 }
+
+/** The paths of an area as typed: one per line or separated by commas. */
+const areaPaths = (text: string): string[] =>
+  text
+    .split(/[\n,]/)
+    .map((part) => part.trim())
+    .filter((part) => part !== '');
+
+/** What the start page offers for the slots (phase 11; the API's default without a value is one). */
+const PAGE_SLOTS = 2;
+const MAX_PAGE_SLOTS = 4;
 
 function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStarted(): void; defaults: { fiveHour: number; week: number } }) {
   const { t } = useApp();
   const send = useSend();
   const plan = build.plan;
-  const [items, setItems] = useState<Draft[]>(() => (plan?.tasks ?? []).map((task, i) => ({ key: i + 1, title: task.title, instruction: task.instruction, doneWhen: task.doneWhen, deps: [...task.dependsOn] })));
+  const [items, setItems] = useState<Draft[]>(() =>
+    (plan?.tasks ?? []).map((task, i) => ({ key: i + 1, title: task.title, instruction: task.instruction, doneWhen: task.doneWhen, deps: [...task.dependsOn], area: (task.area ?? []).join(', '), size: task.size ?? 'M' })),
+  );
   const [limit, setLimit] = useState(String(plan?.tasks.length ?? 1));
+  const [slots, setSlots] = useState(String(PAGE_SLOTS));
+  const nextKey = useRef((plan?.tasks.length ?? 0) + 1);
   const [commands, setCommands] = useState((plan?.commands ?? []).join('\n'));
   const [checks, setChecks] = useState((plan?.checks ?? []).join('\n'));
   const [fixRounds, setFixRounds] = useState('1');
@@ -163,6 +180,20 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
       if (item !== undefined) next.splice(index + delta, 0, item);
       return next;
     });
+  // A card never goes above one it depends on: the server takes dependencies on earlier cards only (PLAN-phase-11 §1, 9).
+  const canSwap = (upper: number) => {
+    const above = items[upper];
+    const below = items[upper + 1];
+    return above !== undefined && below !== undefined && !below.deps.includes(above.key);
+  };
+  const add = () => {
+    const key = nextKey.current;
+    nextKey.current += 1;
+    const length = items.length;
+    setItems((current) => [...current, { key, title: '', instruction: '', doneWhen: '', deps: [], area: '', size: 'M' }]);
+    // "How many tasks to run" follows the board up when it ran them all.
+    setLimit((current) => (Number(current) === length ? String(length + 1) : current));
+  };
   const remove = (key: number) => {
     const left = items.filter((item) => item.key !== key).length;
     setItems((current) => current.filter((item) => item.key !== key).map((item) => ({ ...item, deps: item.deps.filter((dep) => dep !== key) })));
@@ -171,7 +202,11 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
   };
   const noChecks = lines(checks).length === 0;
   const [noChecksConfirmed, setNoChecksConfirmed] = useState(false);
-  const queue = (): QueueItemUi[] => items.map((item) => ({ title: item.title, instruction: item.instruction, doneWhen: item.doneWhen, dependsOn: item.deps.map(position).filter((n) => n > 0) }));
+  const queue = (): QueueItemUi[] =>
+    items.map((item) => {
+      const area = areaPaths(item.area);
+      return { title: item.title, instruction: item.instruction, doneWhen: item.doneWhen, dependsOn: item.deps.map(position).filter((n) => n > 0), ...(area.length === 0 ? {} : { area }), size: item.size };
+    });
 
   const start = () =>
     void action
@@ -183,6 +218,7 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
           checks: lines(checks),
           fixRounds: Number(fixRounds),
           thresholds: { fiveHour: Number(fiveHour), week: Number(week) },
+          slots: Number(slots),
           confirm: true,
           ...(noChecks && noChecksConfirmed ? { noChecks: true } : {}),
         }),
@@ -224,11 +260,25 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
                 data-testid="build-item-deps"
               />
             </label>
+            <label class="label">
+              {t.buildCardAreaLabel}
+              <input class="input mono" value={item.area} onInput={(event) => update(item.key, { area: (event.target as HTMLInputElement).value })} data-testid="build-item-area" />
+            </label>
+            <label class="label">
+              {t.buildCardSizeLabel}
+              <select class="input" value={item.size} onChange={(event) => update(item.key, { size: (event.target as HTMLSelectElement).value as Draft['size'] })} data-testid="build-item-size">
+                {(['S', 'M', 'L'] as const).map((size) => (
+                  <option key={size} value={size}>
+                    {t.buildCardSize(size)}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div class="btn-row">
-              <button type="button" class="btn btn-ghost btn-sm" disabled={i === 0} onClick={() => move(i, -1)}>
+              <button type="button" class="btn btn-ghost btn-sm" disabled={i === 0 || !canSwap(i - 1)} onClick={() => move(i, -1)} data-testid="build-item-up">
                 {t.buildTaskUp}
               </button>
-              <button type="button" class="btn btn-ghost btn-sm" disabled={i === items.length - 1} onClick={() => move(i, 1)} data-testid="build-item-down">
+              <button type="button" class="btn btn-ghost btn-sm" disabled={i === items.length - 1 || !canSwap(i)} onClick={() => move(i, 1)} data-testid="build-item-down">
                 {t.buildTaskDown}
               </button>
               <button type="button" class="btn btn-ghost btn-sm" onClick={() => remove(item.key)} data-testid="build-item-remove">
@@ -238,6 +288,19 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
           </li>
         ))}
       </ol>
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost" onClick={add} data-testid="build-item-add">
+          {t.buildCardAdd}
+        </button>
+      </div>
+      <p class="t-small muted">{t.buildCardAreaHint}</p>
+      <label class="label">
+        {t.buildSlotsLabel}
+        <input class="input" type="number" min={1} max={MAX_PAGE_SLOTS} value={slots} onInput={(event) => setSlots((event.target as HTMLInputElement).value)} data-testid="build-slots" />
+      </label>
+      <p class="t-small muted" data-testid="build-slots-note">
+        {t.buildSlotsNote}
+      </p>
       <label class="label">
         {t.buildLimitLabel}
         <input class="input" type="number" min={1} max={items.length} value={limit} onInput={(event) => setLimit((event.target as HTMLInputElement).value)} data-testid="build-limit" />
@@ -378,6 +441,83 @@ function Progress({ build }: { build: BuildViewUi }) {
         </table>
       </div>
       <p class="t-small muted">{t.buildTokensHint}</p>
+    </section>
+  );
+}
+
+// ---- the board (phase 11) ------------------------------------------------------------------------
+
+const COLUMNS = ['pending', 'blocked', 'running', 'waiting', 'done', 'skipped'] as const;
+type Column = (typeof COLUMNS)[number];
+
+/** A card's column, from its state and its dependencies' (BRIEF-phase-11 §2, 8; cancelled cards show as skipped). */
+function columnOf(task: BuildTaskUi, all: readonly BuildTaskUi[]): Column {
+  if (task.state === 'queued') return task.dependsOn.every((n) => all[n - 1]?.state === 'applied') ? 'pending' : 'blocked';
+  if (task.state === 'running') return 'running';
+  if (task.state === 'waiting') return 'waiting';
+  if (task.state === 'applied') return 'done';
+  return 'skipped';
+}
+
+/** The started build's cards in columns, read-only, live while it runs. The table below keeps every detail. */
+function Board({ build }: { build: BuildViewUi }) {
+  const { t, lang } = useApp();
+  const byColumn = new Map<Column, BuildTaskUi[]>(COLUMNS.map((column) => [column, []]));
+  for (const task of build.tasks) byColumn.get(columnOf(task, build.tasks))?.push(task);
+  return (
+    <section class="card stack-2" aria-labelledby="build-board-title" data-testid="build-board">
+      <h2 class="t-2" id="build-board-title">
+        {t.buildBoardTitle}
+      </h2>
+      <p class="sub">{t.buildBoardSlots(build.settings?.slots ?? 1)}</p>
+      <div class="board-columns">
+        {COLUMNS.map((column) => {
+          const cards = byColumn.get(column) ?? [];
+          return (
+            <section key={column} class="board-column stack-1" aria-labelledby={`build-column-${column}`} data-testid={`build-column-${column}`}>
+              <h3 class="t-3" id={`build-column-${column}`}>
+                {t.buildColumn(column)} <span class="muted">({cards.length})</span>
+              </h3>
+              <ul class="plain-list stack-1">
+                {cards.map((task) => (
+                  <li key={task.n} class="card board-card stack-1" data-testid="build-card" data-n={task.n}>
+                    <p>
+                      <span class="td-mono">#{task.n}</span> {task.title}
+                    </p>
+                    <p class="t-small muted">
+                      {task.size === undefined ? '' : `${t.buildCardSize(task.size)} · `}
+                      {task.area === undefined || task.area.length === 0 ? t.buildCardWholeProject : task.area.join(', ')}
+                    </p>
+                    <p class="t-small">
+                      {t.buildCardRounds(task.rounds)}
+                      {task.task?.claudeTokens === undefined ? '' : ` · ${formatCount(task.task.claudeTokens.noCache, lang)} ${t.buildCardTokens}`}
+                      {task.task?.checks === undefined || task.task.checks.length === 0 ? '' : ` · ${t.buildChecksPassed(task.task.checks.filter((check) => check.exitCode === 0 && !check.timedOut).length, task.task.checks.length)}`}
+                    </p>
+                    {task.redo !== undefined && (
+                      <p class="t-small" data-testid="build-card-redo">
+                        {t.buildCardRedo(task.redo.reason)}
+                      </p>
+                    )}
+                    {task.join !== undefined && (
+                      <p class="t-small" data-testid="build-card-join">
+                        {t.buildCardJoin(task.join.outcome, task.join.merged)}
+                        {(task.join.files ?? []).length > 0 && <code> {(task.join.files ?? []).join(', ')}</code>}
+                      </p>
+                    )}
+                    {task.reason !== undefined && <p class="t-small">{t.buildWaitReason(task.reason)}</p>}
+                    {(task.denied ?? []).length > 0 && <p class="t-small">{t.buildCardDenied((task.denied ?? []).length + (task.deniedOmitted ?? 0))}</p>}
+                    {task.taskId !== undefined && task.state === 'waiting' && (
+                      <a class="link t-small" href={routeHash({ page: 'task', id: task.taskId })}>
+                        {t.buildOpenTask}
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -621,6 +761,7 @@ export function BuildPage({ id }: { id: string }) {
                 }}
               />
             )}
+            {view.tasks.length > 0 && <Board build={view} />}
             {view.tasks.length > 0 && <Progress build={view} />}
             {view.tasks.length > 0 && (view.state !== 'discarded' || view.applied !== undefined) && <BuildDiff loaded={diff} />}
           </div>

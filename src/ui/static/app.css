@@ -406,6 +406,22 @@ dialog.dec-dialog {
   grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
 }
 
+/* The build's board (phase 11): one column per state, wrapping on narrow screens. */
+.board-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: var(--s-3);
+  align-items: start;
+}
+
+.board-column {
+  min-width: 0;
+}
+
+.board-card {
+  overflow-wrap: anywhere;
+}
+
 .chip-ink {
   min-height: 22px;
   margin-right: var(--s-1);

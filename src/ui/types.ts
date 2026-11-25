@@ -502,6 +502,9 @@ export interface QueueItemUi {
   instruction: string;
   doneWhen: string;
   dependsOn: number[];
+  /** A card's area and size (phase 11). */
+  area?: string[];
+  size?: 'S' | 'M' | 'L';
 }
 
 /** One task of a started build, with its progress (phase 9). */
@@ -517,6 +520,10 @@ export interface BuildTaskUi extends QueueItemUi {
   /** Denials past the kept ones, only counted (step 33). */
   deniedOmitted?: number;
   rounds: number;
+  /** Its one redo (phase 11). */
+  redo?: { reason: 'conflict' | 'checksFailed'; previousTask: string };
+  /** Its last join (phase 11). */
+  join?: { outcome: 'applied' | 'conflict' | 'checksFailed'; merged: boolean; files?: string[]; checks?: { command: string; exitCode: number | null; timedOut: boolean }[] };
   /** What the server adds from the task itself (M5): its state, checks and Codex calls (tokens as Codex counts them). */
   task?: {
     state: string;
@@ -541,7 +548,7 @@ export interface BuildViewUi {
   baseCommit?: string;
   plan?: { tasks: QueueItemUi[]; commands: string[]; checks: string[] };
   tasks: BuildTaskUi[];
-  settings?: { limit: number; commands: string[]; checks: string[]; fixRounds: number; maxRounds: number; thresholds: { fiveHour: number; week: number } };
+  settings?: { limit: number; commands: string[]; checks: string[]; fixRounds: number; maxRounds: number; thresholds: { fiveHour: number; week: number }; slots?: number };
   roundsRun: number;
   pause?: { reason: string; at: string; until?: string; fiveHour?: number | null; sevenDay?: number | null };
   startedAt?: string;
