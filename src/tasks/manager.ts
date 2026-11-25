@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isApprovedCommand } from '../builds/commands.js';
-import { integrationHead, landOnIntegration } from '../builds/git.js';
+import { integrationHead, landOnIntegration, moveIntegration, prepareJoin } from '../builds/git.js';
 import type { CodexSession } from '../codex/tool.js';
 import { CODEX_TOOL_ID } from '../codex/toolNames.js';
 import { DEFAULT_MAX_ACTIVE_CREATIONS } from '../config/limits.js';
@@ -16,14 +16,14 @@ import { settlesWithin } from '../timeLimit.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { applyTask, discardTask, revertTask, type ApplyDeps } from './apply.js';
 import type { TaskChecks } from './checks.js';
-import { allFiles, branchHead, commitRound, createTaskWorktree, headOf, isTaskWorktree, removeTaskWorktree, restoreToHead } from './git.js';
+import { allFiles, branchHead, commitRound, createDetachedWorktree, createTaskWorktree, headOf, isTaskWorktree, removeDetachedWorktree, removeTaskWorktree, restoreToHead } from './git.js';
 import { proposalDiff, type ProposalDiff } from './proposal.js';
 import { checkTaskPreconditions } from './preconditions.js';
 import { roundPrompt, UNATTENDED_DENIED, type TaskRunner, type TaskRunnerEvent, type TaskRunnerHandle, type TaskRunnerOutcome } from './runner.js';
 import { inspectProject, projectRestrictions, type ProjectInspection } from './session.js';
 import { TaskApprovals, TASK_DIALOG_TIMEOUT_MS, type ApprovalRequest, type CommandFeature, type ShellAnswer } from './shell.js';
 import { newTaskId, type TaskStore } from './store.js';
-import { branchOf, buildBranchOf, isActiveTask, type TaskCodexCall, type TaskRecord, type TaskState, type TaskValidation } from './types.js';
+import { branchOf, buildBranchOf, isActiveTask, type CheckResult, type TaskCodexCall, type TaskRecord, type TaskState, type TaskValidation } from './types.js';
 import path from 'node:path';
 
 /**
@@ -50,6 +50,22 @@ export interface BuildTaskInput {
   description: string;
   round: UnattendedRound;
 }
+
+/**
+ * What joining a build's card gave (phase 11): applied (`merged` when it
+ * was combined onto a head that moved, with the checks run on the joined
+ * commit), a textual conflict, checks failing on the joined commit, the
+ * head moved again before the compare and swap, nothing new to add, a stop
+ * or a cancel during the checks, or a failure of their worktree.
+ */
+export type BuildJoin =
+  | { kind: 'applied'; merged: boolean; onto: string; task: TaskView; checks?: CheckResult[] }
+  | { kind: 'conflict'; onto: string; files: string[] }
+  | { kind: 'checksFailed'; onto: string; checks: CheckResult[] }
+  | { kind: 'moved' }
+  | { kind: 'empty'; onto: string }
+  | { kind: 'aborted' }
+  | { kind: 'failed'; message: string };
 
 const firstLineOf = (text: string): string => redactSecretLines(text.trim().split(/\r?\n/, 1)[0] ?? '').trim();
 const clipTo = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
@@ -357,6 +373,129 @@ export class TaskManager {
     });
   }
 
+  /**
+   * Joins a build's card onto the integration branch (phase 11;
+   * BRIEF-phase-11 §2, 9; decisions.md, "Phase 11: H0", 2 and 3), on the
+   * rules the build already read. When the branch's head is still where the
+   * task started, this is phase 9's apply. Otherwise the task's change is
+   * combined onto the head with `merge-tree`: a textual conflict is
+   * answered, not applied; else the joined commit is made, the build's
+   * checks run on it in a temporary worktree (the task is `checking`
+   * meanwhile, so it counts in the shared limit, and a cancel or a stop
+   * ends them), and the branch moves onto that same commit only if its head
+   * did not move again. Only a build's task (`task.notInBuild`); no route
+   * calls it, so S8 for ordinary tasks is untouched.
+   */
+  async joinForBuild(id: string, commands: readonly string[]): Promise<BuildJoin> {
+    const first = await this.act(id, async (record): Promise<BuildJoin | { kind: 'check'; run: Promise<CheckResult[] | undefined>; commit: string; onto: string }> => {
+      this.refuseWhileStopping();
+      const build = record.build;
+      if (build === undefined) throw new BriefstackError('task.notInBuild', { id });
+      if (record.state !== 'proposal' || record.reviewed === undefined) throw new BriefstackError('task.wrongState', { id, state: record.state });
+      const blocking = (record.validations ?? []).filter((item) => item.level === 'error');
+      if (blocking.length > 0) throw new BriefstackError('task.blocked', { id, files: blocking.map((item) => item.file) });
+      const branch = buildBranchOf(build.id);
+      const onto = await integrationHead(record.projectDir, branch);
+      if (onto === undefined) throw new BriefstackError('build.branchMoved', { branch });
+      // Where the task started: phase 9's apply, the task's own tree.
+      if (onto === record.baseCommit) return { kind: 'applied', merged: false, onto, task: await this.update(await this.applyToBuild(record)) };
+      const taskHead = await branchHead(record.projectDir, record.branch);
+      if (taskHead !== record.reviewed) throw new BriefstackError('task.branchChanged', { id });
+      if (taskHead === record.baseCommit) throw new BriefstackError('task.noChanges', { id });
+      const prepared = await prepareJoin(record.projectDir, { from: record.baseCommit, onto, to: taskHead, message: this.buildCommitMessage(record) });
+      if (prepared.kind === 'conflict') return { kind: 'conflict', onto, files: prepared.files };
+      if (prepared.kind === 'empty') return { kind: 'empty', onto };
+      if (commands.length === 0) return this.landJoin(record, prepared.commit, onto, undefined);
+      const l = this.live.get(id) ?? this.adopt(record);
+      const limit = await this.limit();
+      const active = [...this.activeIds(), ...(this.options.creations?.activeIds() ?? [])];
+      if (active.length >= limit) throw new BriefstackError('task.limit', { limit, active });
+      this.refuseWhileStopping();
+      l.record.state = 'checking';
+      delete l.record.error;
+      l.record.updatedAt = this.now().toISOString();
+      await this.options.store.save(l.record);
+      this.pushStatus(l);
+      this.refuseWhileStopping();
+      const abort = new AbortController();
+      l.checksAbort = abort;
+      const run = this.joinChecks(l.record, prepared.commit, commands, abort.signal).finally(() => {
+        if (l.checksAbort === abort) l.checksAbort = undefined;
+      });
+      l.checksDone = run.then(
+        () => undefined,
+        () => undefined,
+      );
+      return { kind: 'check', run, commit: prepared.commit, onto };
+    });
+    if (first.kind !== 'check') return first;
+    let results: CheckResult[] | undefined;
+    let failure: unknown;
+    try {
+      results = await first.run;
+    } catch (error) {
+      failure = error;
+    }
+    return this.act(id, async (record): Promise<BuildJoin> => {
+      const l = this.live.get(id);
+      // A stop leaves the task `checking`, as an abrupt stop does; a cancel's `abortBuildChecks` already put it back.
+      if (this.stopping || l === undefined || record.state !== 'checking') return { kind: 'aborted' };
+      const back: TaskRecord = { ...record, state: 'proposal', updatedAt: this.now().toISOString() };
+      await this.options.store.save(back);
+      l.record = back;
+      this.pushStatus(l);
+      if (results === undefined && failure === undefined) return { kind: 'aborted' };
+      if (failure !== undefined) return { kind: 'failed', message: this.clean(isBriefstackError(failure) ? formatError(failure, await this.options.lang()) : failure instanceof Error ? failure.message : String(failure)) };
+      const checks = results ?? [];
+      if (checks.some((check) => check.exitCode !== 0 || check.timedOut)) return { kind: 'checksFailed', onto: first.onto, checks };
+      return this.landJoin(back, first.commit, first.onto, checks);
+    });
+  }
+
+  /** The joined commit onto the integration branch, with the compare and swap; the task applied, its worktree and branch gone. */
+  private async landJoin(record: TaskRecord, commit: string, onto: string, checks: CheckResult[] | undefined): Promise<BuildJoin> {
+    const branch = buildBranchOf(record.build?.id ?? '');
+    try {
+      await moveIntegration(record.projectDir, branch, commit, onto);
+    } catch (error) {
+      if (isBriefstackError(error) && error.code === 'build.branchMoved') return { kind: 'moved' };
+      throw error;
+    }
+    await removeTaskWorktree(record.projectDir, this.options.store.worktreeDir(record.id), record.branch).catch(() => undefined);
+    const task = await this.update({ ...record, state: 'applied', applied: { commit, at: this.now().toISOString() } });
+    return { kind: 'applied', merged: true, onto, task, ...(checks === undefined ? {} : { checks }) };
+  }
+
+  /** The build's checks on a joined commit, in a temporary worktree removed whatever happens; `undefined` when a stop or a cancel ended them. */
+  private async joinChecks(record: TaskRecord, commit: string, commands: readonly string[], signal: AbortSignal): Promise<CheckResult[] | undefined> {
+    const dir = this.options.store.joinDir(record.id);
+    // A worktree a stop left behind is removed first.
+    await removeDetachedWorktree(record.projectDir, dir).catch(() => undefined);
+    try {
+      await createDetachedWorktree(record.projectDir, dir, commit);
+      const results = (await this.options.checks?.run(dir, commands, signal)) ?? [];
+      return signal.aborted ? undefined : results;
+    } finally {
+      await removeDetachedWorktree(record.projectDir, dir).catch(() => undefined);
+    }
+  }
+
+  /** The message of a build task's commit on the integration branch. */
+  private buildCommitMessage(task: TaskRecord): string {
+    const rounds = task.rounds.length;
+    return `${clipTo(firstLineOf(task.description), 72)}\n\nApplied by briefstack from task ${task.id} of build ${task.build?.id ?? ''} (${rounds} round${rounds === 1 ? '' : 's'}).\n`;
+  }
+
+  /** The build's own discard of a card's task it drives (phase 11: the redo after a conflict). Only a build's task. */
+  discardForBuild(id: string): Promise<TaskView> {
+    return this.act(id, async (record) => {
+      if (record.build === undefined) throw new BriefstackError('task.notInBuild', { id });
+      const view = await this.update(await discardTask(record, await this.applyDeps()));
+      await this.live.get(id)?.approvals.clear();
+      return view;
+    });
+  }
+
   /** Answers the pending request `pendingId`. Once a server stop began, nothing is answered: the stop settled every request. */
   answer(id: string, pendingId: string, answer: unknown): TaskView {
     const l = this.find(id);
@@ -442,6 +581,8 @@ export class TaskManager {
     let count = 0;
     for (const record of await this.options.store.list()) {
       if (!isActiveTask(record.state) || this.live.has(record.id)) continue;
+      // A build's checks on a joined commit cut short by the stop leave their temporary worktree (phase 11).
+      if (record.state === 'checking' && record.build !== undefined) await removeDetachedWorktree(record.projectDir, this.options.store.joinDir(record.id)).catch(() => undefined);
       if (record.state === 'checking' && record.reviewed !== undefined) {
         await this.options.store.save(await this.backToProposal(record));
         count += 1;
@@ -646,8 +787,7 @@ export class TaskManager {
     const taskHead = await branchHead(task.projectDir, task.branch);
     if (task.reviewed !== undefined && taskHead !== task.reviewed) throw new BriefstackError('task.branchChanged', { id: task.id });
     if (taskHead === undefined || taskHead === task.baseCommit) throw new BriefstackError('task.noChanges', { id: task.id });
-    const rounds = task.rounds.length;
-    const message = `${clipTo(firstLineOf(task.description), 72)}\n\nApplied by briefstack from task ${task.id} of build ${build.id} (${rounds} round${rounds === 1 ? '' : 's'}).\n`;
+    const message = this.buildCommitMessage(task);
     const commit = await landOnIntegration(task.projectDir, { branch, expected, from: task.baseCommit, to: taskHead, message, project: task.project, id: task.id });
     await removeTaskWorktree(task.projectDir, this.options.store.worktreeDir(task.id), task.branch).catch(() => undefined);
     return { ...task, state: 'applied', applied: { commit, at: this.now().toISOString() } };

@@ -199,6 +199,29 @@ export async function createTaskWorktree(projectDir: string, worktreeDir: string
   });
 }
 
+/**
+ * A temporary worktree at `commit`, on no branch (phase 11: the build's
+ * checks on a joined commit; decisions.md, "Phase 11: H0", 3), with the
+ * project's settings files hidden as in a task's worktree.
+ */
+export async function createDetachedWorktree(projectDir: string, worktreeDir: string, commit: string): Promise<void> {
+  await withSafeGit(projectDir, (git) => git(['worktree', 'add', '--quiet', '--detach', worktreeDir, commit]));
+  await withSafeGit(worktreeDir, async (git) => {
+    const tracked = (await git(['ls-files', '-z', '--', ...HIDDEN_SETTINGS_FILES])).split('\0').filter((file) => file !== '');
+    if (tracked.length > 0) await git(['update-index', '--skip-worktree', '--', ...tracked]);
+    for (const file of tracked) await rm(path.join(worktreeDir, ...file.split('/')), { force: true });
+  });
+}
+
+/** Removes a temporary worktree made by `createDetachedWorktree`. What is already gone is fine. */
+export async function removeDetachedWorktree(projectDir: string, worktreeDir: string): Promise<void> {
+  await withSafeGit(projectDir, async (_git, run) => {
+    await run(['worktree', 'remove', '--force', worktreeDir]);
+    await run(['worktree', 'prune']);
+  });
+  await rm(worktreeDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+}
+
 /** Removes the worktree and its branch, and prunes what git keeps of it. What is already gone is fine. */
 export async function removeTaskWorktree(projectDir: string, worktreeDir: string, branch: string): Promise<void> {
   await withSafeGit(projectDir, async (_git, run) => {

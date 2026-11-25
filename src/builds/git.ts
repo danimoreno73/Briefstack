@@ -92,6 +92,39 @@ export async function landOnIntegration(
   });
 }
 
+/** What joining a card onto the integration head gives (phase 11): the joined commit, a textual conflict, or nothing new. */
+export type PreparedJoin = { kind: 'commit'; commit: string } | { kind: 'conflict'; files: string[] } | { kind: 'empty' };
+
+/**
+ * The join of a card that started at `from` onto the integration head
+ * `onto` (BRIEF-phase-11 §2, 9; decisions.md, "Phase 11: H0", 2):
+ * `merge-tree` of the card's change (`from` to `to`) onto `onto`, then the
+ * joined commit with `commit-tree`, `onto` its one parent. Nothing moves:
+ * the caller checks that commit and moves the branch onto it with
+ * `moveIntegration`. A conflict gives the files `merge-tree` names.
+ */
+export async function prepareJoin(projectDir: string, params: { from: string; onto: string; to: string; message: string }): Promise<PreparedJoin> {
+  return withSafeGit(projectDir, async (git, run) => {
+    const merged = await run(['merge-tree', '--write-tree', '--name-only', '--no-messages', '--merge-base', params.from, params.onto, params.to]);
+    const out = merged.stdout.split(/\r?\n/).map((line) => line.trim());
+    if (merged.code === 1) return { kind: 'conflict', files: [...new Set(out.slice(1).filter((line) => line !== ''))].slice(0, 20) };
+    if (merged.code !== 0) throw new Error(`git merge-tree failed: ${merged.stderr.trim().slice(0, 300)}`);
+    const tree = out[0] ?? '';
+    if (tree === (await git(['rev-parse', `${params.onto}^{tree}`])).trim()) return { kind: 'empty' };
+    const identity = await identityArgs(projectDir);
+    return { kind: 'commit', commit: (await git([...identity, 'commit-tree', '--no-gpg-sign', tree, '-p', params.onto], params.message)).trim() };
+  });
+}
+
+/** Moves the integration branch onto `commit` only if its head is still `expected` (a compare and swap); `build.branchMoved` otherwise. */
+export async function moveIntegration(projectDir: string, branch: string, commit: string, expected: string): Promise<void> {
+  await withSafeGit(projectDir, async (_git, run) => {
+    await refuseCheckedOut(projectDir, branch);
+    const moved = await run(['update-ref', `refs/heads/${branch}`, commit, expected]);
+    if (moved.code !== 0) throw new BriefstackError('build.branchMoved', { branch });
+  });
+}
+
 /** Removes the integration branch if it is still at `expected` (any value when `expected` is undefined). Gone already is fine. */
 export async function deleteIntegrationBranch(projectDir: string, branch: string, expected?: string): Promise<void> {
   await withSafeGit(projectDir, async (_git, run) => {

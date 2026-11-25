@@ -49,6 +49,11 @@ export class TaskStore {
     return path.join(this.taskDir(id), 'work');
   }
 
+  /** The temporary worktree where a build's checks run on a card's joined commit (phase 11). */
+  joinDir(id: string): string {
+    return path.join(this.taskDir(id), 'join');
+  }
+
   rulesFile(id: string): string {
     return path.join(this.taskDir(id), 'guard.json');
   }
