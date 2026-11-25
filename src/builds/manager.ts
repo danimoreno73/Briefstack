@@ -717,17 +717,21 @@ export class BuildManager {
       // With more than one slot, a card a server stop interrupted starts again at the integration head, its task
       // discarded (BRIEF-phase-11 §3). With one slot it waits for the user, as in phase 9 (decisions.md, "Decisiones sin
       // Dani (fase 11)").
+      // Only a card whose task the stop left interrupted: one the user took up since (a round of their own, a proposal)
+      // stays theirs (review of M3, I3).
       if ((record.settings?.slots ?? 1) > 1 && item.state === 'waiting' && item.reason === 'interrupted') {
-        if (item.taskId !== undefined) {
-          const task = await this.options.tasks.get(item.taskId).catch(() => undefined);
-          if (task !== undefined && OPEN_TASK_STATES.includes(task.state)) await this.options.tasks.discard(item.taskId);
+        const task = item.taskId === undefined ? undefined : await this.options.tasks.get(item.taskId).catch(() => undefined);
+        if (item.taskId === undefined || task === undefined || task.state === 'interrupted') {
+          if (item.taskId !== undefined && task?.state === 'interrupted') await this.options.tasks.discard(item.taskId);
+          const queued: BuildTask = { ...item, state: 'queued' };
+          delete queued.reason;
+          delete queued.detail;
+          delete queued.taskId;
+          // Its last join belonged to the discarded attempt; a redo it already had still counts (review of M3, minor 8).
+          delete queued.join;
+          tasks.push(queued);
+          continue;
         }
-        const queued: BuildTask = { ...item, state: 'queued' };
-        delete queued.reason;
-        delete queued.detail;
-        delete queued.taskId;
-        tasks.push(queued);
-        continue;
       }
       tasks.push(item);
     }
@@ -930,61 +934,84 @@ export class BuildManager {
         if (l.failure !== undefined) throw l.failure.error;
         return;
       }
-      let record = await this.load(id);
-      if (record.state !== 'running' || record.settings === undefined) {
-        await this.drain(l);
-        return;
+      let outcome: 'again' | 'stop';
+      try {
+        outcome = await this.pass(l, id);
+      } catch (error) {
+        // A pass that fails while cards are at work does not leave them behind: no card starts, and the loop fails
+        // once none is at work (review of M3, I2).
+        if (l.running.size === 0) throw error;
+        l.failure ??= { error };
+        outcome = 'again';
       }
-      const settings = record.settings;
-      if (l.pausing) {
-        // The cards at work go on to their end; the build pauses once none is (phase 11).
-        if (l.running.size > 0) {
-          await this.anyCardEnd(l);
-          continue;
-        }
-        // Under the build's lock, read again: a cancel that came meanwhile wins (review of M4, I1).
-        await this.serial(l, async () => {
-          const fresh = await this.load(id);
-          if (l.cancelling || this.stopping || fresh.state !== 'running') return;
-          l.pausing = false;
-          await this.save({ ...fresh, state: 'paused', pause: { reason: 'user', at: this.now().toISOString() }, updatedAt: this.now().toISOString() });
-        });
-        return;
-      }
-      if (this.skipBlocked(record).tasks.some((task, i) => task.state !== record.tasks[i]?.state)) record = await this.edit(l, id, (fresh) => this.skipBlocked(fresh));
-      const started = record.tasks.filter((task) => task.state !== 'queued' && task.state !== 'skipped').length;
-      const next = record.tasks.find((task) => task.state === 'queued' && task.dependsOn.every((n) => record.tasks[n - 1]?.state === 'applied'));
-      const canStart = next !== undefined && started < settings.limit && record.roundsRun < settings.maxRounds;
-      if (l.running.size === 0 && !canStart) {
-        const capped = next !== undefined && started < settings.limit;
-        const ended = record;
-        await this.serial(l, async () => {
-          if (l.cancelling || this.stopping) return;
-          const base: BuildRecord = { ...ended, state: 'finished', finishedAt: this.now().toISOString() };
-          await this.save(capped ? this.withTask(base, (next as BuildTask).n, { state: 'waiting', reason: 'roundsCap' }) : base);
-        });
-        return;
-      }
-      const batch = canStart ? this.readyCards(record, l, settings.slots ?? 1, settings.limit - started) : [];
-      if (batch.length === 0) {
-        await this.anyCardEnd(l);
-        continue;
-      }
-      // The plan usage before the cards of this pass start, unless the user just resumed it (H0, 5).
-      if (l.skipUsage) l.skipUsage = false;
-      else {
-        const gate = await this.usageGate(l, record);
-        if (gate === 'paused') return;
-        if (gate === 'wait') {
-          await this.anyCardEnd(l);
-          continue;
-        }
-        if (gate === 'woken') continue;
-      }
-      // A pause or a cancel asked during the reading is taken before a card starts (review of M4, B1).
-      if (l.cancelling || l.pausing || this.stopping) continue;
-      for (const card of batch) this.launch(l, record, card);
+      if (outcome === 'stop') return;
     }
+  }
+
+  /** One pass of the loop: `stop` when the loop ends (paused, finished, no longer running), `again` otherwise. */
+  private async pass(l: Live, id: string): Promise<'again' | 'stop'> {
+    let record = await this.load(id);
+    if (record.state !== 'running' || record.settings === undefined) {
+      await this.drain(l);
+      return 'stop';
+    }
+    const settings = record.settings;
+    if (l.pausing) {
+      // The cards at work go on to their end; the build pauses once none is (phase 11).
+      if (l.running.size > 0) {
+        await this.anyCardEnd(l);
+        return 'again';
+      }
+      // Under the build's lock, read again: a cancel that came meanwhile wins (review of M4, I1).
+      await this.serial(l, async () => {
+        const fresh = await this.load(id);
+        if (l.cancelling || this.stopping || fresh.state !== 'running') return;
+        l.pausing = false;
+        await this.save({ ...fresh, state: 'paused', pause: { reason: 'user', at: this.now().toISOString() }, updatedAt: this.now().toISOString() });
+      });
+      return 'stop';
+    }
+    if (this.skipBlocked(record).tasks.some((task, i) => task.state !== record.tasks[i]?.state)) record = await this.edit(l, id, (fresh) => this.skipBlocked(fresh));
+    const started = record.tasks.filter((task) => task.state !== 'queued' && task.state !== 'skipped').length;
+    const next = record.tasks.find((task) => task.state === 'queued' && task.dependsOn.every((n) => record.tasks[n - 1]?.state === 'applied'));
+    const canStart = next !== undefined && started < settings.limit && record.roundsRun < settings.maxRounds;
+    if (l.running.size === 0 && !canStart) {
+      // Read again behind every change a card asked for: a card that ended while this pass read the record has saved
+      // its outcome by now, and may let another card start (review of M3, B1). No card runs, so nothing writes after.
+      const finished = await this.serial(l, async () => {
+        if (l.cancelling || this.stopping) return true;
+        await l.edits;
+        const fresh = this.skipBlocked(await this.load(id));
+        const freshStarted = fresh.tasks.filter((task) => task.state !== 'queued' && task.state !== 'skipped').length;
+        const freshNext = fresh.tasks.find((task) => task.state === 'queued' && task.dependsOn.every((n) => fresh.tasks[n - 1]?.state === 'applied'));
+        if (freshNext !== undefined && freshStarted < settings.limit && fresh.roundsRun < settings.maxRounds) return false;
+        const capped = freshNext !== undefined && freshStarted < settings.limit;
+        const base: BuildRecord = { ...fresh, state: 'finished', finishedAt: this.now().toISOString() };
+        await this.save(capped ? this.withTask(base, (freshNext as BuildTask).n, { state: 'waiting', reason: 'roundsCap' }) : base);
+        return true;
+      });
+      return finished ? 'stop' : 'again';
+    }
+    const batch = canStart ? this.readyCards(record, l, settings.slots ?? 1, settings.limit - started) : [];
+    if (batch.length === 0) {
+      await this.anyCardEnd(l);
+      return 'again';
+    }
+    // The plan usage before the cards of this pass start, unless the user just resumed it (H0, 5).
+    if (l.skipUsage) l.skipUsage = false;
+    else {
+      const gate = await this.usageGate(l, record);
+      if (gate === 'paused') return 'stop';
+      if (gate === 'wait') {
+        await this.anyCardEnd(l);
+        return 'again';
+      }
+      if (gate === 'woken') return 'again';
+    }
+    // A pause or a cancel asked during the reading is taken before a card starts (review of M4, B1).
+    if (l.cancelling || l.pausing || this.stopping) return 'again';
+    for (const card of batch) this.launch(l, record, card);
+    return 'again';
   }
 
   /**
@@ -1171,8 +1198,9 @@ export class BuildManager {
     if (settings === undefined || item === undefined) return;
     const lang = await this.options.lang();
     const denied: { tool: string; text: string }[] = [];
-    let redo: JoinFailure | undefined;
-    const round = (fix?: { round: number; failures: string }) => ({
+    // A card started again after a restart keeps the redo it already had: its prompt still says so (review of M3, minor 8).
+    let redo: JoinFailure | undefined = item.redo?.reason;
+    const round =(fix?: { round: number; failures: string }) => ({
       commands: settings.commands,
       prompt: buildRoundPrompt({
         title: item.title,
@@ -1193,6 +1221,12 @@ export class BuildManager {
       if (outcome === 'done') return;
       // The join failed: the one redo, at the integration head, with a fresh task (the first one discarded).
       const previous = card.taskId as string;
+      if (this.stopping) return;
+      // A cancel that came during the join: nothing is redone, nothing discarded (review of M3, minor 9).
+      if (l.cancelling) {
+        await this.updateTask(record.id, n, { state: 'cancelled' });
+        return;
+      }
       const now = await this.load(record.id);
       if (redo !== undefined || now.tasks[n - 1]?.redo !== undefined || now.roundsRun >= settings.maxRounds) {
         await this.updateTask(record.id, n, { state: 'waiting', reason: outcome === 'conflict' ? 'conflict' : 'joinChecksFailed' });

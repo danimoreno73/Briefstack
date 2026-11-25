@@ -51,8 +51,10 @@ function gitEnv(): NodeJS.ProcessEnv {
 /**
  * Git could not read a configuration file at its start, before doing
  * anything: on Windows, while another git of the same repository rewrites
- * `.git/config` (`branch -D` does, for a card applied or redone while
- * another card commits; phase 11, step 38). Only this message counts.
+ * `.git/config` (`branch -D` did when a card was applied or redone while
+ * another card committed; phase 11, step 38: tasks now delete their branch
+ * with `update-ref -d`, but the user's own git may still write it). Only
+ * this message counts.
  */
 const CONFIG_READ_FAILED = /fatal: unknown error occurred while reading the configuration files/;
 const CONFIG_READ_TRIES = 20;
@@ -244,7 +246,9 @@ export async function removeTaskWorktree(projectDir: string, worktreeDir: string
   await withSafeGit(projectDir, async (_git, run) => {
     await run(['worktree', 'remove', '--force', worktreeDir]);
     await run(['worktree', 'prune']);
-    await run(['branch', '-D', '--', branch]);
+    // `update-ref -d`, not `branch -D`: it never rewrites `.git/config`, which another card's git may be reading at the
+    // same moment (phase 11, review of M3, I4). A task's branch has no configuration of its own.
+    await run(['update-ref', '-d', `refs/heads/${branch}`]);
   });
   await rm(worktreeDir, { recursive: true, force: true });
 }

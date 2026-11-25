@@ -236,7 +236,13 @@ describe('cards at once', () => {
       expect((await s.builds.get(id)).tasks.map((task) => task.state)).toEqual(['running', 'running', 'queued', 'queued']);
       await s.builds.idle(id);
       expect(s.peak()).toBe(2);
-      expect(s.runner.started.map((round) => /The task: (\w+)/.exec(round.prompt)?.[1]).slice(0, 2)).toEqual(['One', 'Two']);
+      // Priority picks which cards start in a pass; which of the two opens its session first is git's timing (seen on CI).
+      expect(
+        s.runner.started
+          .map((round) => /The task: (\w+)/.exec(round.prompt)?.[1])
+          .slice(0, 2)
+          .sort(),
+      ).toEqual(['One', 'Two']);
       expect(await states(s, id)).toEqual([
         ['applied', null],
         ['applied', null],
@@ -360,6 +366,38 @@ describe('pauses, cancel and restart with cards at work', () => {
   });
 });
 
+describe('resuming after a restart, a card the user took up (review of M3, I3)', () => {
+  it('stays the user\'s: only cards whose task the stop left interrupted start again', async () => {
+    const slow = plan([cardOf('One', 'WAIT 60000\nWRITE A.md: 1', ['a/']), cardOf('Two', 'WAIT 60000\nWRITE B.md: 2', ['b/'])]);
+    const s = setup(slow);
+    const id = await startBuild(s, slow);
+    await until(async () => (await s.builds.get(id)).tasks.every((task) => task.taskId !== undefined));
+    const [one, two] = (await s.builds.get(id)).tasks.map((task) => task.taskId as string);
+    s.builds.stop();
+    await s.tasks.shutdown();
+    await s.builds.shutdown();
+    s.stopWatching();
+    const after = setup(slow);
+    try {
+      await after.tasks.recover();
+      await after.builds.recover();
+      // The user opens card One's task and runs a round of their own on it.
+      await after.tasks.newRound(one as string, 'My own round.');
+      await after.builds.resume(id);
+      await until(async () => (await after.builds.get(id)).tasks[1]?.taskId !== two && (await after.builds.get(id)).tasks[1]?.taskId !== undefined);
+      const view = await after.builds.get(id);
+      expect(view.tasks[0]).toMatchObject({ state: 'waiting', reason: 'interrupted', taskId: one });
+      expect((await after.tasks.get(one as string)).state).toBe('running');
+      expect((await after.tasks.get(two as string)).state).toBe('discarded');
+      after.tasks.cancel(one as string);
+      await after.builds.cancel(id);
+      await until(async () => (await after.builds.get(id)).state === 'cancelled');
+    } finally {
+      await close(after);
+    }
+  });
+});
+
 describe('the join and the one redo', () => {
   it('a card that collides when joined is redone once on top of what was joined, then joined', async () => {
     const board = plan([cardOf('One', 'WRITE A.md: one', ['one/']), cardOf('Two', 'WAIT 1500\nWRITE A.md: two\nREDO-WRITE A.md: one and two', ['two/'])]);
@@ -379,6 +417,8 @@ describe('the join and the one redo', () => {
       expect((await s.tasks.get(done.tasks[1]?.redo?.previousTask as string)).state).toBe('discarded');
       const head = (await integrationHead(project, done.branch)) as string;
       expect((await gitIn(project, 'show', `${head}:A.md`)).trim()).toBe('one and two');
+      // The whole build applies: the discarded first attempt left nothing on the branch.
+      expect((await s.builds.apply(id, (await s.builds.diff(id)).head as string)).state).toBe('applied');
     } finally {
       await close(s);
     }
@@ -410,7 +450,7 @@ describe('the join and the one redo', () => {
     }
   });
 
-  it('checks that fail only on the joined tree redo the card; failing again it waits', async () => {
+  it('checks that fail only on the joined tree redo the card; a redo whose own checks then fail waits (review of M3: not joinChecksFailed)', async () => {
     // Checks fail when A.md and B.md say "clash" together; each card's own tree passes.
     const files = fileChecks((found) => found['A.md'] === 'clash' && found['B.md'] === 'clash');
     const board = plan([cardOf('One', 'WRITE A.md: clash', ['a/']), cardOf('Two', 'WAIT 1500\nWRITE B.md: clash\nREDO-WRITE B.md: fine', ['b/'])]);

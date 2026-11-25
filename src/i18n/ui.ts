@@ -507,8 +507,8 @@ export const uiMessages = defineCatalogue({
         notStarted: 'it could not start',
         notApplied: 'it could not be applied to the build’s branch',
         roundsCap: 'the build reached its limit of rounds',
-        conflict: 'it collided with other cards twice, even after being redone',
-        joinChecksFailed: 'its checks failed together with other cards’ changes, even after being redone',
+        conflict: 'it collided with other cards when joined, and was not redone again',
+        joinChecksFailed: 'its checks failed together with other cards’ changes, and it was not redone again',
       })[reason] ?? reason,
     buildSkippedFor: (n: number) => `depends on task ${n}`,
     // The board (phase 11).
@@ -1900,8 +1900,8 @@ export const uiMessages = defineCatalogue({
         notStarted: 'no pudo empezar',
         notApplied: 'no se pudo aplicar a la rama del build',
         roundsCap: 'el build llegó a su tope de rondas',
-        conflict: 'chocó con otras tarjetas dos veces, también al rehacerla',
-        joinChecksFailed: 'sus comprobaciones fallaron junto a los cambios de otras tarjetas, también al rehacerla',
+        conflict: 'chocó con otras tarjetas al unirla y no se volvió a rehacer',
+        joinChecksFailed: 'sus comprobaciones fallaron junto a los cambios de otras tarjetas y no se volvió a rehacer',
       })[reason] ?? reason,
     buildSkippedFor: (n: number) => `depende de la tarea ${n}`,
     // El tablero (fase 11).
