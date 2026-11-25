@@ -1,11 +1,18 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 — 2026-11-25
+
+**Upgrading from 1.1.0:**
+
+- To let a creation hand code to Codex, run Codex's check again in
+  Settings: a check saved by 1.1.0 has no no-shell part, so creations do
+  not offer Codex until it passes once more. Tasks are not affected.
 
 What phase 10 adds ([brief](docs/history/BRIEF-phase-10.md), [plan](docs/history/PLAN-phase-10.md);
 decisions in [`docs/decisions.md`](docs/decisions.md), "Phase 10"). Phase 10
-is not done until the user runs its real check
-(`scripts/real/check-creation-code.ts`) and accepts it.
+was accepted on its real check (`scripts/real/check-creation-code.ts`,
+"Phase 10: accepted"); a command off the list being refused was not seen
+in real, only in tests.
 
 ### A first version of the code in a creation
 
@@ -22,7 +29,11 @@ is not done until the user runs its real check
   failed creation. Protected files (briefstack's, Claude Code's settings
   and hooks, `.mcp.json`) changed by anyone are put back first, and so are
   skills, commands and agents that declare hooks in their frontmatter, as
-  a task refuses them; the result screen lists them with the reason.
+  a task refuses them; the result screen lists them with the reason. A
+  file git ignored when the step started stays out of the code commit
+  even if its ignore line was removed (briefstack adds it to the
+  repository's own `.git/info/exclude`). When those ignored files cannot
+  be read first, the step does not run and the screen says why.
 - Bounds in Settings: the step's minutes (default 30) and the
   implementer's tool calls (default 150). The plan usage is read before
   the step; at or above the warning thresholds, or unread, it does not
