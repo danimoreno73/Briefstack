@@ -8040,3 +8040,112 @@ the hand-off's `briefstack commit`; the runner's rewrite of `guard.json`
 at `implement_finish` (the one at `implement_start` is shown only
 indirectly: the implementer's writes were allowed). Open in `IDEAS.md`
 §10.
+
+## Phase 11: H0 (2026-11-25, SDK 0.3.286, git 2.55, Windows 11)
+
+The five points of [BRIEF-phase-11.md](BRIEF-phase-11.md) §6, checked
+before the plan. No real session and no plan reading: the code and tests
+in the repo, and git in a temp folder of the step (outputs kept outside the
+repo). None of them makes a decision of the brief's §2 impossible or
+unsafe, so the plan and the milestones go ahead (the brief's §8).
+
+**1. Where one running task is assumed.** In the task manager, nowhere
+that matters: the "one task per project" rule
+(`checkTaskPreconditions`, `src/tasks/preconditions.ts`) already leaves
+out the open tasks of the build that holds the project
+(`task.build?.id !== forBuild.build`), every task has its own id, branch
+(`briefstack/task-<id>`) and worktree (`<home>/tasks/<id>/worktree`), starts
+are serialised (`TaskManager.starting`) with the shared limit read and the
+task registered with no await between them, and each action on a task is
+locked by its id (`act`). Applying a build's task onto the integration
+branch already goes through `merge-tree` from the task's base onto the
+head read just before, with a compare and swap (`landOnIntegration`). The
+assumption is all in the build manager (`src/builds/manager.ts`): its
+live state holds one `taskId`; `drives()`, `cancelIfAsked` and
+`finishCancel` look at that one id; the loop awaits `runTask` before it
+picks the next item; the user's pause and the usage pause are taken
+"before the next task" because no other task can be at work; the record
+is changed by load, change and save with nothing else writing it
+meanwhile (two cards doing so at once would lose one's change); and the
+cap of rounds is counted by that one runner. **Conclusion, the smallest
+change:** ordinary tasks and their preconditions do not change. The build
+manager keeps a set of running cards instead of one id, puts every change
+of the record through one lock per build (load, change, save in turn),
+fills free slots in its loop and awaits any card's end instead of the one
+task, takes pauses once no card runs, and cancels every running card's
+round or checks. The task manager gains build-only methods for the join
+(point 3): no route and no ordinary task reach them.
+
+**2. Several worktrees of one project at once, and `merge-tree` onto a
+moved head.** Probe in a temp repository (git 2.55.0.windows.2): four
+`git worktree add -b briefstack/task-<n>` started at the same moment all
+exited 0 (the product starts them one at a time anyway); four commits in
+the four worktrees at the same moment all exited 0; four `git worktree
+remove --force` at the same moment all exited 0, and `worktree prune` left
+only the main folder. Joins, one at a time, with `merge-tree --write-tree
+--name-only --merge-base <card start> <integration head> <card head>`,
+then `commit-tree <tree> -p <head>` and `update-ref <branch> <new>
+<head>`: the first card (head still at its start) gave its own tree; the
+second and third (other files, then the same file at another place) were
+merged onto the moved head, with every earlier change kept; a fourth that
+changed the same lines as the third exited 1 and named the conflicted
+file (`shared.txt`). Two `update-ref` with the same old value at the same
+moment: one exited 0, the other 128, so only one join can move the ref.
+**Conclusion:** names stay as they are (each card is a task with its own
+branch and worktree); git takes its own locks per worktree; clean-up is
+today's `removeTaskWorktree`. The join reuses phase 9's `merge-tree` and
+compare and swap; a textual conflict is `merge-tree`'s exit 1. Measured
+on Windows by the probe only; the same commands run on Linux, Windows and
+macOS in the unit tests of M2 in CI.
+
+**3. The checks on a joined tree.** In the same probe, each joined commit
+(made with `commit-tree`, held by no branch) was checked out in a
+temporary worktree with `git worktree add --detach <dir> <commit>`; the
+folder held the joined files (both cards' changes), a command ran there
+(exit 0), `git worktree remove --force` and `prune` removed it, and the
+commit object was still there for `update-ref` to move the branch onto
+it. **Conclusion:** the joined commit is made first; the build's checks
+run in a temporary detached worktree at that commit
+(`<home>/tasks/<id>/join`), through the task manager's `TaskChecks.run`
+(the same runner, environment with proxies pointed nowhere, 10 minutes per
+command, abort on a stop or a cancel), with the hidden settings files
+hidden as in a task's worktree; the worktree is removed whatever happens;
+and the branch moves, with the compare and swap, onto **that same
+commit**, so what lands is what was checked. Only a build's task can do
+this (refused otherwise, as `runBuildChecks`), so S8 for ordinary tasks
+and `tests/unit/tasks-checks-invariant.test.ts` stay as they are. While
+they run the task is `checking`, so it counts in the shared limit.
+
+**4. The planner's output with area and size, within draft-07.** The
+planner's schema is made by `z.toJSONSchema(…, { target: 'draft-7' })`
+(decisions.md, "Phase 9: the planner and structured output"). An array of
+strings becomes `type: array` with `items: { type: string }`, `minItems`
+and `maxItems`; a choice of three values becomes `enum`: draft-07
+keywords. **Conclusion:** the planner's schema gains `area` (1 to 10
+paths, each a relative path of at most 200 characters) and `size`
+(`S`, `M`, `L`), both required in what the planner session is asked for.
+What the server stores and accepts at the start keeps them optional, so
+builds planned before phase 11 and phase 9's tests read as they did; a
+card without an area counts as touching the whole project (it never runs
+beside another card). The unit test that holds the schema to draft-07
+covers the new fields. Not verified without a real session: that Claude
+Code fills them; the real check does.
+
+**5. The shared limit and the usage reading with several cards starting
+together.** Every card is a task: running or `checking`, it is in
+`TaskManager.activeIds()`, which with creations' and planners' sessions
+makes the shared limit (`maxActiveCreations`, default 2). Starts are
+serialised and the limit is read and the task registered with no await
+between, so two cards starting together cannot pass it; a card refused
+with `task.limit` waits for a place (`withSlot`), as a task does today. The
+usage reading (`readBuildUsage`) is a session that sends no message and is
+not counted in the limit; today one reading is made before each task.
+**Conclusion:** slots are capped by the build's setting (1 to 4), and the
+shared limit still decides: with the default limit of 2, two slots run two
+cards only when nothing else holds a place. The loop reads the usage once
+per pass that starts cards (the cards it starts in that pass share that
+reading, made just before) rather than once per card started in the same
+instant, so two cards do not spawn two readings at once; at the threshold
+no card starts, the running ones finish, then the build pauses as today.
+With one slot a pass starts one card, so the reading is still one per
+card.
