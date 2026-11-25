@@ -7,6 +7,10 @@
 - To let a creation hand code to Codex, run Codex's check again in
   Settings: a check saved by 1.1.0 has no no-shell part, so creations do
   not offer Codex until it passes once more. Tasks are not affected.
+- The new `implementer` agent ships with the Balanced profile's model and
+  effort. If your active profile is another one, choose it again on the
+  Usage page (or `npx briefstack usage set <profile>`) so the
+  implementer gets your profile's `work` model and effort.
 
 What phase 10 adds ([brief](docs/history/BRIEF-phase-10.md), [plan](docs/history/PLAN-phase-10.md);
 decisions in [`docs/decisions.md`](docs/decisions.md), "Phase 10"). Phase 10
@@ -30,10 +34,12 @@ in real, only in tests.
   and hooks, `.mcp.json`) changed by anyone are put back first, and so are
   skills, commands and agents that declare hooks in their frontmatter, as
   a task refuses them; the result screen lists them with the reason. A
-  file git ignored when the step started stays out of the code commit
-  even if its ignore line was removed (briefstack adds it to the
-  repository's own `.git/info/exclude`). When those ignored files cannot
-  be read first, the step does not run and the screen says why.
+  protected file, or a definition with hooks, that git ignored when the
+  step started goes back as it was and stays out of the code commit even
+  if its ignore line was removed (briefstack adds it to the repository's
+  own `.git/info/exclude`); other ignored files are not watched. When
+  those ignored files cannot be read first, the step does not run and the
+  screen says why.
 - Bounds in Settings: the step's minutes (default 30) and the
   implementer's tool calls (default 150). The plan usage is read before
   the step; at or above the warning thresholds, or unread, it does not

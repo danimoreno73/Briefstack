@@ -19,7 +19,7 @@ brief with what changed and no plan); their decisions are in
 accepted, phase closed", "Phase 8: closed", "Phase 9: accepted", "Phase
 10: accepted"). What they leave open is in `docs/IDEAS.md` §7 to §10.
 Version 1.2.0 is prepared in `CHANGELOG.md` and `package.json`; its tag
-`v1.2.0` is created by the user.
+`v1.2.0` and the GitHub release are the user's to make.
 
 `v1.0.0` and `v1.1.0` are published. The living backlog is
 `docs/IDEAS.md`. The briefs and plans of phases 1–10, the UI pass, the
@@ -47,7 +47,7 @@ milestone is not done while CI is red; local Windows runs do not stand in for it
 - `src/` — the `briefstack` CLI and its library code
 - `library/` — base library shipped with the repo (templates, skills, rules, usage profiles)
 - `.claude/skills/new-project/` — the entry-point skill
-- `.claude/agents/` — the five flow agents
+- `.claude/agents/` — the five flow agents and the implement step's `implementer`
 - `tests/` — unit tests and fixture specs
 - `docs/` — reference (web API, events, design, decisions) and the backlog
   (`IDEAS.md`); `docs/history/` — past briefs, plans and the UI audit
