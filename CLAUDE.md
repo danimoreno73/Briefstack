@@ -5,34 +5,28 @@ each one.
 
 ## Current state
 
-Phase 10 is built and waits for the user's real check: a creation can
-also write a first version of the code (web app, `software` projects for
-Claude Code, chosen at the spec checkpoint), with an `implementer` agent
-that has no shell, the exact commands the user approved, checks and fix
-passes, two commits, and Codex without its shell when ticked. Brief
-`docs/BRIEF-phase-10.md`, plan `docs/PLAN-phase-10.md` (Status kept
-there), decisions in `docs/decisions.md`, "Phase 10". The real check is
-`scripts/real/check-creation-code.ts`, prepared, run only by the user;
-the phase is not done before the user accepts it. What it leaves open
-is in `docs/IDEAS.md` §10. `v1.1.0` is tagged; the "Unreleased" section
-of `CHANGELOG.md` holds phase 10.
-
-Phases 7, 8 and 9 are done (tags `phase-7-done`, `phase-8-done`,
-`phase-9-done`): tasks in existing projects; Codex in tasks (off by
-default); builds (from a
+Phases 7 to 10 are done (tags `phase-7-done` … `phase-10-done`): tasks
+in existing projects; Codex in tasks (off by default); builds (from a
 project's brief, briefstack plans a queue of tasks and runs it unattended
-on an integration branch; the user applies the whole build at the end).
-Their briefs and plans are in `docs/history/` (phase 8 has a brief with
-what changed and no plan); their decisions are in `docs/decisions.md`,
-"Phase 7", "Phase 8" and "Phase 9" (the closes: "Phase 7: M9 accepted,
-phase closed", "Phase 8: closed", "Phase 9: accepted"). What they leave
-open is in `docs/IDEAS.md` §7, §8 and §9.
+on an integration branch; the user applies the whole build at the end);
+and a creation that can also write a first version of the code (web app,
+`software` projects for Claude Code, chosen at the spec checkpoint), with
+an `implementer` agent that has no shell, the exact commands the user
+approved, checks and fix passes, two commits, and Codex without its shell
+when ticked. Their briefs and plans are in `docs/history/` (phase 8 has a
+brief with what changed and no plan); their decisions are in
+`docs/decisions.md`, "Phase 7" to "Phase 10" (the closes: "Phase 7: M9
+accepted, phase closed", "Phase 8: closed", "Phase 9: accepted", "Phase
+10: accepted"). What they leave open is in `docs/IDEAS.md` §7 to §10.
+Version 1.2.0 is prepared in `CHANGELOG.md` and `package.json`; its tag
+`v1.2.0` is created by the user.
 
-`v1.0.0` is published. The living backlog is `docs/IDEAS.md`. The briefs
-and plans of phases 1–9, the UI pass, the release and backlogs 1 and 2
-are in `docs/history/` (tags `phase-1-done` … `phase-9-done`, `ui-done`,
-`v1.0.0`, `backlog-1-done`, `backlog-2-done`); open them only when
-needed. Contributors' rules are also in `CONTRIBUTING.md`.
+`v1.0.0` and `v1.1.0` are published. The living backlog is
+`docs/IDEAS.md`. The briefs and plans of phases 1–10, the UI pass, the
+release and backlogs 1 and 2 are in `docs/history/` (tags `phase-1-done`
+… `phase-10-done`, `ui-done`, `v1.0.0`, `backlog-1-done`,
+`backlog-2-done`); open them only when needed. Contributors' rules are
+also in `CONTRIBUTING.md`.
 
 ## Commands
 
