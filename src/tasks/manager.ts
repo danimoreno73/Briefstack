@@ -387,7 +387,7 @@ export class TaskManager {
    * calls it, so S8 for ordinary tasks is untouched.
    */
   async joinForBuild(id: string, commands: readonly string[]): Promise<BuildJoin> {
-    const first = await this.act(id, async (record): Promise<BuildJoin | { kind: 'check'; run: Promise<CheckResult[] | undefined>; commit: string; onto: string }> => {
+    const first = await this.act(id, async (record): Promise<BuildJoin | { kind: 'check'; run: Promise<CheckResult[] | undefined>; commit: string; onto: string; signal: AbortSignal }> => {
       this.refuseWhileStopping();
       const build = record.build;
       if (build === undefined) throw new BriefstackError('task.notInBuild', { id });
@@ -398,7 +398,15 @@ export class TaskManager {
       const onto = await integrationHead(record.projectDir, branch);
       if (onto === undefined) throw new BriefstackError('build.branchMoved', { branch });
       // Where the task started: phase 9's apply, the task's own tree.
-      if (onto === record.baseCommit) return { kind: 'applied', merged: false, onto, task: await this.update(await this.applyToBuild(record)) };
+      // The head read here is the one it lands on: one that moved since is never combined unchecked (review of M2, I2).
+      if (onto === record.baseCommit) {
+        try {
+          return { kind: 'applied', merged: false, onto, task: await this.update(await this.applyToBuild(record, onto)) };
+        } catch (error) {
+          if (isBriefstackError(error) && error.code === 'build.branchMoved') return { kind: 'moved' };
+          throw error;
+        }
+      }
       const taskHead = await branchHead(record.projectDir, record.branch);
       if (taskHead !== record.reviewed) throw new BriefstackError('task.branchChanged', { id });
       if (taskHead === record.baseCommit) throw new BriefstackError('task.noChanges', { id });
@@ -426,7 +434,7 @@ export class TaskManager {
         () => undefined,
         () => undefined,
       );
-      return { kind: 'check', run, commit: prepared.commit, onto };
+      return { kind: 'check', run, commit: prepared.commit, onto, signal: abort.signal };
     });
     if (first.kind !== 'check') return first;
     let results: CheckResult[] | undefined;
@@ -444,7 +452,8 @@ export class TaskManager {
       await this.options.store.save(back);
       l.record = back;
       this.pushStatus(l);
-      if (results === undefined && failure === undefined) return { kind: 'aborted' };
+      // A cancel that came after the checks ended, while their worktree was removed, still wins: nothing lands (review of M2, I1).
+      if (first.signal.aborted || (results === undefined && failure === undefined)) return { kind: 'aborted' };
       if (failure !== undefined) return { kind: 'failed', message: this.clean(isBriefstackError(failure) ? formatError(failure, await this.options.lang()) : failure instanceof Error ? failure.message : String(failure)) };
       const checks = results ?? [];
       if (checks.some((check) => check.exitCode !== 0 || check.timedOut)) return { kind: 'checksFailed', onto: first.onto, checks };
@@ -462,6 +471,8 @@ export class TaskManager {
       throw error;
     }
     await removeTaskWorktree(record.projectDir, this.options.store.worktreeDir(record.id), record.branch).catch(() => undefined);
+    // A temporary worktree whose removal failed before (a file a check left open on Windows) goes with the card (review of M2, minor 4).
+    await removeDetachedWorktree(record.projectDir, this.options.store.joinDir(record.id)).catch(() => undefined);
     const task = await this.update({ ...record, state: 'applied', applied: { commit, at: this.now().toISOString() } });
     return { kind: 'applied', merged: true, onto, task, ...(checks === undefined ? {} : { checks }) };
   }
@@ -473,6 +484,8 @@ export class TaskManager {
     await removeDetachedWorktree(record.projectDir, dir).catch(() => undefined);
     try {
       await createDetachedWorktree(record.projectDir, dir, commit);
+      // Ended while the worktree was made: nothing runs.
+      if (signal.aborted) return undefined;
       const results = (await this.options.checks?.run(dir, commands, signal)) ?? [];
       return signal.aborted ? undefined : results;
     } finally {
@@ -489,8 +502,10 @@ export class TaskManager {
   /** The build's own discard of a card's task it drives (phase 11: the redo after a conflict). Only a build's task. */
   discardForBuild(id: string): Promise<TaskView> {
     return this.act(id, async (record) => {
+      this.refuseWhileStopping();
       if (record.build === undefined) throw new BriefstackError('task.notInBuild', { id });
       const view = await this.update(await discardTask(record, await this.applyDeps()));
+      await removeDetachedWorktree(record.projectDir, this.options.store.joinDir(record.id)).catch(() => undefined);
       await this.live.get(id)?.approvals.clear();
       return view;
     });
@@ -775,7 +790,7 @@ export class TaskManager {
    * still the one read. The worktree and the task's branch go, as after an
    * approval. Nothing is written in the user's folder or library note.
    */
-  private async applyToBuild(task: TaskRecord): Promise<TaskRecord> {
+  private async applyToBuild(task: TaskRecord, onto?: string): Promise<TaskRecord> {
     const build = task.build;
     if (build === undefined) throw new BriefstackError('task.notInBuild', { id: task.id });
     if (task.state !== 'proposal') throw new BriefstackError('task.wrongState', { id: task.id, state: task.state });
@@ -783,7 +798,8 @@ export class TaskManager {
     if (blocking.length > 0) throw new BriefstackError('task.blocked', { id: task.id, files: blocking.map((item) => item.file) });
     const branch = buildBranchOf(build.id);
     const expected = await integrationHead(task.projectDir, branch);
-    if (expected === undefined) throw new BriefstackError('build.branchMoved', { branch });
+    // `onto`: the head the caller read (a build's join); a head that moved since is refused, not combined.
+    if (expected === undefined || (onto !== undefined && expected !== onto)) throw new BriefstackError('build.branchMoved', { branch });
     const taskHead = await branchHead(task.projectDir, task.branch);
     if (task.reviewed !== undefined && taskHead !== task.reviewed) throw new BriefstackError('task.branchChanged', { id: task.id });
     if (taskHead === undefined || taskHead === task.baseCommit) throw new BriefstackError('task.noChanges', { id: task.id });

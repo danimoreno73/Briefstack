@@ -237,6 +237,93 @@ describe('several cards of one build at once', () => {
     await fresh.shutdown();
   });
 
+  it('a cancel during the checks on a joined commit, or just after them while their worktree goes, lands nothing (review of M2, I1)', async () => {
+    const base = await integration();
+    const holder: { m?: TaskManager; target?: string; late?: boolean } = {};
+    const checks: TaskChecks = {
+      commands: async () => [],
+      run: async (_dir, commands, signal): Promise<CheckResult[]> => {
+        const ok = commands.map((command) => ({ command, exitCode: 0, timedOut: false, output: 'ok', durationMs: 1 }));
+        if (holder.late === true) {
+          // The checks pass; the cancel comes a moment later, while the temporary worktree is removed.
+          setTimeout(() => void holder.m?.abortBuildChecks(holder.target as string), 0);
+          return ok;
+        }
+        await new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true }));
+        return ok;
+      },
+    };
+    const m = manager(checks);
+    holder.m = m;
+    try {
+      const zero = await card(m, 1, base, 'WRITE C.md: c');
+      await m.roundSettled(zero.id);
+      await m.joinForBuild(zero.id, []);
+      const head = await integrationHead(project, BRANCH);
+      const one = await card(m, 2, base, 'WRITE A.md: a');
+      const two = await card(m, 3, base, 'WRITE B.md: b');
+      await Promise.all([m.roundSettled(one.id), m.roundSettled(two.id)]);
+      const joining = m.joinForBuild(one.id, ['npm test']);
+      for (let i = 0; i < 500 && m.stateOf(one.id) !== 'checking'; i += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await m.abortBuildChecks(one.id);
+      expect(await joining).toEqual({ kind: 'aborted' });
+      expect((await m.get(one.id)).state).toBe('proposal');
+      holder.late = true;
+      holder.target = two.id;
+      expect(await m.joinForBuild(two.id, ['npm test'])).toEqual({ kind: 'aborted' });
+      expect(await integrationHead(project, BRANCH)).toBe(head);
+      expect((await m.get(two.id)).state).toBe('proposal');
+    } finally {
+      await m.shutdown();
+    }
+  });
+
+  it('the temporary worktree hides the project\'s settings files, as a task\'s does; a conflicted name is given as it is', async () => {
+    await writeTree(project, { '.claude/settings.json': '{}\n' });
+    await commitAll(project, 'settings');
+    const base = await integration();
+    const seen: boolean[] = [];
+    const checks: TaskChecks = {
+      commands: async () => [],
+      run: async (dir, commands) => {
+        seen.push(await access(path.join(dir, '.claude', 'settings.json')).then(() => true, () => false));
+        return commands.map((command) => ({ command, exitCode: 0, timedOut: false, output: 'ok', durationMs: 1 }));
+      },
+    };
+    const m = manager(checks);
+    try {
+      const name = `caf${String.fromCodePoint(0xe9)}.md`;
+      const zero = await card(m, 1, base, `WRITE ${name}: one`);
+      const clash = await card(m, 2, base, `WRITE ${name}: two`);
+      const one = await card(m, 3, base, 'WRITE A.md: a');
+      await Promise.all([zero, clash, one].map((task) => m.roundSettled(task.id)));
+      await m.joinForBuild(zero.id, []);
+      expect(await m.joinForBuild(one.id, ['npm test'])).toMatchObject({ kind: 'applied', merged: true });
+      expect(seen).toEqual([false]);
+      expect(await m.joinForBuild(clash.id, [])).toMatchObject({ kind: 'conflict', files: [name] });
+    } finally {
+      await m.shutdown();
+    }
+  });
+
+  it('recover() removes a temporary worktree a stop left behind', async () => {
+    const base = await integration();
+    const m = manager(spyChecks().checks);
+    const one = await card(m, 1, base, 'WRITE A.md: a');
+    const done = await m.roundSettled(one.id);
+    await m.shutdown();
+    // As a stop in the middle of the checks on a joined commit leaves it: the task checking, the worktree there.
+    await gitIn(project, 'worktree', 'add', '--quiet', '--detach', world.store.joinDir(one.id), done.reviewed as string);
+    await world.store.save({ ...done, state: 'checking' });
+    const fresh = manager(spyChecks().checks);
+    await fresh.recover();
+    expect((await fresh.get(one.id)).state).toBe('proposal');
+    await expect(access(world.store.joinDir(one.id))).rejects.toBeDefined();
+    expect((await gitIn(project, 'worktree', 'list', '--porcelain')).split(/\r?\n/).filter((line) => line.startsWith('worktree ')).length).toBe(2);
+    await fresh.shutdown();
+  });
+
   it('refuses a task without a build, and a full shared limit before the checks on a joined commit', async () => {
     const base = await integration();
     const m = manager(spyChecks().checks, 1);

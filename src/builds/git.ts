@@ -105,8 +105,9 @@ export type PreparedJoin = { kind: 'commit'; commit: string } | { kind: 'conflic
  */
 export async function prepareJoin(projectDir: string, params: { from: string; onto: string; to: string; message: string }): Promise<PreparedJoin> {
   return withSafeGit(projectDir, async (git, run) => {
-    const merged = await run(['merge-tree', '--write-tree', '--name-only', '--no-messages', '--merge-base', params.from, params.onto, params.to]);
-    const out = merged.stdout.split(/\r?\n/).map((line) => line.trim());
+    // `-z`: names as they are, not quoted (review of M2, minor 7).
+    const merged = await run(['merge-tree', '--write-tree', '--name-only', '--no-messages', '-z', '--merge-base', params.from, params.onto, params.to]);
+    const out = merged.stdout.split('\0').map((line) => line.trim());
     if (merged.code === 1) return { kind: 'conflict', files: [...new Set(out.slice(1).filter((line) => line !== ''))].slice(0, 20) };
     if (merged.code !== 0) throw new Error(`git merge-tree failed: ${merged.stderr.trim().slice(0, 300)}`);
     const tree = out[0] ?? '';
