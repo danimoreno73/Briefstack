@@ -176,6 +176,17 @@ describe('build routes', () => {
     expect((await call('GET', '/api/projects/garden/builds')).json).toMatchObject({ plan: { ok: true } });
   });
 
+  it('a start takes the slots, refuses bad ones with their own issue, and keeps none when absent (phase 11, M1)', async () => {
+    await serve();
+    const id = (await call('POST', '/api/projects/garden/builds', {})).json.id as string;
+    await builds.idle(id);
+    const body = { tasks: PLAN.tasks, limit: 1, commands: ['npm test'], checks: [], fixRounds: 0, thresholds: { fiveHour: 80, week: 90 }, confirm: true, noChecks: true };
+    expect(await call('POST', `/api/builds/${id}/start`, { ...body, slots: 9 })).toMatchObject({ status: 400, json: { code: 'build.invalidStart', params: { items: [{ key: 'slots', max: 4 }] } } });
+    expect((await call('POST', `/api/builds/${id}/start`, { ...body, slots: 'two' })).status).toBe(400);
+    expect(await call('POST', `/api/builds/${id}/start`, { ...body, slots: 2 })).toMatchObject({ status: 200, json: { settings: { slots: 2 } } });
+    await builds.idle(id);
+  });
+
   it('warn about high plan usage before planning, unless forced', async () => {
     await serve(new UsageCheck({ read: async () => ({ fiveHour: 95, sevenDay: 10 }), thresholds: async () => ({ fiveHour: 80, week: 90 }), ttlMs: 0 }));
     expect(await call('POST', '/api/projects/garden/builds', {})).toMatchObject({ status: 409, json: { code: 'usage.high' } });

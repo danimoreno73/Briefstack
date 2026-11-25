@@ -23,7 +23,9 @@ export interface TaskErrorFacts {
  * `undefined` when the item is not one the page knows.
  */
 export interface StartIssueFacts {
-  key: 'emptyQueue' | 'tooManyTasks' | 'taskInvalid' | 'laterDependency' | 'limit' | 'listTooLong' | 'listLine' | 'listDuplicate' | 'fixRounds' | 'slots' | 'threshold' | 'noChecks';
+  key: 'emptyQueue' | 'tooManyTasks' | 'taskInvalid' | 'laterDependency' | 'areaInvalid' | 'sizeInvalid' | 'limit' | 'listTooLong' | 'listLine' | 'listDuplicate' | 'fixRounds' | 'slots' | 'threshold' | 'noChecks';
+  /** A card's area problem (phase 11). */
+  area: 'empty' | 'long' | 'absolute' | 'parent' | 'chars' | 'count' | undefined;
   n: number;
   max: number;
   line: number;
@@ -33,7 +35,8 @@ export interface StartIssueFacts {
   threshold: 'fiveHour' | 'week' | undefined;
 }
 
-const START_ISSUE_KEYS = new Set(['emptyQueue', 'tooManyTasks', 'taskInvalid', 'laterDependency', 'limit', 'listTooLong', 'listLine', 'listDuplicate', 'fixRounds', 'slots', 'threshold', 'noChecks']);
+const START_ISSUE_AREA = new Set(['empty', 'long', 'absolute', 'parent', 'chars', 'count']);
+const START_ISSUE_KEYS = new Set(['emptyQueue', 'tooManyTasks', 'taskInvalid', 'laterDependency', 'areaInvalid', 'sizeInvalid', 'limit', 'listTooLong', 'listLine', 'listDuplicate', 'fixRounds', 'slots', 'threshold', 'noChecks']);
 const START_ISSUE_FIELDS = new Set(['title', 'instruction', 'doneWhen', 'dependsOn', 'area', 'size']);
 const START_ISSUE_PROBLEMS = new Set(['empty', 'spaces', 'lines', 'long', 'secret', 'invisible', 'compound', 'wildcard', 'chars', 'quote']);
 
@@ -50,7 +53,8 @@ export function startIssueFacts(value: unknown): StartIssueFacts | undefined {
     line: count(item.line),
     checks: item.what === 'checks',
     fields: Array.isArray(item.fields) ? (item.fields.filter((field) => typeof field === 'string' && START_ISSUE_FIELDS.has(field)) as StartIssueFacts['fields']) : [],
-    problem: typeof item.problem === 'string' && START_ISSUE_PROBLEMS.has(item.problem) ? (item.problem as StartIssueFacts['problem']) : undefined,
+    problem: item.key !== 'areaInvalid' && typeof item.problem === 'string' && START_ISSUE_PROBLEMS.has(item.problem) ? (item.problem as StartIssueFacts['problem']) : undefined,
+    area: item.key === 'areaInvalid' && typeof item.problem === 'string' && START_ISSUE_AREA.has(item.problem) ? (item.problem as StartIssueFacts['area']) : undefined,
     threshold: item.name === 'fiveHour' || item.name === 'week' ? item.name : undefined,
   };
 }
@@ -550,6 +554,19 @@ export const uiMessages = defineCatalogue({
           return `task ${i.n} has a field that is empty or too long${i.fields.length === 0 ? '' : ` (${i.fields.map((field) => fields[field]).join(', ')})`}`;
         case 'laterDependency':
           return `task ${i.n} may depend only on earlier tasks`;
+        case 'areaInvalid':
+          return `task ${i.n}: its area ${
+            {
+              empty: 'has an empty path',
+              long: 'has a path that is too long',
+              absolute: 'has an absolute path (write it relative to the project)',
+              parent: 'has a path that goes up with ..',
+              chars: 'has a path with a backslash, a wildcard or a hidden character (use /)',
+              count: 'needs 1 to 10 paths',
+            }[i.area ?? 'chars']
+          }`;
+        case 'sizeInvalid':
+          return `task ${i.n}: the size must be S, M or L`;
         case 'limit':
           return '“how many tasks to run” must be from 1 to the number of tasks in the queue';
         case 'listTooLong':
@@ -1901,6 +1918,19 @@ export const uiMessages = defineCatalogue({
           return `la tarea ${i.n} tiene un campo vacío o demasiado largo${i.fields.length === 0 ? '' : ` (${i.fields.map((field) => fields[field]).join(', ')})`}`;
         case 'laterDependency':
           return `la tarea ${i.n} solo puede depender de tareas anteriores`;
+        case 'areaInvalid':
+          return `tarea ${i.n}: su zona ${
+            {
+              empty: 'tiene una ruta vacía',
+              long: 'tiene una ruta demasiado larga',
+              absolute: 'tiene una ruta absoluta (escríbela relativa al proyecto)',
+              parent: 'tiene una ruta que sube con ..',
+              chars: 'tiene una ruta con una barra invertida, un comodín o un carácter oculto (usa /)',
+              count: 'necesita de 1 a 10 rutas',
+            }[i.area ?? 'chars']
+          }`;
+        case 'sizeInvalid':
+          return `tarea ${i.n}: el tamaño debe ser S, M o L`;
         case 'limit':
           return '«cuántas tareas ejecutar» debe ir de 1 al número de tareas de la cola';
         case 'listTooLong':

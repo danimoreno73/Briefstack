@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BuildManager, type BuildStartInput } from '../../src/builds/manager.js';
 import { FakeBuildPlanner, PLAN_JSON_SCHEMA, plannerPrompt, validatePlanOutput } from '../../src/builds/planner.js';
 import { BuildStore, buildsRoot } from '../../src/builds/store.js';
-import { areaPathProblem, areasOverlap, buildRecordSchema, MAX_SLOTS, plannerOutputSchema, queueItemSchema, type PlanOutput } from '../../src/builds/types.js';
+import { areaPathProblem, areaProblem, areasOverlap, buildRecordSchema, MAX_SLOTS, plannerOutputSchema, queueItemSchema, type PlanOutput } from '../../src/builds/types.js';
 import { startIssueFacts, uiMessages } from '../../src/i18n/ui.js';
 import { afterRoundWith } from '../../src/tasks/afterRound.js';
 import { TaskFakeRunner } from '../../src/tasks/fakeRunner.js';
@@ -31,6 +31,14 @@ describe('a card\'s area', () => {
     expect(areaPathProblem('src/*.ts')).toBe('chars');
     expect(areaPathProblem('src/\u202ex')).toBe('chars');
     expect(areaPathProblem('a\nb')).toBe('chars');
+    // Lower-case drives, UNC paths and spaces around (review of M1, minors 4 and 7).
+    expect(areaPathProblem('c:/x')).toBe('absolute');
+    expect(areaPathProblem('//server/share')).toBe('absolute');
+    expect(areaPathProblem(' /etc')).toBe('absolute');
+    expect(areaPathProblem(' ..')).toBe('parent');
+    expect(areaProblem([])).toBe('count');
+    expect(areaProblem(['a', '/b'])).toBe('absolute');
+    expect(areaProblem(['src/'])).toBeUndefined();
   });
 
   it('overlaps when a path is the same as, above or below another, without case; none or . is the whole project', () => {
@@ -44,6 +52,14 @@ describe('a card\'s area', () => {
     expect(areasOverlap(['.'], ['src/b'])).toBe(true);
     expect(areasOverlap(undefined, ['src/b'])).toBe(true);
     expect(areasOverlap(['src/a'], [])).toBe(true);
+    // One Unicode form; the trailing dots and spaces Windows drops (review of M1, minor 5).
+    const composed = `caf${String.fromCodePoint(0xe9)}`;
+    const decomposed = `cafe${String.fromCodePoint(0x301)}`;
+    expect(composed).not.toBe(decomposed);
+    expect(areasOverlap([`${composed}/`], [`${decomposed}/menu.md`])).toBe(true);
+    expect(areasOverlap(['café/'], ['café/menu.md'])).toBe(true);
+    expect(areasOverlap(['src/x.'], ['src/x/y'])).toBe(true);
+    expect(areasOverlap(['src/x '], ['src/x'])).toBe(true);
   });
 
   it('is optional on a card, with its size; when given, both are checked', () => {
@@ -179,12 +195,20 @@ describe('starting a board of cards', () => {
       };
       expect(error.code).toBe('build.invalidStart');
       const facts = error.params.items.map(startIssueFacts);
-      expect(facts.map((item) => item?.key)).toEqual(['taskInvalid', 'limit', 'slots']);
-      expect(facts[0]?.fields).toEqual(['area']);
+      // The area's own issue says what is wrong with it, not "empty or too long" (review of M1, I1).
+      expect(facts.map((item) => item?.key)).toEqual(['areaInvalid', 'limit', 'slots']);
+      expect(facts[0]?.area).toBe('parent');
+      expect(uiMessages.en.buildStartIssue(facts[0] as NonNullable<(typeof facts)[number]>)).toBe('task 1: its area has a path that goes up with ..');
+      expect(uiMessages.es.buildStartIssue(facts[0] as NonNullable<(typeof facts)[number]>)).toBe('tarea 1: su zona tiene una ruta que sube con ..');
       expect(uiMessages.en.buildStartIssue(facts[2] as NonNullable<(typeof facts)[number]>)).toBe('cards at once must be from 1 to 4');
-      expect(uiMessages.es.buildStartIssue(facts[0] as NonNullable<(typeof facts)[number]>)).toContain('zona');
       expect(builds.startIssues(startInput({ slots: 0 })).map((item) => item.key)).toEqual(['slots']);
       expect(builds.startIssues(startInput({ slots: 1.5 })).map((item) => item.key)).toEqual(['slots']);
+      const sized = builds.startIssues(startInput({ tasks: [{ ...CARD, size: 'XL' } as never, { ...CARD, area: [] } as never, { ...CARD, title: '', area: ['C:/x'] } as never], limit: 3 }));
+      expect(sized).toMatchObject([{ key: 'sizeInvalid', n: 1 }, { key: 'areaInvalid', n: 2, problem: 'count' }, { key: 'areaInvalid', n: 3, problem: 'absolute' }, { key: 'taskInvalid', n: 3, fields: ['title'] }]);
+      for (const lang of ['en', 'es'] as const) {
+        const said = sized.map((issue) => uiMessages[lang].buildStartIssue(startIssueFacts(issue) as NonNullable<ReturnType<typeof startIssueFacts>>));
+        expect(new Set(said).size).toBe(said.length);
+      }
       const started = await builds.start(planned.id, startInput());
       expect(started.settings?.slots).toBeUndefined();
       expect(started.settings?.maxRounds).toBe(4);

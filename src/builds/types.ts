@@ -79,9 +79,26 @@ export const DEFAULT_PAGE_SLOTS = 2;
 const hiddenCode = (code: number): boolean =>
   code < 0x20 || code === 0x7f || (code >= 0x200b && code <= 0x200f) || (code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069) || code === 0xfeff;
 
+/** Why a card's area cannot be taken: one of its paths (`empty` … `chars`), or how many there are (`count`). */
+export const AREA_PROBLEMS = ['empty', 'long', 'absolute', 'parent', 'chars', 'count'] as const;
+export type AreaProblem = (typeof AREA_PROBLEMS)[number];
+
+/** Why a card's area cannot be taken, or `undefined`: no paths or too many, else the first path's problem. */
+export function areaProblem(area: unknown): AreaProblem | undefined {
+  if (!Array.isArray(area) || area.length === 0 || area.length > MAX_AREA_PATHS) return 'count';
+  for (const item of area) {
+    if (typeof item !== 'string') return 'chars';
+    const problem = areaPathProblem(item);
+    if (problem !== undefined) return problem;
+  }
+  return undefined;
+}
+
 /** Why a path cannot be in a card's area (a code the page translates), or `undefined`. */
-export function areaPathProblem(value: string): 'empty' | 'long' | 'absolute' | 'parent' | 'chars' | undefined {
-  if (value.trim() === '') return 'empty';
+export function areaPathProblem(raw: string): AreaProblem | undefined {
+  // As the schema reads it: trimmed first (review of M1, minor 4).
+  const value = raw.trim();
+  if (value === '') return 'empty';
   if (value.length > MAX_AREA_PATH) return 'long';
   // Only relative paths with `/`: no backslash, wildcard, control or invisible character.
   if (/[\\*?[\]{}<>|"]/.test(value) || [...value].some((ch) => hiddenCode(ch.codePointAt(0) ?? 0))) return 'chars';
@@ -98,13 +115,19 @@ const areaPathSchema = z
   .max(MAX_AREA_PATH)
   .refine((value) => areaPathProblem(value) === undefined, { message: 'must be a relative path inside the project, with /' });
 
-/** A path's parts, without `.`, empty parts and case: what the overlap compares. `[]` is the whole project. */
+/**
+ * A path's parts, without `.`, empty parts and case, in one Unicode form,
+ * and without the trailing dots and spaces Windows drops from a name: what
+ * the overlap compares (review of M1, minor 5). `[]` is the whole project.
+ */
 const areaParts = (value: string): string[] =>
   value
     .trim()
+    .normalize('NFC')
     .toLowerCase()
     .split('/')
-    .filter((part) => part !== '' && part !== '.');
+    .map((part) => part.replace(/[. ]+$/, ''))
+    .filter((part) => part !== '');
 
 /**
  * Whether two cards' areas may touch the same files (BRIEF-phase-11 §2, 4):

@@ -1,6 +1,16 @@
 import { describeCommand } from '../tasks/shell.js';
 import { redactSecretLines } from '../validate/secrets.js';
-import { MAX_COMMAND_LENGTH, MAX_COMMANDS } from './types.js';
+import { MAX_AREA_PATH, MAX_AREA_PATHS, MAX_COMMAND_LENGTH, MAX_COMMANDS, type AreaProblem } from './types.js';
+
+/** Each area problem in English, as the server's error text says it (phase 11). */
+const AREA_PROBLEM_TEXT: Readonly<Record<AreaProblem, string>> = {
+  empty: 'a path is empty',
+  long: `a path is longer than ${MAX_AREA_PATH} characters`,
+  absolute: 'a path is absolute (it must be relative to the project)',
+  parent: 'a path goes up with ..',
+  chars: 'a path has a backslash, a wildcard or a hidden character',
+  count: `it needs 1 to ${MAX_AREA_PATHS} paths`,
+};
 
 /**
  * The exact commands approved at a build's start (BRIEF-phase-9 §2, 6 and
@@ -88,6 +98,8 @@ export type StartIssue =
   | { key: 'tooManyTasks'; max: number }
   | { key: 'taskInvalid'; n: number; fields: string[]; detail: string }
   | { key: 'laterDependency'; n: number }
+  | { key: 'areaInvalid'; n: number; problem: AreaProblem }
+  | { key: 'sizeInvalid'; n: number }
   | { key: 'limit' }
   | { key: 'listTooLong'; what: 'commands' | 'checks'; max: number }
   | { key: 'listLine'; what: 'commands' | 'checks'; line: number; problem: CommandProblem }
@@ -107,6 +119,10 @@ export function startIssueText(issue: StartIssue): string {
       return `task ${issue.n}: ${issue.detail}`;
     case 'laterDependency':
       return `task ${issue.n}: it may depend only on earlier tasks`;
+    case 'areaInvalid':
+      return `task ${issue.n}: area ${AREA_PROBLEM_TEXT[issue.problem]}`;
+    case 'sizeInvalid':
+      return `task ${issue.n}: size must be S, M or L`;
     case 'limit':
       return "how many tasks to run: from 1 to the queue's length";
     case 'listTooLong':

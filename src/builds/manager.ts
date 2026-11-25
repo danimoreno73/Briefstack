@@ -28,6 +28,8 @@ import {
   MAX_QUEUE,
   MAX_ROUNDS_CAP,
   MAX_SLOTS,
+  areaProblem,
+  CARD_SIZES,
   queueItemSchema,
   SETTLED_BUILD_STATES,
   type BuildRecord,
@@ -337,7 +339,17 @@ export class BuildManager {
     const issues: StartIssue[] = [];
     if (!Array.isArray(input.tasks) || input.tasks.length === 0) issues.push({ key: 'emptyQueue' });
     if (input.tasks.length > MAX_QUEUE) issues.push({ key: 'tooManyTasks', max: MAX_QUEUE });
-    input.tasks.forEach((task, i) => {
+    input.tasks.forEach((item, i) => {
+      // A card's area and size each have their own issue, which says what is wrong (review of M1, I1); the other
+      // fields are read as phase 9 read them.
+      let task: unknown = item;
+      if (typeof item === 'object' && item !== null) {
+        const { area, size, ...rest } = item as QueueItem;
+        const problem = area === undefined ? undefined : areaProblem(area);
+        if (problem !== undefined) issues.push({ key: 'areaInvalid', n: i + 1, problem });
+        if (size !== undefined && !(CARD_SIZES as readonly unknown[]).includes(size)) issues.push({ key: 'sizeInvalid', n: i + 1 });
+        task = { ...rest, ...(area === undefined || problem !== undefined ? {} : { area }) };
+      }
       const parsed = queueItemSchema.safeParse(task);
       if (!parsed.success) {
         issues.push({

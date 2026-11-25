@@ -136,7 +136,8 @@ Each one is the conservative reading and is in decisions.md.
   schema (draft-07), its prompt asks for areas and sizes; the output
   validated with the shared rules.
 - `src/builds/manager.ts`: start issues for areas, sizes and slots;
-  cards stored with area and size; `slots` recorded (1 when absent).
+  cards stored with area and size; `slots` recorded when given (a record
+  without it runs with one).
 - `src/builds/commands.ts`, `src/i18n/ui.ts`, `src/i18n/errors.ts`: the
   new issue codes in English and Spanish.
 - Tests: schema and validation (areas, sizes, dependencies, slots), the
