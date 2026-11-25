@@ -8149,3 +8149,46 @@ instant, so two cards do not spawn two readings at once; at the threshold
 no card starts, the running ones finish, then the build pauses as today.
 With one slot a pass starts one card, so the reading is still one per
 card.
+
+## Decisiones sin Dani (fase 11)
+
+Phase 11 runs unattended (BRIEF-phase-11.md, §8; the user's authorisation
+of 2026-11-25). Each doubt is settled with the most conservative option and
+recorded here; the design is in [PLAN-phase-11.md](PLAN-phase-11.md), §1.
+
+- **The tag `phase-11-start`** was refused by the session's permissions
+  (2026-11-25). It belongs on `13ff55b`, the last commit before the
+  brief's (the brief asks for it "before the first change"), a lightweight
+  tag as `phase-9-start`; the user creates it.
+- **Defaults 5–10 of the brief are kept**, with these readings:
+  - 5. Slots: the API's default is 1 when the start body has none (phase
+    9's behaviour and tests), the page's default is 2.
+  - 6. Usage: one reading per pass that starts cards (H0, 5), not one per
+    card started in the same instant.
+  - 7. Area and size are required from the planner and optional
+    elsewhere; no area means the whole project.
+  - 8. Cancelled cards (a cancel of the build) show in the Skipped
+    column; phase 9's table stays below the columns.
+  - 9. A lost compare and swap is joined again, at most three times.
+  - 10. Unchanged.
+- **One slot and a head that moved.** Phase 9 combined a task onto a head
+  that moved (the user approved a waiting task meanwhile) with
+  `merge-tree` and no checks. The brief says one slot behaves exactly as
+  today, and also that joins never skip checks (§4). Security wins: from
+  phase 11, a card joined onto a moved head is checked again on the joined
+  tree with any number of slots. In phase 9's loop this happened only when
+  the user approved a waiting task while the build ran; no phase 9 test
+  covers it.
+- **Restart with one slot.** The brief says resuming starts the running
+  cards again from the integration head; phase 9's test "after a restart
+  the build is interrupted; Resume goes on with the tasks that do not
+  depend on the interrupted one" keeps the interrupted task waiting for
+  the user, and the brief also says phase 9's tests pass unchanged. So a
+  build with more than one slot starts its interrupted cards again on
+  resume (their tasks discarded); a build with one slot leaves them
+  waiting, as phase 9 did.
+- **The cap of rounds** doubles with more than one slot (each card may be
+  redone once), still at most 40.
+- **Reorder keeps dependencies on earlier cards** (no card above one it
+  depends on): the server's rule stays phase 9's, so no cycle is
+  possible, and priority is the cards' order.
