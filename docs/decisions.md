@@ -8446,3 +8446,213 @@ of the two late cards waits is the machine's timing, not the rule, so the
 test now takes either and checks the waiting one (redone once, its last
 join a conflict in the shared file, its task open); production unchanged
 (`7f7a4a0`, 20 of 20 repetitions, CI green on the three systems).
+
+## Phase 12: H0 (2026-11-26, SDK 0.3.286, git 2.55, Windows 11)
+
+The five points of [BRIEF-phase-12.md](BRIEF-phase-12.md) §6, checked
+before the plan. No real session, no provider call and no key read: the
+code in the repo, a probe of the pages at phone width over the fakes
+(`tests/screenshots/narrow.shots.ts`, outputs outside the repo), and the
+official documentation, read on 2026-11-26 and cited. None of them makes
+a decision of the brief's §2 impossible or unsafe, so the plan and the
+milestones go ahead (the brief's §8).
+
+The tag `phase-12-start` was refused to the session by the permission
+classifier (it was not created, locally or on origin); the user creates
+it, on `0442ed3`, the commit before the brief's.
+
+**1. Where the server binds and checks host, origin and token.** In
+`src/server/server.ts`, `startWebServer` calls `server.listen(port,
+LOOPBACK)` with `LOOPBACK = '127.0.0.1'` fixed in `src/server/security.ts`,
+and every request goes through `checkRequest` (same file): the `Host`
+header must be `127.0.0.1:<port>` or `localhost:<port>` (`allowedHosts`),
+every `/api` call needs the per-start token in `x-briefstack-token`
+(compared with `timingSafeEqual`), and a mutating call needs `Origin`
+equal to `http://<host>` and `Sec-Fetch-Site` absent or `same-origin`.
+Static files need only the host check. The page reads `#token=` once
+(`src/ui/api.ts`) and sends every request, streams included
+(`src/ui/chat.tsx`, `src/ui/creation.tsx`), with `credentials: 'omit'`.
+`briefstack web` (`runWeb`, `src/cli.ts`) takes only `--port`.
+**Conclusion, the smallest change:** server mode is a set of start
+options that reach `startWebServer` as one optional `server` object;
+without it every line above runs as it does today (a regression test
+pins the listening address, the hosts, the token and the origin rule).
+With it: the listening address comes from the option, the allowed hosts
+are the loopback ones plus the configured names, the origin of a
+configured name is `https://<name>` (Tailscale serves HTTPS), `/api`
+needs a device session cookie instead of the token, and the page sends
+its requests with `credentials: 'same-origin'` only when the server says
+it is in server mode. What `tailscale serve` sends was checked in its
+source, as the docs do not say it
+([ipn/ipnlocal/serve.go](https://github.com/tailscale/tailscale/blob/main/ipn/ipnlocal/serve.go),
+main branch): the reverse proxy keeps the browser's host
+(`r.Out.Host = r.In.Host`) and adds `X-Forwarded-Proto: https`, so the
+container sees `Host: <machine>.<tailnet>.ts.net:8445`; serve needs HTTPS
+certificates enabled in the tailnet
+([kb/1312](https://tailscale.com/kb/1312/serve)), its syntax is
+`tailscale serve --bg --https=8445 http://127.0.0.1:4870`
+([kb/1242](https://tailscale.com/kb/1242/tailscale-serve)), and a port
+last configured with `serve` "will be completely private" (same page).
+Whether serve streams server-sent events without buffering is not in the
+docs: the real check (a) reads a stream through it.
+
+**2. Outbound domains and sign-in without a browser.** The table
+"Network access requirements"
+([network-config](https://code.claude.com/docs/en/network-config#network-access-requirements))
+lists `api.anthropic.com` ("Claude API requests, including the WebFetch
+domain safety check, feature flag fetches, and telemetry event logging"),
+`claude.ai` and `claude.com` (claude.ai account sign-in),
+`platform.claude.com` ("OAuth token exchange, refresh, and revocation"),
+`sso.claude.com` (SSO only), `downloads.claude.ai` and
+`storage.googleapis.com` (install and updates), `registry.npmjs.org`,
+`github.com` and `raw.githubusercontent.com` (plugins, marketplaces),
+`mcp-proxy.anthropic.com` (connectors), the Datadog hosts
+`http-intake.logs.us5.datadoghq.com` and
+`browser-intake-us5-datadoghq.com` (telemetry and error reports, off with
+`DISABLE_TELEMETRY` / `DISABLE_ERROR_REPORTING`), and desktop and
+artifact hosts briefstack does not use. The reference dev container's
+firewall (`.devcontainer/init-firewall.sh` in `anthropics/claude-code`)
+allows a different, shorter list (`registry.npmjs.org`,
+`api.anthropic.com`, `sentry.io`, `statsig.com`, VS Code hosts, GitHub's
+ranges); the guide follows the network-config table. Sign-in without a
+browser on the machine
+([authentication](https://code.claude.com/docs/en/authentication#log-in-to-claude-code)):
+`/login` lets the user copy the URL ("press `c` to copy the login URL"),
+open it in any browser and paste the code back ("paste it into the
+terminal at the `Paste code here if prompted` prompt"); or
+`claude setup-token` makes "a one-year OAuth token" for "environments where
+interactive browser login isn't available", set as
+`CLAUDE_CODE_OAUTH_TOKEN`, which "can only make model requests" and needs
+a subscription. briefstack already passes `CLAUDE_CODE_OAUTH_TOKEN` to its
+sessions (`PASSED_CLAUDE_CODE_ENV`, `src/creation/sdkRunner.ts`). Whether
+the plan-usage reading works with that token is not documented: the real
+check (b) reads it. **Conclusion:** decisions 1 to 3 hold; the guide
+lists the table's hosts for briefstack's use, the providers' hosts, npm
+and GitHub.
+
+**3. A session's environment and a provider's.** Every session's
+environment is `cleanEnvironment` (`src/creation/sdkRunner.ts`): the
+server's own, minus `ANTHROPIC_MODEL`, `CLAUDECODE`, the creation's
+folders variable and every `CLAUDE_CODE_*` except how the user signs in
+(`CLAUDE_CODE_USE_*`, `CLAUDE_CODE_OAUTH_*`, client certificates), plus
+`BRIEFSTACK_HOME` and background tasks and auto memory off; a task round
+adds `TASK_ENV` (`src/tasks/session.ts`) and passes model and effort
+explicitly (`buildTaskQueryOptions`). The environment is built per
+`query()` call, in the runner, so one session's variables never reach
+another's. Claude Code's precedence
+([authentication](https://code.claude.com/docs/en/authentication#authentication-precedence)):
+cloud provider flags, then `ANTHROPIC_AUTH_TOKEN` ("Sent as the
+`Authorization: Bearer` header"), then `ANTHROPIC_API_KEY`,
+`apiKeyHelper`, `CLAUDE_CODE_OAUTH_TOKEN`, and the `/login` credentials
+last. `ANTHROPIC_BASE_URL` "Override[s] the API endpoint"; the aliases map
+with `ANTHROPIC_DEFAULT_OPUS_MODEL`, `_SONNET_`, `_HAIKU_` and `_FABLE_`;
+`CLAUDE_CODE_SUBAGENT_MODEL` is the subagents' default
+([env-vars](https://code.claude.com/docs/en/env-vars),
+[model-config](https://code.claude.com/docs/en/model-config)). DeepSeek
+documents `https://api.deepseek.com/anthropic` with
+`ANTHROPIC_AUTH_TOKEN` and the aliases set to its models (`deepseek-flash`,
+`deepseek-v4-pro`) ([Claude Code guide](https://api-docs.deepseek.com/quick_start/agent_integrations/claude_code/),
+[Anthropic API](https://api-docs.deepseek.com/guides/anthropic_api)); Kimi
+documents `https://api.moonshot.ai/anthropic` with `ANTHROPIC_AUTH_TOKEN`
+and `kimi-k3` models, and says to remove `ANTHROPIC_API_KEY`
+([Claude Code guide](https://platform.kimi.ai/docs/guide/claude-code-kimi.md)).
+Both return `usage` with input, output and cache tokens. Neither documents
+a no-cost call under its Anthropic base URL (DeepSeek has `GET /models`
+and `GET /user/balance` on its OpenAI-format host, cost not stated; Kimi's
+guide checks with a one-token message). **Auto mode:** it needs a
+supported Claude model
+([permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode));
+when it "isn't available to the session, Claude Code starts the session
+in Manual instead" (same page). With a provider's model a task round's
+`auto` would fall back to Manual by itself; then every tool call that
+needs a permission reaches `canUseTool`, which answers with the task
+guard's verdict (`evaluateTaskToolUse`) and, in a build, the exact list:
+the guard stays the authority. **The usage reading:** a build reads the
+plan with its own `query()` in the clean environment
+(`buildUsageReader`, `src/builds/usage.ts`), never in a provider's, so it
+always reads the Claude plan (`rate_limits`); a provider's spending is
+not read by briefstack (its console's cap is the limit, decision 3).
+**Conclusion:** a provider's round gets the clean environment with every
+Anthropic credential taken out (`ANTHROPIC_*`, `CLAUDE_CODE_USE_*`,
+`CLAUDE_CODE_OAUTH_*`, `CLAUDE_CODE_SKIP_*_AUTH`) and the provider's
+`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` (the key, read from its file
+at the round's start), the alias and subagent models and
+`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`; the model option is the
+provider's; the permission mode is set to `default` explicitly instead of
+relying on the fallback (the guard decides every call as above). The
+status check reads no key: whether the key file exists and is not empty
+(by its size), and whether the base URL's host answers a request sent
+without any key; the key's validity is "not checked".
+
+**4. The pages on a narrow screen.** The UI pass already made the pages
+work at 720 px and below (`app.css`, `bs.css`, a viewport meta, an e2e
+for Usage and Settings at 390 px). Measured at 390×844 over the fakes
+(document width against the viewport, and every element past the right
+edge outside a box that scrolls on its own): projects, a project, new
+project, Settings, Usage, a creation's interview and spec checkpoint, a
+code project, the build's board before the start, the build page running
+and finished: **no sideways scroll, nothing past the edge** on any of
+them. Seen in the pictures: the build page's progress table scrolls
+inside its own box and cuts its last column ("Checks") at 390 px; the
+board's start form is long but readable. **Conclusion:** M3 is small:
+the progress table readable without sideways scroll, the new sign-in and
+devices pages built for a phone, and an e2e of the board and the build
+page at phone width.
+
+**5. Resuming a build after a restart.** Today `recover()`
+(`src/builds/manager.ts`) turns a build left `planning` into
+`planFailed`, one with a cancel mark into `cancelled`, and one left
+`running` or `paused` into `interrupted` (its running cards waiting with
+reason `interrupted`; the task manager's own `recover()` leaves their
+tasks `interrupted`). The user's resume then requeues, with more than one
+slot, a card whose task the stop left interrupted (the task discarded, the
+card starting again at the integration head); with one slot such a card
+waits for the user (phase 9). Joins are atomic (`merge-tree` and a compare
+and swap of the branch), so a stop never leaves half a join. **What a safe
+auto-resume needs:** (a) only builds the restart interrupted, never one
+the user had paused or that failed to plan; (b) a build paused for usage
+stays paused until the reset it was waiting for (its timer set again),
+not resumed at once; (c) the plan usage read before its next cards, as
+any pass does (the user's resume skips it; this one must not); (d) a card
+whose task the restart left interrupted starts again at the integration
+head, whatever the slots (nobody is there to take it up); (e) a cap: a
+build that the server keeps dying in must not be restarted forever by
+`restart: unless-stopped`, so a build resumed by itself a few times in a
+row without a card ending stays interrupted; (f) creations stay
+interrupted (the brief's decision 7). **Conclusion:** possible with a
+setting read at start, after both `recover()` calls, through the
+manager's own lock.
+
+## Decisiones sin Dani (fase 12)
+
+Phase 12 runs unattended (BRIEF-phase-12.md, §8; the user's authorisation
+of 2026-11-26). Each doubt is settled with the most conservative option and
+recorded here; the design is in [PLAN-phase-12.md](PLAN-phase-12.md), §1.
+The brief's defaults 4 to 11 are kept, with these readings:
+
+- **4. Server mode:** a flag (`--server`), not an environment variable, so
+  nothing in a shell's environment turns it on by itself; its options are
+  a usage error without it. "Extends the host and origin checks" is read
+  literally: the loopback names on the listening port stay accepted (the
+  container's own checks use them), and the configured names are added,
+  with an `https://` origin.
+- **5. Sign-in:** the attempt limit is one counter for the whole server
+  (5 failures in 15 minutes lock sign-in for 15 minutes), as the addresses
+  seen behind Tailscale and Docker cannot be trusted and there is one
+  user. Sessions survive a restart (a file of digests); a secret of fewer
+  than 32 characters stops the start.
+- **8. Reserve providers:** configured in `config.json` only; the page
+  shows them and runs the status check but cannot add or change one,
+  because a base URL or a key file path set from the page could send a
+  key, or any file the server can read, to another host. The status check
+  sends no key (no documented no-cost call under either Anthropic base
+  URL; H0, 3), so the key's validity is "not checked". A provider's round
+  runs in permission mode `default` (auto mode is not available with a
+  provider's model; H0, 3): the task guard answers every call, as in auto
+  mode's fallback, so the build's security model does not change. A
+  failed usage reading still pauses with a reserve chosen.
+- **10. Codex:** off in server mode by the Codex service itself
+  (`codex.serverMode`), whatever `config.json` says.
+- **The probe of H0, 4** (`tests/screenshots/narrow.shots.ts`) stays in
+  the repo next to the other screenshot specs: not part of the suite, run
+  with `npm run screenshots -- narrow.shots.ts`.
