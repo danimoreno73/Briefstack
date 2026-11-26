@@ -8379,3 +8379,61 @@ What the review of M4 left as "Not changed" (above) is done:
   cards still queued show under Pending or Blocked, as before, since a
   cancel does not mark them (phase 9's record); the focus goes to the page
   after a card is moved to the top or removed.
+
+## Phase 11: accepted (2026-11-26)
+
+**The user's decision (2026-11-26):** phase 11 is accepted, on the real
+check below, run by the user on Windows 11 with the saver profile and two
+slots. The user created the tag `phase-11-done` on `1884bf8`, the commit
+the check ran on. With it, one slot and a moved head checked again ("Phase
+11: the user's decisions").
+
+**The real check** (`npx tsx scripts/real/check-build-parallel.ts --yes`,
+2026-11-26, Claude Code 2.1.332; 43 s; plan usage 31% of the 5-hour window
+and 3% of the week, before and after): every verdict PASS (19), none FAIL
+or NOT CONTROLLED. Its verdicts, as printed (details cut where they hold a
+record, a local path or a long value):
+
+- PASS "the build was created and the planner started"
+- PASS "the planner answered with a board: 4 card(s), replaced by the
+  fixed board of 4"
+- PASS "the planner gave every card an area and a size (the planner's JSON
+  schema): 4 of 4"
+- PASS "the planner session had no tool but StructuredOutput, and called
+  no other: tools ["StructuredOutput"], 1 call(s)"
+- PASS "the build started with the fixed board and two slots"
+- PASS "the build ran to its end on its own (finished): finished"
+- PASS "1. two independent cards (1 and 2) ran at the same time, each with
+  its own task"
+- PASS "2. exactly one of cards 1 and 2 collided when joined and was
+  redone once" (card 1, `conflict`)
+- PASS "2. cards 1 and 2 were both applied to the build's branch: applied,
+  applied"
+- PASS "2. shared/NOTES.md holds both lines, and no conflict marker:
+  ["two","one"]"
+- PASS "3. cards 3 and 4 were applied: applied, applied"
+- PASS "nothing reached main before the apply: same HEAD, clean folder"
+- PASS "the plan was read before cards started (one reading at least): 3
+  reading(s)"
+- PASS "4. the build was applied"
+- PASS "4. one commit on main, on top of the base" (the commit "Build …: 4
+  tasks from the project's brief")
+- PASS "4. the project folder is clean"
+- PASS "4. shared/NOTES.md is in the project with both lines"
+- PASS "4. no remote: nothing could be pushed: none"
+- PASS "no process of the sandbox is left once the server stopped: none"
+
+Shown in real besides, in the check's own lines: cards 1 and 4 were joined
+onto a moved head and the build's check ran again on the joined commit
+(`merged: true`, `node scripts/check.js` → 0); card 3 (another area) ran
+while card 1 was still at work.
+
+**Not shown in real**, among others (shown by unit, flow and e2e tests
+only): two cards whose areas overlap kept apart (the check's four areas do
+not overlap, on purpose); a second conflict leaving a card waiting; checks
+that fail only on the joined tree (`joinChecksFailed`); a usage pause or a
+user's pause with cards at work; a cancel of several trees; a restart with
+several cards; a full shared limit, and the cap of rounds reached; one
+slot, with its redo and the moved head checked again; more than two
+slots; the board's page itself (the check drives the API); macOS and
+Linux. Open in `IDEAS.md` §11.

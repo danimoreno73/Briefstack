@@ -22,10 +22,10 @@ Updated 2026-11-26.
 | M1 | Cards: area and size, validation, the planner's output, older builds read as before | done (`b52701e`; review fixes `fb0368d`; CI green on the three systems, run 45683240725): decisions.md "Phase 11: M1, M2 and M3" |
 | M2 | Several worktrees per build and the join: `merge-tree` onto a moved head, checks on the joined tree, one join at a time | done (`f81f05e`; review fixes `d82f0b0`; CI green, run 45688275973): `joinForBuild`, `discardForBuild`, the temporary worktree; the join tests 20 of 20 |
 | M3 | The scheduler: slots, areas, priority, the shared limit, usage and user pauses with cards at work, cancel of several trees, restart, the one redo | done (`6fbe96a`, CI red on a test that assumed the order sessions open; review "no apto", B1, I2, I3, I4 fixed in `71133bc`, CI green, run 45720863924): the scheduler, join and phase 9 loop tests 20 of 20 |
-| M4 | The board page: before the start (edit, add, remove, reorder, slots) and during and after (columns, live) | done (`346219e`, CI green, run 45723000181; review fixes `385b947`, whose Windows run passed the 30 s test timeout in a scheduler test, given 90 s in `5083872`, and the default timeout 60 s in `ee5b23c`): the board's e2e tests 20 of 20; decisions.md "Phase 11: M4 and M5" |
-| M5 | Docs and `scripts/real/check-build-parallel.ts` (prepared, not run) | written (`4254bf8` the script and its static tests, its review's fixes `94e73e2`, the docs in the next commit; their CI pending when this was written); the script not run |
-| Real | The real check, run by the user | not run |
-| Accepted | The user's acceptance | — |
+| M4 | The board page: before the start (edit, add, remove, reorder, slots) and during and after (columns, live) | done (`346219e`, CI green, run 45723000181; review fixes `385b947`, whose Windows run passed the 30 s test timeout in a scheduler test, given 90 s in `5083872`, and the default timeout 60 s in `ee5b23c`): the board's e2e tests 20 of 20; decisions.md "Phase 11: M4 and M5"; what its review left open done after the tag `phase-11-done` (`2ee6fe8` to `61a6540`, CI green, run 45866661873): decisions.md "Phase 11: the review of M4's leftovers" |
+| M5 | Docs and `scripts/real/check-build-parallel.ts` (prepared, not run) | done (`4254bf8` the script and its static tests, its review's fixes `94e73e2`, the docs `1884bf8`; CI green on the three systems, run 45841272947) |
+| Real | The real check, run by the user | done (2026-11-26, Windows 11, saver profile, two slots): every verdict PASS (19), none FAIL or NOT CONTROLLED; decisions.md "Phase 11: accepted" |
+| Accepted | The user's acceptance | accepted (2026-11-26): the user created the tag `phase-11-done` on `1884bf8`; one slot and a moved head accepted ("Phase 11: the user's decisions") |
 
 ## 1. Design decisions taken from H0
 
