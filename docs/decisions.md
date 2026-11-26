@@ -8437,3 +8437,12 @@ several cards; a full shared limit, and the cap of rounds reached; one
 slot, with its redo and the moved head checked again; more than two
 slots; the board's page itself (the check drives the API); macOS and
 Linux. Open in `IDEAS.md` §11.
+
+**CI after the acceptance's docs** (`cf966c6`, docs only): Windows failed
+the scheduler test "a second conflict leaves the card waiting for the
+user": the second collision fell on card 3 instead of card 2, as on that
+runner card 3's first attempt ended after card 2's redo had joined. Which
+of the two late cards waits is the machine's timing, not the rule, so the
+test now takes either and checks the waiting one (redone once, its last
+join a conflict in the shared file, its task open); production unchanged
+(`7f7a4a0`, 20 of 20 repetitions, CI green on the three systems).
