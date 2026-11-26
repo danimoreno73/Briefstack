@@ -7,8 +7,10 @@
 //      and judged from the polls (both running, each with its own task);
 //   2. a deterministic conflict: cards 1 and 2 both create `shared/NOTES.md`
 //      (one line each, "one" and "two") from the same start, so whichever is
-//      joined second collides when joined (add/add in `merge-tree`), whatever
-//      the model writes in it; that card is redone once at the integration
+//      joined second collides when joined (add/add in `merge-tree`) as long
+//      as the two files differ, which their instructions make sure of (were
+//      they the same, the join would be empty and the card not applied: a
+//      FAIL, never a false PASS); that card is redone once at the integration
 //      head, where the file already holds the other card's line, and told to
 //      keep it and add its own; then it is joined. PASS if exactly one of
 //      the two has `redo.reason` `conflict`, both are applied, and the file
@@ -24,8 +26,8 @@
 // The approved list is `node --test`; the build's check is
 // `node scripts/check.js` (fails only on conflict markers); one fix round.
 //
-// Spends: one planner session and five short task sessions (saver profile:
-// cards 1 to 4, and the one redo), plus any fix round the model makes needed,
+// Spends: one planner session and five to ten short task sessions (saver
+// profile: cards 1 to 4 and the one redo, each with up to one fix round),
 // plus free plan readings. Two sessions run at the same time, so the 5-hour
 // window is spent faster than by the phase 9 checks.
 // Run:  npx tsx scripts/real/check-build-parallel.ts --yes
@@ -38,7 +40,7 @@ import { claudeExecutable, report, requireConfirmation, sandbox, startCheck } fr
 import { git, newTap, plannerReading, processesLeft, processesVerdict, sampleProject, startWeb, tappedQuery, usageGate, waitBuild, type BuildSeen } from './tasks-common.js';
 
 requireConfirmation(
-  'Phase 11 real check: a build in a temp home with a fixed board of four cards and two slots: two cards at the same time, a deterministic conflict redone and joined, and the final apply. It spends one planner session and five short task sessions (saver profile), two of them at once, plus free plan readings.',
+  'Phase 11 real check: a build in a temp home with a fixed board of four cards and two slots: two cards at the same time, a deterministic conflict redone and joined, and the final apply. It spends one planner session and five to ten short task sessions (saver profile: four cards and one redo, each with up to one fix round), two of them at once, plus free plan readings.',
 );
 
 const BRIEF = [
@@ -50,7 +52,7 @@ const BRIEF = [
   '',
   '## Deliverables',
   '',
-  '1. `shared/NOTES.md` with the lines `one` and `two`, `notes/three.txt` and `notes/four.txt`, each holding one word.',
+  '1. `shared/NOTES.md`, to which some cards each add their own line, and `notes/three.txt` and `notes/four.txt`, each holding one word.',
   '',
   '## Constraints',
   '',
@@ -195,7 +197,12 @@ try {
   const [c1, c2, c3, c4] = cards;
 
   // ---- 1. Two cards at the same time ----
-  verdict('1. two independent cards ran at the same time, each with its own task', together !== undefined && new Set(together.cards.map((card) => card.split(':')[1])).size >= 2, together === undefined ? 'never two cards running at once in the polls' : together.cards.join(', '));
+  const togetherNs = (together?.cards ?? []).map((card) => card.split(':')[0]);
+  verdict(
+    '1. two independent cards (1 and 2) ran at the same time, each with its own task',
+    together !== undefined && togetherNs.includes('1') && togetherNs.includes('2') && new Set(together.cards.map((card) => card.split(':')[1])).size >= 2,
+    together === undefined ? 'never two cards running at once in the polls' : together.cards.join(', '),
+  );
 
   // ---- 2. The deterministic conflict, redone and joined ----
   const redone = [c1, c2].filter((card) => card?.redo?.reason === 'conflict');
@@ -209,7 +216,7 @@ try {
   } else verdict(`2. ${SHARED} holds both lines, and no conflict marker`, lines.includes('one') && lines.includes('two') && !/^(<{7}|>{7}|={7})/m.test(onBranch ?? ''), JSON.stringify(lines));
 
   // ---- 3. The other cards ----
-  verdict('3. cards 3 and 4 were applied (4 after 3, its dependency)', c3?.state === 'applied' && c4?.state === 'applied', `${c3?.state ?? 'missing'}, ${c4?.state ?? 'missing'}`);
+  verdict('3. cards 3 and 4 were applied',c3?.state === 'applied' && c4?.state === 'applied', `${c3?.state ?? 'missing'}, ${c4?.state ?? 'missing'}`);
   verdict('nothing reached main before the apply: same HEAD, clean folder', (await g(['rev-parse', 'HEAD'])) === project.base && (await g(['status', '--porcelain'])) === '', '');
   for (const { at, reading } of readings) console.log(`   reading at ${at}: ${JSON.stringify(reading)}`);
   verdict('the plan was read before cards started (one reading at least)', readings.length >= 1, `${readings.length} reading(s)`);
@@ -230,7 +237,12 @@ try {
     verdict('4. the build was applied', apply.status === 200 && (apply.json() as BuildSeen).state === 'applied', `${apply.status} ${apply.body.slice(0, 300)}`);
     verdict('4. one commit on main, on top of the base', (await g(['rev-parse', 'HEAD^'])) === project.base && (await g(['rev-parse', '--abbrev-ref', 'HEAD'])) === 'main', await g(['log', '-1', '--format=%s']));
     verdict('4. the project folder is clean', (await g(['status', '--porcelain'])) === '', '');
-    verdict(`4. ${SHARED} is in the project with both lines`, /\bone\b/.test(await g(['show', `HEAD:${SHARED}`]).catch(() => '')) && /\btwo\b/.test(await g(['show', `HEAD:${SHARED}`]).catch(() => '')), await g(['show', `HEAD:${SHARED}`]).catch(() => '(missing)'));
+    const inProject = await g(['show', `HEAD:${SHARED}`]).catch(() => undefined);
+    const bothLines = inProject !== undefined && /\bone\b/.test(inProject) && /\btwo\b/.test(inProject);
+    // The same line as step 2: a redone session that dropped the other line is the model, not the build.
+    if (!bothLines && redone.length === 1 && onBranch !== undefined && !(lines.includes('one') && lines.includes('two'))) {
+      notControlled(`4. ${SHARED} is in the project with both lines`, `as on the build's branch: ${JSON.stringify(inProject ?? '(missing)')}`);
+    } else verdict(`4. ${SHARED} is in the project with both lines`, bothLines, inProject ?? '(missing)');
     verdict('4. no remote: nothing could be pushed', (await g(['remote'])) === '', (await g(['remote'])) || 'none');
   } else {
     notControlled('the final apply', done.state === 'finished' ? 'no card was applied' : `the build is ${done.state}, not finished`);

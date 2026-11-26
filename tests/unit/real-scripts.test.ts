@@ -1074,7 +1074,7 @@ describe('phase 11 real check (check-build-parallel): two cards at once, a deter
     expect(script.match(/await waitBuild\(web, id, .+?, \d+ \* 60_000/g)?.length).toBe(2);
   });
 
-  it('its board makes the conflict deterministic: cards 1 and 2 share no area and both create the same file', async () => {
+  it('its board sets up the conflict: cards 1 and 2 share no area and both write the same file, and the verdicts read the build', async () => {
     const script = await read();
     expect(script).toContain("{ title: 'Add the line one', instruction: shared('one')");
     expect(script).toContain("{ title: 'Add the line two', instruction: shared('two')");
@@ -1083,7 +1083,8 @@ describe('phase 11 real check (check-build-parallel): two cards at once, a deter
     const { areasOverlap } = await import('../../src/builds/types.js');
     expect(areasOverlap(['notes/one/'], ['notes/two/'])).toBe(false);
     // Judged from the build itself: both running at once, one redone for a conflict, both applied, the file with both lines.
-    expect(script).toContain('1. two independent cards ran at the same time, each with its own task');
+    expect(script).toContain('1. two independent cards (1 and 2) ran at the same time, each with its own task');
+    expect(script).toContain("togetherNs.includes('1') && togetherNs.includes('2')");
     expect(script).toContain("2. exactly one of cards 1 and 2 collided when joined and was redone once");
     expect(script).toContain("the redone card's session did not keep the other line (the model, not the build)");
     expect(script).toContain('4. the build was applied');
@@ -1121,7 +1122,7 @@ describe('phase 11 real check (check-build-parallel): two cards at once, a deter
     const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
     expect(code).toBe(2);
     expect(err).toContain('Run it again with --yes');
-    expect(err).toContain('five short task sessions');
+    expect(err).toContain('five to ten short task sessions');
   });
 });
 
