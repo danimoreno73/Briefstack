@@ -1,27 +1,37 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 — 2026-11-26
 
-What phase 11 adds so far ([brief](docs/BRIEF-phase-11.md),
-[plan](docs/PLAN-phase-11.md); decisions in
-[`docs/decisions.md`](docs/decisions.md), "Phase 11"). Not accepted yet:
-its real check (`scripts/real/check-build-parallel.ts`) is prepared and
-has not been run.
+What phase 11 adds ([brief](docs/history/BRIEF-phase-11.md),
+[plan](docs/history/PLAN-phase-11.md); decisions in
+[`docs/decisions.md`](docs/decisions.md), "Phase 11"). Phase 11 was
+accepted on its real check (`scripts/real/check-build-parallel.ts`,
+"Phase 11: accepted"), through the API: two cards at once, one conflict
+redone and joined, the checks run again on a joined commit. Among what
+was not seen in real, only in tests: the board's page itself, overlapping
+areas kept apart, one card at a time with a moved head, a second
+conflict, checks that fail only on the joined tree, pauses, cancels and
+restarts with several cards, a full shared limit, more than two cards at
+once, macOS and Linux.
 
 - **The build's board.** The planner proposes cards with an area (the
   paths or folders each is expected to change) and a size. Before the
-  start you edit a card's text, dependencies, area and size, add or remove
-  cards, reorder them (a card never goes above one it depends on), and
-  choose how many run at once (1 to 4; the page offers 2). While it runs,
-  the build's page shows the cards in columns: pending, blocked, running,
-  waiting, done, skipped.
+  start you edit a card's text, dependencies, area (one path per line) and
+  size, add or remove cards, reorder them (a card never goes above one it
+  depends on, and the page says so), and choose how many run at once (1 to
+  4; the page offers 2, the API's default is 1). While it runs, the
+  build's page shows the cards in columns: pending, blocked, running,
+  waiting, done, skipped (with why: the card it depends on, or the build's
+  cancel). A build planned with 1.2.0 has no areas, and a card without one
+  counts as the whole project, so its cards run one at a time.
 - **Cards in parallel.** Cards whose dependencies are done and whose areas
   do not overlap run at the same time, each in its own worktree, each a
-  session in the shared limit. A card is joined to the build's branch when
-  its rounds pass, one join at a time; one joined onto other cards' changes
-  runs the build's checks again on the joined tree first (when the build
-  has checks). A card that collides is
-  redone once on top of what was joined; a second failure leaves it
+  session in the shared limit. **Parallel cards spend the plan's 5-hour
+  window faster** (more work at once, not more work per window). A card is
+  joined to the build's branch when its rounds pass, one join at a time;
+  one joined onto other cards' changes runs the build's checks again on
+  the joined tree first (when the build has checks). A card that collides
+  is redone once on top of what was joined; a second failure leaves it
   waiting for you. Over the usage threshold no card starts and the build
   pauses once the running ones end; cancel ends every running card.
 - With one card at a time a build runs as in 1.2.0, but a task joined onto
