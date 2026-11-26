@@ -500,6 +500,17 @@ function Board({ build }: { build: BuildViewUi }) {
                       </p>
                     )}
                     {task.reason !== undefined && <p class="t-small">{t.buildWaitReason(task.reason)}</p>}
+                    {/* Why it is under Skipped, as phase 9's table says it (review of M4). */}
+                    {task.state === 'skipped' && task.skippedFor !== undefined && (
+                      <p class="t-small" data-testid="build-card-skipped">
+                        {t.buildCardSkipped(task.skippedFor)}
+                      </p>
+                    )}
+                    {task.state === 'cancelled' && (
+                      <p class="t-small" data-testid="build-card-skipped">
+                        {t.buildCardCancelled}
+                      </p>
+                    )}
                     {(task.denied ?? []).length > 0 && <p class="t-small">{t.buildCardDenied((task.denied ?? []).length + (task.deniedOmitted ?? 0))}</p>}
                     {task.taskId !== undefined && task.state === 'waiting' && (
                       <a class="link t-small" href={routeHash({ page: 'task', id: task.taskId })}>

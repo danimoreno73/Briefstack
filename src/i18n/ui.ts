@@ -541,6 +541,8 @@ export const uiMessages = defineCatalogue({
           ? 'Its last join collided in:'
           : 'Its last join failed these checks with the other cards’ changes:',
     buildCardDenied: (n: number) => `${n} command${n === 1 ? '' : 's'} denied`,
+    buildCardSkipped: (n: number) => `Skipped: it depends on card ${n}, which was not done.`,
+    buildCardCancelled: 'Cancelled with the build.',
     buildPlanning: 'Planning the queue from the project’s brief… This takes a minute or two.',
     buildPlanFailedTitle: 'The queue could not be planned',
     buildStartTitle: 'Review and start',
@@ -1937,6 +1939,8 @@ export const uiMessages = defineCatalogue({
           ? 'Su última unión chocó en:'
           : 'Su última unión falló estas comprobaciones con los cambios de otras tarjetas:',
     buildCardDenied: (n: number) => `${n} comando${n === 1 ? '' : 's'} denegado${n === 1 ? '' : 's'}`,
+    buildCardSkipped: (n: number) => `Saltada: depende de la tarjeta ${n}, que no se terminó.`,
+    buildCardCancelled: 'Cancelada con el build.',
     buildPlanning: 'Planificando la cola desde el brief del proyecto… Tarda un minuto o dos.',
     buildPlanFailedTitle: 'No se pudo planificar la cola',
     buildStartTitle: 'Revisar y empezar',

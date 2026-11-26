@@ -189,3 +189,42 @@ test.describe('a second conflict', () => {
     await expect(page.getByTestId('task-diff')).toContainText('A.md', SLOW);
   });
 });
+
+test.describe('a skipped card', () => {
+  // "Broken" leaves BROKEN, which the project's check refuses; "After" depends on it.
+  test.use({
+    appOptions: {
+      taskScript: byInstruction,
+      buildPlan: { tasks: [card('Broken', 'WRITE BROKEN: x', ['broken/']), card('After', 'WRITE AFTER.md: after', ['after/'], [1])], commands: ['npm test'], checks: ['node check.cjs'] },
+    },
+  });
+
+  test('the board says it was skipped because the card it depends on waits (review of M4)', async ({ page, app }) => {
+    await codeProject(app, 'garden', 'Garden', { 'docs/BRIEF.md': BRIEF, 'check.cjs': "process.exit(require('fs').existsSync('BROKEN') ? 1 : 0);\n" });
+    await goTo(page, app, '#/projects/garden');
+    await page.getByTestId('build-implement').click();
+    await expect(page.getByTestId('build-start-form')).toBeVisible(SLOW);
+    await page.getByTestId('build-fix-rounds').fill('0');
+    await start(page);
+    await expect(page.getByTestId('build-state')).toHaveText('Finished', SLOW);
+    await expect(page.getByTestId('build-column-waiting').getByTestId('build-card')).toContainText('Broken');
+    const skipped = page.getByTestId('build-column-skipped').getByTestId('build-card');
+    await expect(skipped).toHaveCount(1);
+    await expect(skipped.getByTestId('build-card-skipped')).toHaveText('Skipped: it depends on card 1, which was not done.');
+  });
+});
+
+test.describe('a cancelled card', () => {
+  test.use({ appOptions: { taskScript: byInstruction, buildPlan: board([card('Slow', 'WAIT 60000\nWRITE SLOW.md: slow', ['slow/'])]) } });
+
+  test('the board shows it under Skipped, cancelled with the build (review of M4)', async ({ page, app }) => {
+    await codeProject(app, 'garden', 'Garden', { 'docs/BRIEF.md': BRIEF });
+    await plan(page, app);
+    await start(page);
+    await expect(page.getByTestId('build-column-running').getByTestId('build-card')).toHaveCount(1, SLOW);
+    await page.getByTestId('build-cancel').click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel the build' }).click();
+    await expect(page.getByTestId('build-state')).toHaveText('Cancelled', SLOW);
+    await expect(page.getByTestId('build-column-skipped').getByTestId('build-card-skipped')).toHaveText('Cancelled with the build.');
+  });
+});
