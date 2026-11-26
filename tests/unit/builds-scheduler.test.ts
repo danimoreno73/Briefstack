@@ -173,7 +173,11 @@ beforeEach(async () => {
 });
 afterEach(() => world.cleanup());
 
-describe('cards at once', () => {
+// Each test runs whole builds over real git (one test, two in a row): on the
+// Windows CI runner some took close to the 30 s default, and one passed it.
+const SLOW = { timeout: 90_000 };
+
+describe('cards at once', SLOW, () => {
   it('two cards of separate areas run at the same time and both join; the second is checked again on the joined tree', async () => {
     const board = plan([cardOf('Alpha', 'WAIT 400\nWRITE A.md: a', ['A.md']), cardOf('Beta', 'WAIT 400\nWRITE B.md: b', ['B.md'])]);
     const files = fileChecks(() => false);
@@ -268,7 +272,7 @@ describe('cards at once', () => {
   });
 });
 
-describe('pauses, cancel and restart with cards at work', () => {
+describe('pauses, cancel and restart with cards at work', SLOW, () => {
   const three = plan([cardOf('One', 'WAIT 300\nWRITE A.md: 1', ['a/']), cardOf('Two', 'WAIT 600\nWRITE B.md: 2', ['b/']), cardOf('Three', 'WRITE C.md: 3', ['c/'])]);
 
   it('over the usage threshold no card starts, those at work finish, then the build pauses', async () => {
@@ -366,7 +370,7 @@ describe('pauses, cancel and restart with cards at work', () => {
   });
 });
 
-describe('resuming after a restart, a card the user took up (review of M3, I3)', () => {
+describe('resuming after a restart, a card the user took up (review of M3, I3)', SLOW, () => {
   it('stays the user\'s: only cards whose task the stop left interrupted start again', async () => {
     const slow = plan([cardOf('One', 'WAIT 60000\nWRITE A.md: 1', ['a/']), cardOf('Two', 'WAIT 60000\nWRITE B.md: 2', ['b/'])]);
     const s = setup(slow);
@@ -398,7 +402,7 @@ describe('resuming after a restart, a card the user took up (review of M3, I3)',
   });
 });
 
-describe('the join and the one redo', () => {
+describe('the join and the one redo', SLOW, () => {
   it('a card that collides when joined is redone once on top of what was joined, then joined', async () => {
     const board = plan([cardOf('One', 'WRITE A.md: one', ['one/']), cardOf('Two', 'WAIT 1500\nWRITE A.md: two\nREDO-WRITE A.md: one and two', ['two/'])]);
     const s = setup(board);
