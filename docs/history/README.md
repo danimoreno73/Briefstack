@@ -1,8 +1,8 @@
 # History
 
 How briefstack was built, phase by phase, up to `v1.0.0`, then to
-`v1.1.0` (the two backlog passes and phases 7 to 9) and to `v1.2.0`
-(phase 10). These files are kept
+`v1.1.0` (the two backlog passes and phases 7 to 9), to `v1.2.0`
+(phase 10) and to `v1.3.0` (phase 11). These files are kept
 as they were, links aside; the current docs are one folder up, the decisions behind
 them are in [decisions.md](../decisions.md) and open work is in
 [IDEAS.md](../IDEAS.md).
@@ -34,6 +34,8 @@ them are in [decisions.md](../decisions.md) and open work is in
 | [PLAN-phase-9.md](PLAN-phase-9.md) | Phase 9 plan, status and real-check results. |
 | [BRIEF-phase-10.md](BRIEF-phase-10.md) | Phase 10 requirements: the creation writes the first version of the code, with Codex without its shell. |
 | [PLAN-phase-10.md](PLAN-phase-10.md) | Phase 10 plan, status and real-check results. |
+| [BRIEF-phase-11.md](BRIEF-phase-11.md) | Phase 11 requirements: the build's board, and cards run in parallel. |
+| [PLAN-phase-11.md](PLAN-phase-11.md) | Phase 11 plan, status and real-check results. |
 | [design/audit.md](design/audit.md) | The UI audit before the UI pass (U0). |
 | [design/before-after.md](design/before-after.md) | Six screens before and after the UI pass. |
 | `design/before-after/` | The pictures of that comparison. |

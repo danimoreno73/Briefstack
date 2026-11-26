@@ -1230,7 +1230,7 @@ the decisions are in [decisions.md](decisions.md), "Phase 10".
 ## 11. Open items from phase 11
 
 What phase 11 (the build's board, cards run in parallel) leaves open. The
-plan is [PLAN-phase-11.md](PLAN-phase-11.md); the decisions are in
+plan is [PLAN-phase-11.md](history/PLAN-phase-11.md); the decisions are in
 [decisions.md](decisions.md), "Phase 11".
 
 - **Not shown without a real session** (the real check of 2026-11-26

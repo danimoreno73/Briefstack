@@ -1,7 +1,7 @@
 # briefstack — Phase 11 plan: the build's board, and cards run in parallel
 
 Plan for [BRIEF-phase-11.md](BRIEF-phase-11.md). H0 is in
-[decisions.md](decisions.md), "Phase 11: H0", with sources and dates; this
+[decisions.md](../decisions.md), "Phase 11: H0", with sources and dates; this
 plan follows from it. Work happens on `main`, from the brief's commit
 `edeb8aa` (the tag `phase-11-start` was refused to the session; the user
 creates it). Small commits, one concern each; build, lint, unit and e2e

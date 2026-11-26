@@ -8043,7 +8043,7 @@ indirectly: the implementer's writes were allowed). Open in `IDEAS.md`
 
 ## Phase 11: H0 (2026-11-25, SDK 0.3.286, git 2.55, Windows 11)
 
-The five points of [BRIEF-phase-11.md](BRIEF-phase-11.md) §6, checked
+The five points of [BRIEF-phase-11.md](history/BRIEF-phase-11.md) §6, checked
 before the plan. No real session and no plan reading: the code and tests
 in the repo, and git in a temp folder of the step (outputs kept outside the
 repo). None of them makes a decision of the brief's §2 impossible or
@@ -8154,7 +8154,7 @@ card.
 
 Phase 11 runs unattended (BRIEF-phase-11.md, §8; the user's authorisation
 of 2026-11-25). Each doubt is settled with the most conservative option and
-recorded here; the design is in [PLAN-phase-11.md](PLAN-phase-11.md), §1.
+recorded here; the design is in [PLAN-phase-11.md](history/PLAN-phase-11.md), §1.
 
 - **The tag `phase-11-start`** was refused by the session's permissions
   (2026-11-25). It belongs on `13ff55b`, the last commit before the
