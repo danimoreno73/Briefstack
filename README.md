@@ -82,7 +82,7 @@ the next interview asks less.
   running, waiting, done, skipped) while it runs. With 1 card at a time a
   build runs as before, except that a task joined onto a branch that moved
   (you approved a waiting task meanwhile) is checked again on the joined
-  tree, and may be redone once. **Parallel cards spend the plan's 5-hour window faster**
+  tree (when the build has checks), and may be redone once. **Parallel cards spend the plan's 5-hour window faster**
   (more work at once, not more work per window), and each running card is
   a session in the shared limit.
 - **A first version of the code in a creation** (web app, `software`

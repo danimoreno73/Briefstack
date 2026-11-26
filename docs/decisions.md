@@ -8353,5 +8353,29 @@ recorded here; the design is in [PLAN-phase-11.md](PLAN-phase-11.md), §1.
   head, as with more slots. Phase 9 joined it with `merge-tree` and no
   checks. The rule taken without the user under M3 (I5 of its review,
   "Decisiones sin Dani (fase 11)", "One slot and a head that moved")
-  stays as written; README, `docs/api.md` and CHANGELOG already say it,
-  so nothing else changes.
+  stays as written; `docs/api.md` and CHANGELOG already say it, and
+  README now adds "when the build has checks" as they do.
+
+## Phase 11: the review of M4's leftovers (2026-11-26)
+
+What the review of M4 left as "Not changed" (above) is done:
+
+- **An area takes one path per line.** The start page's area is a text
+  box, one path per line, as the approved commands and the checks; a
+  comma is part of a path (the server always took one), so `a, b.md` is
+  one path. A line with ", " reads like a list, so the page then says a
+  line is one path and paths go one per line; what was typed is still
+  sent as it is. A plan's area shows one path per line, and the board
+  shows each path on its own.
+- **The board says why a card is under Skipped**: "it depends on card N,
+  which was not done" (phase 9's `skippedFor`), or "cancelled with the
+  build".
+- **A move button disabled by a dependency says why** ("it depends on
+  card N", "card N depends on it"), on the page and through
+  `aria-describedby`; at either end of the list it says nothing. The
+  buttons stay `disabled`. An added card gets the focus on its title.
+- **`columnOf` and `canSwap`** are in `src/ui/board.ts`, with unit tests.
+- Not changed (review of these fixes, notes): in a cancelled build the
+  cards still queued show under Pending or Blocked, as before, since a
+  cancel does not mark them (phase 9's record); the focus goes to the page
+  after a card is moved to the top or removed.
