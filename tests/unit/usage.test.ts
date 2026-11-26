@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -258,6 +258,19 @@ describe('applyProfileToAgents (usage test)', () => {
       }
     },
   );
+
+  // Phase 12: the server's container has a read-only app folder. Root writes anyway, so not as root.
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('a folder it cannot write gives a clear error and changes nothing', async () => {
+    const before = await readAgents(agentsDir);
+    const files = await readdir(agentsDir);
+    for (const file of files) await chmod(path.join(agentsDir, file), 0o444);
+    try {
+      await expect(applyProfileToAgents(agentsDir, getPreset(profiles, 'max'))).rejects.toMatchObject({ code: 'usage.repoReadOnly', params: { dir: agentsDir } });
+      expect(await readAgents(agentsDir)).toEqual(before);
+    } finally {
+      for (const file of files) await chmod(path.join(agentsDir, file), 0o644);
+    }
+  });
 
   it('balanced leaves the unchanged agent files byte-for-byte identical', async () => {
     const before = await readBytes(agentsDir);

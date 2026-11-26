@@ -54,6 +54,8 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'improve.notFound': 404,
   'improve.wrongState': 409,
   'improve.noRepo': 409,
+  'improve.repoReadOnly': 409,
+  'usage.repoReadOnly': 409,
   'improve.notOnBranch': 409,
   'improve.uncommitted': 409,
   'improve.conflict': 409,

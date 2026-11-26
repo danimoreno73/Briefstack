@@ -67,7 +67,14 @@ async function applySettings(
     }
   }
 
-  for (const { target, text } of writes) await writeFile(target, text, 'utf8');
+  try {
+    for (const { target, text } of writes) await writeFile(target, text, 'utf8');
+  } catch (error) {
+    // A read-only app folder (phase 12: the container's clone belongs to root): a clear error, not a stack.
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'EROFS' || code === 'EACCES') throw new BriefstackError('usage.repoReadOnly', { dir: agentsDir });
+    throw error;
+  }
   return result;
 }
 

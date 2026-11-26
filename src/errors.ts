@@ -38,6 +38,8 @@ export interface ErrorParams {
   'usage.profilesNotFound': { file: string };
   'usage.invalidProfiles': { file: string; issues: string[] };
   'usage.unknownProfile': { profile: string; available: string[] };
+  /** Phase 12: the flow agents' folder cannot be written (a read-only app folder). */
+  'usage.repoReadOnly': { dir: string };
   /** A preset of that name exists already, base or user (step 33). */
   'usage.presetExists': { name: string };
   'usage.notABriefstackProject': { dir: string };
@@ -99,6 +101,8 @@ export interface ErrorParams {
   'improve.notFound': { id: string };
   'improve.wrongState': { id: string; status: string };
   'improve.noRepo': { reason: string };
+  /** Phase 12: the repo (or its `.git`) cannot be written, as in the server's container. */
+  'improve.repoReadOnly': { dir: string };
   'improve.notOnBranch': { branch: string; current: string };
   'improve.uncommitted': { file: string };
   'improve.conflict': { file: string };

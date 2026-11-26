@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { PathEnv } from '../../src/config/index.js';
@@ -115,6 +115,17 @@ async function codeOf(promise: Promise<unknown>): Promise<string | undefined> {
 }
 
 describe('ImprovementManager', { timeout: 60_000 }, () => {
+  // Phase 12: the server's container has a read-only clone owned by root. Root writes anyway, so not as root.
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('refuses to start in a clone this user cannot write, with a clear error', async () => {
+    await open({ rounds: [] });
+    await chmod(path.join(repo, '.git'), 0o555);
+    try {
+      expect(await codeOf((manager as ImprovementManager).prepare('Shorter reports.'))).toBe('improve.repoReadOnly');
+    } finally {
+      await chmod(path.join(repo, '.git'), 0o755);
+    }
+  });
+
   it('prepares a proposal in a worktree outside the repo, validates and tests it', async () => {
     const { manager: m, runner, verifier } = await open({ rounds: [{ edits: [researcherEdit], submission: submission([RESEARCHER]) }] });
     const started = await m.prepare('Make research reports shorter.', { lessons: false });

@@ -1,5 +1,7 @@
-import { readdir } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access, readdir } from 'node:fs/promises';
 import os from 'node:os';
+import path from 'node:path';
 import { isPathInside, type PathEnv } from '../config/index.js';
 import { redactDeep } from '../chat/tools.js';
 import { BriefstackError } from '../errors.js';
@@ -71,6 +73,16 @@ export interface ImprovementManagerOptions {
 
 const OPEN_STATES: readonly ProposalStatus[] = ['ready', 'rejected', 'failed'];
 const MAX_DENIALS = 50;
+
+/** Whether this process may write `target` (a folder or a file). */
+async function writable(target: string): Promise<boolean> {
+  try {
+    await access(target, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export class ImprovementManager {
   private active: { id: string; handle: ImproveRunHandle } | undefined;
@@ -179,6 +191,8 @@ export class ImprovementManager {
       if (isPathInside(store.root, repoDir, this.options.pathEnv) || isPathInside(repoDir, store.root, this.options.pathEnv)) {
         throw new BriefstackError('improve.noRepo', { reason: 'the briefstack home is inside the repository; worktrees must be outside it.' });
       }
+      // Phase 12: a read-only clone (the server's container) cannot take a worktree, a branch or a commit.
+      if (!(await writable(repoDir)) || !(await writable(path.join(repoDir, '.git')))) throw new BriefstackError('improve.repoReadOnly', { dir: repoDir });
       const baseCommit = await revParse(repoDir, 'HEAD');
       const id = newProposalId(this.now());
       const worktreeDir = store.worktreeDir(id);
