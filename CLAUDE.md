@@ -21,6 +21,12 @@ accepted, phase closed", "Phase 8: closed", "Phase 9: accepted", "Phase
 Version 1.2.0 is prepared in `CHANGELOG.md` and `package.json`; its tag
 `v1.2.0` and the GitHub release are the user's to make.
 
+Phase 11 is in progress: the build's board and cards run in parallel
+(`docs/BRIEF-phase-11.md`, `docs/PLAN-phase-11.md` with its Status;
+decisions in `docs/decisions.md`, "Phase 11"). Its milestones M1–M5 are
+written; it is not done until the user runs
+`scripts/real/check-build-parallel.ts` and accepts it.
+
 `v1.0.0` and `v1.1.0` are published. The living backlog is
 `docs/IDEAS.md`. The briefs and plans of phases 1–10, the UI pass, the
 release and backlogs 1 and 2 are in `docs/history/` (tags `phase-1-done`

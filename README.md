@@ -67,6 +67,24 @@ the next interview asks less.
   and at the end apply the whole build to your branch as one commit
   (revertable) or discard it. **A build runs code before you read it**:
   see Security and Limitations.
+- **The build's board and cards in parallel**: the queue is a board of
+  cards. Each card has an area (the paths or folders it is expected to
+  change) and a size, and before the start you edit, add, remove and
+  reorder cards and choose how many run at once (1 to 4; the page offers
+  2). The build then runs at the same time cards whose dependencies are
+  done and whose areas do not overlap, each in its own worktree, and joins
+  each one to the build's branch when its rounds pass: one join at a time,
+  and **a card joined onto other cards' changes runs the build's checks
+  again on the joined tree** before it lands (when the build has checks;
+  with none, only a textual conflict stops it). A card that still collides
+  is redone once on top of what was joined; if it fails again it waits for
+  you. The build's page shows the cards in columns (pending, blocked,
+  running, waiting, done, skipped) while it runs. With 1 card at a time a
+  build runs as before, except that a task joined onto a branch that moved
+  (you approved a waiting task meanwhile) is checked again on the joined
+  tree, and may be redone once. **Parallel cards spend the plan's 5-hour window faster**
+  (more work at once, not more work per window), and each running card is
+  a session in the shared limit.
 - **A first version of the code in a creation** (web app, `software`
   projects for Claude Code, off by default): at the spec checkpoint choose
   "workspace and a first version of the code" and give the exact commands
@@ -343,6 +361,13 @@ See [SECURITY.md](SECURITY.md) to report a vulnerability.
   output, and in brackets with the prompt cache); rounds from before
   this count have none. Discarding an applied or reverted build deletes
   only its branch.
+- **A card's area is a hint, not a boundary.** Areas only decide which
+  cards run at the same time: a card may still change files outside its
+  area, and its join (a textual conflict, or the build's checks on the
+  joined tree, when it has any) catches the rest. A card with no area counts as touching the whole
+  project and never runs beside another. The join is textual: two cards
+  that change different files may still break each other in ways the
+  checks do not test.
 - **A creation's first version of the code runs code before you read it**,
   as a build does: the commands you approved at the spec and the checks
   run on code the implementer has just written, as you, before anyone

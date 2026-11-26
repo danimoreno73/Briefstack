@@ -943,23 +943,36 @@ updatedAt, branch, baseBranch?, baseCommit?, plan?, tasks, settings?,
 roundsRun, pause?, startedAt?, finishedAt?, applied?, reverted?, error? }`.
 `state` is `planning`, `planned`, `planFailed`, `running`, `paused`,
 `interrupted`, `cancelled`, `finished`, `applied`, `reverted` or
-`discarded`. `plan` is the planner's proposal `{ tasks, commands, checks }`;
+`discarded`. `plan` is the planner's proposal `{ tasks, commands, checks }`
+(since phase 11 each proposed task also has `area` and `size`; plans
+stored before have none);
 `tasks` the queue the user started, each
-`{ n, title, instruction, doneWhen, dependsOn, state, taskId?, reason?,
-skippedFor?, detail?, commit?, denied?, deniedOmitted?, rounds, task? }`
+`{ n, title, instruction, doneWhen, dependsOn, area?, size?, state, taskId?,
+reason?, skippedFor?, detail?, commit?, denied?, deniedOmitted?, rounds,
+redo?, join?, task? }` (phase 11: a card of the board; `area` the relative
+paths it is expected to change, absent in builds started before phase 11
+and then the whole project; `size` `S`, `M` or `L`; `redo` `{ reason:
+conflict | checksFailed, previousTask }` when it was redone once; `join`
+`{ outcome: applied | conflict | checksFailed, merged, files?, checks? }`
+its last join, `merged` when it was joined onto other cards' changes, then
+checked again there with the build's checks, `checks` their results;
+none when the build has no checks)
 (`denied` keeps at most 50 entries, from every round; `deniedOmitted` counts
 the rest; a task is applied after a round with no blocking validation,
 every check passing and no command denied in that round, so an `applied`
 task may still list denials of an earlier round), with `state`
 `queued`, `running`, `applied`, `waiting`, `skipped` or `cancelled`;
 `reason` (waiting) `checksFailed`, `denied`, `blocked`, `roundFailed`,
-`interrupted`, `notStarted`, `notApplied` or `roundsCap`; `task` (only on
+`interrupted`, `notStarted`, `notApplied`, `roundsCap`, `conflict` or
+`joinChecksFailed` (phase 11: its join collided or failed the checks, and
+it could not be redone: already redone, or the cap of rounds); `task` (only on
 `GET /api/builds/:id`) the task's own `{ state, checks?, codexCalls,
 codexTokens, claudeTokens? }`, where `claudeTokens` `{ noCache, withCache,
 rounds }` sums Claude's tokens over the task's rounds that have a reading:
 `noCache` is input plus output (the page's main figure), `withCache` adds
 the prompt cache's reads and writes (in brackets on the page). `settings` is what the start recorded
-`{ limit, commands, checks, fixRounds, maxRounds, thresholds }`; `pause`
+`{ limit, commands, checks, fixRounds, maxRounds, thresholds, slots? }`
+(`slots` how many cards run at once, phase 11; absent is one); `pause`
 `{ reason: usage | usageUnread | user, at, until?, fiveHour?, sevenDay? }`.
 The live view adds `pausing`, `cancelling` and `waitingSlot` (the shared
 limit is full) when true. `detail` and `error` are redacted and without
@@ -970,8 +983,26 @@ state but `applied`, `reverted` and `discarded`. While the build's loop
 drives one of its tasks, the task routes that act on it (approve,
 discard, changes, checks, answer, reply, finish) answer
 `409 task.heldByBuild`; cancel does not. After a restart, a build left
-`running` or `paused` is `interrupted` (its task waiting) and one left
-`planning` is `planFailed`; nothing resumes by itself.
+`running` or `paused` is `interrupted` (its running cards waiting,
+`interrupted`) and one left `planning` is `planFailed`; nothing resumes by
+itself. Resuming a build with more than one slot starts again, at the
+integration head, the cards whose task the stop left interrupted (their
+tasks discarded); with one slot they wait for the user, as in phase 9.
+
+**Cards in parallel (phase 11).** Each pass of the loop starts, after one
+plan-usage reading, the first queued cards in the board's order whose
+dependencies are applied and whose area overlaps no running card's, while
+fewer than `slots` run; a full shared limit makes a card wait for a place.
+Each card runs in its own task and worktree. When its rounds pass the
+rules it is joined, one join at a time: on the head it started at, as
+phase 9 applied a task; onto a head that moved, with `merge-tree` from the
+card's start, the build's checks run again on the joined commit in a
+temporary worktree, and the branch moves onto that commit with a compare
+and swap. A textual conflict, or checks failing on the joined commit,
+redo the card once at the integration head; a second failure leaves it
+waiting. Over the usage threshold no card starts, the running ones finish,
+and the build pauses; the user's pause does the same; cancel ends every
+running card's round or checks.
 
 ### `GET /api/projects/:slug/builds`
 
@@ -998,20 +1029,25 @@ The build, as above (`404 build.notFound`).
 ### `POST /api/builds/:id/start`
 
 Body `{ tasks, limit, commands, checks, fixRounds, thresholds:
-{ fiveHour, week }, confirm: true, noChecks? }` (the page sends `confirm` after its
+{ fiveHour, week }, confirm: true, noChecks?, slots? }` (the page sends `confirm` after its
 dialog, which names the commands; without it `400 web.invalidBody`). Only
 a `planned` build (`409 build.wrongState`). Every rule is checked and each
 problem named in `400 build.invalidStart { issues, items }`: 1 to 20 tasks, each
-depending only on earlier ones; `limit` from 1 to the queue's length;
+depending only on earlier ones, each `area` (when given) 1 to 10 relative
+paths with `/` (no absolute path, drive, `..`, backslash, wildcard or hidden
+character) and `size` (when given) `S`, `M` or `L`; `slots` (when given) 1
+to 4; `limit` from 1 to the queue's length;
 commands and checks exact, one per line, plain characters only, no chain,
 wildcard or secret; `fixRounds` 0 to 2; thresholds 1 to 100; with no
 checks, `noChecks: true` (the user confirmed that every task whose round
 ends with no denied command is then applied; phase 9 step 33). `issues` are English
 texts; `items` the same problems as codes the page translates
 (`{ key, n?, max?, line?, what?, problem?, name?, fields? }`, `key` one of
-`emptyQueue`, `tooManyTasks`, `taskInvalid`, `laterDependency`, `limit`,
-`listTooLong`, `listLine`, `listDuplicate`, `fixRounds`, `threshold`,
-`noChecks`; `src/builds/commands.ts`). Then the
+`emptyQueue`, `tooManyTasks`, `taskInvalid`, `laterDependency`,
+`areaInvalid` (with `problem` `empty`, `long`, `absolute`, `parent`,
+`chars` or `count`), `sizeInvalid`, `limit`, `listTooLong`, `listLine`,
+`listDuplicate`, `fixRounds`, `slots`, `threshold`, `noChecks`;
+`src/builds/commands.ts`). Then the
 integration branch is made at the default branch's head (`409
 build.branchExists` when a branch of that name is already there) and the
 loop starts; nothing of the start changes afterwards.

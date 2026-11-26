@@ -8192,3 +8192,153 @@ recorded here; the design is in [PLAN-phase-11.md](PLAN-phase-11.md), §1.
 - **Reorder keeps dependencies on earlier cards** (no card above one it
   depends on): the server's rule stays phase 9's, so no cycle is
   possible, and priority is the cards' order.
+
+## Phase 11: M1, M2 and M3 (2026-11-25)
+
+- **M1, cards** (`b52701e`; review fixes `fb0368d`). The planner's schema
+  requires `area` and `size`; the stored plan, the start and the record keep
+  them optional. A bad area or size has its own start issue
+  (`areaInvalid` with what is wrong, `sizeInvalid`), in English and Spanish
+  (review of M1, I1). Areas are compared trimmed, in one Unicode form (NFC),
+  without case and without the trailing dots and spaces Windows drops
+  (review, minor 5). Not changed (review minors): zod's English detail of a
+  bad area in `build.planSchema` (phase 9's pattern), a `null` slots value
+  answered as a generic 400, and the doubled cap of rounds already in place
+  before M3 added the redo.
+- **M2, the join** (`f81f05e`; review fixes `d82f0b0`).
+  `TaskManager.joinForBuild` and `discardForBuild`, build-only, called by no
+  route. What lands is the commit the checks ran on. A cancel that comes
+  after the checks passed but before the compare and swap wins (review of M2,
+  I1; a test fails without the fix), and one that comes while the temporary
+  worktree is made runs nothing. The direct apply (head where the card
+  started) lands only on the head the join read: a head that moved since is
+  answered `moved`, never combined unchecked (review, I2). The temporary
+  worktree also goes when the card is applied or discarded, and `recover()`
+  removes one a stop left. `merge-tree` names come with `-z`. Not changed:
+  a cancel that wins through `abortBuildChecks` clears the round's own
+  check results on the task (`backToProposal`), the join's path keeps them
+  (shown only on the task's page).
+- **M3, the scheduler.** The loop of `src/builds/manager.ts` keeps a map of
+  running cards, starts a pass's cards after one usage reading, and waits
+  for any card's end; every change of the record goes through one chain per
+  build (`edit`), the joins through another (`joins`), and every wait is
+  woken by a cancel or a stop (`wakers`). Phase 9's tests
+  (`tests/unit/builds-manager.test.ts`) pass unchanged with it. Found
+  while testing, and decided:
+  - A card's **redo starts at the integration head**, so its own checks
+    already see the other cards' changes: a card whose checks fail only
+    with them fails its redo's own checks and waits with `checksFailed`
+    (its `join` and `redo` say why it was redone). `joinChecksFailed` is
+    left for a redo whose own checks pass and whose join fails again
+    (another card joined meanwhile).
+  - The cards **skipped** for a dependency are now saved as the loop finds
+    them, not only at the build's end, so the board shows them at once.
+  - The **redo is offered with one slot too** (a head moved there only when
+    the user approved a waiting task meanwhile); with one slot the cap of
+    rounds is not doubled, so the redo may meet it and the card waits.
+  - **Git on Windows with two cards at once**: a card's `git commit` failed
+    with "unknown error occurred while reading the configuration files"
+    while another card's clean-up ran `git branch -D`, which rewrites
+    `.git/config` (seen in 2 of 20 repetitions of the scheduler tests).
+    `runGit` now tries again a run that failed with exactly that message
+    (git stops there before doing anything), and, after the review of M3
+    (I4), a task's branch is deleted with `update-ref -d`, which never
+    touches `.git/config` (a task's branch has no configuration). Then 20
+    of 20 repetitions passed.
+  - The order in which two cards started in the same pass open their
+    sessions is not the board's order: it depends on which card's git
+    answers first (seen on CI). Priority decides which cards a pass starts.
+- **Review of M3** (no apto: one blocker), fixed in the next commit:
+  - B1: the build's end was saved from a record read before the last card
+    saved its outcome, which could leave that card `running` without its
+    commit and the build unappliable. The end is now decided inside the
+    build's lock, after every queued change of the record, from a fresh
+    read; if a card can start then, the loop goes on.
+  - I2: a pass that failed while cards ran left them behind; the loop is
+    now split into passes, and a failed pass with cards at work starts
+    nothing more and fails once they end.
+  - I3: resuming a build with more slots requeued every interrupted card,
+    also one whose task the user had taken up (a round of their own); now
+    only cards whose task the stop left `interrupted` (or that have none)
+    start again, without their stale `join`; a redo they had still counts
+    and their prompt says so.
+  - I5 (one slot and a moved head redo the card): kept and recorded above.
+  - Minors fixed: the texts of `conflict` and `joinChecksFailed` (they can
+    also come from the cap of rounds), a cancel during a join no longer
+    discards the first attempt before cancelling. Not changed: `roundsRun`
+    may pass `maxRounds` by up to slots − 1 rounds (the cap is read when a
+    card starts and before each fix round, as phase 9 read it per task); an
+    unexpected failure of one card lets the others finish before the build
+    is interrupted (no test); `joinChecksFailed` is reached only when a
+    redo's own checks pass and its join fails again (no test; the test that
+    named it was renamed); no test of the end-of-build race, of a failing
+    `load` with cards at work, of `runGit`'s retry, or of a failing
+    `discardForBuild`.
+
+## Phase 11: M4 and M5 (2026-11-25)
+
+- **M4, the board page.** The start page edits cards (title, instruction,
+  "done when", dependencies, area as comma-separated paths, size), adds
+  and removes cards, moves them up and down with buttons (disabled when a
+  card would go above one it depends on; no drag and drop: the brief asks
+  for it only if cheap and accessible), and sets the slots (1 to 4, 2 by
+  default) with the note that parallel cards spend the 5-hour window
+  faster. During and after the run, a board section shows the columns
+  (Pending, Blocked, Running, Waiting, Done, Skipped; cancelled cards under
+  Skipped), each card with its area, size, rounds, tokens, checks, redo,
+  join, denied commands and, when it waits, the reason and a link to its
+  task; phase 9's table stays below with every detail, so phase 9's e2e
+  tests read it as before. A card added by hand is `M` by default
+  (`346219e`).
+- **Review of M4** (apto con reservas), fixed in `385b947`:
+  - I1: a card joined onto other cards' changes said "checked again there"
+    also in a build with no checks; the text now depends on whether the
+    join ran checks, and a join that failed its checks names the commands
+    that failed.
+  - I2: the board's e2e tests depend on timing (the fake sessions' delays);
+    their margins are at least 1.5 s, the test that pressed Apply now waits
+    for the diff after the redo's join (one failure in 20 repetitions came
+    from pressing it on the earlier diff), and the spec then passed 20 of
+    20 repetitions with parallel workers.
+  - I3: no e2e test started a build with one card at a time from the page;
+    one now does, and checks the build records one slot and phase 9's cap
+    of rounds, not doubled.
+  - Minors fixed: a plan without sizes (a build planned before phase 11)
+    shows the size as "Not set" and sends none, instead of `M`; the start
+    form says "Card N", not "Task N". Not changed: commas inside one path
+    of an area split it; the reason a move button is disabled is not said
+    (`aria-describedby`), and the focus does not move to an added card;
+    the board does not say why a card was skipped (phase 9's table below
+    does); no unit test of `columnOf` or `canSwap` (the e2e tests cover
+    them).
+  - CI of `385b947`: on Windows one scheduler test (two whole builds in a
+    row) passed vitest's 30 s timeout (31 s; its run took 601 s against
+    440 to 480 s for the runs before and after, so a slower runner).
+    Phase 9's build tests took as long before phase 11 as with it (about
+    22 s on Windows), so nothing of phase 11 slowed them; the scheduler's
+    tests get 90 s each (`5083872`), and phase 9's tests stay unchanged.
+    The CI of `5083872` then failed on Windows with a phase 7 test
+    (`tasks-validate.test.ts`, 60 files through git), 34 s where it had
+    taken 18 s, on code phase 11 did not touch: the default test timeout
+    goes from 30 s to 60 s (`ee5b23c`), no test's logic changed.
+- **M5, docs and the real check** (2026-11-26). README (the board,
+  parallel cards, the usage note, areas as hints), `docs/api.md`,
+  CHANGELOG "Unreleased", and `scripts/real/check-build-parallel.ts`,
+  prepared and **not run**: a fixed board of four cards with two slots,
+  where cards 1 and 2 have separate areas and both create
+  `shared/NOTES.md` with a different line, so they run at the same time
+  and the one joined second collides (add/add in `merge-tree`; were the
+  two files the same, the join would be empty and the card not applied, a
+  FAIL); the redone card is told to keep the other line. Run by the user:
+  `npx tsx scripts/real/check-build-parallel.ts --yes`.
+- **Review of M5** (apto con reservas), fixed before the docs' commit: the
+  script's confirmation now says five to ten task sessions (four cards and
+  one redo, each with up to one fix round); its step 4 reads a dropped
+  line as the model, as step 2 does, not as a FAIL; its step 1 asks for
+  cards 1 and 2 themselves at once; the sample brief no longer names both
+  lines of the shared file; README and CHANGELOG say the joined tree is
+  checked again only when the build has checks; `docs/api.md` names the
+  planner's `area` and `size` and the other causes of `conflict` and
+  `joinChecksFailed`. Open for the user: with one slot, a task joined onto
+  a moved head (approved by the user meanwhile) is checked again and may
+  be redone, where phase 9 joined it unchecked (decided under M3, I5).
