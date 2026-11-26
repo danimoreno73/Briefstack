@@ -1226,3 +1226,43 @@ the decisions are in [decisions.md](decisions.md), "Phase 10".
   about briefstack. Idea: ask for it more plainly, or report that verdict
   as NOT CONTROLLED when nothing was tried (it would then prove less).
   Not changed yet.
+
+## 11. Open items from phase 11
+
+What phase 11 (the build's board, cards run in parallel) leaves open. The
+plan is [PLAN-phase-11.md](PLAN-phase-11.md); the decisions are in
+[decisions.md](decisions.md), "Phase 11".
+
+- **Not shown without a real session** (the real check of 2026-11-26
+  showed two cards at once, one conflict redone and joined, and the
+  checks run again on a joined commit; decisions.md, "Phase 11:
+  accepted"), among others: two cards whose areas overlap kept apart; a
+  second conflict leaving a card waiting; checks that fail only on the
+  joined tree (`joinChecksFailed`); a usage pause or a user's pause with
+  cards at work; a cancel of several trees; a restart with several cards;
+  a full shared limit, and the cap of rounds reached; one slot, with its
+  redo and the moved head checked again; more than two slots; the board's
+  page itself (the check drives the API); macOS and Linux.
+- **Tests missing** (reviews of M3): the end-of-build race, a failing
+  `load` with cards at work, `runGit`'s retry on the configuration error,
+  a failing `discardForBuild`, an unexpected failure of one card while
+  others run, and `joinChecksFailed` reached by a redo whose own checks
+  pass.
+- `roundsRun` may pass `maxRounds` by up to slots − 1 rounds (the cap is
+  read when a card starts and before each fix round). Review of M3.
+- A cancel that wins through `abortBuildChecks` clears the round's own
+  check results on the card's task (shown only on the task's page).
+  Review of M2.
+- In a cancelled build the cards still queued show under Pending or
+  Blocked, as phase 9's record keeps them `queued`; the board could say
+  the build was cancelled on them. Review of step 39.
+- The focus goes to the page after a card is moved to the top or removed
+  on the start page. Review of step 39.
+- zod's English detail of a bad area in `build.planSchema`, and a `null`
+  slots value answered as a generic 400. Review of M1 (its third "not
+  changed", the doubled cap of rounds, is no longer open: M3's redo uses
+  it).
+- Vitest's default test timeout is 60 s (from 30 s) because a slow
+  Windows runner passed 30 s on git-heavy tests (decisions.md, "Phase 11:
+  M4 and M5", the CI of `385b947`); the cost is that a test that really
+  hangs fails later.
