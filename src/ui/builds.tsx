@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { ApiError } from './apiError.js';
+import { areaPaths, canSwap, columnOf, COLUMNS, type Column } from './board.js';
 import { formatCount } from './codexData.js';
 import { Diff } from './improve.js';
 import { describeError } from './errors.js';
@@ -143,13 +144,6 @@ interface Draft extends Omit<QueueItemUi, 'dependsOn' | 'area' | 'size'> {
   size: 'S' | 'M' | 'L' | '';
 }
 
-/** The paths of an area as typed: one per line or separated by commas. */
-const areaPaths = (text: string): string[] =>
-  text
-    .split(/[\n,]/)
-    .map((part) => part.trim())
-    .filter((part) => part !== '');
-
 /** What the start page offers for the slots (phase 11; the API's default without a value is one). */
 const PAGE_SLOTS = 2;
 const MAX_PAGE_SLOTS = 4;
@@ -181,12 +175,6 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
       if (item !== undefined) next.splice(index + delta, 0, item);
       return next;
     });
-  // A card never goes above one it depends on: the server takes dependencies on earlier cards only (PLAN-phase-11 §1, 9).
-  const canSwap = (upper: number) => {
-    const above = items[upper];
-    const below = items[upper + 1];
-    return above !== undefined && below !== undefined && !below.deps.includes(above.key);
-  };
   const add = () => {
     const key = nextKey.current;
     nextKey.current += 1;
@@ -277,10 +265,10 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
               </select>
             </label>
             <div class="btn-row">
-              <button type="button" class="btn btn-ghost btn-sm" disabled={i === 0 || !canSwap(i - 1)} onClick={() => move(i, -1)} data-testid="build-item-up">
+              <button type="button" class="btn btn-ghost btn-sm" disabled={i === 0 || !canSwap(items, i - 1)} onClick={() => move(i, -1)} data-testid="build-item-up">
                 {t.buildTaskUp}
               </button>
-              <button type="button" class="btn btn-ghost btn-sm" disabled={i === items.length - 1 || !canSwap(i)} onClick={() => move(i, 1)} data-testid="build-item-down">
+              <button type="button" class="btn btn-ghost btn-sm" disabled={i === items.length - 1 || !canSwap(items, i)} onClick={() => move(i, 1)} data-testid="build-item-down">
                 {t.buildTaskDown}
               </button>
               <button type="button" class="btn btn-ghost btn-sm" onClick={() => remove(item.key)} data-testid="build-item-remove">
@@ -448,18 +436,6 @@ function Progress({ build }: { build: BuildViewUi }) {
 }
 
 // ---- the board (phase 11) ------------------------------------------------------------------------
-
-const COLUMNS = ['pending', 'blocked', 'running', 'waiting', 'done', 'skipped'] as const;
-type Column = (typeof COLUMNS)[number];
-
-/** A card's column, from its state and its dependencies' (BRIEF-phase-11 §2, 8; cancelled cards show as skipped). */
-function columnOf(task: BuildTaskUi, all: readonly BuildTaskUi[]): Column {
-  if (task.state === 'queued') return task.dependsOn.every((n) => all[n - 1]?.state === 'applied') ? 'pending' : 'blocked';
-  if (task.state === 'running') return 'running';
-  if (task.state === 'waiting') return 'waiting';
-  if (task.state === 'applied') return 'done';
-  return 'skipped';
-}
 
 /** The started build's cards in columns, read-only, live while it runs. The table below keeps every detail. */
 function Board({ build }: { build: BuildViewUi }) {
