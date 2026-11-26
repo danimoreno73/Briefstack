@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { areaPaths, canSwap, columnOf, type ColumnCard } from '../../src/ui/board.js';
+import { areaPaths, canSwap, columnOf, looksCommaSeparated, type ColumnCard } from '../../src/ui/board.js';
 
 // The board's pure rules (phase 11; review of M4: unit tests of columnOf and canSwap).
 
@@ -69,6 +69,13 @@ describe('areaPaths', () => {
   it('keeps a comma inside a path: only a new line separates paths (review of M4)', () => {
     expect(areaPaths('docs/a, b.md\nsrc/')).toEqual(['docs/a, b.md', 'src/']);
     expect(areaPaths('notes/one,two.txt')).toEqual(['notes/one,two.txt']);
+  });
+
+  it('notices a line that reads like a list, for the page to say paths go one per line', () => {
+    expect(looksCommaSeparated('src, tests')).toBe(true);
+    expect(looksCommaSeparated('src/\ntests/')).toBe(false);
+    expect(looksCommaSeparated('notes/one,two.txt')).toBe(false);
+    expect(looksCommaSeparated('')).toBe(false);
   });
 
   it('is empty for an empty or blank area', () => {

@@ -60,13 +60,15 @@ async function start(page: Page): Promise<void> {
 const buildId = (page: Page): string => decodeURIComponent(new URL(page.url()).hash.replace(/^#\/builds\//, ''));
 
 test.describe('the board before the start', () => {
-  test.use({ appOptions: { taskScript: byInstruction, buildPlan: board([card('Notes', 'WRITE NOTES.md: notes', ['NOTES.md']), card('Summary', 'WRITE SUMMARY.md: summary', ['SUMMARY.md'], [1])]) } });
+  // Notes has two paths in its area: they show one per line and go back as they came (review of step 39).
+  test.use({ appOptions: { taskScript: byInstruction, buildPlan: board([card('Notes', 'WRITE NOTES.md: notes', ['NOTES.md', 'notes/']), card('Summary', 'WRITE SUMMARY.md: summary', ['SUMMARY.md'], [1])]) } });
 
   test('edit a card, add one by hand, keep dependencies in order, set the slots, and start it', async ({ page, app }) => {
     const dir = await codeProject(app, 'garden', 'Garden', { 'docs/BRIEF.md': BRIEF });
     await plan(page, app);
-    await expect(page.getByTestId('build-item-area').first()).toHaveValue('NOTES.md');
+    await expect(page.getByTestId('build-item-area').first()).toHaveValue('NOTES.md\nnotes/');
     await expect(page.getByTestId('build-item-area').nth(1)).toHaveValue('SUMMARY.md');
+    await expect(page.getByTestId('build-item-area-commas')).toHaveCount(0);
     await expect(page.getByTestId('build-slots')).toHaveValue('2');
     await expect(page.getByTestId('build-slots-note')).toContainText('spend the plan’s 5-hour window faster');
     // Summary depends on Notes: it cannot go above it.
@@ -88,6 +90,8 @@ test.describe('the board before the start', () => {
     await page.getByTestId('build-item-done').nth(2).fill('EXTRA.md exists.');
     // One path per line; a comma stays inside its path (review of M4).
     await page.getByTestId('build-item-area').nth(2).fill('EXTRA.md\nnotes/a, b.md');
+    // A line with ", " reads like a list: the page says paths go one per line, and sends what was typed.
+    await expect(page.getByTestId('build-item-area-commas')).toHaveText('A line with “, ” is read as one path. Put each path on its own line.');
     await expect(page.getByTestId('build-limit')).toHaveValue('3');
     // Extra depends on nothing: it can go above Summary.
     await page.getByTestId('build-item-up').nth(2).click();
@@ -98,7 +102,7 @@ test.describe('the board before the start', () => {
     const build = await app.builds.get(buildId(page));
     expect(build.settings?.slots).toBe(2);
     expect(build.tasks.map((task) => [task.title, task.size, task.area, task.dependsOn])).toEqual([
-      ['Notes', 'L', ['NOTES.md'], []],
+      ['Notes', 'L', ['NOTES.md', 'notes/'], []],
       ['Extra', 'M', ['EXTRA.md', 'notes/a, b.md'], []],
       ['Summary', 'S', ['SUMMARY.md'], [1]],
     ]);
@@ -233,6 +237,6 @@ test.describe('a cancelled card', () => {
     await page.getByTestId('build-cancel').click();
     await page.getByRole('dialog').getByRole('button', { name: 'Cancel the build' }).click();
     await expect(page.getByTestId('build-state')).toHaveText('Cancelled', SLOW);
-    await expect(page.getByTestId('build-column-skipped').getByTestId('build-card-skipped')).toHaveText('Cancelled with the build.');
+    await expect(page.getByTestId('build-column-skipped').getByTestId('build-card-cancelled')).toHaveText('Cancelled with the build.');
   });
 });

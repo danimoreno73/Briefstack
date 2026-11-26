@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { ApiError } from './apiError.js';
-import { areaPaths, canSwap, columnOf, COLUMNS, type Column } from './board.js';
+import { areaPaths, canSwap, columnOf, COLUMNS, looksCommaSeparated, type Column } from './board.js';
 import { formatCount } from './codexData.js';
 import { Diff } from './improve.js';
 import { describeError } from './errors.js';
@@ -275,6 +275,11 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
               {t.buildCardAreaLabel}
               <textarea class="textarea mono" rows={2} value={item.area} onInput={(event) => update(item.key, { area: (event.target as HTMLTextAreaElement).value })} data-testid="build-item-area" />
             </label>
+            {looksCommaSeparated(item.area) && (
+              <p class="t-small muted" data-testid="build-item-area-commas">
+                {t.buildCardAreaCommas}
+              </p>
+            )}
             <label class="label">
               {t.buildCardSizeLabel}
               <select class="input" value={item.size} onChange={(event) => update(item.key, { size: (event.target as HTMLSelectElement).value as Draft['size'] })} data-testid="build-item-size">
@@ -555,7 +560,7 @@ function Board({ build }: { build: BuildViewUi }) {
                       </p>
                     )}
                     {task.state === 'cancelled' && (
-                      <p class="t-small" data-testid="build-card-skipped">
+                      <p class="t-small" data-testid="build-card-cancelled">
                         {t.buildCardCancelled}
                       </p>
                     )}

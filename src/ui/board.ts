@@ -48,3 +48,10 @@ export const areaPaths = (text: string): string[] =>
     .split('\n')
     .map((part) => part.trim())
     .filter((part) => part !== '');
+
+/**
+ * Whether an area as typed has a line that reads like a list ("a, b"): it is
+ * taken as one path, so the page says paths go one per line (review of step
+ * 39, M3). Only a hint: a path may hold ", ".
+ */
+export const looksCommaSeparated = (text: string): boolean => areaPaths(text).some((path) => path.includes(', '));
