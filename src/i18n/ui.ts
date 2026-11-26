@@ -517,6 +517,7 @@ export const uiMessages = defineCatalogue({
       'Cards whose areas do not overlap may run at the same time, each in its own copy of the project. A card with no area counts as touching the whole project. An area is a hint for planning, not a limit: a card may still change other files, and its join catches the rest.',
     buildCardSizeLabel: 'Size',
     buildCardSize: (size: string): string => ({ S: 'Small', M: 'Medium', L: 'Large' })[size] ?? size,
+    buildCardSizeNone: 'Not set',
     buildCardAdd: 'Add a card',
     buildSlotsLabel: 'Cards at once (1 to 4)',
     buildSlotsNote:
@@ -529,21 +530,23 @@ export const uiMessages = defineCatalogue({
     buildCardRounds: (n: number) => `${n} round${n === 1 ? '' : 's'}`,
     buildCardTokens: 'tokens',
     buildCardRedo: (reason: string) => (reason === 'conflict' ? 'Redone once: it collided with another card when joined.' : 'Redone once: its checks failed together with other cards’ changes.'),
-    buildCardJoin: (outcome: string, merged: boolean): string =>
+    buildCardJoin: (outcome: string, merged: boolean, checked: boolean): string =>
       outcome === 'applied'
         ? merged
-          ? 'Joined onto other cards’ changes, checked again there.'
+          ? checked
+            ? 'Joined onto other cards’ changes, checked again there.'
+            : 'Joined onto other cards’ changes (the build has no checks to run).'
           : 'Joined.'
         : outcome === 'conflict'
           ? 'Its last join collided in:'
-          : 'Its last join failed the checks with the other cards’ changes.',
+          : 'Its last join failed these checks with the other cards’ changes:',
     buildCardDenied: (n: number) => `${n} command${n === 1 ? '' : 's'} denied`,
     buildPlanning: 'Planning the queue from the project’s brief… This takes a minute or two.',
     buildPlanFailedTitle: 'The queue could not be planned',
     buildStartTitle: 'Review and start',
     buildStartIntro: 'This is what the planner proposed. Nothing runs until you start the build; once it starts, none of this changes.',
     buildQueueTitle: 'The board: its cards in order of priority',
-    buildTaskLabel: (n: number) => `Task ${n}`,
+    buildTaskLabel: (n: number) => `Card ${n}`,
     buildTaskTitleLabel: 'Title',
     buildTaskInstructionLabel: 'What to do',
     buildTaskDoneWhenLabel: 'Done when',
@@ -1910,6 +1913,7 @@ export const uiMessages = defineCatalogue({
       'Las tarjetas cuyas zonas no se solapan pueden ejecutarse a la vez, cada una en su propia copia del proyecto. Una tarjeta sin zona cuenta como si tocara todo el proyecto. La zona es una pista para planificar, no un límite: una tarjeta puede cambiar otros ficheros, y su unión recoge el resto.',
     buildCardSizeLabel: 'Tamaño',
     buildCardSize: (size: string): string => ({ S: 'Pequeña', M: 'Mediana', L: 'Grande' })[size] ?? size,
+    buildCardSizeNone: 'Sin indicar',
     buildCardAdd: 'Añadir una tarjeta',
     buildSlotsLabel: 'Tarjetas a la vez (de 1 a 4)',
     buildSlotsNote:
@@ -1922,21 +1926,23 @@ export const uiMessages = defineCatalogue({
     buildCardRounds: (n: number) => `${n} ronda${n === 1 ? '' : 's'}`,
     buildCardTokens: 'tokens',
     buildCardRedo: (reason: string) => (reason === 'conflict' ? 'Rehecha una vez: chocó con otra tarjeta al unirla.' : 'Rehecha una vez: sus comprobaciones fallaron junto a los cambios de otras tarjetas.'),
-    buildCardJoin: (outcome: string, merged: boolean): string =>
+    buildCardJoin: (outcome: string, merged: boolean, checked: boolean): string =>
       outcome === 'applied'
         ? merged
-          ? 'Unida sobre los cambios de otras tarjetas, comprobada otra vez allí.'
+          ? checked
+            ? 'Unida sobre los cambios de otras tarjetas, comprobada otra vez allí.'
+            : 'Unida sobre los cambios de otras tarjetas (el build no tiene comprobaciones que ejecutar).'
           : 'Unida.'
         : outcome === 'conflict'
           ? 'Su última unión chocó en:'
-          : 'Su última unión falló las comprobaciones con los cambios de otras tarjetas.',
+          : 'Su última unión falló estas comprobaciones con los cambios de otras tarjetas:',
     buildCardDenied: (n: number) => `${n} comando${n === 1 ? '' : 's'} denegado${n === 1 ? '' : 's'}`,
     buildPlanning: 'Planificando la cola desde el brief del proyecto… Tarda un minuto o dos.',
     buildPlanFailedTitle: 'No se pudo planificar la cola',
     buildStartTitle: 'Revisar y empezar',
     buildStartIntro: 'Esto es lo que propone el planificador. No se ejecuta nada hasta que empieces el build; una vez empezado, nada de esto cambia.',
     buildQueueTitle: 'El tablero: sus tarjetas por orden de prioridad',
-    buildTaskLabel: (n: number) => `Tarea ${n}`,
+    buildTaskLabel: (n: number) => `Tarjeta ${n}`,
     buildTaskTitleLabel: 'Título',
     buildTaskInstructionLabel: 'Qué hacer',
     buildTaskDoneWhenLabel: 'Hecha cuando',

@@ -96,6 +96,20 @@ test.describe('the board before the start', () => {
     expect((await testGit(dir, ['show', `${build.branch}:EXTRA.md`])).trim()).toBe('extra');
   });
 
+  test('with one card at a time from the page, the build records one slot and runs as before (review of M4, I3)', async ({ page, app }) => {
+    await codeProject(app, 'garden', 'Garden', { 'docs/BRIEF.md': BRIEF });
+    await plan(page, app);
+    await page.getByTestId('build-slots').fill('1');
+    await start(page);
+    await expect(page.getByTestId('build-state')).toHaveText('Finished', SLOW);
+    await expect(page.getByTestId('build-board')).toContainText('One card at a time.');
+    await expect(page.getByTestId('build-task-state')).toHaveText(['Applied', 'Applied']);
+    const build = await app.builds.get(buildId(page));
+    expect(build.settings?.slots).toBe(1);
+    // Phase 9's cap: 2 cards × (1 + 1 fix round), not doubled.
+    expect(build.settings?.maxRounds).toBe(4);
+  });
+
   test('a bad area is refused at the start with what is wrong with it', async ({ page, app }) => {
     await codeProject(app, 'garden', 'Garden', { 'docs/BRIEF.md': BRIEF });
     await plan(page, app);
@@ -118,7 +132,9 @@ test.describe('cards at once', () => {
     await expect(page.getByTestId('build-column-done').getByTestId('build-card')).toHaveCount(2);
     // One joined where it started, the other onto the first's change.
     await expect(page.getByTestId('build-card-join').filter({ hasText: /^Joined\.$/ })).toHaveCount(1);
-    await expect(page.getByTestId('build-card-join').filter({ hasText: 'Joined onto other cards’ changes, checked again there.' })).toHaveCount(1);
+    // No checks in this build: the page does not claim they ran on the joined tree (review of M4, I1).
+    await expect(page.getByTestId('build-card-join').filter({ hasText: 'Joined onto other cards’ changes (the build has no checks to run).' })).toHaveCount(1);
+    await expect(page.getByText('checked again there')).toHaveCount(0);
   });
 });
 
@@ -133,7 +149,8 @@ test.describe('a conflict redone and joined, then applied', () => {
     await expect(page.getByTestId('build-state')).toHaveText('Finished', SLOW);
     await expect(page.getByTestId('build-column-done').getByTestId('build-card')).toHaveCount(2);
     await expect(page.getByTestId('build-card-redo')).toHaveText('Redone once: it collided with another card when joined.');
-    await expect(page.getByTestId('build-diff')).toContainText('A.md');
+    // The diff after the redo's join (an earlier one also names A.md; Apply sends the head the page shows).
+    await expect(page.getByTestId('build-diff')).toContainText('one and two', SLOW);
     await page.getByTestId('build-apply').click();
     await page.getByRole('dialog').getByRole('button', { name: 'Apply the build' }).click();
     await expect(page.getByTestId('build-state')).toHaveText('Applied', SLOW);

@@ -139,7 +139,8 @@ interface Draft extends Omit<QueueItemUi, 'dependsOn' | 'area' | 'size'> {
   key: number;
   deps: number[];
   area: string;
-  size: 'S' | 'M' | 'L';
+  /** Empty when the plan gave none (a build planned before phase 11) and the user chose none: then none is sent. */
+  size: 'S' | 'M' | 'L' | '';
 }
 
 /** The paths of an area as typed: one per line or separated by commas. */
@@ -158,7 +159,7 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
   const send = useSend();
   const plan = build.plan;
   const [items, setItems] = useState<Draft[]>(() =>
-    (plan?.tasks ?? []).map((task, i) => ({ key: i + 1, title: task.title, instruction: task.instruction, doneWhen: task.doneWhen, deps: [...task.dependsOn], area: (task.area ?? []).join(', '), size: task.size ?? 'M' })),
+    (plan?.tasks ?? []).map((task, i) => ({ key: i + 1, title: task.title, instruction: task.instruction, doneWhen: task.doneWhen, deps: [...task.dependsOn], area: (task.area ?? []).join(', '), size: task.size ?? '' })),
   );
   const [limit, setLimit] = useState(String(plan?.tasks.length ?? 1));
   const [slots, setSlots] = useState(String(PAGE_SLOTS));
@@ -205,7 +206,7 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
   const queue = (): QueueItemUi[] =>
     items.map((item) => {
       const area = areaPaths(item.area);
-      return { title: item.title, instruction: item.instruction, doneWhen: item.doneWhen, dependsOn: item.deps.map(position).filter((n) => n > 0), ...(area.length === 0 ? {} : { area }), size: item.size };
+      return { title: item.title, instruction: item.instruction, doneWhen: item.doneWhen, dependsOn: item.deps.map(position).filter((n) => n > 0), ...(area.length === 0 ? {} : { area }), ...(item.size === '' ? {} : { size: item.size }) };
     });
 
   const start = () =>
@@ -267,6 +268,7 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
             <label class="label">
               {t.buildCardSizeLabel}
               <select class="input" value={item.size} onChange={(event) => update(item.key, { size: (event.target as HTMLSelectElement).value as Draft['size'] })} data-testid="build-item-size">
+                {item.size === '' && <option value="">{t.buildCardSizeNone}</option>}
                 {(['S', 'M', 'L'] as const).map((size) => (
                   <option key={size} value={size}>
                     {t.buildCardSize(size)}
@@ -500,8 +502,17 @@ function Board({ build }: { build: BuildViewUi }) {
                     )}
                     {task.join !== undefined && (
                       <p class="t-small" data-testid="build-card-join">
-                        {t.buildCardJoin(task.join.outcome, task.join.merged)}
+                        {t.buildCardJoin(task.join.outcome, task.join.merged, (task.join.checks ?? []).length > 0)}
                         {(task.join.files ?? []).length > 0 && <code> {(task.join.files ?? []).join(', ')}</code>}
+                        {task.join.outcome === 'checksFailed' && (
+                          <code>
+                            {' '}
+                            {(task.join.checks ?? [])
+                              .filter((check) => check.exitCode !== 0 || check.timedOut)
+                              .map((check) => check.command)
+                              .join(', ')}
+                          </code>
+                        )}
                       </p>
                     )}
                     {task.reason !== undefined && <p class="t-small">{t.buildWaitReason(task.reason)}</p>}
