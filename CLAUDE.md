@@ -5,32 +5,29 @@ each one.
 
 ## Current state
 
-Phases 7 to 10 are done (tags `phase-7-done` … `phase-10-done`): tasks
+Phases 7 to 11 are done (tags `phase-7-done` … `phase-11-done`): tasks
 in existing projects; Codex in tasks (off by default); builds (from a
 project's brief, briefstack plans a queue of tasks and runs it unattended
 on an integration branch; the user applies the whole build at the end);
-and a creation that can also write a first version of the code (web app,
+a creation that can also write a first version of the code (web app,
 `software` projects for Claude Code, chosen at the spec checkpoint), with
 an `implementer` agent that has no shell, the exact commands the user
 approved, checks and fix passes, two commits, and Codex without its shell
-when ticked. Their briefs and plans are in `docs/history/` (phase 8 has a
-brief with what changed and no plan); their decisions are in
-`docs/decisions.md`, "Phase 7" to "Phase 10" (the closes: "Phase 7: M9
-accepted, phase closed", "Phase 8: closed", "Phase 9: accepted", "Phase
-10: accepted"). What they leave open is in `docs/IDEAS.md` §7 to §10.
-Version 1.2.0 is prepared in `CHANGELOG.md` and `package.json`; its tag
-`v1.2.0` and the GitHub release are the user's to make.
+when ticked; and the build's board, whose cards (area and size) run in
+parallel in their own worktrees and are joined one at a time, with the
+checks run again on a joined tree and one redo. Their briefs and plans
+are in `docs/history/` (phase 8 has a brief with what changed and no
+plan); their decisions are in `docs/decisions.md`, "Phase 7" to "Phase
+11" (the closes: "Phase 7: M9 accepted, phase closed", "Phase 8: closed",
+"Phase 9: accepted", "Phase 10: accepted", "Phase 11: accepted"). What
+they leave open is in `docs/IDEAS.md` §7 to §11. Version 1.3.0 is
+prepared in `CHANGELOG.md` and `package.json`; its tag `v1.3.0` and the
+GitHub release are the user's to make.
 
-Phase 11 is in progress: the build's board and cards run in parallel
-(`docs/BRIEF-phase-11.md`, `docs/PLAN-phase-11.md` with its Status;
-decisions in `docs/decisions.md`, "Phase 11"). Its milestones M1–M5 are
-written; it is not done until the user runs
-`scripts/real/check-build-parallel.ts` and accepts it.
-
-`v1.0.0` and `v1.1.0` are published. The living backlog is
-`docs/IDEAS.md`. The briefs and plans of phases 1–10, the UI pass, the
+`v1.0.0`, `v1.1.0` and `v1.2.0` are published. The living backlog is
+`docs/IDEAS.md`. The briefs and plans of phases 1–11, the UI pass, the
 release and backlogs 1 and 2 are in `docs/history/` (tags `phase-1-done`
-… `phase-10-done`, `ui-done`, `v1.0.0`, `backlog-1-done`,
+… `phase-11-done`, `ui-done`, `v1.0.0`, `backlog-1-done`,
 `backlog-2-done`); open them only when needed. Contributors' rules are
 also in `CONTRIBUTING.md`.
 
