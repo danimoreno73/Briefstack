@@ -19,7 +19,7 @@ Updated 2026-11-26.
 
 | # | Milestone | State |
 |---|---|---|
-| H0 | Verify before designing (BRIEF §6) | done, decisions.md "Phase 12: H0" |
+| H0 | Verify before designing (BRIEF §6) | done (`1a9a007`), decisions.md "Phase 12: H0"; the real container in "Phase 12: H0, the real container" |
 | M1 | Server mode: listening address, allowed names, warning, Codex off; local mode pinned by a regression test | to do |
 | M2 | Access secret and device sessions: sign-in, cookie, devices, sign-out, revoke-all, attempt limit; the page in server mode | to do |
 | M3 | The pages on a phone: the progress table, the sign-in and devices pages, e2e at phone width | to do |
@@ -86,6 +86,17 @@ Each one is the conservative reading and is in decisions.md.
    today; every request is sent with `credentials: 'same-origin'`. In
    local mode the page and its requests are exactly today's
    (`credentials: 'omit'`, the token header).
+6b. **No token in server mode** (decisions.md, "Phase 12: H0, the real
+   container", E): server mode never prints or accepts the per-start
+   token; it prints the address and that the page asks for the access
+   secret. Until M2, every `/api` call but `GET /api/health` and
+   `GET /api/server/state` is refused in server mode.
+6c. **A read-only app folder** (same section, A): the Usage profile change
+   and improvements fail with a clear error (`usage.repoReadOnly`,
+   `improve.repoReadOnly`) when the repo cannot be written; local mode in
+   a writable clone is unchanged.
+6d. **`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` passes** to sessions (same
+   section, B).
 7. **Codex stays off in server mode.** The Codex service reports it off
    and refuses to turn it on (`codex.serverMode`), so no task round and
    no creation offers it; Codex on Windows in local mode is unchanged.
@@ -156,7 +167,9 @@ Each one is the conservative reading and is in decisions.md.
   `GET /api/server/state`.
 - `briefstack web`: `--server`, `--listen`, `--allowed-host`,
   `--access-secret-file`; the warning; usage errors; i18n en and es.
-- Codex off in server mode.
+- Codex off in server mode; no token printed or accepted in server mode.
+- A read-only app folder: clear errors for the profile change and
+  improvements; `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` passes.
 - Tests: off by default (address, hosts, token, origin as today: a
   regression test); the flags and their errors; hosts and origins
   accepted and refused in server mode; the secret file (missing, short,

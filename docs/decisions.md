@@ -8623,6 +8623,86 @@ interrupted (the brief's decision 7). **Conclusion:** possible with a
 setting read at start, after both `recover()` calls, through the
 manager's own lock.
 
+## Phase 12: H0, the real container (2026-11-26)
+
+The user's server conversation described the container it built (the
+user's annex to step 40, read as data; nothing of the user's own setup
+goes into the repo). What it changes, checked in the code:
+
+**A. The app folder is read-only** (the clone and `npm ci` owned by root;
+only the home volume and a `/tmp` with exec are writable). What
+briefstack writes inside its own folder (`repoDir`, `PACKAGE_ROOT`):
+`briefstack usage set` and the Usage page's profile change write the
+flow agents' `model` and `effort` in `<repo>/.claude/agents/*.md`, the
+`implementer`'s included (`applyProfileToAgents`, `src/usage/show.ts`);
+improvements make a worktree, a branch and commits in the repo's own git
+and write its files (`src/improve/git.ts`); `briefstack paths rewrite`
+reads the repo only. Nothing writes `dist/` at run time (it is built by
+`npm ci`'s `prepare`). Temporary files go to `os.tmpdir()`, the home, or
+the task and build folders under the home. Creation sessions run with
+the repo as their working folder (`src/creation/sdkRunner.ts`, `cwd:
+repoDir`): Claude Code keeps its own project data under `~/.claude`, and
+the flow writes the new project in the projects folder; whether Claude
+Code writes anything into a read-only working folder in a real creation
+is not shown here (no real session in this step). **Conclusion:** the
+profile change and improvements fail with a clear error when the folder
+cannot be written (`usage.repoReadOnly`, `improve.repoReadOnly`); the
+guide says to set the profile when the image is built
+(`briefstack usage set <profile>` in the image) and that improvements
+need a writable clone.
+
+**B. Outbound traffic goes only through a proxy** (`HTTP(S)_PROXY`,
+`http(s)_proxy`, `NODE_USE_ENV_PROXY=1`). `cleanEnvironment` passes the
+proxy variables to every session (Claude Code honours them:
+[network-config](https://code.claude.com/docs/en/network-config)), so a
+session, the commands a build's round runs through it (npm, git) and a
+provider's session go out through the proxy; briefstack's own `fetch`
+(the skills library, the providers' status check) uses Node's, which
+follows the variables with `NODE_USE_ENV_PROXY=1`. The checks keep their
+closed proxies (`offlineEnv`, `src/improve/verify.ts`): no network, as
+intended. `cleanEnvironment` took out `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`
+like every other `CLAUDE_CODE_*` of behaviour. **Conclusion:** it passes
+from now on: it only cuts traffic (updates, telemetry, error reports,
+feature flags; [env-vars](https://code.claude.com/docs/en/env-vars)),
+which is what a strict allowlist wants, and it is the user's own choice in
+their environment. `DISABLE_TELEMETRY`, `DISABLE_ERROR_REPORTING` and
+`DISABLE_AUTOUPDATER` already passed (they do not start with
+`CLAUDE_CODE_`).
+
+**C. The exact hosts** (instead of wildcards). From the network-config
+table (H0, 2) and briefstack's code: **Claude Code with a subscription
+sign-in:** `api.anthropic.com` (model requests, WebFetch's preflight,
+feature flags), `platform.claude.com` (OAuth token exchange, refresh and
+revocation: needed while the session lives), `claude.ai` and
+`claude.com` (the browser sign-in; only while signing in, which happens
+on another device, so the container may do without them once signed in,
+not verified). Not needed with updates and nonessential traffic off:
+`downloads.claude.ai`, `storage.googleapis.com`, the Datadog hosts;
+never used by briefstack: `mcp-proxy.anthropic.com`, `sso.claude.com`,
+the desktop and artifact hosts. **briefstack itself:** the third-party
+skills library fetches from `api.github.com` (the tree and commit) and
+`raw.githubusercontent.com` (the files) (`src/skills/github.ts`);
+`github.com` appears only as a link shown on the page. Builds never push
+and have no remote step. So `api.github.com` and
+`raw.githubusercontent.com` are needed only to add a third-party skill;
+`github.com` and `codeload.github.com` only if a project's own commands
+fetch git dependencies. **npm:** `registry.npmjs.org` for the projects'
+approved `npm ci` / `npm install`. **Reserve providers:** `api.deepseek.com`
+and `api.moonshot.ai` (H0, 3).
+
+**D. No compilers, no Python, no sudo** (Node 24, git 2.47, Claude Code
+with auto-update off). briefstack needs none of them at run time
+(git 2.40 is its minimum since phase 9's review, above). A project whose
+dependencies build native modules (`node-gyp`) or need Python fails its
+`npm ci` in a round: the guide says so and how to add the packages to the
+image.
+
+**E. The per-start token is printed by `briefstack web`**, so a container's
+log shows it. **Conclusion:** server mode never prints a token or the
+secret, and never accepts the token: it prints the address and that the
+page asks for the access secret; until device sessions exist (M2) every
+`/api` call but the health and state calls is refused in server mode.
+
 ## Decisiones sin Dani (fase 12)
 
 Phase 12 runs unattended (BRIEF-phase-12.md, §8; the user's authorisation
