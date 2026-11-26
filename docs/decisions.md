@@ -8342,3 +8342,16 @@ recorded here; the design is in [PLAN-phase-11.md](PLAN-phase-11.md), §1.
   `joinChecksFailed`. Open for the user: with one slot, a task joined onto
   a moved head (approved by the user meanwhile) is checked again and may
   be redone, where phase 9 joined it unchecked (decided under M3, I5).
+  Accepted by the user on 2026-11-26 (below).
+
+## Phase 11: the user's decisions (2026-11-26)
+
+- **One slot and a head that moved: accepted.** With one card at a time,
+  a card whose join finds the integration head moved (the user approved a
+  waiting task while the build ran) is checked again on the joined tree,
+  when the build has checks, and may be redone once at the integration
+  head, as with more slots. Phase 9 joined it with `merge-tree` and no
+  checks. The rule taken without the user under M3 (I5 of its review,
+  "Decisiones sin Dani (fase 11)", "One slot and a head that moved")
+  stays as written; README, `docs/api.md` and CHANGELOG already say it,
+  so nothing else changes.
