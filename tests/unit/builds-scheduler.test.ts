@@ -429,7 +429,9 @@ describe('the join and the one redo', SLOW, () => {
   });
 
   it('a second conflict leaves the card waiting for the user, its task open', async () => {
-    // Two and Three both collide with One; Three's redo joins first, so Two's slower redo collides again.
+    // Two and Three both collide with One; Three's redo usually joins first, so Two's slower redo collides
+    // again. On a slow runner the order can turn (Windows CI, step 39: Three's first attempt ended after
+    // Two's redo had joined): which of the two waits is the machine's timing, not the rule under test.
     const board = plan([
       cardOf('One', 'WRITE A.md: one', ['one/']),
       // Margins of 1.5 s and more: a loaded machine (a full test run) delays starts by hundreds of milliseconds.
@@ -441,13 +443,22 @@ describe('the join and the one redo', SLOW, () => {
       const id = await startBuild(s, board, { slots: 3 });
       await s.builds.idle(id);
       const done = await s.builds.get(id);
-      expect(done.tasks.map((task) => [task.state, task.reason ?? null]), JSON.stringify(done.tasks.map((task) => ({ n: task.n, detail: task.detail, redo: task.redo, join: task.join })))).toEqual([
-        ['applied', null],
-        ['waiting', 'conflict'],
-        ['applied', null],
-      ]);
-      expect(done.tasks[1]?.join).toMatchObject({ outcome: 'conflict', files: ['A.md'] });
-      expect((await s.tasks.get(done.tasks[1]?.taskId as string)).state).toBe('proposal');
+      const states = done.tasks.map((task) => [task.state, task.reason ?? null]);
+      const detail = JSON.stringify(done.tasks.map((task) => ({ n: task.n, detail: task.detail, redo: task.redo, join: task.join })));
+      expect(states[0], detail).toEqual(['applied', null]);
+      // Exactly one of Two and Three collided a second time and waits; the other was joined.
+      expect(
+        [
+          [['waiting', 'conflict'], ['applied', null]],
+          [['applied', null], ['waiting', 'conflict']],
+        ],
+        detail,
+      ).toContainEqual(states.slice(1));
+      const waiting = done.tasks.find((task) => task.state === 'waiting');
+      // It was redone once already, and its last join collided in the shared file.
+      expect(waiting?.redo, detail).toMatchObject({ reason: 'conflict' });
+      expect(waiting?.join, detail).toMatchObject({ outcome: 'conflict', files: ['A.md'] });
+      expect((await s.tasks.get(waiting?.taskId as string)).state).toBe('proposal');
       expect(done.state).toBe('finished');
     } finally {
       await close(s);
