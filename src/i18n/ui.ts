@@ -512,7 +512,7 @@ export const uiMessages = defineCatalogue({
       })[reason] ?? reason,
     buildSkippedFor: (n: number) => `depends on task ${n}`,
     // The board (phase 11).
-    buildCardAreaLabel: 'Area (paths or folders it is expected to change, separated by commas)',
+    buildCardAreaLabel: 'Area (paths or folders it is expected to change, one per line)',
     buildCardAreaHint:
       'Cards whose areas do not overlap may run at the same time, each in its own copy of the project. A card with no area counts as touching the whole project. An area is a hint for planning, not a limit: a card may still change other files, and its join catches the rest.',
     buildCardSizeLabel: 'Size',
@@ -1908,7 +1908,7 @@ export const uiMessages = defineCatalogue({
       })[reason] ?? reason,
     buildSkippedFor: (n: number) => `depende de la tarea ${n}`,
     // El tablero (fase 11).
-    buildCardAreaLabel: 'Zona (rutas o carpetas que se espera que cambie, separadas por comas)',
+    buildCardAreaLabel: 'Zona (rutas o carpetas que se espera que cambie, una por línea)',
     buildCardAreaHint:
       'Las tarjetas cuyas zonas no se solapan pueden ejecutarse a la vez, cada una en su propia copia del proyecto. Una tarjeta sin zona cuenta como si tocara todo el proyecto. La zona es una pista para planificar, no un límite: una tarjeta puede cambiar otros ficheros, y su unión recoge el resto.',
     buildCardSizeLabel: 'Tamaño',

@@ -153,7 +153,7 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
   const send = useSend();
   const plan = build.plan;
   const [items, setItems] = useState<Draft[]>(() =>
-    (plan?.tasks ?? []).map((task, i) => ({ key: i + 1, title: task.title, instruction: task.instruction, doneWhen: task.doneWhen, deps: [...task.dependsOn], area: (task.area ?? []).join(', '), size: task.size ?? '' })),
+    (plan?.tasks ?? []).map((task, i) => ({ key: i + 1, title: task.title, instruction: task.instruction, doneWhen: task.doneWhen, deps: [...task.dependsOn], area: (task.area ?? []).join('\n'), size: task.size ?? '' })),
   );
   const [limit, setLimit] = useState(String(plan?.tasks.length ?? 1));
   const [slots, setSlots] = useState(String(PAGE_SLOTS));
@@ -251,7 +251,7 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
             </label>
             <label class="label">
               {t.buildCardAreaLabel}
-              <input class="input mono" value={item.area} onInput={(event) => update(item.key, { area: (event.target as HTMLInputElement).value })} data-testid="build-item-area" />
+              <textarea class="textarea mono" rows={2} value={item.area} onInput={(event) => update(item.key, { area: (event.target as HTMLTextAreaElement).value })} data-testid="build-item-area" />
             </label>
             <label class="label">
               {t.buildCardSizeLabel}
@@ -464,7 +464,15 @@ function Board({ build }: { build: BuildViewUi }) {
                     </p>
                     <p class="t-small muted">
                       {task.size === undefined ? '' : `${t.buildCardSize(task.size)} · `}
-                      {task.area === undefined || task.area.length === 0 ? t.buildCardWholeProject : task.area.join(', ')}
+                      {/* Each path on its own: a comma may be part of one (review of M4). */}
+                      {task.area === undefined || task.area.length === 0
+                        ? t.buildCardWholeProject
+                        : task.area.map((path, i) => (
+                            <span key={`${i}-${path}`}>
+                              {i > 0 && ' '}
+                              <code>{path}</code>
+                            </span>
+                          ))}
                     </p>
                     <p class="t-small">
                       {t.buildCardRounds(task.rounds)}

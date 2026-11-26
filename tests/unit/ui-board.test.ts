@@ -66,6 +66,11 @@ describe('areaPaths', () => {
     expect(areaPaths('  src/a.ts \n\n docs/  \r\n')).toEqual(['src/a.ts', 'docs/']);
   });
 
+  it('keeps a comma inside a path: only a new line separates paths (review of M4)', () => {
+    expect(areaPaths('docs/a, b.md\nsrc/')).toEqual(['docs/a, b.md', 'src/']);
+    expect(areaPaths('notes/one,two.txt')).toEqual(['notes/one,two.txt']);
+  });
+
   it('is empty for an empty or blank area', () => {
     expect(areaPaths('')).toEqual([]);
     expect(areaPaths(' \n ')).toEqual([]);

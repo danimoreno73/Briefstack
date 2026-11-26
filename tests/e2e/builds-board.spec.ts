@@ -78,7 +78,8 @@ test.describe('the board before the start', () => {
     await page.getByTestId('build-item-title').nth(2).fill('Extra');
     await page.getByTestId('build-item-instruction').nth(2).fill('WRITE EXTRA.md: extra');
     await page.getByTestId('build-item-done').nth(2).fill('EXTRA.md exists.');
-    await page.getByTestId('build-item-area').nth(2).fill('EXTRA.md');
+    // One path per line; a comma stays inside its path (review of M4).
+    await page.getByTestId('build-item-area').nth(2).fill('EXTRA.md\nnotes/a, b.md');
     await expect(page.getByTestId('build-limit')).toHaveValue('3');
     // Extra depends on nothing: it can go above Summary.
     await page.getByTestId('build-item-up').nth(2).click();
@@ -90,7 +91,7 @@ test.describe('the board before the start', () => {
     expect(build.settings?.slots).toBe(2);
     expect(build.tasks.map((task) => [task.title, task.size, task.area, task.dependsOn])).toEqual([
       ['Notes', 'L', ['NOTES.md'], []],
-      ['Extra', 'M', ['EXTRA.md'], []],
+      ['Extra', 'M', ['EXTRA.md', 'notes/a, b.md'], []],
       ['Summary', 'S', ['SUMMARY.md'], [1]],
     ]);
     expect((await testGit(dir, ['show', `${build.branch}:EXTRA.md`])).trim()).toBe('extra');

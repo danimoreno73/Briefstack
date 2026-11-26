@@ -39,9 +39,12 @@ export function canSwap(items: readonly SwapCard[], upper: number): boolean {
   return above !== undefined && below !== undefined && !below.deps.includes(above.key);
 }
 
-/** The paths of an area as typed: one per line or separated by commas. */
+/**
+ * The paths of an area as typed: one per line. A comma is part of a path
+ * (file names may hold one), so it never splits (review of M4).
+ */
 export const areaPaths = (text: string): string[] =>
   text
-    .split(/[\n,]/)
+    .split('\n')
     .map((part) => part.trim())
     .filter((part) => part !== '');
