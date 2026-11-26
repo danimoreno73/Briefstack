@@ -143,7 +143,7 @@ export interface CodexView {
   modeOffered: boolean;
   last?: { at: string; platform: string; mode?: CodexModeView; found: boolean; version: CodexCheckView; login: CodexCheckView; sandbox: CodexCheckView; noShell?: CodexCheckView; ok: boolean };
   available: boolean;
-  reason?: 'off' | 'notChecked' | 'checkFailed' | 'modeChanged';
+  reason?: 'off' | 'notChecked' | 'checkFailed' | 'modeChanged' | 'serverMode';
 }
 
 /** The plan-usage warning a start can answer with (`usage.high`). */

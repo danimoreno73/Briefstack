@@ -3,6 +3,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { codexSettingsOf, configFilePath, readConfig, resolveHome, type PathEnv } from '../config/index.js';
 import type { TrackedSpawn } from '../creation/processTree.js';
+import { BriefstackError } from '../errors.js';
 import { hideAbsolutePaths } from '../panel/project.js';
 import { redactSecretLines } from '../validate/secrets.js';
 import { findCodex, type CodexCommand } from './command.js';
@@ -46,7 +47,7 @@ const statusSchema = z.object({
 export type CodexStatus = z.infer<typeof statusSchema>;
 
 /** Why tasks do not get the tool. */
-export type CodexUnavailableReason = 'off' | 'notChecked' | 'checkFailed' | 'modeChanged';
+export type CodexUnavailableReason = 'off' | 'notChecked' | 'checkFailed' | 'modeChanged' | 'serverMode';
 
 export interface CodexView {
   enabled: boolean;
@@ -69,6 +70,12 @@ export interface CodexServiceDeps {
   checkTimeoutMs?: number;
   tracked?: () => TrackedSpawn;
   now?: () => Date;
+  /**
+   * briefstack runs in server mode (phase 12): Codex is off whatever the
+   * config says, and its check does not run (its Linux sandbox was never
+   * measured; BRIEF-phase-12 §2, 10).
+   */
+  serverMode?: boolean;
 }
 
 const MAX_CHECK_TEXT = 300;
@@ -152,12 +159,13 @@ export class CodexService {
   async view(): Promise<CodexView> {
     const settings = await this.settings();
     const last = await this.lastCheck();
-    const reason = codexUnavailableReason(settings, last, this.platform);
+    const reason = this.deps.serverMode === true ? 'serverMode' : codexUnavailableReason(settings, last, this.platform);
     return { ...settings, modeOffered: this.platform === 'win32', ...(last === undefined ? {} : { last }), available: reason === undefined, ...(reason === undefined ? {} : { reason }) };
   }
 
   /** Runs the three checks (one check at a time), keeps the result, and returns the view. */
   check(): Promise<CodexView> {
+    if (this.deps.serverMode === true) return Promise.reject(new BriefstackError('codex.serverMode', {}));
     const run = this.checking.then(() => this.checkNow());
     this.checking = run.catch(() => undefined);
     return run;
@@ -229,6 +237,7 @@ export class CodexService {
 
   /** What a task round needs to offer `delegate_to_codex`, or `undefined` when it does not get the tool. */
   async session(): Promise<Omit<CodexSession, 'outDir'> | undefined> {
+    if (this.deps.serverMode === true) return undefined;
     const settings = await this.settings();
     if (codexUnavailableReason(settings, await this.lastCheck(), this.platform) !== undefined) return undefined;
     const command = this.locate();

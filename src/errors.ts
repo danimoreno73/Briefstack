@@ -74,6 +74,16 @@ export interface ErrorParams {
   'web.invalidPort': { value: string };
   'web.portInUse': { port: number };
   'web.uiNotBuilt': { dir: string };
+  /** Phase 12: `briefstack web --server` and its options. */
+  'server.optionWithoutServer': { option: string };
+  'server.invalidListen': { value: string };
+  'server.noAllowedHosts': Record<string, never>;
+  'server.invalidAllowedHost': { value: string };
+  'server.noSecretFile': Record<string, never>;
+  'server.secretUnreadable': { file: string };
+  'server.secretTooShort': { file: string; min: number };
+  /** Phase 12: Codex is off in server mode. */
+  'codex.serverMode': Record<string, never>;
   'web.invalidJson': { detail: string };
   'web.invalidBody': { issues: string[] };
   'web.invalidQuery': { name: string; value: string };

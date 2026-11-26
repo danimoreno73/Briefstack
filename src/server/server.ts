@@ -27,6 +27,7 @@ import { writeRoutes } from './write.js';
 import { createRouter, type RouteTable } from './router.js';
 import { LOOPBACK, TOKEN_HEADER, checkRequest, newToken, type Rejection } from './security.js';
 import { loadStaticSite } from './static.js';
+import type { ServerMode } from './access.js';
 
 export { sendJson } from './http.js';
 
@@ -74,10 +75,18 @@ export interface WebServerOptions {
    * it, `GET /api/claude` answers 503 `claude.unavailable`.
    */
   claudeStatus?: (refresh: boolean) => Promise<ClaudeStatus>;
+  /**
+   * Server mode (phase 12): listen on its address, accept its names, and
+   * never accept the per-start token. Absent: local mode, exactly as before.
+   */
+  server?: ServerMode;
 }
 
 export interface WebServer {
-  /** `http://127.0.0.1:<port>/#token=<token>`: the address to open. */
+  /**
+   * The address to open: `http://127.0.0.1:<port>/#token=<token>` in local
+   * mode; in server mode `https://<first allowed name>/`, with no token.
+   */
   url: string;
   origin: string;
   port: number;
@@ -85,13 +94,18 @@ export interface WebServer {
   close(): Promise<void>;
 }
 
-const REJECTION_STATUS: Record<Rejection, number> = { host: 403, token: 401, origin: 403 };
+const REJECTION_STATUS: Record<Rejection, number> = { host: 403, token: 401, origin: 403, session: 401 };
+
+/** The `/api` routes server mode serves without a device session (phase 12). */
+const OPEN_SERVER_ROUTES: readonly string[] = ['GET /api/health', 'GET /api/server/state'];
 
 /** Read-only and mutating `/api` routes, as `METHOD /path` (`:name` segments are parameters). */
 function apiRoutes(options: WebServerOptions): RouteTable {
   const pathEnv = options.pathEnv ?? systemPathEnv();
   return [
     ['GET /api/health', (_req, res) => sendJson(res, 200, { ok: true, version: VERSION })],
+    // Phase 12: how the page signs in. Only the mode and whether this request is signed in, never anything else.
+    ['GET /api/server/state', (_req, res) => sendJson(res, 200, options.server === undefined ? { mode: 'local' } : { mode: 'server', signedIn: false })],
     [
       'GET /api/claude',
       async (req, res) => {
@@ -147,6 +161,7 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
     const api = pathname === '/api' || pathname.startsWith('/api/');
+    const server = options.server;
     const rejection = checkRequest(
       {
         method: req.method,
@@ -155,7 +170,12 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
         secFetchSite: header(req, 'sec-fetch-site'),
         token: req.headers[TOKEN_HEADER],
       },
-      { port, token, api },
+      {
+        port,
+        token,
+        api,
+        ...(server === undefined ? {} : { server: { names: server.names, signedIn: false, open: OPEN_SERVER_ROUTES.includes(`${req.method ?? ''} ${pathname}`) } }),
+      },
     );
     if (rejection !== undefined) {
       sendJson(res, REJECTION_STATUS[rejection], { code: `web.rejected.${rejection}` });
@@ -205,16 +225,18 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
       reject(error.code === 'EADDRINUSE' ? new BriefstackError('web.portInUse', { port: options.port }) : error);
     };
     server.once('error', onError);
-    server.listen(options.port, LOOPBACK, () => {
+    server.listen(options.port, options.server?.listen ?? LOOPBACK, () => {
       server.off('error', onError);
       resolve();
     });
   });
   port = (server.address() as AddressInfo).port;
-  const origin = `http://${LOOPBACK}:${port}`;
+  const first = options.server?.names[0];
+  const origin = first === undefined ? `http://${LOOPBACK}:${port}` : `https://${first}`;
 
   return {
-    url: `${origin}/#token=${token}`,
+    // Server mode prints no token: the page asks for the access secret (decisions.md, "Phase 12: H0, the real container", E).
+    url: first === undefined ? `${origin}/#token=${token}` : `${origin}/`,
     origin,
     port,
     token,

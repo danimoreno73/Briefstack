@@ -1471,12 +1471,13 @@ export const uiMessages = defineCatalogue({
     codexFailed: 'failed',
     codexNotFound: 'Codex CLI was not found on the PATH. Install it with npm install -g @openai/codex, sign in with codex login, then check again.',
     codexAvailable: 'Task rounds get the Codex tool.',
-    codexUnavailable: (reason: 'off' | 'notChecked' | 'checkFailed' | 'modeChanged'): string =>
+    codexUnavailable: (reason: 'off' | 'notChecked' | 'checkFailed' | 'modeChanged' | 'serverMode'): string =>
       ({
         off: 'Task rounds do not get the Codex tool: it is off.',
         notChecked: 'Task rounds do not get the Codex tool: check its status first.',
         checkFailed: 'Task rounds do not get the Codex tool: the last check did not pass.',
         modeChanged: 'Task rounds do not get the Codex tool: the sandbox mode changed after the last check. Check again.',
+        serverMode: 'Codex is off while briefstack runs in server mode: its Linux sandbox has not been measured.',
       })[reason],
   },
   es: {
@@ -2871,12 +2872,13 @@ export const uiMessages = defineCatalogue({
     codexFailed: 'falla',
     codexNotFound: 'No se encuentra Codex CLI en el PATH. Instálalo con npm install -g @openai/codex, inicia sesión con codex login y vuelve a comprobar.',
     codexAvailable: 'Las rondas de las tareas tienen la herramienta de Codex.',
-    codexUnavailable: (reason: 'off' | 'notChecked' | 'checkFailed' | 'modeChanged'): string =>
+    codexUnavailable: (reason: 'off' | 'notChecked' | 'checkFailed' | 'modeChanged' | 'serverMode'): string =>
       ({
         off: 'Las rondas de las tareas no tienen la herramienta de Codex: está apagado.',
         notChecked: 'Las rondas de las tareas no tienen la herramienta de Codex: comprueba antes su estado.',
         checkFailed: 'Las rondas de las tareas no tienen la herramienta de Codex: la última comprobación no pasó.',
         modeChanged: 'Las rondas de las tareas no tienen la herramienta de Codex: el modo de sandbox cambió tras la última comprobación. Vuelve a comprobar.',
+        serverMode: 'Codex está apagado mientras briefstack funciona en modo servidor: su sandbox de Linux no se ha medido.',
       })[reason],
   },
 });

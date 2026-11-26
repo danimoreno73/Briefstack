@@ -65,6 +65,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'improve.noCheck': 409,
   'improve.checkBusy': 409,
   'improve.suggestionNotFound': 404,
+  'codex.serverMode': 409,
   'task.unavailable': 503,
   'task.notFound': 404,
   'task.wrongState': 409,

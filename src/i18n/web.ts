@@ -2,8 +2,12 @@ import { defineCatalogue } from './index.js';
 
 export const webMessages = defineCatalogue({
   en: {
-    usage: 'briefstack web [--port <n>]',
+    usage: 'briefstack web [--port <n>] [--server --allowed-hosts <name:port,...> --access-secret-file <path> [--listen <address>]]',
     listening: 'briefstack web is running. Open this address in your browser (Ctrl+C to stop):',
+    serverListening: 'briefstack web is running in server mode. Open this address and sign in with the access secret:',
+    serverWarning: (listen: string, port: number, names: readonly string[]) =>
+      `Warning: server mode. briefstack listens on ${listen}:${port} and accepts only these names besides 127.0.0.1 and localhost: ${names.join(', ')}. Publish its port on the host's 127.0.0.1 only and reach it through your own private network.`,
+    serverSecretOpen: 'Warning: the access secret file can be read by other users of this system. Make it readable by its owner only (chmod 600).',
     stopped: 'briefstack web stopped.',
     sweptKilled: (pid: number) =>
       `A creation was still running from a briefstack web that did not stop cleanly: its Claude Code process (pid ${pid}) has been ended.`,
@@ -30,8 +34,12 @@ export const webMessages = defineCatalogue({
     authUnknown: 'Warning: could not ask Claude Code how it signs in. Run `claude` once to check that it starts and is signed in.',
   },
   es: {
-    usage: 'briefstack web [--port <n>]',
+    usage: 'briefstack web [--port <n>] [--server --allowed-hosts <nombre:puerto,...> --access-secret-file <ruta> [--listen <dirección>]]',
     listening: 'briefstack web está en marcha. Abre esta dirección en el navegador (Ctrl+C para pararlo):',
+    serverListening: 'briefstack web está en marcha en modo servidor. Abre esta dirección e inicia sesión con el secreto de acceso:',
+    serverWarning: (listen: string, port: number, names: readonly string[]) =>
+      `Aviso: modo servidor. briefstack escucha en ${listen}:${port} y solo acepta estos nombres además de 127.0.0.1 y localhost: ${names.join(', ')}. Publica su puerto solo en el 127.0.0.1 del anfitrión y llega a él por tu propia red privada.`,
+    serverSecretOpen: 'Aviso: otros usuarios de este sistema pueden leer el fichero del secreto de acceso. Haz que solo lo lea su dueño (chmod 600).',
     stopped: 'briefstack web se ha parado.',
     sweptKilled: (pid: number) =>
       `Una creación seguía en marcha de un briefstack web que no se paró bien: se ha terminado su proceso de Claude Code (pid ${pid}).`,

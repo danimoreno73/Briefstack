@@ -54,6 +54,10 @@ import { readSpec } from './spec/index.js';
 import { getPreset, loadUsageContext, usageSet, usageShow, type ApplyResult } from './usage/index.js';
 import { validateProject } from './validate/index.js';
 import { DEFAULT_WEB_PORT, startWebServer } from './server/index.js';
+import { serverModeOf, type ServerMode } from './server/access.js';
+
+/** `briefstack web`'s server mode options, valid only with `--server` (phase 12). */
+const SERVER_VALUE_OPTIONS = ['--listen', '--allowed-hosts', '--access-secret-file'] as const;
 import { webMessages } from './i18n/web.js';
 import { ClaudeStatusReader, keySourceLabel, realClaudeStatusDeps, type AuthMode, type ClaudeStatus } from './creation/claudeAccount.js';
 import type { ClaudeCheck } from './creation/claudeBinary.js';
@@ -660,13 +664,25 @@ function claudeLines(status: ClaudeStatus, lang: Lang): { warnings: string[]; in
 
 async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<number> {
   const messages = webMessages[lang];
-  const { positionals, values } = parseArgs(args, [], lang, ['--port'], messages.usage);
+  const { positionals, values, flags } = parseArgs(args, ['--server'], lang, ['--port', ...SERVER_VALUE_OPTIONS], messages.usage);
   if (positionals.length > 0) throw new UsageError(cliMessages[lang].wrongArguments(messages.usage));
   const portValue = values.get('--port');
   let port = DEFAULT_WEB_PORT;
   if (portValue !== undefined) {
     port = Number(portValue);
     if (!/^\d+$/.test(portValue) || port > 65535) throw new BriefstackError('web.invalidPort', { value: portValue });
+  }
+  // Phase 12: server mode only with `--server`; its options without it are an error, so local mode is never half-changed.
+  let serverMode: ServerMode | undefined;
+  if (flags.has('--server')) {
+    serverMode = await serverModeOf({
+      ...(values.has('--listen') ? { listen: values.get('--listen') as string } : {}),
+      ...(values.has('--allowed-hosts') ? { allowedHosts: values.get('--allowed-hosts') as string } : {}),
+      ...(values.has('--access-secret-file') ? { secretFile: argPath(io, lang, values.get('--access-secret-file') as string) } : {}),
+    });
+  } else {
+    const stray = SERVER_VALUE_OPTIONS.find((option) => values.has(option));
+    if (stray !== undefined) throw new BriefstackError('server.optionWithoutServer', { option: stray });
   }
   // Before anything is served: a server that died with creations running left run files behind.
   const paths = await resolvedPaths(io);
@@ -690,7 +706,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   let tasks: TaskManager | undefined;
   let builds: BuildManager | undefined;
   // Codex in Settings (phase 8): it runs nothing until the user checks it, and task rounds ask it whether to offer the tool.
-  const codex = new CodexService({ pathEnv: io.pathEnv });
+  const codex = new CodexService({ pathEnv: io.pathEnv, ...(serverMode === undefined ? {} : { serverMode: true }) });
   const creations = await createWebCreations({
     pathEnv: io.pathEnv,
     repoDir: io.repoDir,
@@ -747,6 +763,7 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       tasks,
       builds,
       codex,
+      ...(serverMode === undefined ? {} : { server: serverMode }),
       claudeStatus: (refresh) => claudeStatus.get(refresh),
       ...(usageCheck === undefined ? {} : { usageCheck }),
       ...(io.repoDir === undefined ? {} : { repoDir: io.repoDir }),
@@ -762,7 +779,14 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
     await creations.shutdown();
     throw error;
   }
-  io.out(messages.listening);
+  if (serverMode === undefined) {
+    io.out(messages.listening);
+  } else {
+    // Server mode: the address and the names on the error stream as a warning; no token, no secret, ever.
+    io.err(messages.serverWarning(serverMode.listen, port, serverMode.names));
+    if (serverMode.secretFileOpen) io.err(messages.serverSecretOpen);
+    io.out(messages.serverListening);
+  }
   // Alone on its own line, so it is easy to copy.
   io.out(server.url);
   const lines = claudeLines(await claudeStatus.get(), lang);
