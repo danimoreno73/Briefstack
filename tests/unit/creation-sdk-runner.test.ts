@@ -229,6 +229,9 @@ describe('cleanEnvironment', () => {
       CLAUDE_CODE_CLIENT_KEY: '/certs/k.pem',
       CLAUDE_CODE_CLIENT_KEY_PASSPHRASE: 'pass',
       CLAUDE_CODE_CERT_STORE: 'system',
+      // Phase 12: it only cuts traffic, as the server container's allowlist wants.
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      NODE_USE_ENV_PROXY: '1',
       AWS_REGION: 'us-east-1',
       AWS_PROFILE: 'work',
       ANTHROPIC_VERTEX_PROJECT_ID: 'p',

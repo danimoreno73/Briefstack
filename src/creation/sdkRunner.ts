@@ -55,7 +55,9 @@ const REMOVED_ENV = ['ANTHROPIC_MODEL', 'CLAUDECODE', ALLOWED_DIRS_ENV];
 /**
  * The `CLAUDE_CODE_*` variables that pass: how the user authenticates their
  * own Claude Code (a cloud provider, a long-lived sign-in token) and how it
- * reaches the network (client certificates, certificate store). Every other
+ * reaches the network (client certificates, certificate store, and, since
+ * phase 12, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, which only cuts
+ * traffic, as a strict outbound allowlist wants). Every other
  * `CLAUDE_CODE_*` is Claude Code's own behaviour and is taken out. The
  * `ANTHROPIC_*` credentials (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`,
  * provider keys) pass as they are. briefstack never reads their values,
@@ -63,7 +65,7 @@ const REMOVED_ENV = ['ANTHROPIC_MODEL', 'CLAUDECODE', ALLOWED_DIRS_ENV];
  * Source: code.claude.com/docs/en/authentication and /env-vars.
  */
 const PASSED_CLAUDE_CODE_ENV =
-  /^CLAUDE_CODE_(?:USE_(?:BEDROCK|VERTEX|FOUNDRY|ANTHROPIC_AWS|MANTLE)|SKIP_(?:BEDROCK|VERTEX|FOUNDRY|ANTHROPIC_AWS|MANTLE)_AUTH|SKIP_AWS_CRED_CACHE|AWS_CHAIN_RESOLVE_TIMEOUT_MS|DISABLE_AUTH_REFRESH_LOCK|OAUTH_(?:TOKEN|REFRESH_TOKEN|SCOPES)|CLIENT_(?:CERT|KEY|KEY_PASSPHRASE)|CERT_STORE)$/;
+  /^CLAUDE_CODE_(?:USE_(?:BEDROCK|VERTEX|FOUNDRY|ANTHROPIC_AWS|MANTLE)|SKIP_(?:BEDROCK|VERTEX|FOUNDRY|ANTHROPIC_AWS|MANTLE)_AUTH|SKIP_AWS_CRED_CACHE|AWS_CHAIN_RESOLVE_TIMEOUT_MS|DISABLE_AUTH_REFRESH_LOCK|OAUTH_(?:TOKEN|REFRESH_TOKEN|SCOPES)|CLIENT_(?:CERT|KEY|KEY_PASSPHRASE)|CERT_STORE|DISABLE_NONESSENTIAL_TRAFFIC)$/;
 
 export interface CleanEnvironment {
   env: Record<string, string | undefined>;
