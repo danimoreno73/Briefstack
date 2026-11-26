@@ -1057,6 +1057,74 @@ describe('phase 9 second real check (check-build-deny): a denied command, a fix 
   });
 });
 
+describe('phase 11 real check (check-build-parallel): two cards at once, a deterministic conflict redone and joined, the apply', { timeout: 60_000 }, () => {
+  const read = () => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-build-parallel.ts'), 'utf8');
+
+  it('asks for --yes, works in a temp sandbox, taps the planner, and starts its own board with two slots', async () => {
+    const script = await read();
+    expect(script).toContain('requireConfirmation(');
+    expect(script).toMatch(/await sandbox\('build-parallel'\)/);
+    expect(script).toContain('check.add(() => box.cleanup())');
+    expect(script).not.toContain('bypassPermissions');
+    expect(script).toContain('buildPlanner: new SdkBuildPlanner({ pathEnv, query: tappedQuery(plannerTap) })');
+    expect(script.indexOf("await usageGate(box, executable, 'before')")).toBeLessThan(script.indexOf('/api/projects/${project.slug}/builds'));
+    expect(script).toContain('const startBody = { tasks: BOARD, limit: BOARD.length, commands: [COMMAND], checks: [CHECK], fixRounds: 1, thresholds: { fiveHour: 90, week: 95 }, slots: SLOTS, confirm: true };');
+    expect(script).toContain('const SLOTS = 2;');
+    // Every wait has a deadline.
+    expect(script.match(/await waitBuild\(web, id, .+?, \d+ \* 60_000/g)?.length).toBe(2);
+  });
+
+  it('its board makes the conflict deterministic: cards 1 and 2 share no area and both create the same file', async () => {
+    const script = await read();
+    expect(script).toContain("{ title: 'Add the line one', instruction: shared('one')");
+    expect(script).toContain("{ title: 'Add the line two', instruction: shared('two')");
+    expect(script).toContain("area: ['notes/one/']");
+    expect(script).toContain("area: ['notes/two/']");
+    const { areasOverlap } = await import('../../src/builds/types.js');
+    expect(areasOverlap(['notes/one/'], ['notes/two/'])).toBe(false);
+    // Judged from the build itself: both running at once, one redone for a conflict, both applied, the file with both lines.
+    expect(script).toContain('1. two independent cards ran at the same time, each with its own task');
+    expect(script).toContain("2. exactly one of cards 1 and 2 collided when joined and was redone once");
+    expect(script).toContain("the redone card's session did not keep the other line (the model, not the build)");
+    expect(script).toContain('4. the build was applied');
+    // The approved command and the check are valid items of a build's lists.
+    const { approvedListProblems } = await import('../../src/builds/commands.js');
+    expect(approvedListProblems(['node --test'], 'commands')).toEqual([]);
+    expect(approvedListProblems(['node scripts/check.js'], 'checks')).toEqual([]);
+  });
+
+  it('the check script fails only on conflict markers', async () => {
+    const script = await read();
+    const start = script.indexOf('const CHECK_SCRIPT = [');
+    const body = script.slice(start, script.indexOf("].join('\\n');", start));
+    const lines = [...body.matchAll(/^\s+("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'),$/gm)].map((match) => (match[1]?.startsWith('"') ? (JSON.parse(match[1]) as string) : (match[1] ?? '').slice(1, -1).replace(/\\'/g, "'")));
+    const text = `${lines.join('\n')}\n`;
+    const { dir, cleanup } = await tempDir('build-parallel-check');
+    try {
+      await writeFile(path.join(dir, 'check.js'), text, 'utf8');
+      const run = () => spawnSync(process.execPath, ['check.js'], { cwd: dir, encoding: 'utf8' });
+      await mkdir(path.join(dir, 'shared'));
+      await writeFile(path.join(dir, 'shared', 'NOTES.md'), 'one\ntwo\n', 'utf8');
+      expect(run().status).toBe(0);
+      await writeFile(path.join(dir, 'shared', 'NOTES.md'), '<<<<<<< ours\none\n=======\ntwo\n>>>>>>> theirs\n', 'utf8');
+      expect(run().status).toBe(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('without --yes it exits with 2 and starts nothing', async () => {
+    const child = spawn(process.execPath, ['--import', 'tsx', path.join('scripts', 'real', 'check-build-parallel.ts')], { cwd: PACKAGE_ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    let err = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => (err += chunk));
+    const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
+    expect(code).toBe(2);
+    expect(err).toContain('Run it again with --yes');
+    expect(err).toContain('five short task sessions');
+  });
+});
+
 describe('phase 9 second real check: the check\'s state survives a task\'s rounds and never reaches a commit', { timeout: 60_000 }, () => {
   it('commitRound leaves .check-state/ out of the commit, and restoreToHead keeps it', async () => {
     const { commitRound, restoreToHead } = await import('../../src/tasks/git.js');
