@@ -175,11 +175,20 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
       if (item !== undefined) next.splice(index + delta, 0, item);
       return next;
     });
+  // The focus goes to an added card's title (review of M4): its input is known once it renders.
+  const titles = useRef(new Map<number, HTMLInputElement>());
+  const [focusKey, setFocusKey] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    if (focusKey === undefined) return;
+    titles.current.get(focusKey)?.focus();
+    setFocusKey(undefined);
+  }, [focusKey]);
   const add = () => {
     const key = nextKey.current;
     nextKey.current += 1;
     const length = items.length;
     setItems((current) => [...current, { key, title: '', instruction: '', doneWhen: '', deps: [], area: '', size: 'M' }]);
+    setFocusKey(key);
     // "How many tasks to run" follows the board up when it ran them all.
     setLimit((current) => (Number(current) === length ? String(length + 1) : current));
   };
@@ -222,12 +231,25 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
       <p class="sub">{t.buildStartIntro}</p>
       <h3 class="t-3">{t.buildQueueTitle}</h3>
       <ol class="stack-2" data-testid="build-queue">
-        {items.map((item, i) => (
+        {items.map((item, i) => {
+          // Blocked by a dependency, not by the end of the list: the page says why.
+          const upBlocked = i > 0 && !canSwap(items, i - 1);
+          const downBlocked = i < items.length - 1 && !canSwap(items, i);
+          return (
           <li key={item.key} class="card stack-1" data-testid="build-queue-item">
             <p class="t-small muted">{t.buildTaskLabel(i + 1)}</p>
             <label class="label">
               {t.buildTaskTitleLabel}
-              <input class="input" value={item.title} onInput={(event) => update(item.key, { title: (event.target as HTMLInputElement).value })} data-testid="build-item-title" />
+              <input
+                class="input"
+                ref={(element) => {
+                  if (element === null) titles.current.delete(item.key);
+                  else titles.current.set(item.key, element);
+                }}
+                value={item.title}
+                onInput={(event) => update(item.key, { title: (event.target as HTMLInputElement).value })}
+                data-testid="build-item-title"
+              />
             </label>
             <label class="label">
               {t.buildTaskInstructionLabel}
@@ -265,18 +287,44 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
               </select>
             </label>
             <div class="btn-row">
-              <button type="button" class="btn btn-ghost btn-sm" disabled={i === 0 || !canSwap(items, i - 1)} onClick={() => move(i, -1)} data-testid="build-item-up">
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm"
+                disabled={i === 0 || upBlocked}
+                aria-describedby={upBlocked ? `build-item-${item.key}-up-why` : undefined}
+                onClick={() => move(i, -1)}
+                data-testid="build-item-up"
+              >
                 {t.buildTaskUp}
               </button>
-              <button type="button" class="btn btn-ghost btn-sm" disabled={i === items.length - 1 || !canSwap(items, i)} onClick={() => move(i, 1)} data-testid="build-item-down">
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm"
+                disabled={i === items.length - 1 || downBlocked}
+                aria-describedby={downBlocked ? `build-item-${item.key}-down-why` : undefined}
+                onClick={() => move(i, 1)}
+                data-testid="build-item-down"
+              >
                 {t.buildTaskDown}
               </button>
               <button type="button" class="btn btn-ghost btn-sm" onClick={() => remove(item.key)} data-testid="build-item-remove">
                 {t.buildTaskRemove}
               </button>
             </div>
+            {/* Why a move button is disabled, said on the page and to assistive technology (review of M4). */}
+            {upBlocked && (
+              <p class="t-small muted" id={`build-item-${item.key}-up-why`} data-testid="build-item-up-why">
+                {t.buildTaskUpBlocked(i)}
+              </p>
+            )}
+            {downBlocked && (
+              <p class="t-small muted" id={`build-item-${item.key}-down-why`} data-testid="build-item-down-why">
+                {t.buildTaskDownBlocked(i + 2)}
+              </p>
+            )}
           </li>
-        ))}
+          );
+        })}
       </ol>
       <div class="btn-row">
         <button type="button" class="btn btn-ghost" onClick={add} data-testid="build-item-add">

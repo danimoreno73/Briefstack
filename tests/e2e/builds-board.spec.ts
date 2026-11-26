@@ -72,9 +72,17 @@ test.describe('the board before the start', () => {
     // Summary depends on Notes: it cannot go above it.
     await expect(page.getByTestId('build-item-up').nth(1)).toBeDisabled();
     await expect(page.getByTestId('build-item-down').first()).toBeDisabled();
+    // The page says why, also to assistive technology (review of M4).
+    await expect(page.getByTestId('build-item-up').nth(1)).toHaveAccessibleDescription('It cannot go up: it depends on card 1.');
+    await expect(page.getByTestId('build-item-down').first()).toHaveAccessibleDescription('It cannot go down: card 2 depends on it.');
+    await expect(page.getByTestId('build-item-up').first()).not.toHaveAttribute('aria-describedby');
     await page.getByTestId('build-item-size').first().selectOption('L');
     await page.getByTestId('build-item-add').click();
     await expect(page.getByTestId('build-queue-item')).toHaveCount(3);
+    // The focus goes to the added card's title (review of M4).
+    await expect(page.getByTestId('build-item-title').nth(2)).toBeFocused();
+    // The added card depends on nothing: no reason is shown for it.
+    await expect(page.getByTestId('build-queue-item').nth(2).getByTestId('build-item-up-why')).toHaveCount(0);
     await page.getByTestId('build-item-title').nth(2).fill('Extra');
     await page.getByTestId('build-item-instruction').nth(2).fill('WRITE EXTRA.md: extra');
     await page.getByTestId('build-item-done').nth(2).fill('EXTRA.md exists.');

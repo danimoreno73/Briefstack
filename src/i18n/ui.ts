@@ -556,6 +556,8 @@ export const uiMessages = defineCatalogue({
     buildTaskUp: 'Move up',
     buildTaskDown: 'Move down',
     buildTaskRemove: 'Remove',
+    buildTaskUpBlocked: (n: number) => `It cannot go up: it depends on card ${n}.`,
+    buildTaskDownBlocked: (n: number) => `It cannot go down: card ${n} depends on it.`,
     buildLimitLabel: 'How many tasks to run',
     buildCommandsLabel: 'Approved commands (one per line, exact)',
     buildCommandsHint:
@@ -1954,6 +1956,8 @@ export const uiMessages = defineCatalogue({
     buildTaskUp: 'Subir',
     buildTaskDown: 'Bajar',
     buildTaskRemove: 'Quitar',
+    buildTaskUpBlocked: (n: number) => `No puede subir: depende de la tarjeta ${n}.`,
+    buildTaskDownBlocked: (n: number) => `No puede bajar: la tarjeta ${n} depende de ella.`,
     buildLimitLabel: 'Cuántas tareas ejecutar',
     buildCommandsLabel: 'Comandos aprobados (uno por línea, exactos)',
     buildCommandsHint:
