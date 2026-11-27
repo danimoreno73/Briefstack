@@ -1,4 +1,5 @@
-import { readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import { BriefstackError } from '../errors.js';
@@ -38,6 +39,16 @@ function agentName(data: Record<string, unknown>, file: string): string {
   return typeof data.name === 'string' && data.name.trim() !== '' ? data.name.trim() : file.slice(0, -'.md'.length);
 }
 
+/** Whether this process may write `target`. */
+async function writable(target: string): Promise<boolean> {
+  try {
+    await access(target, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Rewrites only `model` and `effort` in each agent file, using `settingFor`.
  * Files are checked before any is written, so a broken file stops the run
@@ -45,6 +56,8 @@ function agentName(data: Record<string, unknown>, file: string): string {
  */
 async function applySettings(
   agentsDir: string,
+  /** The repo's own flow agents (a read-only installation gets `usage.repoReadOnly`), not a project's. */
+  repo: boolean,
   settingFor: (agent: string) => AgentSetting | undefined,
 ): Promise<ApplyResult> {
   const result: ApplyResult = { agentsDir, changed: [], unchanged: [], notInProfile: [] };
@@ -67,12 +80,18 @@ async function applySettings(
     }
   }
 
+  if (repo) {
+    // A read-only app folder (phase 12: the container's clone belongs to root): every file is checked before any
+    // is written, so nothing is changed half-way; a clear error, not a stack (review of M1, I4).
+    for (const { target } of writes) {
+      if (!(await writable(target))) throw new BriefstackError('usage.repoReadOnly', { dir: agentsDir });
+    }
+  }
   try {
     for (const { target, text } of writes) await writeFile(target, text, 'utf8');
   } catch (error) {
-    // A read-only app folder (phase 12: the container's clone belongs to root): a clear error, not a stack.
     const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'EROFS' || code === 'EACCES') throw new BriefstackError('usage.repoReadOnly', { dir: agentsDir });
+    if (repo && (code === 'EROFS' || code === 'EACCES' || code === 'EPERM')) throw new BriefstackError('usage.repoReadOnly', { dir: agentsDir });
     throw error;
   }
   return result;
@@ -80,7 +99,7 @@ async function applySettings(
 
 /** Applies a preset to the flow agents in `agentsDir` (the repo's `.claude/agents`). */
 export function applyProfileToAgents(agentsDir: string, preset: UsagePreset): Promise<ApplyResult> {
-  return applySettings(agentsDir, (agent) => agentSetting(preset, agent));
+  return applySettings(agentsDir, true, (agent) => agentSetting(preset, agent));
 }
 
 /** `.briefstack/profile.json` in a generated project. */
@@ -148,7 +167,7 @@ export async function applyProfileToProject(
   const tiers = raw.agents as Record<string, Tier>;
   const agentsDir = path.join(dir, '.claude', 'agents');
   const seen = new Set<string>();
-  const applied = await applySettings(agentsDir, (agent) => {
+  const applied = await applySettings(agentsDir, false, (agent) => {
     seen.add(agent);
     const tier = Object.hasOwn(tiers, agent) ? tiers[agent] : undefined;
     return tier === undefined ? undefined : { model: preset.tiers[tier], effort: preset.effort };

@@ -260,15 +260,17 @@ describe('applyProfileToAgents (usage test)', () => {
   );
 
   // Phase 12: the server's container has a read-only app folder. Root writes anyway, so not as root.
-  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('a folder it cannot write gives a clear error and changes nothing', async () => {
+  // Every file read-only (the container), or only the last one (review of M1, I4): either way nothing is changed.
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0).each(['all', 'last'])('a folder it cannot write (%s files) gives a clear error and changes nothing', async (which) => {
     const before = await readAgents(agentsDir);
-    const files = await readdir(agentsDir);
-    for (const file of files) await chmod(path.join(agentsDir, file), 0o444);
+    const files = (await readdir(agentsDir)).sort();
+    const locked = which === 'all' ? files : files.slice(-1);
+    for (const file of locked) await chmod(path.join(agentsDir, file), 0o444);
     try {
       await expect(applyProfileToAgents(agentsDir, getPreset(profiles, 'max'))).rejects.toMatchObject({ code: 'usage.repoReadOnly', params: { dir: agentsDir } });
       expect(await readAgents(agentsDir)).toEqual(before);
     } finally {
-      for (const file of files) await chmod(path.join(agentsDir, file), 0o644);
+      for (const file of locked) await chmod(path.join(agentsDir, file), 0o644);
     }
   });
 
