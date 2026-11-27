@@ -8724,7 +8724,17 @@ The brief's defaults 4 to 11 are kept, with these readings:
   (5 failures in 15 minutes lock sign-in for 15 minutes), as the addresses
   seen behind Tailscale and Docker cannot be trusted and there is one
   user. Sessions survive a restart (a file of digests); a secret of fewer
-  than 32 characters stops the start.
+  than 32 characters stops the start. From the review of M2: signing a
+  device out (revoke, revoke all, sign-out) also ends its open streams at
+  once; a device unused for longer than its cookie lives (400 days) is
+  forgotten by the server too; the sessions file is written before the
+  memory changes, so a failed write changes nothing; a sessions file that
+  does not read back signs everybody out with one log line (never its
+  content); a sign-in body over 4 KiB is refused with 413, drained up to
+  64 KiB and cut above. Changing the secret file does not revoke sessions:
+  the devices card says to revoke them all after a change. The e2e reach
+  the server at `http://127.0.0.1`, where Chromium accepts a `Secure`
+  cookie; the HTTPS path through the tailnet name is the real check's.
 - **8. Reserve providers:** configured in `config.json` only; the page
   shows them and runs the status check but cannot add or change one,
   because a base URL or a key file path set from the page could send a

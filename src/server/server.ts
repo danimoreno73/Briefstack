@@ -26,7 +26,7 @@ import { BASE_HEADERS, header, sendError, sendJson } from './http.js';
 import { readRoutes } from './read.js';
 import { writeRoutes } from './write.js';
 import { createRouter, type RouteTable } from './router.js';
-import { LOOPBACK, TOKEN_HEADER, checkRequest, newToken, type Rejection } from './security.js';
+import { LOOPBACK, TOKEN_HEADER, checkRequest, isAllowedHost, newToken, type Rejection } from './security.js';
 import { loadStaticSite } from './static.js';
 import type { ServerMode } from './access.js';
 import { DeviceSessions, SignInLimiter, sessionToken, type DeviceRecord } from './sessions.js';
@@ -172,7 +172,25 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
   const mode = options.server;
   // Server mode (phase 12): the signed-in devices, kept in the home; the device of each request that carried a session.
   const devices = new WeakMap<IncomingMessage, DeviceRecord>();
-  const sessions = mode === undefined ? undefined : await DeviceSessions.open({ file: path.join(resolveHome(options.pathEnv ?? systemPathEnv()), 'server', 'sessions.json'), ...(options.now === undefined ? {} : { now: options.now }) });
+  const log = options.log ?? (() => undefined);
+  // The answers still open per device (the streams), so signing a device out ends them at once (review of M2, 1).
+  // Only answers already under way are ended: the sign-out's own answer has not started yet and goes out whole.
+  const openAnswers = new Map<string, Set<ServerResponse>>();
+  const endAnswers = (ids: readonly string[]) => {
+    for (const id of ids) {
+      for (const answer of openAnswers.get(id) ?? []) if (answer.headersSent && !answer.writableEnded) answer.end();
+    }
+  };
+  const sessions =
+    mode === undefined
+      ? undefined
+      : await DeviceSessions.open({
+          file: path.join(resolveHome(options.pathEnv ?? systemPathEnv()), 'server', 'sessions.json'),
+          ...(options.now === undefined ? {} : { now: options.now }),
+          onRevoked: endAnswers,
+          // Never its content: only that every device has to sign in again.
+          onUnreadable: () => log('server/sessions.json does not read back: every device has to sign in again'),
+        });
   const auth: ServerAuth | undefined =
     mode === undefined || sessions === undefined
       ? undefined
@@ -182,15 +200,24 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
         };
   const route = createRouter(apiRoutes(options, auth));
   const lang = options.lang ?? DEFAULT_LANG;
-  const log = options.log ?? (() => undefined);
   let port = options.port;
 
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
     const api = pathname === '/api' || pathname.startsWith('/api/');
-    if (sessions !== undefined && api) {
+    // The session is looked up only for a request to an allowed host, so a refused one never touches the file.
+    if (sessions !== undefined && mode !== undefined && api && isAllowedHost(header(req, 'host'), port, mode.names)) {
       const device = await sessions.find(sessionToken(header(req, 'cookie')));
-      if (device !== undefined) devices.set(req, device);
+      if (device !== undefined) {
+        devices.set(req, device);
+        const set = openAnswers.get(device.id) ?? new Set<ServerResponse>();
+        openAnswers.set(device.id, set);
+        set.add(res);
+        res.once('close', () => {
+          set.delete(res);
+          if (set.size === 0 && openAnswers.get(device.id) === set) openAnswers.delete(device.id);
+        });
+      }
     }
     const rejection = checkRequest(
       {
