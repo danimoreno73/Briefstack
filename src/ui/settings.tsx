@@ -28,6 +28,8 @@ export function SettingsPage() {
   const [warnWeek, setWarnWeek] = useState('');
   const [implementMinutes, setImplementMinutes] = useState('');
   const [implementToolCalls, setImplementToolCalls] = useState('');
+  const [autoResume, setAutoResume] = useState(false);
+  const [slotsCap, setSlotsCap] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(undefined);
   const [saved, setSaved] = useState(false);
@@ -44,6 +46,8 @@ export function SettingsPage() {
     setWarnWeek(String(settings.usageWarning.week));
     setImplementMinutes(String(settings.implement?.maxMinutes ?? ''));
     setImplementToolCalls(String(settings.implement?.maxToolCalls ?? ''));
+    setAutoResume(settings.builds?.autoResume ?? false);
+    setSlotsCap(String(settings.builds?.slotsCap ?? ''));
   }, [settings]);
 
   // Before saving, say whether the folder exists: a missing one is created by the save.
@@ -77,6 +81,8 @@ export function SettingsPage() {
     if (warnWeek.trim() !== String(settings.usageWarning.week)) body.usageWarnWeek = Number(warnWeek.trim());
     if (settings.implement !== undefined && implementMinutes.trim() !== String(settings.implement.maxMinutes)) body.implementMaxMinutes = Number(implementMinutes.trim());
     if (settings.implement !== undefined && implementToolCalls.trim() !== String(settings.implement.maxToolCalls)) body.implementMaxToolCalls = Number(implementToolCalls.trim());
+    if (settings.builds !== undefined && autoResume !== settings.builds.autoResume) body.buildsAutoResume = autoResume;
+    if (settings.builds !== undefined && slotsCap.trim() !== String(settings.builds.slotsCap)) body.buildSlotsCap = Number(slotsCap.trim());
     if (Object.keys(body).length === 0) return;
     setBusy(true);
     setError(undefined);
@@ -313,6 +319,43 @@ export function SettingsPage() {
                   </div>
                   <p class="help" id="implement-hint">
                     {t.settingsImplementHelp}
+                  </p>
+                </section>
+              )}
+
+              {/* Phase 12: builds on a machine that stays on. */}
+              {settings?.builds !== undefined && (
+                <section class="card card-roomy" aria-labelledby="builds-settings-title" data-testid="settings-builds">
+                  <h2 class="t-2" id="builds-settings-title">
+                    {t.settingsBuildsTitle}
+                  </h2>
+                  <label class="check-line">
+                    <input type="checkbox" checked={autoResume} onChange={(event) => setAutoResume(event.currentTarget.checked)} aria-describedby="builds-resume-hint" data-testid="settings-builds-resume" />{' '}
+                    {t.settingsBuildsResume}
+                  </label>
+                  <p class="help" id="builds-resume-hint">
+                    {t.settingsBuildsResumeHelp}
+                  </p>
+                  <div class="field">
+                    <label class="label" for="builds-slots-cap">
+                      {t.settingsBuildsSlotsCap}
+                    </label>
+                    <input
+                      id="builds-slots-cap"
+                      class="input input-mono limit-input"
+                      type="number"
+                      min={1}
+                      max={4}
+                      step={1}
+                      inputMode="numeric"
+                      value={slotsCap}
+                      aria-describedby="builds-slots-hint"
+                      onInput={(event) => setSlotsCap(event.currentTarget.value)}
+                      data-testid="settings-builds-slots"
+                    />
+                  </div>
+                  <p class="help" id="builds-slots-hint">
+                    {t.settingsBuildsSlotsCapHelp}
                   </p>
                 </section>
               )}

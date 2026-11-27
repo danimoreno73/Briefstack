@@ -1469,6 +1469,14 @@ export const uiMessages = defineCatalogue({
     settingsImplementMinutes: 'Most minutes',
     settingsImplementToolCalls: 'Most tool calls of the implementer',
     settingsImplementHelp: 'Limits of the step that writes a first version of the code, from 5 to 120 minutes and from 20 to 1000 tool calls. When one is reached, the implementer stops and the checks run on what it wrote.',
+    settingsBuildsTitle: 'Builds on this machine',
+    settingsBuildsResume: 'Builds resume by themselves after a restart',
+    settingsBuildsResumeHelp:
+      'For a machine that stays on. When briefstack starts again, a build the restart interrupted goes on: one paused for usage keeps waiting for its reset, one that was running reads the plan usage first and starts its interrupted cards again. One that was interrupted 3 times in a row without a card ending stays interrupted. A build you paused, and a creation in progress, stay as they were.',
+    settingsBuildsSlotsCap: 'Most cards a build runs at once here',
+    settingsBuildsSlotsCapHelp: 'From 1 to 4. A build started with more runs with this many; the start page offers no more.',
+    buildAutoResumeStopped: 'A restart interrupted this build 3 times in a row without a card ending, so it no longer resumes by itself. Look at the server, then press Resume.',
+    buildSlotsCapped: (cap: number) => `This machine runs at most ${cap} card${cap === 1 ? '' : 's'} at once (Settings).`,
     settingsWarnFiveHour: '5-hour window (%)',
     settingsWarnWeek: 'Week (%)',
 
@@ -2910,6 +2918,14 @@ export const uiMessages = defineCatalogue({
     settingsImplementMinutes: 'Minutos como mucho',
     settingsImplementToolCalls: 'Llamadas a herramientas del implementador como mucho',
     settingsImplementHelp: 'Límites del paso que escribe una primera versión del código, de 5 a 120 minutos y de 20 a 1000 llamadas a herramientas. Al llegar a uno, el implementador para y las comprobaciones se ejecutan sobre lo que escribió.',
+    settingsBuildsTitle: 'Builds en esta máquina',
+    settingsBuildsResume: 'Los builds se reanudan solos tras un reinicio',
+    settingsBuildsResumeHelp:
+      'Para una máquina que está siempre encendida. Cuando briefstack vuelve a arrancar, un build que el reinicio interrumpió sigue: uno en pausa por uso sigue esperando su reinicio, uno que estaba en marcha lee antes el uso del plan y vuelve a empezar sus tarjetas interrumpidas. Uno interrumpido 3 veces seguidas sin que termine ninguna tarjeta se queda interrumpido. Un build que pausaste tú, y una creación en curso, se quedan como estaban.',
+    settingsBuildsSlotsCap: 'Máximo de tarjetas a la vez por build aquí',
+    settingsBuildsSlotsCapHelp: 'De 1 a 4. Un build iniciado con más va con este número; la página de inicio no ofrece más.',
+    buildAutoResumeStopped: 'Un reinicio interrumpió este build 3 veces seguidas sin que terminara ninguna tarjeta, así que ya no se reanuda solo. Mira el servidor y luego pulsa Reanudar.',
+    buildSlotsCapped: (cap: number) => `Esta máquina ejecuta como mucho ${cap} tarjeta${cap === 1 ? '' : 's'} a la vez (Ajustes).`,
     settingsWarnFiveHour: 'Ventana de 5 horas (%)',
     settingsWarnWeek: 'Semana (%)',
 

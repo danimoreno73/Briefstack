@@ -23,8 +23,8 @@ Updated 2026-11-27.
 | M1 | Server mode: listening address, allowed names, warning, Codex off; local mode pinned by a regression test | done (`a549333..dd9bd98`; review: fit with reservations, fixes in `f0269cd`, `dd9bd98`) |
 | M2 | Access secret and device sessions: sign-in, cookie, devices, sign-out, revoke-all, attempt limit; the page in server mode | done (`d1ccb67..1c23060`; review: fit with reservations, fixes in `80b4b23`, `1c23060`) |
 | M3 | The pages on a phone: the progress table, the sign-in and devices pages, e2e at phone width | done (`4051328`, `887c228`; review: fit with reservations, fixes in `887c228`) |
-| M4 | Reserve providers: configuration, status check, a provider's session environment, the build's choice at the threshold, provider and tokens per card | in progress (`e571810..`) |
-| M5 | Builds resume by themselves after a restart (setting), and the cap on slots (setting) | to do |
+| M4 | Reserve providers: configuration, status check, a provider's session environment, the build's choice at the threshold, provider and tokens per card | done (`e571810..bfe8789`; review: fit with reservations, fixes in `44e6d13`, `bfe8789`) |
+| M5 | Builds resume by themselves after a restart (setting), and the cap on slots (setting) | in progress |
 | M6 | Docs (`docs/server.md`, README, `docs/api.md`, CHANGELOG) and two real checks prepared, not run | to do |
 | Real | The real checks, run by the user inside the container | to do |
 | Accepted | The user's acceptance | to do |

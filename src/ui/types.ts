@@ -125,6 +125,8 @@ export interface SettingsView {
   codex: { enabled: boolean; mode: CodexModeView; maxCalls: number };
   /** The implement step's bounds (phase 10): its minutes and the implementer's tool calls. */
   implement?: { maxMinutes: number; maxToolCalls: number };
+  /** Builds on a server (phase 12): resume by themselves after a restart; the most cards at once on this machine. */
+  builds?: { autoResume: boolean; slotsCap: number };
 }
 
 export type CodexModeView = 'unelevated' | 'elevated';
@@ -562,12 +564,16 @@ export interface BuildViewUi {
   cancelling?: true;
   /** The shared limit of active sessions is full: the build waits for a free place. */
   waitingSlot?: true;
+  /** Interrupted by restarts too many times in a row: it no longer resumes by itself (phase 12). */
+  autoResumeStopped?: true;
 }
 
 export interface ProjectBuildsUi {
   builds: BuildViewUi[];
   plan: { ok: true } | { ok: false; code: string; params: Record<string, unknown>; message: string };
   thresholds: { fiveHour: number; week: number };
+  /** The machine's cap on a build's slots (phase 12), 1 to 4. */
+  slotsCap?: number;
 }
 
 /** A reserve provider's status check (phase 12): no key is ever read. */

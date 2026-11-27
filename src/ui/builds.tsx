@@ -149,7 +149,9 @@ interface Draft extends Omit<QueueItemUi, 'dependsOn' | 'area' | 'size'> {
 const PAGE_SLOTS = 2;
 const MAX_PAGE_SLOTS = 4;
 
-function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStarted(): void; defaults: { fiveHour: number; week: number } }) {
+function StartForm({ build, onStarted, defaults, slotsCap }: { build: BuildViewUi; onStarted(): void; defaults: { fiveHour: number; week: number }; slotsCap: number }) {
+  // The machine's cap (phase 12): the page offers no more slots than it.
+  const maxSlots = Math.max(1, Math.min(MAX_PAGE_SLOTS, slotsCap));
   const { t } = useApp();
   const send = useSend();
   const plan = build.plan;
@@ -157,7 +159,7 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
     (plan?.tasks ?? []).map((task, i) => ({ key: i + 1, title: task.title, instruction: task.instruction, doneWhen: task.doneWhen, deps: [...task.dependsOn], area: (task.area ?? []).join('\n'), size: task.size ?? '' })),
   );
   const [limit, setLimit] = useState(String(plan?.tasks.length ?? 1));
-  const [slots, setSlots] = useState(String(PAGE_SLOTS));
+  const [slots, setSlots] = useState(String(Math.min(PAGE_SLOTS, maxSlots)));
   const nextKey = useRef((plan?.tasks.length ?? 0) + 1);
   const [commands, setCommands] = useState((plan?.commands ?? []).join('\n'));
   const [checks, setChecks] = useState((plan?.checks ?? []).join('\n'));
@@ -345,11 +347,16 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
       <p class="t-small muted">{t.buildCardAreaHint}</p>
       <label class="label">
         {t.buildSlotsLabel}
-        <input class="input" type="number" min={1} max={MAX_PAGE_SLOTS} value={slots} onInput={(event) => setSlots((event.target as HTMLInputElement).value)} data-testid="build-slots" />
+        <input class="input" type="number" min={1} max={maxSlots} value={slots} onInput={(event) => setSlots((event.target as HTMLInputElement).value)} data-testid="build-slots" />
       </label>
       <p class="t-small muted" data-testid="build-slots-note">
         {t.buildSlotsNote}
       </p>
+      {maxSlots < MAX_PAGE_SLOTS && (
+        <p class="t-small muted" data-testid="build-slots-cap">
+          {t.buildSlotsCapped(maxSlots)}
+        </p>
+      )}
       <label class="label">
         {t.buildLimitLabel}
         <input class="input" type="number" min={1} max={items.length} value={limit} onInput={(event) => setLimit((event.target as HTMLInputElement).value)} data-testid="build-limit" />
@@ -638,6 +645,11 @@ function StatusNotes({ build }: { build: BuildViewUi }) {
       {build.state === 'paused' && build.pause?.reason === 'usageUnread' && <Note tone="plain" testId="build-paused">{t.buildPausedUnread(until)}</Note>}
       {build.state === 'paused' && build.pause?.reason === 'user' && <Note tone="plain" testId="build-paused">{t.buildPausedUser}</Note>}
       {build.pausing === true && <Note tone="plain" testId="build-pausing">{t.buildPausing}</Note>}
+      {build.state === 'interrupted' && build.autoResumeStopped === true && (
+        <Note tone="danger" testId="build-auto-resume-stopped">
+          {t.buildAutoResumeStopped}
+        </Note>
+      )}
       {build.cancelling === true && <Note tone="plain" testId="build-cancelling">{t.buildCancelling}</Note>}
       {build.state === 'interrupted' && (
         <Note tone="plain" testId="build-interrupted">
@@ -779,7 +791,7 @@ function BuildDiff({ loaded }: { loaded: ReturnType<typeof useBuildDiff> }) {
 /** The start page once the Settings' default thresholds are loaded, so the form starts from them (review of M3, minor). */
 function PlannedStart({ build, onStarted }: { build: BuildViewUi; onStarted(): void }) {
   const project = useLoad<ProjectBuildsUi>(`/api/projects/${encodeURIComponent(build.project)}/builds`);
-  return <LoadState loaded={project}>{(data) => <StartForm build={build} defaults={data.thresholds} onStarted={onStarted} />}</LoadState>;
+  return <LoadState loaded={project}>{(data) => <StartForm build={build} defaults={data.thresholds} slotsCap={data.slotsCap ?? MAX_PAGE_SLOTS} onStarted={onStarted} />}</LoadState>;
 }
 
 /** Discarding a build that never started: nothing ran, the project is free again (review of M3, I4). */
