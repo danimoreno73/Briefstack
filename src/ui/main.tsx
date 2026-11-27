@@ -142,7 +142,11 @@ function App({ initialLang, token: initialToken }: { initialLang: Lang; token: s
         setGate('ready');
       },
       (error: unknown) => {
+        // Only server mode answers this: also when the address carried a `#token=`, which skipped the probe, so the
+        // cookie goes with the requests from now on (review of M2, 2).
         if (error instanceof ApiError && error.code === 'web.rejected.session') {
+          enterServerMode();
+          setServerMode(true);
           setToken(undefined);
           setGate('signIn');
           return;
@@ -157,6 +161,8 @@ function App({ initialLang, token: initialToken }: { initialLang: Lang; token: s
   useEffect(() => {
     const restarted = () => setGate('restarted');
     const signedOut = () => {
+      enterServerMode();
+      setServerMode(true);
       setToken(undefined);
       setGate('signIn');
     };

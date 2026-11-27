@@ -116,7 +116,7 @@ export function DevicesCard() {
               <li key={device.id} class="device-row" data-testid="device" data-current={device.current ? 'true' : 'false'}>
                 <div>
                   <p class="t-body">
-                    {device.label}
+                    {device.label === '' ? t.deviceUnknown : device.label}
                     {device.current && <span class="chip">{t.deviceCurrent}</span>}
                   </p>
                   <p class="t-small muted">{t.deviceTimes(formatWhen(device.createdAt, lang), formatWhen(device.lastSeenAt, lang))}</p>

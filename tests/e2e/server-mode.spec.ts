@@ -70,6 +70,15 @@ test.describe('server mode', () => {
     }
   });
 
+  // Review of M2, 2: a `#token=` in the address skips the probe; the refusal still switches the page to server mode.
+  test('an address with an old #token= still signs in and stays signed in', async ({ page, app }) => {
+    await page.goto(`${app.url}#token=${'x'.repeat(43)}`);
+    await signIn(page);
+    await expect(page.getByTestId('sign-in')).toHaveCount(0);
+    await clickNav(page, 'Settings');
+    await expect(page.getByTestId('device')).toHaveCount(1);
+  });
+
   test('signing this device out asks for the secret again', async ({ page, app }) => {
     await page.goto(app.url);
     await signIn(page);
