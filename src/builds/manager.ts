@@ -29,6 +29,7 @@ import {
   MAX_QUEUE,
   MAX_ROUNDS_CAP,
   MAX_SLOTS,
+  MAX_AUTO_RESUMES,
   areaProblem,
   areasOverlap,
   type JoinFailure,
@@ -97,6 +98,8 @@ export interface BuildManagerOptions {
   roundsCap?: number;
   /** The reserve providers of `config.json` (phase 12), read when a build starts and at each threshold; none without it. */
   providers?: () => Promise<readonly ReserveProvider[]>;
+  /** The most cards a build runs at once on this machine (phase 12), read at each pass; `MAX_SLOTS` without it. */
+  slotsCap?: () => Promise<number>;
 }
 
 /** How long a build waits for a free place in the shared limit before it tries again. */
@@ -702,13 +705,20 @@ export class BuildManager {
     return this.serial(l, () => this.resumeLocked(id, l));
   }
 
-  private async resumeLocked(id: string, l: Live): Promise<BuildView> {
+  /**
+   * `auto`: the server resumes it by itself after a restart (phase 12):
+   * nobody is there to take up a card the restart interrupted, so it starts
+   * again at the integration head whatever the slots, and the plan usage is
+   * read before the next cards, as any pass does.
+   */
+  private async resumeLocked(id: string, l: Live, auto = false): Promise<BuildView> {
     this.refuseWhileStopping();
     const record = await this.load(id);
     if (!['paused', 'interrupted', 'finished'].includes(record.state) || l.loop !== undefined || l.cancelling) throw new BriefstackError('build.wrongState', { id, state: record.state });
     // A cancel mark left by a failed save is stale once the user resumes (review of step 33, B, M1).
     await this.options.store.clearCancel(id);
     const tasks: BuildTask[] = [];
+    let givenBack = 0;
     for (const item of await this.takeInApproved(record.tasks)) {
       // A task that could not start, or met the cap of rounds, has no task of its own to handle: it is queued again
       // (the cap still holds; review of M4, I4).
@@ -730,7 +740,7 @@ export class BuildManager {
       // Dani (fase 11)").
       // Only a card whose task the stop left interrupted: one the user took up since (a round of their own, a proposal)
       // stays theirs (review of M3, I3).
-      if ((record.settings?.slots ?? 1) > 1 && item.state === 'waiting' && item.reason === 'interrupted') {
+      if ((auto || (record.settings?.slots ?? 1) > 1) && item.state === 'waiting' && item.reason === 'interrupted') {
         const task = item.taskId === undefined ? undefined : await this.options.tasks.get(item.taskId).catch(() => undefined);
         if (item.taskId === undefined || task === undefined || task.state === 'interrupted') {
           if (item.taskId !== undefined && task?.state === 'interrupted') await this.options.tasks.discard(item.taskId);
@@ -740,21 +750,31 @@ export class BuildManager {
           delete queued.taskId;
           // Its last join belonged to the discarded attempt; a redo it already had still counts (review of M3, minor 8).
           delete queued.join;
+          // Resumed by itself (phase 12): the round the restart cut short does not count against the cap of rounds,
+          // or a restart would eat a card's round; restarts in a row are bounded by `MAX_AUTO_RESUMES` instead.
+          if (auto && item.taskId !== undefined) givenBack += 1;
           tasks.push(queued);
           continue;
         }
       }
       tasks.push(item);
     }
-    const next: BuildRecord = { ...record, tasks, state: 'running', updatedAt: this.now().toISOString() };
+    const next: BuildRecord = { ...record, tasks, state: 'running', roundsRun: Math.max(0, record.roundsRun - givenBack), updatedAt: this.now().toISOString() };
     delete next.pause;
     delete next.error;
     delete next.finishedAt;
+    delete next.restart;
+    // Resumed by itself: one more in a row (reset when a card ends). Resumed by the user: the count starts again.
+    if (auto) next.autoResumes = (record.autoResumes ?? 0) + 1;
+    else {
+      delete next.autoResumes;
+      delete next.autoResumeStopped;
+    }
     if (l.timer !== undefined) clearTimeout(l.timer);
     delete l.timer;
     await this.save(next);
     l.pausing = false;
-    l.skipUsage = true;
+    l.skipUsage = !auto;
     this.kick(id);
     return this.view(next);
   }
@@ -1003,7 +1023,9 @@ export class BuildManager {
       });
       return finished ? 'stop' : 'again';
     }
-    const batch = canStart ? this.readyCards(record, l, settings.slots ?? 1, settings.limit - started) : [];
+    // The machine's cap on slots (phase 12) bounds the build's own, read at each pass so a change in Settings counts.
+    const slots = Math.min(settings.slots ?? 1, await this.slotsCapNow());
+    const batch = canStart ? this.readyCards(record, l, slots, settings.limit - started) : [];
     if (batch.length === 0) {
       await this.anyCardEnd(l);
       return 'again';
@@ -1191,7 +1213,10 @@ export class BuildManager {
 
   private withTask(record: BuildRecord, n: number, change: Partial<BuildTask>): BuildRecord {
     const tasks = record.tasks.map((task) => (task.n === n ? { ...task, ...change } : task));
-    return { ...record, tasks, updatedAt: this.now().toISOString() };
+    const next: BuildRecord = { ...record, tasks, updatedAt: this.now().toISOString() };
+    // A card that ended (applied, or left waiting) ends the run of restarts in a row (phase 12).
+    if (change.state === 'applied' || change.state === 'waiting') delete next.autoResumes;
+    return next;
   }
 
   /** Changes the record, from what it is on disk now, behind every other change the cards and the loop asked for (H0, 1). */
@@ -1479,13 +1504,64 @@ export class BuildManager {
         count += 1;
       } else if (record.state === 'running' || record.state === 'paused') {
         const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'waiting' as const, reason: 'interrupted' as const } : task));
-        const next: BuildRecord = { ...record, tasks, state: 'interrupted', updatedAt: this.now().toISOString() };
+        // What the restart interrupted is kept for `autoResume()` (phase 12): running, or paused and why.
+        const restart: NonNullable<BuildRecord['restart']> = record.state === 'running' ? { from: 'running' } : { from: 'paused', ...(record.pause === undefined ? {} : { pause: record.pause }) };
+        const next: BuildRecord = { ...record, tasks, state: 'interrupted', restart, updatedAt: this.now().toISOString() };
         delete next.pause;
         await this.save(next);
         count += 1;
       }
     }
     return count;
+  }
+
+  /** The machine's cap on slots now (phase 12): `MAX_SLOTS` without one, or when it cannot be read. */
+  async slotsCapNow(): Promise<number> {
+    const cap = await (this.options.slotsCap?.() ?? Promise.resolve(MAX_SLOTS)).catch(() => MAX_SLOTS);
+    return Number.isInteger(cap) && cap >= 1 ? Math.min(cap, MAX_SLOTS) : MAX_SLOTS;
+  }
+
+  /**
+   * Builds resume by themselves after a restart (phase 12; PLAN-phase-12
+   * §1, 13; H0, 5), when the setting is on. Called once at start, after
+   * both `recover()` calls. Only what this restart interrupted: one the user
+   * had paused stays interrupted; one paused for usage goes back to paused
+   * with its timer (or resumes, its time passed); one that was running
+   * resumes with the usage read first, its interrupted cards started again
+   * at the integration head whatever its slots. One that resumed by itself
+   * `MAX_AUTO_RESUMES` times in a row without a card ending stays
+   * interrupted, and says so. Returns the ids it resumed or paused again.
+   */
+  async autoResume(): Promise<string[]> {
+    const done: string[] = [];
+    for (const listed of await this.options.store.list()) {
+      if (listed.state !== 'interrupted' || listed.restart === undefined) continue;
+      const l = this.liveOf(listed.id);
+      const acted = await this.serial(l, async () => {
+        if (this.stopping) return false;
+        const record = await this.load(listed.id);
+        const restart = record.restart;
+        if (record.state !== 'interrupted' || restart === undefined || l.loop !== undefined) return false;
+        if (restart.from === 'paused' && (restart.pause === undefined || restart.pause.reason === 'user')) return false;
+        if ((record.autoResumes ?? 0) >= MAX_AUTO_RESUMES) {
+          if (record.autoResumeStopped !== true) await this.save({ ...record, autoResumeStopped: true, updatedAt: this.now().toISOString() });
+          return false;
+        }
+        const until = restart.pause?.until === undefined ? undefined : new Date(restart.pause.until);
+        if (restart.from === 'paused' && restart.pause !== undefined && until !== undefined && until.getTime() > this.now().getTime()) {
+          // Paused for usage: back to paused with its timer, as if the server had not stopped. Its cards were not at work.
+          const next: BuildRecord = { ...record, state: 'paused', pause: restart.pause, autoResumes: (record.autoResumes ?? 0) + 1, updatedAt: this.now().toISOString() };
+          delete next.restart;
+          await this.save(next);
+          this.wakeAt(record.id, until);
+          return true;
+        }
+        await this.resumeLocked(record.id, l, true);
+        return true;
+      });
+      if (acted) done.push(listed.id);
+    }
+    return done;
   }
 
   /**

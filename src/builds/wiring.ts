@@ -1,4 +1,4 @@
-import { maxActiveCreationsOf, reserveProvidersOf, type PathEnv } from '../config/index.js';
+import { buildsSettingsOf, maxActiveCreationsOf, reserveProvidersOf, type PathEnv } from '../config/index.js';
 import type { Lang } from '../i18n/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import type { TaskManager } from '../tasks/manager.js';
@@ -41,6 +41,8 @@ export async function createWebBuilds(options: WebBuildOptions): Promise<BuildMa
     maxActive: async () => maxActiveCreationsOf((await read()).config),
     // Reserve providers (phase 12): read from config.json at each use, so a change there shows at the next threshold.
     providers: async () => reserveProvidersOf((await read()).config),
+    // The machine's cap on slots (phase 12), read at each pass.
+    slotsCap: async () => buildsSettingsOf((await read()).config).slotsCap,
     pathEnv,
     ...(usage === undefined ? {} : { usage }),
     ...(options.creations === undefined

@@ -23,6 +23,7 @@ const expectationEn: Record<FieldExpectation, string> = {
   codexMaxCalls: 'a whole number from 1 to 10',
   implementMinutes: 'a whole number from 5 to 120',
   implementToolCalls: 'a whole number from 20 to 1000',
+  slotsCap: 'a whole number from 1 to 4',
   reserveProviders:
     'a list of up to 8 providers, each with a unique name (lowercase letters, digits and -), baseUrl (https://, nothing after the path), model, keyFile (an absolute path) and, if wanted, smallModel and note, and no other field',
 };
@@ -37,6 +38,7 @@ const expectationEs: Record<FieldExpectation, string> = {
   codexMaxCalls: 'un número entero de 1 a 10',
   implementMinutes: 'un número entero de 5 a 120',
   implementToolCalls: 'un número entero de 20 a 1000',
+  slotsCap: 'un número entero de 1 a 4',
   reserveProviders:
     'una lista de hasta 8 proveedores, cada uno con un nombre único (minúsculas, dígitos y -), baseUrl (https://, nada tras la ruta), model, keyFile (una ruta absoluta) y, si se quiere, smallModel y note, y ningún otro campo',
 };

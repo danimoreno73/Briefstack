@@ -4,7 +4,7 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { configFilePath, readConfig, resolvePaths } from './config/config.js';
+import { buildsSettingsOf, configFilePath, readConfig, resolvePaths } from './config/config.js';
 import { isFullyAbsolute, systemPathEnv, type PathEnv } from './config/paths.js';
 import { BriefstackError, isBriefstackError } from './errors.js';
 import {
@@ -739,8 +739,13 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       planner: io.buildPlanner ?? (testRun ? new FakeBuildPlanner(new Error('No planner in this run.')) : undefined),
       usage: io.buildUsage ?? (testRun ? null : undefined),
     });
-    // A server that died with a build running left it interrupted; nothing resumes by itself.
+    // A server that died with a build running left it interrupted. With the setting on (phase 12), what the restart
+    // interrupted resumes by itself, after both recoveries; otherwise nothing does.
     await builds.recover();
+    if (buildsSettingsOf(await readConfig(configFilePath(io.pathEnv))).autoResume) {
+      const resumed = await builds.autoResume();
+      if (resumed.length > 0) io.err(messages.buildsResumed(resumed.length));
+    }
     chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements, skills, usageCheck, tasks: () => tasks });
     improvements = await createWebImprovements({
       pathEnv: io.pathEnv,

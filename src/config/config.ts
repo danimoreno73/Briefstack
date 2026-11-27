@@ -56,6 +56,22 @@ export interface BriefstackConfig {
   implementMaxToolCalls?: number;
   /** Reserve providers a build may go on with at the usage threshold (phase 12); written by hand, never by the page. */
   reserveProviders?: ReserveProvider[];
+  /** Builds a restart interrupted resume by themselves at the next start (phase 12); absent means off. */
+  buildsAutoResume?: boolean;
+  /** The most cards a build runs at once on this machine, 1 to 4 (phase 12); absent means 4, the build's own maximum. */
+  buildSlotsCap?: number;
+}
+
+/** The most slots a build may have: its own maximum (BRIEF-phase-11 §2, 5). Kept here so the config does not import builds. */
+export const MAX_BUILD_SLOTS = 4;
+
+export function isSlotsCap(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 && value <= MAX_BUILD_SLOTS;
+}
+
+/** The builds' settings of a server (phase 12): auto-resume (off by default) and the cap on slots (4 by default). */
+export function buildsSettingsOf(config: BriefstackConfig): { autoResume: boolean; slotsCap: number } {
+  return { autoResume: config.buildsAutoResume === true, slotsCap: config.buildSlotsCap ?? MAX_BUILD_SLOTS };
 }
 
 /** The configured reserve providers; none when the config sets none. */
@@ -237,6 +253,14 @@ export function parseConfig(text: string, file: string): BriefstackConfig {
     const providers = parseReserveProviders(raw.reserveProviders);
     if (providers === undefined) return invalid('reserveProviders', 'reserveProviders');
     config.reserveProviders = providers;
+  }
+  if (raw.buildsAutoResume !== undefined) {
+    if (typeof raw.buildsAutoResume !== 'boolean') invalid('buildsAutoResume', 'boolean');
+    config.buildsAutoResume = raw.buildsAutoResume as boolean;
+  }
+  if (raw.buildSlotsCap !== undefined) {
+    if (!isSlotsCap(raw.buildSlotsCap)) invalid('buildSlotsCap', 'slotsCap');
+    config.buildSlotsCap = raw.buildSlotsCap as number;
   }
   return config;
 }

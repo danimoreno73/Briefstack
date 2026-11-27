@@ -8778,6 +8778,22 @@ The brief's defaults 4 to 11 are kept, with these readings:
   a key file over 4 KiB or not one line counts as unusable at the
   threshold (pause with `reserveMissing`), and the check shows `tooLarge`
   over 4 KiB; the build page says what it does at the threshold.
+- **7 and 9. Auto-resume and the slot cap (M5):** `buildsAutoResume` and
+  `buildSlotsCap` in `config.json` and Settings. `recover()` keeps what a
+  restart interrupted in the record (`restart`: running, or paused and its
+  pause); `autoResume()`, called by `briefstack web` after both recoveries
+  only when the setting is on, resumes it: a pause for usage (or an
+  unread usage) goes back to paused with its timer, or resumes when its
+  time passed; a user's pause stays interrupted; a running build resumes
+  with the usage read first and its interrupted cards started again at the
+  integration head whatever its slots, **the round the restart cut short
+  given back to the cap of rounds** (else a restart eats a card's round;
+  restarts in a row are bounded by the cap of 3). `autoResumes` counts
+  restarts in a row, reset when a card is applied or left waiting, and by
+  the user's Resume; at 3 the build stays interrupted with
+  `autoResumeStopped` and a note on its page. The cap on slots is read at
+  each pass (a change in Settings counts for builds already running); the
+  start page offers no more than the cap and says so.
 - **10. Codex:** off in server mode by the Codex service itself
   (`codex.serverMode`), whatever `config.json` says.
 - **The probe of H0, 4** (`tests/screenshots/narrow.shots.ts`) stays in

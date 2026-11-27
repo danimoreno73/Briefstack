@@ -265,6 +265,20 @@ export type BuildSettings = z.infer<typeof buildSettingsSchema>;
 export const PAUSE_REASONS = ['usage', 'usageUnread', 'user'] as const;
 export type PauseReason = (typeof PAUSE_REASONS)[number];
 
+const pauseSchema = z.object({
+  reason: z.enum(PAUSE_REASONS),
+  at: z.string(),
+  /** When the build reads the usage again or resumes. */
+  until: z.string().optional(),
+  fiveHour: z.number().nullable().optional(),
+  sevenDay: z.number().nullable().optional(),
+  /** The reserve chosen at the start could not take over (phase 12): no longer in config.json, or its key file unusable then. */
+  reserveMissing: z.string().optional(),
+});
+
+/** A build resumes by itself after a restart at most this many times in a row without a card ending (phase 12). */
+export const MAX_AUTO_RESUMES = 3;
+
 export const buildRecordSchema = z.object({
   v: z.literal(1),
   id: z.string().regex(BUILD_ID_RE),
@@ -288,18 +302,17 @@ export const buildRecordSchema = z.object({
   settings: buildSettingsSchema.optional(),
   /** Rounds run so far (against `settings.maxRounds`). */
   roundsRun: z.int().min(0),
-  pause: z
-    .object({
-      reason: z.enum(PAUSE_REASONS),
-      at: z.string(),
-      /** When the build reads the usage again or resumes. */
-      until: z.string().optional(),
-      fiveHour: z.number().nullable().optional(),
-      sevenDay: z.number().nullable().optional(),
-      /** The reserve chosen at the start could not take over (phase 12): no longer in config.json, or its key file unusable then. */
-      reserveMissing: z.string().optional(),
-    })
-    .optional(),
+  pause: pauseSchema.optional(),
+  /**
+   * What a restart of the server interrupted (phase 12), set by `recover()`
+   * for auto-resume: the build was running, or paused (and why, until when).
+   * Gone once it is resumed, by itself or by the user.
+   */
+  restart: z.object({ from: z.enum(['running', 'paused']), pause: pauseSchema.optional() }).optional(),
+  /** How many times in a row it resumed by itself after a restart without a card ending (phase 12). */
+  autoResumes: z.int().min(0).optional(),
+  /** It was interrupted by restarts too many times in a row: it no longer resumes by itself (phase 12). */
+  autoResumeStopped: z.literal(true).optional(),
   startedAt: z.string().optional(),
   finishedAt: z.string().optional(),
   applied: z.object({ commit: z.string(), at: z.string() }).optional(),

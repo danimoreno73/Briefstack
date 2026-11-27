@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { CODEX_SANDBOX_MODES, MAX_CODEX_MAX_CALLS, MIN_CODEX_MAX_CALLS, type CodexSandboxMode } from '../codex/limits.js';
 import { MAX_IMPLEMENT_MINUTES, MAX_IMPLEMENT_TOOL_CALLS, MIN_IMPLEMENT_MINUTES, MIN_IMPLEMENT_TOOL_CALLS } from '../config/limits.js';
 import {
+  buildsSettingsOf,
+  MAX_BUILD_SLOTS,
   codexSettingsOf,
   configFilePath,
   implementBoundsOf,
@@ -68,6 +70,9 @@ const settingsBody = z
     codexMaxCalls: z.int().min(MIN_CODEX_MAX_CALLS).max(MAX_CODEX_MAX_CALLS).optional(),
     implementMaxMinutes: z.int().min(MIN_IMPLEMENT_MINUTES).max(MAX_IMPLEMENT_MINUTES).optional(),
     implementMaxToolCalls: z.int().min(MIN_IMPLEMENT_TOOL_CALLS).max(MAX_IMPLEMENT_TOOL_CALLS).optional(),
+    /** Phase 12: builds a restart interrupted resume by themselves; the most cards a build runs at once here. */
+    buildsAutoResume: z.boolean().optional(),
+    buildSlotsCap: z.int().min(1).max(MAX_BUILD_SLOTS).optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'at least one setting' });
 
@@ -99,6 +104,7 @@ export function writeRoutes(context: WriteContext): RouteTable {
       // Server mode: Codex is off whatever config.json says (PLAN-phase-12 §1, 7).
       codex: context.serverMode === true ? { ...codexSettingsOf(config), enabled: false } : codexSettingsOf(config),
       implement: implementBoundsOf(config),
+      builds: buildsSettingsOf(config),
     };
   };
 
@@ -177,7 +183,11 @@ export function writeRoutes(context: WriteContext): RouteTable {
           codexMaxCalls?: number;
           implementMaxMinutes?: number;
           implementMaxToolCalls?: number;
+          buildsAutoResume?: boolean;
+          buildSlotsCap?: number;
         } = {};
+        if (body.buildsAutoResume !== undefined) patch.buildsAutoResume = body.buildsAutoResume;
+        if (body.buildSlotsCap !== undefined) patch.buildSlotsCap = body.buildSlotsCap;
         if (body.implementMaxMinutes !== undefined) patch.implementMaxMinutes = body.implementMaxMinutes;
         if (body.implementMaxToolCalls !== undefined) patch.implementMaxToolCalls = body.implementMaxToolCalls;
         if (body.codexEnabled !== undefined) patch.codexEnabled = body.codexEnabled;

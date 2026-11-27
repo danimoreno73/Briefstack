@@ -55,7 +55,7 @@ export function buildRoutes(manager: BuildManager | undefined, options: BuildRou
       async (_req, res, params) => {
         const m = need();
         const all = await m.list();
-        sendJson(res, 200, { builds: all.filter((build) => build.project === slug(params)), plan: await m.planInfo(slug(params)), thresholds: await m.defaultThresholds() });
+        sendJson(res, 200, { builds: all.filter((build) => build.project === slug(params)), plan: await m.planInfo(slug(params)), thresholds: await m.defaultThresholds(), slotsCap: await m.slotsCapNow() });
       },
     ],
     [
