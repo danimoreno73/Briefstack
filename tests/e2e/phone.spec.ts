@@ -27,6 +27,19 @@ const PLAN: PlanOutput = {
 
 const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
+/**
+ * Every visible element under `selector` that sticks out of the viewport on the right, also inside a box that
+ * scrolls on its own: what the document's width alone does not see (H0, 4; review of M3, I2).
+ */
+const stickingOut = (page: Page, selector: string) =>
+  page.evaluate((root) => {
+    const right = document.documentElement.clientWidth;
+    return [...document.querySelectorAll(`${root} *`)].filter((element) => {
+      const box = element.getBoundingClientRect();
+      return box.width > 0 && box.height > 0 && box.right > right + 1;
+    }).length;
+  }, selector);
+
 /** Every element of the progress table that sticks out of the viewport on the right. */
 const progressOverflow = (page: Page) =>
   page.evaluate(() => {
@@ -54,6 +67,9 @@ test.describe('a build on a phone', () => {
     await page.getByTestId('build-implement').click();
     await expect(page.getByTestId('build-start-form')).toBeVisible(SLOW);
     await expect.poll(() => sideways(page)).toBeLessThanOrEqual(0);
+    // The board's cards, their long area paths included, and the rest of the form fit the screen.
+    await expect(page.getByTestId('build-item-area').first()).toHaveValue(/a-very-long-folder-name/);
+    await expect.poll(() => stickingOut(page, '[data-testid="build-start-form"]')).toBe(0);
 
     await page.getByTestId('build-no-checks-confirm').check();
     await page.getByTestId('build-start').click();
@@ -67,6 +83,12 @@ test.describe('a build on a phone', () => {
     await expect(row.getByTestId('build-task-checks')).toBeVisible();
     await expect(row.getByTestId('build-task-checks')).toHaveAttribute('data-label', 'Checks');
     await expect(row.getByTestId('build-task-tokens')).toBeInViewport();
+    await expect(page.getByTestId('build-board')).toBeVisible();
+    await expect.poll(() => stickingOut(page, '[data-testid="build-board"]')).toBe(0);
+    // On a wide screen it is a table again, with its header row (review of M3, minor 5).
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(page.locator('[data-testid="build-progress"] thead th').first()).toBeVisible();
+    expect(await page.locator('[data-testid="build-progress"] td[data-label]').first().evaluate((cell) => getComputedStyle(cell).display)).toBe('table-cell');
   });
 });
 

@@ -424,36 +424,38 @@ function Progress({ build }: { build: BuildViewUi }) {
       </h2>
       {/* At phone width each row becomes a card, every cell under its column's name (`data-label`; phase 12, M3). */}
       <div class="table-scroll">
-        <table class="table table-stack">
-          <thead>
-            <tr>
-              <th scope="col">#</th>
-              <th scope="col">{t.buildColTask}</th>
-              <th scope="col">{t.buildColState}</th>
-              <th scope="col">{t.buildColRounds}</th>
-              <th scope="col">{t.buildColChecks}</th>
-              <th scope="col">{t.buildColCodex}</th>
-              <th scope="col">{t.buildColTokens}</th>
-              <th scope="col">{t.buildColDetail}</th>
+        {/* Explicit roles: a stacked table is displayed as blocks, which drops its table semantics in some screen
+            readers (review of M3, minor 3); with the roles it stays a table with its column headers. */}
+        <table class="table table-stack" role="table">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th scope="col" role="columnheader">#</th>
+              <th scope="col" role="columnheader">{t.buildColTask}</th>
+              <th scope="col" role="columnheader">{t.buildColState}</th>
+              <th scope="col" role="columnheader">{t.buildColRounds}</th>
+              <th scope="col" role="columnheader">{t.buildColChecks}</th>
+              <th scope="col" role="columnheader">{t.buildColCodex}</th>
+              <th scope="col" role="columnheader">{t.buildColTokens}</th>
+              <th scope="col" role="columnheader">{t.buildColDetail}</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody role="rowgroup">
             {build.tasks.map((task) => (
-              <tr key={task.n} data-testid="build-task-row">
-                <td class="td-mono td-stack-head">{task.n}</td>
-                <td class="td-stack-head">{task.title}</td>
-                <td data-label={t.buildColState} data-testid="build-task-state">{t.buildTaskState(task.state)}</td>
-                <td class="td-mono" data-label={t.buildColRounds}>{task.rounds}</td>
-                <td class="t-small" data-label={t.buildColChecks} data-testid="build-task-checks">
+              <tr key={task.n} role="row" data-testid="build-task-row">
+                <td role="cell" class="td-mono td-stack-head">{task.n}</td>
+                <td role="cell" class="td-stack-head">{task.title}</td>
+                <td role="cell" data-label={t.buildColState} data-testid="build-task-state">{t.buildTaskState(task.state)}</td>
+                <td role="cell" class="td-mono" data-label={t.buildColRounds}>{task.rounds}</td>
+                <td role="cell" class="t-small" data-label={t.buildColChecks} data-testid="build-task-checks">
                   {task.task?.checks === undefined || task.task.checks.length === 0
                     ? '—'
                     : t.buildChecksPassed(task.task.checks.filter((check) => check.exitCode === 0 && !check.timedOut).length, task.task.checks.length)}
                 </td>
-                <td class="td-mono" data-label={t.buildColCodex}>{task.task === undefined ? '—' : task.task.codexCalls === 0 ? '0' : `${task.task.codexCalls} · ${formatCount(task.task.codexTokens, lang)}`}</td>
-                <td class="td-mono" data-label={t.buildColTokens} data-testid="build-task-tokens">
+                <td role="cell" class="td-mono" data-label={t.buildColCodex}>{task.task === undefined ? '—' : task.task.codexCalls === 0 ? '0' : `${task.task.codexCalls} · ${formatCount(task.task.codexTokens, lang)}`}</td>
+                <td role="cell" class="td-mono" data-label={t.buildColTokens} data-testid="build-task-tokens">
                   {task.task?.claudeTokens === undefined ? '—' : `${formatCount(task.task.claudeTokens.noCache, lang)} (${formatCount(task.task.claudeTokens.withCache, lang)})`}
                 </td>
-                <td class="t-small td-stack-detail" data-label={t.buildColDetail}>
+                <td role="cell" class="t-small td-stack-detail" data-label={t.buildColDetail}>
                   {task.reason !== undefined && <span data-testid="build-task-reason">{t.buildWaitReason(task.reason)}</span>}
                   {task.skippedFor !== undefined && <span>{t.buildSkippedFor(task.skippedFor)}</span>}
                   {task.commit !== undefined && <code>{task.commit.slice(0, 7)}</code>}

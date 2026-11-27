@@ -1106,10 +1106,11 @@ dialog.dec-dialog {
   overflow-wrap: anywhere;
 }
 
-/* Phase 12, M3: at phone width a stacked table's rows become cards. The header row is hidden from sight (it
-   stays for screen readers), the first two cells are the card's title, and every other cell shows its column's
-   name (`data-label`) before its value, so nothing needs a sideways scroll. */
-@media (max-width: 560px) {
+/* Phase 12, M3: on a narrow screen (the project's 720 px, review of M3, minor 4) a stacked table's rows become
+   cards. The header row is hidden from sight, the first two cells are the card's title, and every other cell shows
+   its column's name (`data-label`) before its value, so nothing needs a sideways scroll. The table keeps explicit
+   ARIA roles in its markup, since blocks lose the table's semantics in some screen readers. */
+@media (max-width: 720px) {
   .table-stack thead {
     position: absolute;
     width: 1px;
@@ -1150,8 +1151,9 @@ dialog.dec-dialog {
     font-weight: 700;
   }
 
+  /* A separator for the eye only: its alternative text is empty, so it is not read out. */
   .table-stack td.td-stack-head + td.td-stack-head::before {
-    content: ' · ';
+    content: ' · ' / '';
     font-weight: 400;
   }
 
@@ -1168,7 +1170,8 @@ dialog.dec-dialog {
     font-size: var(--fs-mono-s);
   }
 
-  /* The detail holds several elements: under its name, not in the grid's second column. */
+  /* The detail holds several elements: under its name, not in the grid's second column. It must come after the
+     `td[data-label]` grid rule above, which has the same specificity. */
   .table-stack td.td-stack-detail {
     display: block;
   }
