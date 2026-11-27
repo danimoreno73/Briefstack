@@ -422,8 +422,9 @@ function Progress({ build }: { build: BuildViewUi }) {
       <h2 class="t-2" id="build-progress-title">
         {t.buildProgressTitle}
       </h2>
+      {/* At phone width each row becomes a card, every cell under its column's name (`data-label`; phase 12, M3). */}
       <div class="table-scroll">
-        <table class="table">
+        <table class="table table-stack">
           <thead>
             <tr>
               <th scope="col">#</th>
@@ -439,20 +440,20 @@ function Progress({ build }: { build: BuildViewUi }) {
           <tbody>
             {build.tasks.map((task) => (
               <tr key={task.n} data-testid="build-task-row">
-                <td class="td-mono">{task.n}</td>
-                <td>{task.title}</td>
-                <td data-testid="build-task-state">{t.buildTaskState(task.state)}</td>
-                <td class="td-mono">{task.rounds}</td>
-                <td class="t-small" data-testid="build-task-checks">
+                <td class="td-mono td-stack-head">{task.n}</td>
+                <td class="td-stack-head">{task.title}</td>
+                <td data-label={t.buildColState} data-testid="build-task-state">{t.buildTaskState(task.state)}</td>
+                <td class="td-mono" data-label={t.buildColRounds}>{task.rounds}</td>
+                <td class="t-small" data-label={t.buildColChecks} data-testid="build-task-checks">
                   {task.task?.checks === undefined || task.task.checks.length === 0
                     ? '—'
                     : t.buildChecksPassed(task.task.checks.filter((check) => check.exitCode === 0 && !check.timedOut).length, task.task.checks.length)}
                 </td>
-                <td class="td-mono">{task.task === undefined ? '—' : task.task.codexCalls === 0 ? '0' : `${task.task.codexCalls} · ${formatCount(task.task.codexTokens, lang)}`}</td>
-                <td class="td-mono" data-testid="build-task-tokens">
+                <td class="td-mono" data-label={t.buildColCodex}>{task.task === undefined ? '—' : task.task.codexCalls === 0 ? '0' : `${task.task.codexCalls} · ${formatCount(task.task.codexTokens, lang)}`}</td>
+                <td class="td-mono" data-label={t.buildColTokens} data-testid="build-task-tokens">
                   {task.task?.claudeTokens === undefined ? '—' : `${formatCount(task.task.claudeTokens.noCache, lang)} (${formatCount(task.task.claudeTokens.withCache, lang)})`}
                 </td>
-                <td class="t-small">
+                <td class="t-small td-stack-detail" data-label={t.buildColDetail}>
                   {task.reason !== undefined && <span data-testid="build-task-reason">{t.buildWaitReason(task.reason)}</span>}
                   {task.skippedFor !== undefined && <span>{t.buildSkippedFor(task.skippedFor)}</span>}
                   {task.commit !== undefined && <code>{task.commit.slice(0, 7)}</code>}

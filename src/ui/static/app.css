@@ -1105,3 +1105,79 @@ dialog.dec-dialog {
 .device-row p {
   overflow-wrap: anywhere;
 }
+
+/* Phase 12, M3: at phone width a stacked table's rows become cards. The header row is hidden from sight (it
+   stays for screen readers), the first two cells are the card's title, and every other cell shows its column's
+   name (`data-label`) before its value, so nothing needs a sideways scroll. */
+@media (max-width: 560px) {
+  .table-stack thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .table-stack,
+  .table-stack tbody,
+  .table-stack tr,
+  .table-stack td {
+    display: block;
+    width: 100%;
+  }
+
+  .table-stack tr {
+    padding: var(--s-3) 0;
+    border-bottom: var(--bw) solid var(--line);
+  }
+
+  .table-stack tr:last-child {
+    border-bottom: 0;
+  }
+
+  /* `.table.table-stack`: above `.table .td-mono`'s `nowrap`, so a long label or value wraps in its own column. */
+  .table.table-stack td {
+    padding: 2px 0;
+    border-bottom: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .table-stack td.td-stack-head {
+    display: inline;
+    width: auto;
+    font-weight: 700;
+  }
+
+  .table-stack td.td-stack-head + td.td-stack-head::before {
+    content: ' · ';
+    font-weight: 400;
+  }
+
+  .table-stack td[data-label] {
+    display: grid;
+    grid-template-columns: minmax(6.5em, 35%) minmax(0, 1fr);
+    gap: var(--s-2);
+  }
+
+  .table-stack td[data-label]::before {
+    content: attr(data-label);
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: var(--fs-mono-s);
+  }
+
+  /* The detail holds several elements: under its name, not in the grid's second column. */
+  .table-stack td.td-stack-detail {
+    display: block;
+  }
+
+  .table-stack td.td-stack-detail::before {
+    display: block;
+  }
+
+  .table-stack td.td-stack-detail:empty {
+    display: none;
+  }
+}
