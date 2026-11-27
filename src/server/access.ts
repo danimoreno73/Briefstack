@@ -44,9 +44,11 @@ export function parseListen(value: string | undefined): string {
 
 /** The names of `--allowed-hosts`, deduplicated; at least one. */
 export function parseAllowedNames(value: string | undefined): string[] {
-  if (value === undefined || value.trim() === '') throw new BriefstackError('server.noAllowedHosts', {});
+  if (value === undefined || value.split(',').every((part) => part.trim() === '')) throw new BriefstackError('server.noAllowedHosts', {});
   const names: string[] = [];
   for (const part of value.split(',')) {
+    // A stray comma (`a:1,,b:2`, or one at the end) is not a name: skipped, not an error.
+    if (part.trim() === '') continue;
     const name = parseAllowedName(part);
     if (name === undefined) throw new BriefstackError('server.invalidAllowedHost', { value: part.trim() });
     if (!names.includes(name)) names.push(name);
@@ -68,9 +70,11 @@ export async function readAccessSecret(file: string, platform: NodeJS.Platform =
   } catch {
     throw new BriefstackError('server.secretUnreadable', { file });
   }
-  const secret = text.replace(/\r?\n$/, '');
+  // A byte-order mark (an editor on Windows) and the trailing line end are not part of the secret.
+  const secret = (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text).replace(/\r?\n$/, '');
   if (secret.length < MIN_SECRET_LENGTH || /[\r\n]/.test(secret)) throw new BriefstackError('server.secretTooShort', { file, min: MIN_SECRET_LENGTH });
-  return { digest: digest(secret), open: platform !== 'win32' && (mode & 0o077) !== 0 };
+  // Readable by group or others: the warning is about reading, so the write and execute bits do not count.
+  return { digest: digest(secret), open: platform !== 'win32' && (mode & 0o044) !== 0 };
 }
 
 /** Everything `--server` needs, checked before anything is served. */

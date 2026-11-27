@@ -15,6 +15,7 @@ import {
   usageWarningOf,
   type PathEnv,
 } from '../config/index.js';
+import { BriefstackError } from '../errors.js';
 import { setSessionArchived } from '../events/archived.js';
 import { LANGS, resolveLang, systemLocale, type Lang } from '../i18n/index.js';
 import { revertLibraryCommit, saveNote, setProjectArchived, setProjectsDir } from '../library/index.js';
@@ -28,6 +29,8 @@ import type { RouteTable } from './router.js';
 export interface WriteContext {
   pathEnv: PathEnv;
   repoDir?: string | undefined;
+  /** Server mode (phase 12): Codex shows as off and cannot be turned on. */
+  serverMode?: boolean;
 }
 
 const MAX_NOTE_BYTES = 48 * 1024;
@@ -93,7 +96,8 @@ export function writeRoutes(context: WriteContext): RouteTable {
       permissionPolicy: permissionPolicyOf(config),
       maxActiveCreations: maxActiveCreationsOf(config),
       usageWarning: usageWarningOf(config),
-      codex: codexSettingsOf(config),
+      // Server mode: Codex is off whatever config.json says (PLAN-phase-12 §1, 7).
+      codex: context.serverMode === true ? { ...codexSettingsOf(config), enabled: false } : codexSettingsOf(config),
       implement: implementBoundsOf(config),
     };
   };
@@ -161,6 +165,7 @@ export function writeRoutes(context: WriteContext): RouteTable {
       'PUT /api/settings',
       async (req, res) => {
         const body = await readJsonBody(req, settingsBody);
+        if (context.serverMode === true && body.codexEnabled === true) throw new BriefstackError('codex.serverMode', {});
         const patch: {
           lang?: Lang | undefined;
           permissionPolicy?: PermissionPolicy;

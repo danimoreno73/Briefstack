@@ -8715,7 +8715,11 @@ The brief's defaults 4 to 11 are kept, with these readings:
   a usage error without it. "Extends the host and origin checks" is read
   literally: the loopback names on the listening port stay accepted (the
   container's own checks use them), and the configured names are added,
-  with an `https://` origin.
+  with an `https://` origin. The names come in one option,
+  `--allowed-hosts a:1,b:2`, not a repeated `--allowed-host`: the CLI's
+  parser keeps one value per option (review of M1, I1). `PUT /api/settings`
+  refuses `codexEnabled: true` in server mode (`codex.serverMode`, 409)
+  and its answer shows Codex off (review of M1, I2).
 - **5. Sign-in:** the attempt limit is one counter for the whole server
   (5 failures in 15 minutes lock sign-in for 15 minutes), as the addresses
   seen behind Tailscale and Docker cannot be trusted and there is one

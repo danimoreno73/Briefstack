@@ -1,6 +1,7 @@
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
-import { request } from 'node:http';
+import { request, type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main, type CliIO } from '../../src/cli.js';
 import { CodexService } from '../../src/codex/service.js';
@@ -8,6 +9,7 @@ import type { ClaudeCheck } from '../../src/creation/claudeBinary.js';
 import { matchesSecret, MIN_SECRET_LENGTH, parseAllowedNames, parseListen, readAccessSecret, serverModeOf, type ServerMode } from '../../src/server/access.js';
 import { startWebServer, TOKEN_HEADER, type WebServer } from '../../src/server/index.js';
 import { checkRequest, expectedOrigin, isAllowedHost, isSameOrigin, parseAllowedName, type RequestHeaders } from '../../src/server/security.js';
+import { writeRoutes } from '../../src/server/write.js';
 import { tempDir, writeTree } from '../helpers.js';
 
 // Phase 12, M1: server mode (PLAN-phase-12 §1, 1 to 3, 6b and 7). Local mode is pinned as it was.
@@ -76,7 +78,9 @@ describe('server mode checks', () => {
       expect(parseAllowedName(bad), bad).toBeUndefined();
     }
     expect(parseAllowedNames(`${NAME}, other.ts.net:443,${NAME}`)).toEqual([NAME, 'other.ts.net:443']);
+    expect(parseAllowedNames(`${NAME},, other.ts.net:443,`)).toEqual([NAME, 'other.ts.net:443']);
     expect(() => parseAllowedNames(undefined)).toThrow(expect.objectContaining({ code: 'server.noAllowedHosts' }));
+    expect(() => parseAllowedNames(' , ')).toThrow(expect.objectContaining({ code: 'server.noAllowedHosts' }));
     expect(() => parseAllowedNames('box.ts.net')).toThrow(expect.objectContaining({ code: 'server.invalidAllowedHost' }));
   });
 
@@ -104,6 +108,9 @@ describe('the access secret', () => {
     expect(matchesSecret(`${SECRET}x`, read.digest)).toBe(false);
     expect(matchesSecret(SECRET.slice(0, -1), read.digest)).toBe(false);
     expect(matchesSecret('', read.digest)).toBe(false);
+    // A byte-order mark from an editor is not part of the secret.
+    await writeFile(file, `${String.fromCharCode(0xfeff)}${SECRET}\n`, 'utf8');
+    expect(matchesSecret(SECRET, (await readAccessSecret(file)).digest)).toBe(true);
   });
 
   it('refuses a missing, short or multi-line file, naming the file and never its content', async () => {
@@ -124,6 +131,9 @@ describe('the access secret', () => {
     await chmod(file, 0o644);
     expect((await readAccessSecret(file)).open).toBe(true);
     await chmod(file, 0o600);
+    expect((await readAccessSecret(file)).open).toBe(false);
+    // Only reading counts: a group-writable but unreadable file is not "open".
+    await chmod(file, 0o620);
     expect((await readAccessSecret(file)).open).toBe(false);
   });
 
@@ -182,6 +192,17 @@ describe('the web server in server mode', () => {
     expect((await send(server, '/api/health', { headers: { host: NAME } })).status).toBe(200);
     const state = await send(server, '/api/server/state', { headers: { host: NAME } });
     expect(JSON.parse(state.body)).toEqual({ mode: 'server', signedIn: false });
+  });
+
+  it('listens on 127.0.0.1 in local mode', async () => {
+    server = await startWebServer({ port: 0, uiDir: path.join(dir, 'ui'), token: TOKEN });
+    expect(server.address).toBe('127.0.0.1');
+  });
+
+  // Not on Windows: binding every address there can open the firewall's dialog on a desktop. CI's Linux and macOS prove it.
+  it.skipIf(process.platform === 'win32')('listens on the --listen address in server mode', async () => {
+    server = await startWebServer({ port: 0, uiDir: path.join(dir, 'ui'), token: TOKEN, server: { ...mode(), listen: '0.0.0.0' } });
+    expect(server.address).toBe('0.0.0.0');
   });
 
   it('in local mode, the state route needs the token like any other and says local', async () => {
@@ -257,5 +278,24 @@ describe('Codex in server mode', () => {
     await expect(codex.check()).rejects.toMatchObject({ code: 'codex.serverMode' });
     expect(await codex.session()).toBeUndefined();
     expect(await codex.creationSession()).toBeUndefined();
+  });
+
+  // Review of M1, I2: Settings cannot turn it on, and its answer shows it off.
+  const putSettings = async (body: unknown, serverMode: boolean): Promise<{ status: number; body: { codex?: { enabled: boolean } } }> => {
+    const pathEnv = { env: { BRIEFSTACK_HOME: path.join(dir, 'home') }, homedir: dir, pathApi: path, caseInsensitive: false };
+    const handler = new Map(writeRoutes({ pathEnv, ...(serverMode ? { serverMode: true } : {}) })).get('PUT /api/settings');
+    const req = Object.assign(Readable.from([Buffer.from(JSON.stringify(body))]), { headers: { 'content-type': 'application/json' } });
+    let status = 0;
+    let text = '';
+    const res = { writeHead: (code: number) => (status = code), end: (chunk?: string) => (text = chunk ?? '') };
+    await handler?.(req as unknown as IncomingMessage, res as unknown as ServerResponse, {});
+    return { status, body: JSON.parse(text) as { codex?: { enabled: boolean } } };
+  };
+
+  it('cannot be turned on from Settings in server mode, and shows as off there', async () => {
+    await writeTree(path.join(dir, 'home'), { 'config.json': JSON.stringify({ codexEnabled: true }) });
+    await expect(putSettings({ codexEnabled: true }, true)).rejects.toMatchObject({ code: 'codex.serverMode' });
+    expect((await putSettings({ usageWarnWeek: 80 }, true)).body.codex?.enabled).toBe(false);
+    expect((await putSettings({ usageWarnWeek: 80 }, false)).body.codex?.enabled).toBe(true);
   });
 });

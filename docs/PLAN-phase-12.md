@@ -35,10 +35,11 @@ Each one is the conservative reading and is in decisions.md.
 
 1. **Server mode is one start flag, and nothing changes without it.**
    `briefstack web --server` turns it on; it requires
-   `--access-secret-file <path>` and at least one `--allowed-host
-   <name:port>` (repeatable), and accepts `--listen <address>` (default
-   `127.0.0.1`; `0.0.0.0` in the container). `--listen`,
-   `--allowed-host` and `--access-secret-file` without `--server` are a
+   `--access-secret-file <path>` and `--allowed-hosts <name:port,...>`
+   (one option, its names separated by commas: the CLI's parser takes an
+   option once; empty entries are skipped), and accepts `--listen
+   <address>` (default `127.0.0.1`; `0.0.0.0` in the container).
+   `--listen`, `--allowed-hosts` and `--access-secret-file` without `--server` are a
    usage error, so local mode cannot be half-changed by mistake. Flags,
    not environment variables: the compose file's `command:` shows them,
    and nothing in the environment of the user's shell turns server mode
@@ -80,7 +81,9 @@ Each one is the conservative reading and is in decisions.md.
    good one (no early return on length). The counter lives in memory: a
    restart clears it (the container restarts only on a crash).
 6. **The page in server mode.** `GET /api/server/state` answers without
-   any credential with `{ mode, signedIn }` only. Without `#token=` in
+   any credential with `{ mode, signedIn }` only (in local mode it needs
+   the token like every other `/api` route: a page without a token cannot
+   be in server mode's sign-in, and a refusal there means local mode). Without `#token=` in
    the address the page asks it: in server mode it shows a sign-in form
    (the secret in a password field, never in the address), then loads as
    today; every request is sent with `credentials: 'same-origin'`. In
@@ -165,7 +168,7 @@ Each one is the conservative reading and is in decisions.md.
   local functions unchanged in behaviour.
 - `startWebServer`: an optional `server` option; listen on its address;
   `GET /api/server/state`.
-- `briefstack web`: `--server`, `--listen`, `--allowed-host`,
+- `briefstack web`: `--server`, `--listen`, `--allowed-hosts`,
   `--access-secret-file`; the warning; usage errors; i18n en and es.
 - Codex off in server mode; no token printed or accepted in server mode.
 - A read-only app folder: clear errors for the profile change and

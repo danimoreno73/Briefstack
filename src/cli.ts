@@ -55,9 +55,6 @@ import { getPreset, loadUsageContext, usageSet, usageShow, type ApplyResult } fr
 import { validateProject } from './validate/index.js';
 import { DEFAULT_WEB_PORT, startWebServer } from './server/index.js';
 import { serverModeOf, type ServerMode } from './server/access.js';
-
-/** `briefstack web`'s server mode options, valid only with `--server` (phase 12). */
-const SERVER_VALUE_OPTIONS = ['--listen', '--allowed-hosts', '--access-secret-file'] as const;
 import { webMessages } from './i18n/web.js';
 import { ClaudeStatusReader, keySourceLabel, realClaudeStatusDeps, type AuthMode, type ClaudeStatus } from './creation/claudeAccount.js';
 import type { ClaudeCheck } from './creation/claudeBinary.js';
@@ -90,6 +87,9 @@ import { SkillService } from './skills/service.js';
 import { skillsMessages } from './i18n/skills.js';
 import { planUsageReader } from './creation/planUsage.js';
 import { UsageCheck, configThresholds, type PlanReading } from './usage/warning.js';
+
+/** `briefstack web`'s server mode options, valid only with `--server` (phase 12). */
+const SERVER_VALUE_OPTIONS = ['--listen', '--allowed-hosts', '--access-secret-file'] as const;
 
 /** Argument parsing only; all real work lives in the library. */
 

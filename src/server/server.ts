@@ -89,6 +89,8 @@ export interface WebServer {
    */
   url: string;
   origin: string;
+  /** The address the server listens on: 127.0.0.1 in local mode, `--listen` in server mode. */
+  address: string;
   port: number;
   token: string;
   close(): Promise<void>;
@@ -126,7 +128,7 @@ function apiRoutes(options: WebServerOptions): RouteTable {
         builds: ((await options.builds?.list()) ?? []).filter((build) => build.state === 'running' || build.state === 'planning').length,
       }),
     }),
-    ...writeRoutes({ pathEnv, repoDir: options.repoDir }),
+    ...writeRoutes({ pathEnv, repoDir: options.repoDir, ...(options.server === undefined ? {} : { serverMode: true }) }),
     ...creationRoutes(options.creations, { ...(options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }), usage: options.usageCheck }),
     ...chatRoutes(options.chat, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
     ...improveRoutes(options.improvements, { usage: options.usageCheck }),
@@ -146,9 +148,11 @@ function apiRoutes(options: WebServerOptions): RouteTable {
 }
 
 /**
- * Starts the local web server on 127.0.0.1 only. Every request passes the
- * host check; `/api` also needs the launch token, and mutating `/api` calls
- * the same-origin check (BRIEF-phase-2 §4).
+ * Starts the web server: in local mode on 127.0.0.1 only, with the launch
+ * token on `/api` (BRIEF-phase-2 §4); in server mode on its `--listen`
+ * address, with its allowed names and device sessions instead of the token
+ * (phase 12). Every request passes the host check, and mutating `/api`
+ * calls the same-origin check.
  */
 export async function startWebServer(options: WebServerOptions): Promise<WebServer> {
   const site = await loadStaticSite(options.uiDir);
@@ -230,14 +234,15 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
       resolve();
     });
   });
-  port = (server.address() as AddressInfo).port;
-  const first = options.server?.names[0];
-  const origin = first === undefined ? `http://${LOOPBACK}:${port}` : `https://${first}`;
+  const bound = server.address() as AddressInfo;
+  port = bound.port;
+  const origin = options.server === undefined ? `http://${LOOPBACK}:${port}` : `https://${options.server.names[0] ?? `${LOOPBACK}:${port}`}`;
 
   return {
     // Server mode prints no token: the page asks for the access secret (decisions.md, "Phase 12: H0, the real container", E).
-    url: first === undefined ? `${origin}/#token=${token}` : `${origin}/`,
+    url: options.server === undefined ? `${origin}/#token=${token}` : `${origin}/`,
     origin,
+    address: bound.address,
     port,
     token,
     close: () =>
