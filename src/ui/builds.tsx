@@ -8,6 +8,7 @@ import { formatWhen } from './format.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { ConfirmModal, ErrorNote, LoadState, Note, UsageWarningModal, usageWarningIn } from './kit.js';
 import { routeHash } from './route.js';
+import type { ProviderUi } from './types.js';
 import type { BuildTaskUi, BuildViewUi, ProjectBuildsUi, QueueItemUi, TaskProposalUi, UsageWarningView } from './types.js';
 
 /**
@@ -163,6 +164,10 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
   const [fixRounds, setFixRounds] = useState('1');
   const [fiveHour, setFiveHour] = useState(String(defaults.fiveHour));
   const [week, setWeek] = useState(String(defaults.week));
+  // At the usage threshold (phase 12): pause (`''`, the default) or one of config.json's reserve providers.
+  const providers = useLoad<{ providers: ProviderUi[] }>('/api/providers');
+  const [reserve, setReserve] = useState('');
+  const reserveProvider = (providers.data?.providers ?? []).find((provider) => provider.name === reserve);
   const [confirm, setConfirm] = useState(false);
   const action = useAction();
 
@@ -217,6 +222,7 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
           fixRounds: Number(fixRounds),
           thresholds: { fiveHour: Number(fiveHour), week: Number(week) },
           slots: Number(slots),
+          ...(reserveProvider === undefined ? {} : { reserve: reserveProvider.name }),
           confirm: true,
           ...(noChecks && noChecksConfirmed ? { noChecks: true } : {}),
         }),
@@ -385,6 +391,27 @@ function StartForm({ build, onStarted, defaults }: { build: BuildViewUi; onStart
           <input class="input" type="number" min={1} max={100} value={week} onInput={(event) => setWeek((event.target as HTMLInputElement).value)} data-testid="build-threshold-week" />
         </label>
       </div>
+      {(providers.data?.providers.length ?? 0) > 0 && (
+        <>
+          <label class="label">
+            {t.buildReserveLabel}
+            <select class="input" value={reserve} onChange={(event) => setReserve((event.target as HTMLSelectElement).value)} data-testid="build-reserve">
+              <option value="">{t.buildReservePause}</option>
+              {(providers.data?.providers ?? []).map((provider) => (
+                <option key={provider.name} value={provider.name}>
+                  {t.buildReserveGoOn(provider.name, provider.model)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {reserveProvider !== undefined && (
+            <Note tone="danger" title={t.buildReserveWarningTitle(reserveProvider.name)} testId="build-reserve-warning">
+              {t.buildReserveWarningBody(reserveProvider.name)}
+              {reserveProvider.note !== undefined && <span class="t-small"> {reserveProvider.note}</span>}
+            </Note>
+          )}
+        </>
+      )}
       <Note tone="danger" title={t.buildWarningTitle} testId="build-warning">
         {t.buildWarningBody}
       </Note>
@@ -454,6 +481,12 @@ function Progress({ build }: { build: BuildViewUi }) {
                 <td role="cell" class="td-mono" data-label={t.buildColCodex}>{task.task === undefined ? '—' : task.task.codexCalls === 0 ? '0' : `${task.task.codexCalls} · ${formatCount(task.task.codexTokens, lang)}`}</td>
                 <td role="cell" class="td-mono" data-label={t.buildColTokens} data-testid="build-task-tokens">
                   {task.task?.claudeTokens === undefined ? '—' : `${formatCount(task.task.claudeTokens.noCache, lang)} (${formatCount(task.task.claudeTokens.withCache, lang)})`}
+                  {/* Whose tokens these are: a reserve provider's when the card ran on one (phase 12). */}
+                  {task.provider !== undefined && (
+                    <span class="chip" data-testid="build-task-provider">
+                      {t.buildTaskProvider(task.provider)}
+                    </span>
+                  )}
                 </td>
                 <td role="cell" class="t-small td-stack-detail" data-label={t.buildColDetail}>
                   {task.reason !== undefined && <span data-testid="build-task-reason">{t.buildWaitReason(task.reason)}</span>}
@@ -593,6 +626,11 @@ function StatusNotes({ build }: { build: BuildViewUi }) {
   return (
     <>
       {build.state === 'paused' && build.pause?.reason === 'usage' && <Note tone="plain" testId="build-paused">{t.buildPausedUsage(until)}</Note>}
+      {build.state === 'paused' && build.pause?.reserveMissing !== undefined && (
+        <Note tone="danger" testId="build-reserve-missing">
+          {t.buildReserveMissing(build.pause.reserveMissing)}
+        </Note>
+      )}
       {build.state === 'paused' && build.pause?.reason === 'usageUnread' && <Note tone="plain" testId="build-paused">{t.buildPausedUnread(until)}</Note>}
       {build.state === 'paused' && build.pause?.reason === 'user' && <Note tone="plain" testId="build-paused">{t.buildPausedUser}</Note>}
       {build.pausing === true && <Note tone="plain" testId="build-pausing">{t.buildPausing}</Note>}

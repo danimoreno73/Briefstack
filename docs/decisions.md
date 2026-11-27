@@ -8744,7 +8744,23 @@ The brief's defaults 4 to 11 are kept, with these readings:
   runs in permission mode `default` (auto mode is not available with a
   provider's model; H0, 3): the task guard answers every call, as in auto
   mode's fallback, so the build's security model does not change. A
-  failed usage reading still pauses with a reserve chosen.
+  failed usage reading still pauses with a reserve chosen. From M4: a card
+  keeps the provider it started on for all its rounds, **its redo
+  included** (the plan said a redo starts on whatever the next pass
+  chooses; the redo happens inside the card's own run, with no pass in
+  between, so it keeps its provider: one reading, one provider per card);
+  a reserve whose key file is missing or empty at the threshold pauses the
+  build as before, with `pause.reserveMissing` naming it; a start naming
+  a provider config.json does not have is refused
+  (`build.reserveUnknown`); the user's Resume starts the next cards on
+  Claude without reading the usage, as before. A `reserveProviders` entry
+  takes only its known fields (a `key` field, or anything else, makes the
+  config invalid), an `https://` base URL without credentials, query or
+  fragment, and an absolute key file path; a key file is read only when a
+  round starts, at most 4 KiB, on one line. The Settings card shows only
+  when a provider is configured. The status check's request carries no
+  header of briefstack's and follows no redirect; tests and e2e give it a
+  fake `fetch`, so no test reaches the network.
 - **10. Codex:** off in server mode by the Codex service itself
   (`codex.serverMode`), whatever `config.json` says.
 - **The probe of H0, 4** (`tests/screenshots/narrow.shots.ts`) stays in

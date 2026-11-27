@@ -5,6 +5,7 @@ import { api } from './api.js';
 import { ClaudeCard } from './claude.js';
 import { CodexCard } from './codex.js';
 import { DevicesCard } from './signin.js';
+import { ProvidersCard } from './providers.js';
 import { PathText } from './common.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { ErrorNote, LoadState, Note } from './kit.js';
@@ -115,6 +116,7 @@ export function SettingsPage() {
         {serverMode && <DevicesCard />}
         <ClaudeCard />
         <CodexCard />
+        <ProvidersCard />
         <LoadState loaded={loaded}>
           {() => (
             <form class="settings" onSubmit={(event) => void save(event)}>

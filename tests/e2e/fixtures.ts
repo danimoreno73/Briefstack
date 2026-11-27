@@ -144,7 +144,12 @@ export interface AppOptions {
    * address with no token (the page asks for the secret). Local mode by default.
    */
   serverSecret?: string;
+  /** A reserve provider `fake-reserve` in config.json, with a temp key file (phase 12). None by default. */
+  reserveProvider?: boolean;
 }
+
+/** The fake reserve provider's key: built at run time, so no file in the repo holds a secret-looking value. */
+export const E2E_RESERVE_KEY = ['e2e', 'reserve', 'r'.repeat(24)].join('-');
 
 /** The allowed name of server mode in e2e; the browser itself uses the loopback address, which server mode also accepts. */
 export const E2E_SERVER_NAME = 'briefstack.e2e.invalid:8445';
@@ -189,6 +194,15 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
   await initLibrary({ libraryDir, projectsDir, sessionsDir, repoDir });
   // The UI follows the saved language, so the machine's own locale does not matter.
   await updateConfig(path.join(home, 'config.json'), { lang: options.lang ?? 'en', projectsDir });
+  if (options.reserveProvider === true) {
+    // A reserve provider (phase 12) whose key file is a temp one; the fake task runner reads it and sends it nowhere.
+    const keyFile = path.join(dir, 'keys', 'fake-reserve.key');
+    await mkdir(path.dirname(keyFile), { recursive: true });
+    await writeFile(keyFile, `${E2E_RESERVE_KEY}\n`, 'utf8');
+    await updateConfig(path.join(home, 'config.json'), {
+      reserveProviders: [{ name: 'fake-reserve', baseUrl: 'https://reserve.e2e.invalid/anthropic', model: 'fake-model', keyFile, note: 'A fake provider for the end-to-end tests.' }],
+    });
+  }
 
   // A user preset, cloned from a base one.
   const base = JSON.parse(await readFile(path.join(PACKAGE_ROOT, 'library', 'usage-profiles.json'), 'utf8')) as {
@@ -352,6 +366,8 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     claudeStatus,
     ...(usageCheck === undefined ? {} : { usageCheck }),
     ...(serverMode === undefined ? {} : { server: serverMode }),
+    // A reserve provider's status check never reaches the network in e2e: its endpoint "answers" 404.
+    providerCheck: { fetch: (async () => new Response('', { status: 404 })) as typeof fetch },
   });
 
   const app: App = {

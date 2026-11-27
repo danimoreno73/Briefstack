@@ -522,6 +522,8 @@ export interface BuildTaskUi extends QueueItemUi {
   rounds: number;
   /** Its one redo (phase 11). */
   redo?: { reason: 'conflict' | 'checksFailed'; previousTask: string };
+  /** The reserve provider its current attempt runs on (phase 12); absent: Claude. */
+  provider?: string;
   /** Its last join (phase 11). */
   join?: { outcome: 'applied' | 'conflict' | 'checksFailed'; merged: boolean; files?: string[]; checks?: { command: string; exitCode: number | null; timedOut: boolean }[] };
   /** What the server adds from the task itself (M5): its state, checks and Codex calls (tokens as Codex counts them). */
@@ -548,9 +550,9 @@ export interface BuildViewUi {
   baseCommit?: string;
   plan?: { tasks: QueueItemUi[]; commands: string[]; checks: string[] };
   tasks: BuildTaskUi[];
-  settings?: { limit: number; commands: string[]; checks: string[]; fixRounds: number; maxRounds: number; thresholds: { fiveHour: number; week: number }; slots?: number };
+  settings?: { limit: number; commands: string[]; checks: string[]; fixRounds: number; maxRounds: number; thresholds: { fiveHour: number; week: number }; slots?: number; reserve?: string };
   roundsRun: number;
-  pause?: { reason: string; at: string; until?: string; fiveHour?: number | null; sevenDay?: number | null };
+  pause?: { reason: string; at: string; until?: string; fiveHour?: number | null; sevenDay?: number | null; reserveMissing?: string };
   startedAt?: string;
   finishedAt?: string;
   applied?: { commit: string; at: string };
@@ -566,6 +568,27 @@ export interface ProjectBuildsUi {
   builds: BuildViewUi[];
   plan: { ok: true } | { ok: false; code: string; params: Record<string, unknown>; message: string };
   thresholds: { fiveHour: number; week: number };
+}
+
+/** A reserve provider's status check (phase 12): no key is ever read. */
+export interface ProviderCheckUi {
+  name: string;
+  keyFile: 'present' | 'missing' | 'empty';
+  endpoint: 'reachable' | 'unreachable';
+  status?: number;
+  key: 'notChecked';
+  checkedAt: string;
+}
+
+/** A reserve provider, as `GET /api/providers` gives it (phase 12): never its key. */
+export interface ProviderUi {
+  name: string;
+  baseUrl: string;
+  model: string;
+  smallModel?: string;
+  keyFile: string;
+  note?: string;
+  check?: ProviderCheckUi;
 }
 
 export interface ProjectTasksUi {
