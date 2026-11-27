@@ -2,7 +2,7 @@ import type { StartIssue } from './builds/commands.js';
 import type { SpecIssue } from './spec/index.js';
 
 /** What a config field should have been; rendered by the i18n catalogue. */
-export type FieldExpectation = 'text' | 'lang' | 'permissionPolicy' | 'positiveInteger' | 'percent' | 'boolean' | 'codexMode' | 'codexMaxCalls' | 'implementMinutes' | 'implementToolCalls';
+export type FieldExpectation = 'text' | 'lang' | 'permissionPolicy' | 'positiveInteger' | 'percent' | 'boolean' | 'codexMode' | 'codexMaxCalls' | 'implementMinutes' | 'implementToolCalls' | 'reserveProviders';
 
 /** Folders an output directory must stay out of. */
 export type ProtectedRoot = 'repo' | 'library' | 'home' | 'claudeConfig' | 'appData' | 'localAppData';
@@ -88,6 +88,10 @@ export interface ErrorParams {
   'server.deviceNotFound': { id: string };
   /** Phase 12: Codex is off in server mode. */
   'codex.serverMode': Record<string, never>;
+  /** Phase 12, M4: reserve providers. Never the key, only the provider and its file's path. */
+  'provider.keyUnreadable': { name: string; file: string };
+  'provider.notFound': { name: string };
+  'build.reserveUnknown': { name: string };
   'web.invalidJson': { detail: string };
   'web.invalidBody': { issues: string[] };
   'web.invalidQuery': { name: string; value: string };

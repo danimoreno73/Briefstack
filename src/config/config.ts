@@ -13,6 +13,7 @@ import {
   isImplementToolCalls,
 } from './limits.js';
 import { toAbsolute, type PathEnv } from './paths.js';
+import { parseReserveProviders, type ReserveProvider } from '../providers/config.js';
 
 /**
  * What a web creation does with a permission request: ask the user in the
@@ -53,6 +54,13 @@ export interface BriefstackConfig {
   implementMaxMinutes?: number;
   /** The implementer's tool calls (phase 10), 20 to 1000; absent means the default. */
   implementMaxToolCalls?: number;
+  /** Reserve providers a build may go on with at the usage threshold (phase 12); written by hand, never by the page. */
+  reserveProviders?: ReserveProvider[];
+}
+
+/** The configured reserve providers; none when the config sets none. */
+export function reserveProvidersOf(config: BriefstackConfig): ReserveProvider[] {
+  return config.reserveProviders ?? [];
 }
 
 /** The implement step's bounds, with the defaults (30 minutes, 150 tool calls). */
@@ -224,6 +232,11 @@ export function parseConfig(text: string, file: string): BriefstackConfig {
   if (raw.implementMaxToolCalls !== undefined) {
     if (!isImplementToolCalls(raw.implementMaxToolCalls)) invalid('implementMaxToolCalls', 'implementToolCalls');
     config.implementMaxToolCalls = raw.implementMaxToolCalls as number;
+  }
+  if (raw.reserveProviders !== undefined) {
+    const providers = parseReserveProviders(raw.reserveProviders);
+    if (providers === undefined) return invalid('reserveProviders', 'reserveProviders');
+    config.reserveProviders = providers;
   }
   return config;
 }

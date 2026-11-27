@@ -23,6 +23,8 @@ const expectationEn: Record<FieldExpectation, string> = {
   codexMaxCalls: 'a whole number from 1 to 10',
   implementMinutes: 'a whole number from 5 to 120',
   implementToolCalls: 'a whole number from 20 to 1000',
+  reserveProviders:
+    'a list of up to 8 providers, each with a unique name (lowercase letters, digits and -), baseUrl (https://, nothing after the path), model, keyFile (an absolute path) and, if wanted, smallModel and note, and no other field',
 };
 const expectationEs: Record<FieldExpectation, string> = {
   text: 'un texto no vacío',
@@ -35,6 +37,8 @@ const expectationEs: Record<FieldExpectation, string> = {
   codexMaxCalls: 'un número entero de 1 a 10',
   implementMinutes: 'un número entero de 5 a 120',
   implementToolCalls: 'un número entero de 20 a 1000',
+  reserveProviders:
+    'una lista de hasta 8 proveedores, cada uno con un nombre único (minúsculas, dígitos y -), baseUrl (https://, nada tras la ruta), model, keyFile (una ruta absoluta) y, si se quiere, smallModel y note, y ningún otro campo',
 };
 
 type UnsafeReason = ErrorParams['task.unsafeDefinitions']['items'][number]['reason'];
@@ -209,6 +213,9 @@ const errors = defineCatalogue<ErrorMessages>({
     'server.secretUnreadable': (p) => `The access secret file ${p.file} cannot be read.`,
     'server.secretTooShort': (p) => `The access secret in ${p.file} is too short or has more than one line: it needs at least ${p.min} characters on one line.`,
     'codex.serverMode': () => 'Codex is off while briefstack runs in server mode.',
+    'provider.keyUnreadable': (p) => `The key of the reserve provider "${p.name}" cannot be read from ${p.file}: the file must exist and hold the key on one line.`,
+    'provider.notFound': (p) => `There is no reserve provider "${p.name}" in config.json.`,
+    'build.reserveUnknown': (p) => `There is no reserve provider "${p.name}" in config.json: choose another, or pause at the threshold.`,
     'server.signInFailed': () => 'That is not the access secret.',
     'server.signInLocked': (p) => `Too many wrong access secrets: signing in is locked for ${Math.ceil(p.seconds / 60)} more minutes.`,
     'server.deviceNotFound': (p) => `No signed-in device "${p.id}": it may have been signed out already.`,
@@ -454,6 +461,9 @@ const errors = defineCatalogue<ErrorMessages>({
     'server.secretUnreadable': (p) => `No se puede leer el fichero del secreto de acceso ${p.file}.`,
     'server.secretTooShort': (p) => `El secreto de acceso de ${p.file} es demasiado corto o tiene más de una línea: necesita al menos ${p.min} caracteres en una línea.`,
     'codex.serverMode': () => 'Codex está apagado mientras briefstack funciona en modo servidor.',
+    'provider.keyUnreadable': (p) => `No se puede leer la clave del proveedor de reserva "${p.name}" en ${p.file}: el fichero debe existir y tener la clave en una línea.`,
+    'provider.notFound': (p) => `No hay ningún proveedor de reserva "${p.name}" en config.json.`,
+    'build.reserveUnknown': (p) => `No hay ningún proveedor de reserva "${p.name}" en config.json: elige otro, o pausa en el umbral.`,
     'server.signInFailed': () => 'Ese no es el secreto de acceso.',
     'server.signInLocked': (p) => `Demasiados secretos de acceso incorrectos: el inicio de sesión está bloqueado ${Math.ceil(p.seconds / 60)} minutos más.`,
     'server.deviceNotFound': (p) => `No hay ningún dispositivo con sesión "${p.id}": puede que ya se haya cerrado.`,

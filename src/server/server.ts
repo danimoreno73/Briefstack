@@ -31,6 +31,8 @@ import { loadStaticSite } from './static.js';
 import type { ServerMode } from './access.js';
 import { DeviceSessions, SignInLimiter, sessionToken, type DeviceRecord } from './sessions.js';
 import { signInRoutes } from './signin.js';
+import { providerRoutes } from './providers.js';
+import type { ProviderCheckDeps } from '../providers/check.js';
 
 export { sendJson } from './http.js';
 
@@ -85,6 +87,8 @@ export interface WebServerOptions {
   server?: ServerMode;
   /** The clock of the sign-in limit and the devices' times (tests move it). */
   now?: () => Date;
+  /** How a reserve provider's status check reaches the network (tests give a fake `fetch`). */
+  providerCheck?: ProviderCheckDeps;
 }
 
 export interface WebServer {
@@ -145,6 +149,7 @@ function apiRoutes(options: WebServerOptions, auth: ServerAuth | undefined): Rou
     ...chatRoutes(options.chat, options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
     ...improveRoutes(options.improvements, { usage: options.usageCheck }),
     ...skillRoutes(options.skills),
+    ...providerRoutes({ pathEnv, ...(options.providerCheck === undefined ? {} : { check: options.providerCheck }) }),
     ...codexRoutes(options.codex),
     ...buildRoutes(options.builds, { usage: options.usageCheck }),
     ...taskRoutes(options.tasks, {

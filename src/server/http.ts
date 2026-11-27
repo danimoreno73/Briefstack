@@ -66,6 +66,7 @@ const ERROR_STATUS: Partial<Record<ErrorCode, number>> = {
   'improve.checkBusy': 409,
   'improve.suggestionNotFound': 404,
   'codex.serverMode': 409,
+  'provider.notFound': 404,
   'server.signInFailed': 401,
   'server.signInLocked': 429,
   'server.deviceNotFound': 404,
