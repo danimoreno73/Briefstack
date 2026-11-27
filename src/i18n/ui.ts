@@ -543,6 +543,8 @@ export const uiMessages = defineCatalogue({
       'Each card at work is a session in the shared limit of active sessions. Parallel cards spend the plan’s 5-hour window faster: more work at once, not more work per window. With 1, the build runs as before, one card after another.',
     buildBoardTitle: 'The board',
     buildBoardSlots: (slots: number) => (slots === 1 ? 'One card at a time.' : `Up to ${slots} cards at once, never two whose areas overlap.`),
+    buildBoardPauses: 'At the usage threshold it pauses.',
+    buildBoardReserve: (name: string) => `At the usage threshold it goes on with the reserve provider ${name}.`,
     buildColumn: (column: string): string =>
       ({ pending: 'Pending', blocked: 'Blocked', running: 'Running', waiting: 'Waiting for you', done: 'Done', skipped: 'Skipped' })[column] ?? column,
     buildCardWholeProject: 'the whole project',
@@ -669,7 +671,7 @@ export const uiMessages = defineCatalogue({
     buildReserveWarningTitle: (name: string) => `${name} is paid per use and sees the cards it runs`,
     buildReserveWarningBody: (name: string) =>
       `While the plan usage is over a threshold, the cards that start run on ${name}: it is billed per use to its key (set a spending cap in its console), and it receives the code, the prompts and the command output of those cards. Where that data goes and how long it is kept is what ${name}'s own terms say. The planner, creations and ordinary tasks stay on Claude. The exact commands, the checks and the final apply do not change.`,
-    buildReserveMissing: (name: string) => `The reserve provider ${name} could not take over: its key file was missing or empty. Fix it in config.json or its file; the build resumes as written above.`,
+    buildReserveMissing: (name: string) => `The reserve provider ${name} could not take over: it is no longer in config.json, or its key file is missing, empty or does not hold a key on one line. Fix it in config.json or in its file; the build resumes as written above.`,
     buildTaskProvider: (name: string) => `on ${name}`,
     providersTitle: 'Reserve providers',
     providersIntro:
@@ -678,7 +680,8 @@ export const uiMessages = defineCatalogue({
     providerKeyFile: 'Key file',
     providerCheck: 'Check',
     providerChecking: 'Checking…',
-    providerKeyState: (state: 'present' | 'missing' | 'empty') => ({ present: 'Key file: present', missing: 'Key file: missing', empty: 'Key file: empty' })[state],
+    providerKeyState: (state: 'present' | 'missing' | 'empty' | 'tooLarge') =>
+      ({ present: 'Key file: present', missing: 'Key file: missing', empty: 'Key file: empty', tooLarge: 'Key file: too large to hold a key (over 4 KiB)' })[state],
     providerEndpoint: (reachable: boolean, status: number | undefined) => (reachable ? `Endpoint: answers${status === undefined ? '' : ` (HTTP ${status})`}` : 'Endpoint: no answer'),
     providerKeyNotChecked: 'Key: not checked (no call without cost is documented, so the key is never sent by the check)',
     buildPausing: 'Pausing once the cards at work end…',
@@ -1981,6 +1984,8 @@ export const uiMessages = defineCatalogue({
       'Cada tarjeta en marcha es una sesión dentro del límite compartido de sesiones activas. Las tarjetas en paralelo gastan antes la ventana de 5 horas del plan: más trabajo a la vez, no más trabajo por ventana. Con 1, el build funciona como antes, una tarjeta tras otra.',
     buildBoardTitle: 'El tablero',
     buildBoardSlots: (slots: number) => (slots === 1 ? 'Una tarjeta cada vez.' : `Hasta ${slots} tarjetas a la vez, nunca dos cuyas zonas se solapen.`),
+    buildBoardPauses: 'En el umbral de uso se pausa.',
+    buildBoardReserve: (name: string) => `En el umbral de uso sigue con el proveedor de reserva ${name}.`,
     buildColumn: (column: string): string =>
       ({ pending: 'Pendientes', blocked: 'Bloqueadas', running: 'En marcha', waiting: 'Esperándote', done: 'Hechas', skipped: 'Saltadas' })[column] ?? column,
     buildCardWholeProject: 'todo el proyecto',
@@ -2107,7 +2112,7 @@ export const uiMessages = defineCatalogue({
     buildReserveWarningTitle: (name: string) => `${name} se paga por uso y ve las tarjetas que ejecuta`,
     buildReserveWarningBody: (name: string) =>
       `Mientras el uso del plan esté por encima de un umbral, las tarjetas que empiecen irán con ${name}: se cobra por uso a su clave (pon un tope de gasto en su consola) y recibe el código, los prompts y la salida de los comandos de esas tarjetas. Adónde van esos datos y cuánto se guardan es lo que digan las condiciones de ${name}. El planificador, las creaciones y las tareas normales siguen con Claude. Los comandos exactos, las comprobaciones y la aplicación final no cambian.`,
-    buildReserveMissing: (name: string) => `El proveedor de reserva ${name} no pudo seguir: su fichero de clave faltaba o estaba vacío. Corrígelo en config.json o en su fichero; el build se reanuda como dice arriba.`,
+    buildReserveMissing: (name: string) => `El proveedor de reserva ${name} no pudo seguir: ya no está en config.json, o su fichero de clave falta, está vacío o no tiene la clave en una línea. Corrígelo en config.json o en su fichero; el build se reanuda como dice arriba.`,
     buildTaskProvider: (name: string) => `con ${name}`,
     providersTitle: 'Proveedores de reserva',
     providersIntro:
@@ -2116,7 +2121,8 @@ export const uiMessages = defineCatalogue({
     providerKeyFile: 'Fichero de la clave',
     providerCheck: 'Comprobar',
     providerChecking: 'Comprobando…',
-    providerKeyState: (state: 'present' | 'missing' | 'empty') => ({ present: 'Fichero de la clave: presente', missing: 'Fichero de la clave: no está', empty: 'Fichero de la clave: vacío' })[state],
+    providerKeyState: (state: 'present' | 'missing' | 'empty' | 'tooLarge') =>
+      ({ present: 'Fichero de la clave: presente', missing: 'Fichero de la clave: no está', empty: 'Fichero de la clave: vacío', tooLarge: 'Fichero de la clave: demasiado grande para ser una clave (más de 4 KiB)' })[state],
     providerEndpoint: (reachable: boolean, status: number | undefined) => (reachable ? `Endpoint: responde${status === undefined ? '' : ` (HTTP ${status})`}` : 'Endpoint: sin respuesta'),
     providerKeyNotChecked: 'Clave: sin comprobar (no hay ninguna llamada sin coste documentada, así que la comprobación nunca envía la clave)',
     buildPausing: 'Pausando cuando terminen las tarjetas en marcha…',

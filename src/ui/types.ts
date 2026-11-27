@@ -573,7 +573,7 @@ export interface ProjectBuildsUi {
 /** A reserve provider's status check (phase 12): no key is ever read. */
 export interface ProviderCheckUi {
   name: string;
-  keyFile: 'present' | 'missing' | 'empty';
+  keyFile: 'present' | 'missing' | 'empty' | 'tooLarge';
   endpoint: 'reachable' | 'unreachable';
   status?: number;
   key: 'notChecked';

@@ -537,6 +537,10 @@ function Board({ build }: { build: BuildViewUi }) {
         {t.buildBoardTitle}
       </h2>
       <p class="sub">{t.buildBoardSlots(build.settings?.slots ?? 1)}</p>
+      {/* What happens at the usage threshold, chosen at the start (phase 12; review of M4, 7). */}
+      <p class="sub" data-testid="build-board-reserve">
+        {build.settings?.reserve === undefined ? t.buildBoardPauses : t.buildBoardReserve(build.settings.reserve)}
+      </p>
       <div class="board-columns">
         {COLUMNS.map((column) => {
           const cards = byColumn.get(column) ?? [];

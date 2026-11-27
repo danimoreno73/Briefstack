@@ -43,6 +43,14 @@ test.describe('a build with a reserve provider', () => {
     await expect(rows.nth(0).getByTestId('build-task-provider')).toHaveText('on fake-reserve');
     await expect(rows.nth(1).getByTestId('build-task-provider')).toHaveCount(0);
     expect(await page.content()).not.toContain(E2E_RESERVE_KEY);
+    await expect(page.getByTestId('build-board-reserve')).toHaveText('At the usage threshold it goes on with the reserve provider fake-reserve.');
+    // The build's API answer holds the provider's name, never its key (review of M4, I3).
+    const id = decodeURIComponent(new URL(page.url()).hash.replace(/^#\/builds\//, ''));
+    const answer = await fetch(`http://127.0.0.1:${app.server.port}/api/builds/${encodeURIComponent(id)}`, { headers: { 'x-briefstack-token': app.server.token } });
+    const body = await answer.text();
+    expect(answer.status).toBe(200);
+    expect(body).toContain('"reserve":"fake-reserve"');
+    expect(body).not.toContain(E2E_RESERVE_KEY);
     const rounds = app.taskRunner.started.map((round) => round.provider?.name ?? 'claude');
     expect(rounds).toEqual(['fake-reserve', 'claude']);
   });
