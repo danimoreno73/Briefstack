@@ -82,6 +82,10 @@ export interface ErrorParams {
   'server.noSecretFile': Record<string, never>;
   'server.secretUnreadable': { file: string };
   'server.secretTooShort': { file: string; min: number };
+  /** Phase 12, M2: sign-in and devices. Neither carries what was typed. */
+  'server.signInFailed': Record<string, never>;
+  'server.signInLocked': { seconds: number };
+  'server.deviceNotFound': { id: string };
   /** Phase 12: Codex is off in server mode. */
   'codex.serverMode': Record<string, never>;
   'web.invalidJson': { detail: string };

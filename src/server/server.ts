@@ -4,7 +4,8 @@ import type { ChatManager } from '../chat/manager.js';
 import type { ClaudeStatus } from '../creation/claudeAccount.js';
 import type { CreationManager } from '../creation/manager.js';
 import type { ImprovementManager } from '../improve/manager.js';
-import { configFilePath, readConfig, resolvePaths, systemPathEnv, type PathEnv } from '../config/index.js';
+import path from 'node:path';
+import { configFilePath, readConfig, resolveHome, resolvePaths, systemPathEnv, type PathEnv } from '../config/index.js';
 import { PACKAGE_ROOT } from '../packageRoot.js';
 import type { TaskManager } from '../tasks/manager.js';
 import type { BuildManager } from '../builds/manager.js';
@@ -28,6 +29,8 @@ import { createRouter, type RouteTable } from './router.js';
 import { LOOPBACK, TOKEN_HEADER, checkRequest, newToken, type Rejection } from './security.js';
 import { loadStaticSite } from './static.js';
 import type { ServerMode } from './access.js';
+import { DeviceSessions, SignInLimiter, sessionToken, type DeviceRecord } from './sessions.js';
+import { signInRoutes } from './signin.js';
 
 export { sendJson } from './http.js';
 
@@ -80,6 +83,8 @@ export interface WebServerOptions {
    * never accept the per-start token. Absent: local mode, exactly as before.
    */
   server?: ServerMode;
+  /** The clock of the sign-in limit and the devices' times (tests move it). */
+  now?: () => Date;
 }
 
 export interface WebServer {
@@ -99,15 +104,22 @@ export interface WebServer {
 const REJECTION_STATUS: Record<Rejection, number> = { host: 403, token: 401, origin: 403, session: 401 };
 
 /** The `/api` routes server mode serves without a device session (phase 12). */
-const OPEN_SERVER_ROUTES: readonly string[] = ['GET /api/health', 'GET /api/server/state'];
+const OPEN_SERVER_ROUTES: readonly string[] = ['GET /api/health', 'GET /api/server/state', 'POST /api/server/sign-in'];
+
+/** Server mode's device sessions, for the routes that need them (phase 12). */
+interface ServerAuth {
+  deviceOf: (req: IncomingMessage) => DeviceRecord | undefined;
+  routes: RouteTable;
+}
 
 /** Read-only and mutating `/api` routes, as `METHOD /path` (`:name` segments are parameters). */
-function apiRoutes(options: WebServerOptions): RouteTable {
+function apiRoutes(options: WebServerOptions, auth: ServerAuth | undefined): RouteTable {
   const pathEnv = options.pathEnv ?? systemPathEnv();
   return [
     ['GET /api/health', (_req, res) => sendJson(res, 200, { ok: true, version: VERSION })],
     // Phase 12: how the page signs in. Only the mode and whether this request is signed in, never anything else.
-    ['GET /api/server/state', (_req, res) => sendJson(res, 200, options.server === undefined ? { mode: 'local' } : { mode: 'server', signedIn: false })],
+    ['GET /api/server/state', (req, res) => sendJson(res, 200, auth === undefined ? { mode: 'local' } : { mode: 'server', signedIn: auth.deviceOf(req) !== undefined })],
+    ...(auth?.routes ?? []),
     [
       'GET /api/claude',
       async (req, res) => {
@@ -157,7 +169,18 @@ function apiRoutes(options: WebServerOptions): RouteTable {
 export async function startWebServer(options: WebServerOptions): Promise<WebServer> {
   const site = await loadStaticSite(options.uiDir);
   const token = options.token ?? newToken();
-  const route = createRouter(apiRoutes(options));
+  const mode = options.server;
+  // Server mode (phase 12): the signed-in devices, kept in the home; the device of each request that carried a session.
+  const devices = new WeakMap<IncomingMessage, DeviceRecord>();
+  const sessions = mode === undefined ? undefined : await DeviceSessions.open({ file: path.join(resolveHome(options.pathEnv ?? systemPathEnv()), 'server', 'sessions.json'), ...(options.now === undefined ? {} : { now: options.now }) });
+  const auth: ServerAuth | undefined =
+    mode === undefined || sessions === undefined
+      ? undefined
+      : {
+          deviceOf: (req) => devices.get(req),
+          routes: signInRoutes({ sessions, limiter: new SignInLimiter(options.now), secretDigest: mode.secretDigest, deviceOf: (req) => devices.get(req) }),
+        };
+  const route = createRouter(apiRoutes(options, auth));
   const lang = options.lang ?? DEFAULT_LANG;
   const log = options.log ?? (() => undefined);
   let port = options.port;
@@ -165,7 +188,10 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
     const api = pathname === '/api' || pathname.startsWith('/api/');
-    const server = options.server;
+    if (sessions !== undefined && api) {
+      const device = await sessions.find(sessionToken(header(req, 'cookie')));
+      if (device !== undefined) devices.set(req, device);
+    }
     const rejection = checkRequest(
       {
         method: req.method,
@@ -178,7 +204,7 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
         port,
         token,
         api,
-        ...(server === undefined ? {} : { server: { names: server.names, signedIn: false, open: OPEN_SERVER_ROUTES.includes(`${req.method ?? ''} ${pathname}`) } }),
+        ...(mode === undefined ? {} : { server: { names: mode.names, signedIn: devices.has(req), open: OPEN_SERVER_ROUTES.includes(`${req.method ?? ''} ${pathname}`) } }),
       },
     );
     if (rejection !== undefined) {

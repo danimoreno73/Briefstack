@@ -179,9 +179,11 @@ describe('the web server in server mode', () => {
     await cleanup();
   });
   const mode = (): ServerMode => ({ listen: '127.0.0.1', names: [NAME], secretDigest: Buffer.alloc(32), secretFileOpen: false });
+  // Server mode keeps its devices in the home: a temp one, never the machine's.
+  const pathEnv = () => ({ env: { BRIEFSTACK_HOME: path.join(dir, 'home') }, homedir: path.join(dir, 'user'), pathApi: path, caseInsensitive: false });
 
   it('gives an address without the token, serves the page to its name, and refuses the token on /api', async () => {
-    server = await startWebServer({ port: 0, uiDir: path.join(dir, 'ui'), token: TOKEN, server: mode() });
+    server = await startWebServer({ port: 0, uiDir: path.join(dir, 'ui'), token: TOKEN, server: mode(), pathEnv: pathEnv() });
     expect(server.url).toBe(`https://${NAME}/`);
     expect(server.url).not.toContain(TOKEN);
     expect((await send(server, '/', { headers: { host: NAME } })).status).toBe(200);
@@ -201,7 +203,7 @@ describe('the web server in server mode', () => {
 
   // Not on Windows: binding every address there can open the firewall's dialog on a desktop. CI's Linux and macOS prove it.
   it.skipIf(process.platform === 'win32')('listens on the --listen address in server mode', async () => {
-    server = await startWebServer({ port: 0, uiDir: path.join(dir, 'ui'), token: TOKEN, server: { ...mode(), listen: '0.0.0.0' } });
+    server = await startWebServer({ port: 0, uiDir: path.join(dir, 'ui'), token: TOKEN, server: { ...mode(), listen: '0.0.0.0' }, pathEnv: pathEnv() });
     expect(server.address).toBe('0.0.0.0');
   });
 
