@@ -9,6 +9,7 @@ import { evaluateTaskToolUse } from './guard.js';
 import { closeTaskSession, codexDelegateFor, openTaskSession, taskHookEvent, UNATTENDED_DENIED, UNATTENDED_QUESTION, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
 import { describeCommand } from './shell.js';
 import type { ClaudeUsage } from './types.js';
+import { readProviderKey } from '../providers/env.js';
 
 /**
  * A task runner without Claude Code, for every UI and API test (BRIEF-phase-7
@@ -256,6 +257,16 @@ class FakeRun {
 
   private async run(): Promise<TaskRunnerOutcome> {
     this.options.io.emit({ kind: 'status', status: 'starting' });
+    // A reserve provider's round (phase 12) reads its key first, as the real runner does: a missing file fails the
+    // round before any session. The key goes nowhere here.
+    if (this.options.provider !== undefined) {
+      try {
+        await readProviderKey(this.options.provider);
+      } catch (error) {
+        this.options.io.emit({ kind: 'status', status: 'error' });
+        return { kind: 'failed', error: error instanceof Error ? error.message : String(error) };
+      }
+    }
     await openTaskSession(this.options.sessionsDir, this.session, { taskId: this.options.taskId, project: this.options.project, round: this.options.round });
     this.opened();
     this.options.io.emit({ kind: 'status', status: 'running' });

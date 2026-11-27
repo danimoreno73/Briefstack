@@ -25,6 +25,7 @@ import { TaskApprovals, TASK_DIALOG_TIMEOUT_MS, type ApprovalRequest, type Comma
 import { newTaskId, type TaskStore } from './store.js';
 import { branchOf, buildBranchOf, isActiveTask, type CheckResult, type TaskCodexCall, type TaskRecord, type TaskState, type TaskValidation } from './types.js';
 import path from 'node:path';
+import type { ReserveProvider } from '../providers/config.js';
 
 /**
  * A round a build runs (phase 9; decisions.md, "Phase 9: H0", 3): nobody is
@@ -40,6 +41,8 @@ export interface UnattendedRound {
   prompt: string;
   /** Each command or address the round denied, as the dialog would have shown it (redacted). */
   onDenied(entry: { tool: string; text: string }): void;
+  /** The reserve provider the round runs on (phase 12); absent: Claude, as always. */
+  provider?: ReserveProvider;
 }
 
 /** Where a build's task starts (phase 9). */
@@ -1013,7 +1016,7 @@ export class TaskManager {
     // nothing changed, so a reviewed proposal is kept (review of step 07, M2).
     this.refuseWhileStopping();
     l.inspection = inspection;
-    record.rounds.push({ n, text: changes ?? record.description, startedAt: this.now().toISOString() });
+    record.rounds.push({ n, text: changes ?? record.description, startedAt: this.now().toISOString(), ...(unattended?.provider === undefined ? {} : { provider: unattended.provider.name }) });
     record.state = 'running';
     delete record.checks;
     delete record.validations;
@@ -1036,6 +1039,7 @@ export class TaskManager {
       round: n,
       prompt: unattended?.prompt ?? roundPrompt({ description: record.description, round: n, ...(changes === undefined ? {} : { changes }), lang }),
       ...(unattended === undefined ? {} : { unattended: true }),
+      ...(unattended?.provider === undefined ? {} : { provider: unattended.provider }),
       worktree,
       model: record.model,
       effort: record.effort,

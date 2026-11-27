@@ -15,6 +15,7 @@ import { createTaskToolsServer, type CodexDelegate } from '../codex/tool.js';
 import { TASK_TOOLS_SERVER_NAME } from '../codex/toolNames.js';
 import { claudeUsageOf, closeTaskSession, codexDelegateFor, openTaskSession, taskHookEvent, UNATTENDED_DENIED, UNATTENDED_QUESTION, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
 import { taskFlagSettings, taskTools, TASK_ENV } from './session.js';
+import { providerEnvironment, readProviderKey } from '../providers/env.js';
 import { describeCommand, TaskApprovals, TASK_HOOK_TIMEOUT_S } from './shell.js';
 
 /**
@@ -73,14 +74,18 @@ export function buildTaskQueryOptions(params: {
   mcpServers?: NonNullable<Options['mcpServers']>;
 }): Options {
   const { options } = params;
+  // A reserve provider's round (phase 12; decisions.md, "Phase 12: H0", 3): auto mode needs a Claude model, so the
+  // mode is `default` and every call that needs a permission reaches `canUseTool`, which answers with the task guard's
+  // verdict and the build's exact list; the provider's model; no effort, which other models may not take.
+  const provider = options.provider;
   return {
     cwd: options.worktree,
     // The project's CLAUDE.md, rules, agents and skills, from the worktree; its settings file is hidden there.
     settingSources: ['project'],
     pathToClaudeCodeExecutable: params.executable,
-    permissionMode: 'auto',
-    model: options.model,
-    effort: options.effort,
+    permissionMode: provider === undefined ? 'auto' : 'default',
+    model: provider === undefined ? options.model : provider.model,
+    ...(provider === undefined ? { effort: options.effort } : {}),
     tools: taskTools(options.skills),
     // Only the project's own skills: Claude Code's bundled skills, built-in plugins and synced skills are hidden and refused.
     skills: [...options.skills],
@@ -186,8 +191,12 @@ class TaskSdkRun {
       const executable = (this.deps.findExecutable ?? (() => findClaudeExecutable({ env: this.deps.pathEnv.env, platform: process.platform, homedir: this.deps.pathEnv.homedir })))();
       if (executable === undefined) throw new BriefstackError('creation.claudeNotFound', {});
       const home = resolveHome(this.deps.pathEnv);
-      const { env, removed } = cleanEnvironment(this.deps.pathEnv.env, home);
-      Object.assign(env, TASK_ENV);
+      const clean = cleanEnvironment(this.deps.pathEnv.env, home);
+      Object.assign(clean.env, TASK_ENV);
+      const { removed } = clean;
+      // A reserve provider's round (phase 12): its key, read now, goes only into this round's environment.
+      const provider = this.options.provider;
+      const env = provider === undefined ? clean.env : providerEnvironment(clean.env, provider, await readProviderKey(provider));
       this.options.io.emit({ kind: 'status', status: 'starting', ...(removed.length > 0 ? { message: `Not passed to Claude Code: ${removed.join(', ')}` } : {}) });
 
       const hooks: NonNullable<Options['hooks']> = {

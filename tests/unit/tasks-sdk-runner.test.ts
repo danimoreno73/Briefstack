@@ -8,6 +8,7 @@ import { claudeTokens, claudeUsageOf, UNATTENDED_DENIED, UNATTENDED_QUESTION, ty
 import { TaskSdkRunner } from '../../src/tasks/sdkRunner.js';
 import { TaskApprovals, type ApprovalRequest, type ShellAnswer } from '../../src/tasks/shell.js';
 import { tempDir, writeTree } from '../helpers.js';
+import type { ReserveProvider } from '../../src/providers/config.js';
 
 const SESSION = '7a1b2c3d-0000-4a5b-9c8d-123456789abc';
 
@@ -74,9 +75,17 @@ beforeEach(async () => {
 
 afterEach(() => cleanup());
 
-function start(skills: string[] = [], unattended = false) {
+// The user's own credentials, as the server's environment may hold them (built at run time: nothing secret-looking in the repo).
+const USER_TOKEN = ['user', 'token', 'x'.repeat(20)].join('-');
+
+function start(skills: string[] = [], unattended = false, provider?: ReserveProvider) {
   const runner = new TaskSdkRunner({
-    pathEnv: { env: { PATH: 'x', ANTHROPIC_MODEL: 'opus', CLAUDE_CODE_ENTRYPOINT: 'cli', CLAUDE_CODE_SYNC_SKILLS: '1' }, homedir: dir, pathApi: path, caseInsensitive: process.platform !== 'linux' },
+    pathEnv: {
+      env: { PATH: 'x', ANTHROPIC_MODEL: 'opus', CLAUDE_CODE_ENTRYPOINT: 'cli', CLAUDE_CODE_SYNC_SKILLS: '1', ANTHROPIC_AUTH_TOKEN: USER_TOKEN, CLAUDE_CODE_OAUTH_TOKEN: USER_TOKEN, HTTPS_PROXY: 'http://proxy.invalid:3128' },
+      homedir: dir,
+      pathApi: path,
+      caseInsensitive: process.platform !== 'linux',
+    },
     query: (params) => {
       options = params.options;
       return fake as unknown as Query;
@@ -103,6 +112,7 @@ function start(skills: string[] = [], unattended = false) {
       return answers.shift() ?? 'deny';
     }),
     ...(unattended ? { unattended: true as const } : {}),
+    ...(provider === undefined ? {} : { provider }),
     io: {
       askQuestions: async (request): Promise<QuestionResult> => {
         questions.push(request);
@@ -161,6 +171,55 @@ describe('TaskSdkRunner: the session it starts', () => {
     expect(rules).toMatchObject({ v: 1, worktree, skills: ['deploy'], serverPid: process.pid, cancelled: false });
     fake.close();
     await handle.done;
+  });
+
+  // Phase 12, M4: a reserve provider's round.
+  it('on a reserve provider: its base URL, its key from its file and its models, no Anthropic credential, mode default, no effort', async () => {
+    const key = ['prov', 'key', 'k'.repeat(24)].join('-');
+    const keyFile = path.join(dir, 'provider.key');
+    await writeTree(dir, { 'provider.key': `${key}\n` });
+    const provider: ReserveProvider = { name: 'deepseek', baseUrl: 'https://api.deepseek.invalid/anthropic', model: 'big-model', smallModel: 'small-model', keyFile };
+    const { handle } = start([], true, provider);
+    await until(() => options !== undefined, 'query');
+    expect(options).toMatchObject({ permissionMode: 'default', model: 'big-model' });
+    expect(options?.effort).toBeUndefined();
+    expect(options?.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'https://api.deepseek.invalid/anthropic',
+      ANTHROPIC_AUTH_TOKEN: key,
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'big-model',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'big-model',
+      ANTHROPIC_DEFAULT_FABLE_MODEL: 'big-model',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'small-model',
+      CLAUDE_CODE_SUBAGENT_MODEL: 'small-model',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      HTTPS_PROXY: 'http://proxy.invalid:3128',
+      CLAUDE_CODE_DISABLE_CRON: '1',
+    });
+    expect(options?.env?.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
+    expect(JSON.stringify(options?.env)).not.toContain(USER_TOKEN);
+    // The key is in no event the round emitted.
+    expect(JSON.stringify(events)).not.toContain(key);
+    fake.close();
+    await handle.done;
+  });
+
+  it('on Claude: the user\'s own credentials pass as before, and no provider variable is set', async () => {
+    const { handle } = start([], true);
+    await until(() => options !== undefined, 'query');
+    expect(options).toMatchObject({ permissionMode: 'auto', model: 'sonnet', effort: 'low' });
+    expect(options?.env).toMatchObject({ ANTHROPIC_AUTH_TOKEN: USER_TOKEN, CLAUDE_CODE_OAUTH_TOKEN: USER_TOKEN });
+    expect(options?.env?.ANTHROPIC_BASE_URL).toBeUndefined();
+    expect(options?.env?.ANTHROPIC_DEFAULT_OPUS_MODEL).toBeUndefined();
+    fake.close();
+    await handle.done;
+  });
+
+  it('on a reserve provider whose key file is missing: the round fails before any session, naming the file', async () => {
+    const provider: ReserveProvider = { name: 'kimi', baseUrl: 'https://api.kimi.invalid/anthropic', model: 'm', keyFile: path.join(dir, 'none.key') };
+    const { handle } = start([], true, provider);
+    const outcome = await handle.done;
+    expect(outcome).toMatchObject({ kind: 'failed' });
+    expect(options).toBeUndefined();
   });
 
   it('offers no Skill tool to a project without skills', async () => {

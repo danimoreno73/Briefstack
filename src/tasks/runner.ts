@@ -5,6 +5,7 @@ import { CodexDelegate, type CodexSession } from '../codex/tool.js';
 import type { Effort } from '../models.js';
 import type { QuestionRequest, QuestionResult } from '../creation/types.js';
 import type { TaskApprovals } from './shell.js';
+import type { ReserveProvider } from '../providers/config.js';
 import { branchOf, type ClaudeUsage, type TaskCodexCall } from './types.js';
 
 /**
@@ -56,6 +57,12 @@ export interface TaskRunnerStartOptions {
    * explained with `UNATTENDED_DENIED` instead of "the user did not allow".
    */
   unattended?: true;
+  /**
+   * A build's round past the usage threshold runs on this reserve provider
+   * (phase 12): its environment, its model, permission mode `default`, no
+   * effort. Its key is read when the round starts, by the runner only.
+   */
+  provider?: ReserveProvider;
   io: TaskRunnerIO;
 }
 

@@ -90,6 +90,12 @@ const roundSchema = z.object({
   codex: z.array(codexCallSchema).optional(),
   /** Claude's tokens in the round (added in step 33 of phase 9: older rounds have none). */
   claude: claudeUsageSchema.optional(),
+  /**
+   * The reserve provider the round ran on (phase 12): a build's round past
+   * the usage threshold. Absent: Claude. `claude` then holds that
+   * provider's tokens, as the SDK counted them.
+   */
+  provider: z.string().optional(),
 });
 export type TaskRound = z.infer<typeof roundSchema>;
 
