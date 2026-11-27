@@ -10,6 +10,8 @@ export interface AppContext {
   lang: Lang;
   t: (typeof uiMessages)['en'];
   token: string;
+  /** briefstack runs in server mode (phase 12): the token is `''`, the session cookie stands for it. */
+  serverMode: boolean;
   setLang(lang: Lang): void;
 }
 

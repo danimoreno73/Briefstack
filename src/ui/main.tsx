@@ -2,7 +2,8 @@ import { render, type ComponentChildren, type FunctionComponent } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { isLang, langFromLocale, type Lang } from '../i18n/index.js';
 import { uiMessages } from '../i18n/ui.js';
-import { ApiError, CREATIONS_CHANGED_EVENT, TOKEN_REJECTED_EVENT, api, takeToken } from './api.js';
+import { ApiError, CREATIONS_CHANGED_EVENT, SESSION_REJECTED_EVENT, TOKEN_REJECTED_EVENT, api, enterServerMode, probeServer, takeToken } from './api.js';
+import { SignIn } from './signin.js';
 import { NewProjectPage } from './creation.js';
 import { CreationsPage } from './creations.js';
 import { ChatDrawer, ChatPage } from './chat.js';
@@ -37,7 +38,8 @@ import { ThemeSwitch } from './themeSwitch.js';
 import type { SettingsView } from './types.js';
 import { UsageView } from './usage.js';
 
-type Gate = 'connecting' | 'ready' | 'noToken' | 'rejected' | 'unreachable' | 'restarted';
+/** `probing`: no token in the address, asking whether the server is in server mode; `signIn`: it is, and this device is not signed in (phase 12). */
+type Gate = 'probing' | 'signIn' | 'connecting' | 'ready' | 'noToken' | 'rejected' | 'unreachable' | 'restarted';
 
 type NavLabel = 'navProjects' | 'navNew' | 'navCreations' | 'navChat' | 'navImprove' | 'navLibrary' | 'navSkills' | 'navUsage' | 'navSettings';
 
@@ -103,11 +105,32 @@ function Page({ route }: { route: Route }) {
   }
 }
 
-function App({ initialLang, token }: { initialLang: Lang; token: string | undefined }) {
+function App({ initialLang, token: initialToken }: { initialLang: Lang; token: string | undefined }) {
   const [lang, setLang] = useState<Lang>(initialLang);
-  const [gate, setGate] = useState<Gate>(token === undefined ? 'noToken' : 'connecting');
+  // In server mode the token is `''`: the session cookie stands for it (phase 12).
+  const [token, setToken] = useState<string | undefined>(initialToken);
+  const [serverMode, setServerMode] = useState(false);
+  const [gate, setGate] = useState<Gate>(initialToken === undefined ? 'probing' : 'connecting');
   const route = useRoute();
   const t = uiMessages[lang];
+
+  // No token in the address: local mode refuses the probe (the old "open the address from the terminal"); server mode
+  // says whether this device is signed in.
+  useEffect(() => {
+    if (gate !== 'probing') return;
+    void probeServer().then((answer) => {
+      if (answer === 'unreachable') return setGate('unreachable');
+      if (answer === undefined) return setGate('noToken');
+      enterServerMode();
+      setServerMode(true);
+      if (answer.signedIn) {
+        setToken('');
+        setGate('connecting');
+      } else {
+        setGate('signIn');
+      }
+    });
+  }, [gate]);
 
   useEffect(() => {
     if (token === undefined) return;
@@ -118,16 +141,31 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
         setLang(settings.lang);
         setGate('ready');
       },
-      (error: unknown) =>
-        setGate(error instanceof ApiError ? (error.code === 'web.rejected.token' ? 'restarted' : 'rejected') : 'unreachable'),
+      (error: unknown) => {
+        if (error instanceof ApiError && error.code === 'web.rejected.session') {
+          setToken(undefined);
+          setGate('signIn');
+          return;
+        }
+        setGate(error instanceof ApiError ? (error.code === 'web.rejected.token' ? 'restarted' : 'rejected') : 'unreachable');
+      },
     );
   }, [token]);
 
   // A tab left open across a restart has the old token: say so, instead of an error with a retry that cannot work.
+  // In server mode, a session signed out or revoked elsewhere asks for the access secret again.
   useEffect(() => {
     const restarted = () => setGate('restarted');
+    const signedOut = () => {
+      setToken(undefined);
+      setGate('signIn');
+    };
     window.addEventListener(TOKEN_REJECTED_EVENT, restarted);
-    return () => window.removeEventListener(TOKEN_REJECTED_EVENT, restarted);
+    window.addEventListener(SESSION_REJECTED_EVENT, signedOut);
+    return () => {
+      window.removeEventListener(TOKEN_REJECTED_EVENT, restarted);
+      window.removeEventListener(SESSION_REJECTED_EVENT, signedOut);
+    };
   }, []);
 
   useEffect(() => {
@@ -169,17 +207,29 @@ function App({ initialLang, token }: { initialLang: Lang; token: string | undefi
             lang,
             t,
             token,
+            serverMode,
             // Kept at once, not in an effect, so a reload right after saving already sees it.
             setLang: (next: Lang) => {
               storeLang(next);
               setLang(next);
             },
           },
-    [lang, t, token],
+    [lang, t, token, serverMode],
   );
 
+  if (gate === 'signIn') {
+    return (
+      <SignIn
+        t={t}
+        onSignedIn={() => {
+          setToken('');
+          setGate('connecting');
+        }}
+      />
+    );
+  }
   if (gate !== 'ready' || context === undefined) {
-    const shown = gate === 'ready' ? 'connecting' : gate;
+    const shown = gate === 'ready' || gate === 'probing' ? 'connecting' : gate;
     // Nothing to do here but read: a restarted tab has no button, the new token is only in the terminal.
     return (
       <main class="gate">

@@ -1,4 +1,5 @@
 import { test as base, expect, type Page } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -138,7 +139,15 @@ export interface AppOptions {
   buildPlan?: PlanOutput | Error;
   /** Plan readings before each build task, one per reading (phase 9); none (never a pause) by default. */
   buildUsage?: UsageReading[];
+  /**
+   * Server mode (phase 12) with this access secret: `url` is the loopback
+   * address with no token (the page asks for the secret). Local mode by default.
+   */
+  serverSecret?: string;
 }
+
+/** The allowed name of server mode in e2e; the browser itself uses the loopback address, which server mode also accepts. */
+export const E2E_SERVER_NAME = 'briefstack.e2e.invalid:8445';
 
 /** The fake planner's default queue (phase 9). */
 export const BUILD_PLAN: PlanOutput = {
@@ -325,10 +334,28 @@ export async function startApp(options: AppOptions = {}): Promise<{ app: App; st
     usage: options.buildUsage === undefined ? null : async () => buildReadings.shift() ?? { kind: 'unavailable' },
   });
   holderBuilds.value = builds;
-  const server = await startWebServer({ port: 0, pathEnv, repoDir, creations: manager, chat, improvements, skills, tasks, builds, codex, claudeStatus, ...(usageCheck === undefined ? {} : { usageCheck }) });
+  const serverMode =
+    options.serverSecret === undefined
+      ? undefined
+      : { listen: '127.0.0.1', names: [E2E_SERVER_NAME], secretDigest: createHash('sha256').update(options.serverSecret, 'utf8').digest(), secretFileOpen: false };
+  const server = await startWebServer({
+    port: 0,
+    pathEnv,
+    repoDir,
+    creations: manager,
+    chat,
+    improvements,
+    skills,
+    tasks,
+    builds,
+    codex,
+    claudeStatus,
+    ...(usageCheck === undefined ? {} : { usageCheck }),
+    ...(serverMode === undefined ? {} : { server: serverMode }),
+  });
 
   const app: App = {
-    url: server.url,
+    url: serverMode === undefined ? server.url : `http://127.0.0.1:${server.port}/`,
     server,
     manager,
     chat,

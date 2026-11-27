@@ -4,6 +4,7 @@ import { isLang } from '../i18n/index.js';
 import { api } from './api.js';
 import { ClaudeCard } from './claude.js';
 import { CodexCard } from './codex.js';
+import { DevicesCard } from './signin.js';
 import { PathText } from './common.js';
 import { useApp, useDocumentTitle, useLoad, useSend } from './hooks.js';
 import { ErrorNote, LoadState, Note } from './kit.js';
@@ -13,7 +14,7 @@ import type { PathsView, SettingsView } from './types.js';
 const QUICK_LIMITS = [1, 2, 3, 4, 5];
 
 export function SettingsPage() {
-  const { t, setLang, token } = useApp();
+  const { t, setLang, token, serverMode } = useApp();
   const loaded = useLoad<SettingsView>('/api/settings');
   const paths = useLoad<PathsView>('/api/paths');
   const send = useSend();
@@ -111,6 +112,7 @@ export function SettingsPage() {
         </div>
       </header>
       <div class="page">
+        {serverMode && <DevicesCard />}
         <ClaudeCard />
         <CodexCard />
         <LoadState loaded={loaded}>

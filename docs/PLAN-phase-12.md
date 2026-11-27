@@ -15,13 +15,13 @@ the user is in decisions.md, "Decisiones sin Dani (fase 12)".
 
 ## 0. Status
 
-Updated 2026-11-26.
+Updated 2026-11-27.
 
 | # | Milestone | State |
 |---|---|---|
 | H0 | Verify before designing (BRIEF §6) | done (`1a9a007`), decisions.md "Phase 12: H0"; the real container in "Phase 12: H0, the real container" |
-| M1 | Server mode: listening address, allowed names, warning, Codex off; local mode pinned by a regression test | to do |
-| M2 | Access secret and device sessions: sign-in, cookie, devices, sign-out, revoke-all, attempt limit; the page in server mode | to do |
+| M1 | Server mode: listening address, allowed names, warning, Codex off; local mode pinned by a regression test | done (`a549333..dd9bd98`; review: fit with reservations, fixes in `f0269cd`, `dd9bd98`) |
+| M2 | Access secret and device sessions: sign-in, cookie, devices, sign-out, revoke-all, attempt limit; the page in server mode | in progress |
 | M3 | The pages on a phone: the progress table, the sign-in and devices pages, e2e at phone width | to do |
 | M4 | Reserve providers: configuration, status check, a provider's session environment, the build's choice at the threshold, provider and tokens per card | to do |
 | M5 | Builds resume by themselves after a restart (setting), and the cap on slots (setting) | to do |

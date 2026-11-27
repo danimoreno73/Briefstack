@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { ChatMessage, ChatSource, ChatStreamEvent, ChatThreadInfo, ChatView, Confirmation } from '../chat/types.js';
-import { ApiError, TOKEN_HEADER } from './api.js';
+import { ApiError, TOKEN_HEADER, requestCredentials } from './api.js';
 import { applyChatEvent, sourceHref, type ChatPageState } from './chatData.js';
 import { Markdown, PathText } from './common.js';
 import { formatWhen } from './format.js';
@@ -29,7 +29,7 @@ function useChat() {
     void (async () => {
       let view: ChatPageState;
       try {
-        const res = await fetch('/api/chat', { headers: { [TOKEN_HEADER]: token }, credentials: 'omit', signal: abort.signal });
+        const res = await fetch('/api/chat', { headers: { [TOKEN_HEADER]: token }, credentials: requestCredentials(), signal: abort.signal });
         const body = (await res.json()) as ChatPageState & { code?: string; params?: Record<string, unknown> };
         if (!res.ok) throw new ApiError(res.status, body.code ?? 'web.unknown', body.params);
         view = body;
@@ -42,7 +42,7 @@ function useChat() {
       let last = view.seq;
       while (!abort.signal.aborted) {
         try {
-          const res = await fetch(`/api/chat/stream?from=${last}`, { headers: { [TOKEN_HEADER]: token }, credentials: 'omit', signal: abort.signal });
+          const res = await fetch(`/api/chat/stream?from=${last}`, { headers: { [TOKEN_HEADER]: token }, credentials: requestCredentials(), signal: abort.signal });
           if (!res.ok || res.body === null) throw new Error('stream');
           const reader = res.body.getReader();
           const decoder = new TextDecoder();

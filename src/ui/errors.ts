@@ -43,6 +43,14 @@ export function describeError(error: unknown, t: Messages): string {
   switch (error.code) {
     case 'web.rejected.token':
       return t.restarted;
+    case 'web.rejected.session':
+      return t.sessionEnded;
+    case 'server.signInFailed':
+      return t.signInFailed;
+    case 'server.signInLocked':
+      return t.signInLocked(Math.max(1, Math.ceil((typeof error.params.seconds === 'number' ? error.params.seconds : 60) / 60)));
+    case 'server.deviceNotFound':
+      return t.deviceGone;
     case 'library.secretContent': {
       const lines = numbers(error.params.lines);
       return lines.length === 0 ? t.errSecretNoLines : t.errSecret(lines);

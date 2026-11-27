@@ -1092,3 +1092,16 @@ dialog.dec-dialog {
   align-items: center;
   justify-content: space-between;
 }
+
+/* Phase 12: one signed-in device per row; on a phone the button goes under its label. */
+.device-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.device-row p {
+  overflow-wrap: anywhere;
+}

@@ -2,7 +2,7 @@ import type { ComponentChildren } from 'preact';
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import { stepPosition } from '../panel/steps.js';
 import { CreationSuggestions } from './improve.js';
-import { ApiError, CREATIONS_CHANGED_EVENT, TOKEN_HEADER, noteRejection } from './api.js';
+import { ApiError, CREATIONS_CHANGED_EVENT, TOKEN_HEADER, noteRejection, requestCredentials } from './api.js';
 import { answersFor, defaultSelection, type Selection } from './answers.js';
 import { CopyButton, Markdown, PathText } from './common.js';
 import { takeIdeaDraft } from './ideaDraft.js';
@@ -151,7 +151,7 @@ function useCreation(id: string) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`/api/creations/${encodeURIComponent(id)}`, { headers: { [TOKEN_HEADER]: token }, credentials: 'omit' });
+      const res = await fetch(`/api/creations/${encodeURIComponent(id)}`, { headers: { [TOKEN_HEADER]: token }, credentials: requestCredentials() });
       const body = (await res.json()) as CreationState & { code?: string; params?: Record<string, unknown> };
       if (!res.ok) throw new ApiError(res.status, body.code ?? 'web.unknown', body.params);
       setState(body);
@@ -178,7 +178,7 @@ function useCreation(id: string) {
         try {
           const res = await fetch(`/api/creations/${encodeURIComponent(id)}/stream?from=${last}`, {
             headers: { [TOKEN_HEADER]: token },
-            credentials: 'omit',
+            credentials: requestCredentials(),
             signal: abort.signal,
           });
           if (res.status === 404) return;
