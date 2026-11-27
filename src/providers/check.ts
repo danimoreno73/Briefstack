@@ -14,7 +14,7 @@ export const PROVIDER_CHECK_TIMEOUT_MS = 10_000;
 
 export interface ProviderCheck {
   name: string;
-  keyFile: 'present' | 'missing' | 'empty';
+  keyFile: 'present' | 'missing' | 'empty' | 'tooLarge';
   /** Any HTTP answer counts as reachable; a network error or no answer in time as unreachable. */
   endpoint: 'reachable' | 'unreachable';
   /** The HTTP status of the answer, when there was one. */

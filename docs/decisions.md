@@ -8760,7 +8760,24 @@ The brief's defaults 4 to 11 are kept, with these readings:
   round starts, at most 4 KiB, on one line. The Settings card shows only
   when a provider is configured. The status check's request carries no
   header of briefstack's and follows no redirect; tests and e2e give it a
-  fake `fetch`, so no test reaches the network.
+  fake `fetch`, so no test reaches the network. From the review of M4: the
+  key, set as `ANTHROPIC_AUTH_TOKEN` in the round's environment, would also
+  reach the commands, hooks and MCP servers Claude Code starts; a provider's
+  round now sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which, per
+  [env-vars](https://code.claude.com/docs/en/env-vars) (2026-11-27; its
+  row and its section "What the subprocess environment scrub removes" were
+  read through the fetch tool's summary, not verbatim), strips credentials
+  "by its variable name or its value" from Bash commands, hooks and stdio
+  MCP servers while Claude Code keeps them for its own requests. That
+  `ANTHROPIC_AUTH_TOKEN` is among them is not stated; the real check (b)
+  has a card run a command that says whether the variable is set (never its
+  value). The residual risk is the one decision 3 of the brief accepts: the
+  key file itself is readable by what the service user runs; the outbound
+  allowlist and the provider's spending cap are the protection. Also: the
+  user's client certificate variables are not passed to a provider's round;
+  a key file over 4 KiB or not one line counts as unusable at the
+  threshold (pause with `reserveMissing`), and the check shows `tooLarge`
+  over 4 KiB; the build page says what it does at the threshold.
 - **10. Codex:** off in server mode by the Codex service itself
   (`codex.serverMode`), whatever `config.json` says.
 - **The probe of H0, 4** (`tests/screenshots/narrow.shots.ts`) stays in

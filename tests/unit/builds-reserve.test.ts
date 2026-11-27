@@ -26,10 +26,12 @@ let keyFile: string;
 // Built at run time: no file in the repo holds a secret-looking value.
 const KEY = ['reserve', 'key', 'q'.repeat(24)].join('-');
 
-/** Each card writes the file its instruction names. */
+/** Each card writes the file its instruction names (`WRITE <file> [text]`), after `WAIT <ms>` when it says so. */
 const script: TaskFakeScript = (_round, prompt) => {
-  const file = /^WRITE (\S+)$/m.exec(prompt)?.[1] ?? 'OUT.md';
-  return { steps: [{ kind: 'write', file, content: `${file}\n` }, { kind: 'end', summary: 'Done.' }] };
+  const write = /^WRITE (\S+)(?: (.+))?$/m.exec(prompt);
+  const file = write?.[1] ?? 'OUT.md';
+  const wait = Number(/^WAIT (\d+)$/m.exec(prompt)?.[1] ?? '0');
+  return { steps: [...(wait > 0 ? [{ kind: 'wait' as const, ms: wait }] : []), { kind: 'write', file, content: `${write?.[2] ?? file}\n` }, { kind: 'end', summary: 'Done.' }] };
 };
 const card = (title: string, file: string): QueueItem => ({ title, instruction: `WRITE ${file}`, doneWhen: 'Done.', dependsOn: [], area: [file] });
 const PLAN: PlanOutput = { tasks: [card('One', 'A.md'), card('Two', 'B.md'), card('Three', 'C.md')], commands: ['npm test'], checks: [] };
@@ -43,7 +45,7 @@ interface Setup {
   runner: TaskFakeRunner;
 }
 
-function setup(usage: UsageReading[], options: { providers?: ReserveProvider[]; checks?: TaskChecks } = {}): Setup {
+function setup(usage: UsageReading[], options: { providers?: ReserveProvider[] | (() => Promise<ReserveProvider[]>); checks?: TaskChecks } = {}): Setup {
   const holder: { builds?: BuildManager } = {};
   const runner = new TaskFakeRunner({ script });
   const tasks = new TaskManager({
@@ -73,7 +75,10 @@ function setup(usage: UsageReading[], options: { providers?: ReserveProvider[]; 
     usage: async () => readings.shift() ?? LOW,
     usageRetryMs: 60_000,
     slotRetryMs: 20,
-    providers: async () => options.providers ?? [{ name: 'deepseek', baseUrl: 'https://api.deepseek.invalid/anthropic', model: 'big-model', keyFile }],
+    providers:
+      typeof options.providers === 'function'
+        ? options.providers
+        : async () => (options.providers as ReserveProvider[] | undefined) ?? [{ name: 'deepseek', baseUrl: 'https://api.deepseek.invalid/anthropic', model: 'big-model', keyFile }],
   });
   holder.builds = builds;
   return { builds, tasks, runner };
@@ -172,6 +177,80 @@ describe('a build with a reserve provider', SLOW, () => {
       expect(paused.state).toBe('paused');
       expect(paused.pause).toMatchObject({ reason: 'usage', reserveMissing: 'deepseek' });
       expect(s.runner.started).toHaveLength(0);
+    } finally {
+      await close(s);
+    }
+  });
+
+  it('keeps the provider for a card\'s redo after a conflicted join (review of M4, I2)', async () => {
+    // Two cards of separate declared areas both write SAME.md, differently: the second joined conflicts and is redone.
+    const both = [
+      { title: 'One', instruction: 'WRITE SAME.md one', doneWhen: 'Done.', dependsOn: [], area: ['a/'] },
+      { title: 'Two', instruction: 'WRITE SAME.md two', doneWhen: 'Done.', dependsOn: [], area: ['b/'] },
+    ];
+    const s = setup([OVER]);
+    try {
+      const id = await startBuild(s, { tasks: both, limit: 2, slots: 2 });
+      await s.builds.idle(id);
+      const done = await s.builds.get(id);
+      const redone = done.tasks.filter((task) => task.redo?.reason === 'conflict');
+      expect(redone).toHaveLength(1);
+      expect(done.tasks.map((task) => task.provider)).toEqual(['deepseek', 'deepseek']);
+      expect(s.runner.started).toHaveLength(3);
+      expect(s.runner.started.map((round) => round.provider?.name)).toEqual(['deepseek', 'deepseek', 'deepseek']);
+    } finally {
+      await close(s);
+    }
+  });
+
+  it('a card at work on Claude goes on there when the threshold is crossed; the next one starts on the reserve (review of M4, I3)', async () => {
+    const three = [
+      { title: 'Long', instruction: 'WAIT 800\nWRITE A.md', doneWhen: 'Done.', dependsOn: [], area: ['A.md'] },
+      { title: 'Short', instruction: 'WRITE B.md', doneWhen: 'Done.', dependsOn: [], area: ['B.md'] },
+      { title: 'Next', instruction: 'WRITE C.md', doneWhen: 'Done.', dependsOn: [], area: ['C.md'] },
+    ];
+    const s = setup([LOW, OVER]);
+    try {
+      const id = await startBuild(s, { tasks: three, limit: 3, slots: 2 });
+      await s.builds.idle(id);
+      const done = await s.builds.get(id);
+      expect(done.tasks.map((task) => [task.title, task.state, task.provider ?? null])).toEqual([
+        ['Long', 'applied', null],
+        ['Short', 'applied', null],
+        ['Next', 'applied', 'deepseek'],
+      ]);
+    } finally {
+      await close(s);
+    }
+  });
+
+  it('pauses when the key file holds no key on one line, and the user\'s Resume goes on with Claude', async () => {
+    await writeFile(keyFile, `${KEY}\n${KEY}\n`, 'utf8');
+    const s = setup([OVER]);
+    try {
+      const id = await startBuild(s);
+      await s.builds.idle(id);
+      expect((await s.builds.get(id)).pause).toMatchObject({ reason: 'usage', reserveMissing: 'deepseek' });
+      await s.builds.resume(id);
+      await s.builds.idle(id);
+      const done = await s.builds.get(id);
+      expect(done.state).toBe('finished');
+      expect(done.tasks.every((task) => task.state === 'applied' && task.provider === undefined)).toBe(true);
+      expect(s.runner.started.map((round) => round.provider?.name ?? null)).toEqual([null, null, null]);
+    } finally {
+      await close(s);
+    }
+  });
+
+  it('pauses when the reserve is no longer in config.json', async () => {
+    // There at the start (the start's own check reads the list first), gone from config.json at the threshold.
+    let calls = 0;
+    const listed: ReserveProvider[] = [{ name: 'deepseek', baseUrl: 'https://api.deepseek.invalid/anthropic', model: 'big-model', keyFile }];
+    const s = setup([OVER], { providers: async () => (calls++ === 0 ? listed : []) });
+    try {
+      const id = await startBuild(s);
+      await s.builds.idle(id);
+      expect((await s.builds.get(id)).pause).toMatchObject({ reason: 'usage', reserveMissing: 'deepseek' });
     } finally {
       await close(s);
     }

@@ -15,7 +15,7 @@ import { createTaskToolsServer, type CodexDelegate } from '../codex/tool.js';
 import { TASK_TOOLS_SERVER_NAME } from '../codex/toolNames.js';
 import { claudeUsageOf, closeTaskSession, codexDelegateFor, openTaskSession, taskHookEvent, UNATTENDED_DENIED, UNATTENDED_QUESTION, workTarget, type TaskRunner, type TaskRunnerHandle, type TaskRunnerOutcome, type TaskRunnerStartOptions } from './runner.js';
 import { taskFlagSettings, taskTools, TASK_ENV } from './session.js';
-import { providerEnvironment, readProviderKey } from '../providers/env.js';
+import { isAnthropicCredential, providerEnvironment, readProviderKey } from '../providers/env.js';
 import { describeCommand, TaskApprovals, TASK_HOOK_TIMEOUT_S } from './shell.js';
 
 /**
@@ -193,10 +193,11 @@ class TaskSdkRun {
       const home = resolveHome(this.deps.pathEnv);
       const clean = cleanEnvironment(this.deps.pathEnv.env, home);
       Object.assign(clean.env, TASK_ENV);
-      const { removed } = clean;
-      // A reserve provider's round (phase 12): its key, read now, goes only into this round's environment.
+      // A reserve provider's round (phase 12): its key, read now, goes only into this round's environment, and the
+      // user's own Anthropic credentials are named among what is not passed (names only; review of M4, 8).
       const provider = this.options.provider;
       const env = provider === undefined ? clean.env : providerEnvironment(clean.env, provider, await readProviderKey(provider));
+      const removed = provider === undefined ? clean.removed : [...clean.removed, ...Object.keys(clean.env).filter((name) => isAnthropicCredential(name))];
       this.options.io.emit({ kind: 'status', status: 'starting', ...(removed.length > 0 ? { message: `Not passed to Claude Code: ${removed.join(', ')}` } : {}) });
 
       const hooks: NonNullable<Options['hooks']> = {

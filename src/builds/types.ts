@@ -296,7 +296,7 @@ export const buildRecordSchema = z.object({
       until: z.string().optional(),
       fiveHour: z.number().nullable().optional(),
       sevenDay: z.number().nullable().optional(),
-      /** The reserve chosen at the start could not take over: its key file was missing or empty then (phase 12). */
+      /** The reserve chosen at the start could not take over (phase 12): no longer in config.json, or its key file unusable then. */
       reserveMissing: z.string().optional(),
     })
     .optional(),

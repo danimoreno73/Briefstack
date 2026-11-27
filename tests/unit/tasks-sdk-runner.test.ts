@@ -192,13 +192,18 @@ describe('TaskSdkRunner: the session it starts', () => {
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'small-model',
       CLAUDE_CODE_SUBAGENT_MODEL: 'small-model',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1',
       HTTPS_PROXY: 'http://proxy.invalid:3128',
       CLAUDE_CODE_DISABLE_CRON: '1',
     });
     expect(options?.env?.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
     expect(JSON.stringify(options?.env)).not.toContain(USER_TOKEN);
-    // The key is in no event the round emitted.
+    // The key is in no event the round emitted; the user's credentials are named (never their values) as not passed.
     expect(JSON.stringify(events)).not.toContain(key);
+    expect(JSON.stringify(events)).not.toContain(USER_TOKEN);
+    const starting = events.find((event) => event.kind === 'status' && event.status === 'starting');
+    expect(starting).toMatchObject({ message: expect.stringContaining('ANTHROPIC_AUTH_TOKEN') });
+    expect(starting).toMatchObject({ message: expect.stringContaining('CLAUDE_CODE_OAUTH_TOKEN') });
     fake.close();
     await handle.done;
   });

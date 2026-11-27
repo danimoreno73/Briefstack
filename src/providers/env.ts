@@ -21,7 +21,8 @@ export const MAX_KEY_BYTES = 4096;
  * /env-vars). None of the user's own may reach a provider's round.
  */
 export function isAnthropicCredential(name: string): boolean {
-  return name.startsWith('ANTHROPIC_') || /^CLAUDE_CODE_(?:USE_|SKIP_[A-Z_]*AUTH$|OAUTH_)/.test(name);
+  // The user's client certificate for Anthropic is theirs too: it is not presented to a provider (review of M4, 4).
+  return name.startsWith('ANTHROPIC_') || /^CLAUDE_CODE_(?:USE_|SKIP_[A-Z_]*AUTH$|OAUTH_|CLIENT_(?:CERT|KEY|KEY_PASSPHRASE)$)/.test(name);
 }
 
 /** The round's environment on `provider`, from the clean environment every round gets. */
@@ -44,15 +45,25 @@ export function providerEnvironment(clean: Readonly<Record<string, string | unde
     CLAUDE_CODE_SUBAGENT_MODEL: small,
     // No telemetry, error reports or update checks towards Anthropic from a round that is not on Anthropic.
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    // Credentials out of the environment of the commands, hooks and MCP servers Claude Code starts; Claude Code keeps
+    // them for its own requests (code.claude.com/docs/en/env-vars; review of M4, I1). The key is still readable in its
+    // file by whatever the service user runs: the outbound allowlist and the provider's spending cap are the
+    // protection (BRIEF-phase-12 §2, 3).
+    CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1',
   };
 }
 
-/** Whether a provider's key file is there and not empty, by its size only: its content is not read. */
-export async function keyFileState(keyFile: string): Promise<'present' | 'missing' | 'empty'> {
+/**
+ * Whether a provider's key file is there and could hold a key, by its size
+ * only: its content is not read. Over `MAX_KEY_BYTES` it is not a key file
+ * (a round would refuse it; review of M4, 5).
+ */
+export async function keyFileState(keyFile: string): Promise<'present' | 'missing' | 'empty' | 'tooLarge'> {
   try {
     const info = await stat(keyFile);
     if (!info.isFile()) return 'missing';
-    return info.size === 0 ? 'empty' : 'present';
+    if (info.size === 0) return 'empty';
+    return info.size > MAX_KEY_BYTES ? 'tooLarge' : 'present';
   } catch {
     return 'missing';
   }

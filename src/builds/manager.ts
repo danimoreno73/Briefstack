@@ -42,7 +42,7 @@ import {
 } from './types.js';
 import { decideUsage, USAGE_RETRY_MS, type UsageReading } from './usage.js';
 import type { ReserveProvider } from '../providers/config.js';
-import { keyFileState } from '../providers/env.js';
+import { readProviderKey } from '../providers/env.js';
 
 /**
  * Builds (BRIEF-phase-9): planning a queue from a project's brief, starting
@@ -1129,7 +1129,9 @@ export class BuildManager {
     const reserveName = record.settings?.reserve;
     if (decision.reason === 'usage' && reserveName !== undefined) {
       const provider = ((await this.options.providers?.().catch(() => [])) ?? []).find((entry) => entry.name === reserveName);
-      if (provider !== undefined && (await keyFileState(provider.keyFile)) === 'present') return { reserve: provider };
+      // The same rule as the round's (review of M4, 5): a key file the round would refuse pauses the build here
+      // instead of failing its cards. The key read is dropped at once; the round reads it again when it starts.
+      if (provider !== undefined && (await readProviderKey(provider).then(() => true, () => false))) return { reserve: provider };
       reserveMissing = reserveName;
     }
     if (l.running.size > 0) return 'wait';

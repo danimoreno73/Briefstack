@@ -140,7 +140,8 @@ Each one is the conservative reading and is in decisions.md.
     (`usageUnread`) still pauses (unknown is not "over"). A reserve whose
     key file is missing at that moment pauses the build as today, with
     the reason in its detail. A card keeps the provider it started with
-    for its fix rounds; a redo starts on whatever the next pass chooses.
+    for its fix rounds and its redo (changed in M4: the redo happens inside
+    the card's own run, with no pass in between; decisions.md).
     The planner, creations and ordinary tasks never use a provider.
 12. **Provider and tokens per card.** Each round records the provider it
     ran on (absent: Claude); the build's card and progress row show it

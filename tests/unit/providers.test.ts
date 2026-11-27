@@ -66,6 +66,10 @@ describe('a provider round\'s environment', () => {
         CLAUDE_CODE_SKIP_BEDROCK_AUTH: '1',
         CLAUDE_CODE_OAUTH_TOKEN: 'c',
         CLAUDE_CODE_OAUTH_REFRESH_TOKEN: 'd',
+        CLAUDE_CODE_CLIENT_CERT: '/certs/me.pem',
+        CLAUDE_CODE_CLIENT_KEY: '/certs/me.key',
+        CLAUDE_CODE_CLIENT_KEY_PASSPHRASE: 'p',
+        CLAUDE_CODE_CERT_STORE: 'system',
         CLAUDE_CODE_DISABLE_CRON: '1',
       },
       provider,
@@ -74,6 +78,8 @@ describe('a provider round\'s environment', () => {
     expect(env).toEqual({
       PATH: 'p',
       HTTPS_PROXY: 'http://proxy:3128',
+      // The trust store is not a credential: a proxy's own authority may be in it.
+      CLAUDE_CODE_CERT_STORE: 'system',
       CLAUDE_CODE_DISABLE_CRON: '1',
       ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
       ANTHROPIC_AUTH_TOKEN: KEY,
@@ -83,6 +89,8 @@ describe('a provider round\'s environment', () => {
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'big',
       CLAUDE_CODE_SUBAGENT_MODEL: 'big',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      // Credentials out of the commands', hooks' and MCP servers' environment (review of M4, I1).
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1',
     });
     expect(isAnthropicCredential('CLAUDE_CODE_DISABLE_CRON')).toBe(false);
   });
@@ -109,8 +117,9 @@ describe('a provider\'s key and its status check', () => {
   });
 
   it('tells a present, empty or missing key file apart by its size only', async () => {
-    await writeTree(dir, { full: KEY, empty: '' });
+    await writeTree(dir, { full: KEY, empty: '', large: 'x'.repeat(5000) });
     expect(await keyFileState(path.join(dir, 'full'))).toBe('present');
+    expect(await keyFileState(path.join(dir, 'large'))).toBe('tooLarge');
     expect(await keyFileState(path.join(dir, 'empty'))).toBe('empty');
     expect(await keyFileState(path.join(dir, 'none'))).toBe('missing');
     expect(await keyFileState(dir)).toBe('missing');
