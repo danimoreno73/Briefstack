@@ -219,6 +219,8 @@ const buildTaskSchema = z.object({
   deniedOmitted: z.int().min(0).optional(),
   /** Rounds the build ran for it (the first and fix rounds). */
   rounds: z.int().min(0),
+  /** The reserve provider its current attempt runs on, for all its rounds (phase 12); absent: Claude. */
+  provider: z.string().optional(),
   /** Its one redo (phase 11): why, and the task of the first attempt, discarded. */
   redo: z.object({ reason: z.enum(JOIN_FAILURES), previousTask: z.string().regex(TASK_ID_RE) }).optional(),
   /**
@@ -251,6 +253,12 @@ export const buildSettingsSchema = z.object({
   thresholds: z.object({ fiveHour: z.number().min(1).max(100), week: z.number().min(1).max(100) }),
   /** How many cards run at once (phase 11); absent in builds started before, and then one. */
   slots: z.int().min(1).max(MAX_SLOTS).optional(),
+  /**
+   * At the usage threshold (phase 12): absent, pause (as before); a
+   * reserve provider's name, go on with it while the plan is over its
+   * threshold.
+   */
+  reserve: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/).optional(),
 });
 export type BuildSettings = z.infer<typeof buildSettingsSchema>;
 
@@ -288,6 +296,8 @@ export const buildRecordSchema = z.object({
       until: z.string().optional(),
       fiveHour: z.number().nullable().optional(),
       sevenDay: z.number().nullable().optional(),
+      /** The reserve chosen at the start could not take over: its key file was missing or empty then (phase 12). */
+      reserveMissing: z.string().optional(),
     })
     .optional(),
   startedAt: z.string().optional(),

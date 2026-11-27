@@ -41,6 +41,8 @@ import {
   type WaitReason,
 } from './types.js';
 import { decideUsage, USAGE_RETRY_MS, type UsageReading } from './usage.js';
+import type { ReserveProvider } from '../providers/config.js';
+import { keyFileState } from '../providers/env.js';
 
 /**
  * Builds (BRIEF-phase-9): planning a queue from a project's brief, starting
@@ -63,6 +65,8 @@ export interface BuildStartInput {
   noChecks?: boolean;
   /** How many cards run at once (phase 11), 1 to `MAX_SLOTS`; one when absent, as in phase 9. */
   slots?: number;
+  /** At the usage threshold, go on with this reserve provider (phase 12); absent: pause, as before. */
+  reserve?: string;
 }
 
 export interface BuildManagerOptions {
@@ -91,6 +95,8 @@ export interface BuildManagerOptions {
   slotRetryMs?: number;
   /** The highest per-build cap on rounds. Default `MAX_ROUNDS_CAP`; tests lower it. */
   roundsCap?: number;
+  /** The reserve providers of `config.json` (phase 12), read when a build starts and at each threshold; none without it. */
+  providers?: () => Promise<readonly ReserveProvider[]>;
 }
 
 /** How long a build waits for a free place in the shared limit before it tries again. */
@@ -414,6 +420,10 @@ export class BuildManager {
     if (record.state !== 'planned') throw new BriefstackError('build.wrongState', { id, state: record.state });
     const items = this.startIssues(input);
     if (items.length > 0) throw new BriefstackError('build.invalidStart', { issues: items.map(startIssueText), items });
+    // A reserve must be one of config.json's providers now; it is looked up again by name at each threshold.
+    if (input.reserve !== undefined && !((await this.options.providers?.()) ?? []).some((provider) => provider.name === input.reserve)) {
+      throw new BriefstackError('build.reserveUnknown', { name: input.reserve });
+    }
     const start = await this.preconditions(record.project, id);
     await createIntegrationBranch(start.dir, record.branch, start.head);
     const fixRounds = input.fixRounds;
@@ -444,6 +454,7 @@ export class BuildManager {
         maxRounds: Math.min(this.options.roundsCap ?? MAX_ROUNDS_CAP, tasks.length * (1 + fixRounds) * (slots > 1 ? 2 : 1)),
         thresholds: { ...input.thresholds },
         ...(input.slots === undefined ? {} : { slots }),
+        ...(input.reserve === undefined ? {} : { reserve: input.reserve }),
       },
       startedAt: this.now().toISOString(),
       updatedAt: this.now().toISOString(),
@@ -998,6 +1009,7 @@ export class BuildManager {
       return 'again';
     }
     // The plan usage before the cards of this pass start, unless the user just resumed it (H0, 5).
+    let provider: ReserveProvider | undefined;
     if (l.skipUsage) l.skipUsage = false;
     else {
       const gate = await this.usageGate(l, record);
@@ -1007,10 +1019,12 @@ export class BuildManager {
         return 'again';
       }
       if (gate === 'woken') return 'again';
+      // Over the threshold with a reserve: this pass's cards start on it (phase 12).
+      if (typeof gate === 'object') provider = gate.reserve;
     }
     // A pause or a cancel asked during the reading is taken before a card starts (review of M4, B1).
     if (l.cancelling || l.pausing || this.stopping) return 'again';
-    for (const card of batch) this.launch(l, record, card);
+    for (const card of batch) this.launch(l, record, card, provider);
     return 'again';
   }
 
@@ -1035,10 +1049,10 @@ export class BuildManager {
   }
 
   /** Starts a card's work without waiting for it; it is in `running` before any await. */
-  private launch(l: Live, record: BuildRecord, task: BuildTask): void {
+  private launch(l: Live, record: BuildRecord, task: BuildTask, provider?: ReserveProvider): void {
     const card: RunningCard = { n: task.n, area: task.area, done: Promise.resolve() };
     l.running.set(task.n, card);
-    card.done = this.runCard(record, task.n, card)
+    card.done = this.runCard(record, task.n, card, provider)
       .catch((error: unknown) => {
         // A card that failed in a way the loop did not expect: nothing more starts, and the loop fails once no card is at work.
         l.failure ??= { error };
@@ -1100,7 +1114,7 @@ export class BuildManager {
    * ends and another could start), else `paused`: the build pauses and
    * resumes by itself at the time the reading gives (BRIEF-phase-11 §2, 6).
    */
-  private async usageGate(l: Live, record: BuildRecord): Promise<'go' | 'woken' | 'wait' | 'paused'> {
+  private async usageGate(l: Live, record: BuildRecord): Promise<'go' | 'woken' | 'wait' | 'paused' | { reserve: ReserveProvider }> {
     const read = this.options.usage;
     const thresholds = record.settings?.thresholds;
     if (read === undefined || thresholds === undefined) return 'go';
@@ -1109,6 +1123,15 @@ export class BuildManager {
     if (reading === undefined) return 'woken';
     const decision = decideUsage(reading, thresholds, this.now(), this.options.usageRetryMs ?? USAGE_RETRY_MS);
     if (decision.go) return 'go';
+    // Phase 12 (PLAN-phase-12 §1, 11): over a threshold, a build started with a reserve goes on with it, when its key
+    // file is there now. A failed reading still pauses: unknown is not "over".
+    let reserveMissing: string | undefined;
+    const reserveName = record.settings?.reserve;
+    if (decision.reason === 'usage' && reserveName !== undefined) {
+      const provider = ((await this.options.providers?.().catch(() => [])) ?? []).find((entry) => entry.name === reserveName);
+      if (provider !== undefined && (await keyFileState(provider.keyFile)) === 'present') return { reserve: provider };
+      reserveMissing = reserveName;
+    }
     if (l.running.size > 0) return 'wait';
     await this.serial(l, async () => {
       const fresh = await this.load(record.id);
@@ -1129,6 +1152,7 @@ export class BuildManager {
           until: decision.until.toISOString(),
           ...(decision.fiveHour === undefined ? {} : { fiveHour: decision.fiveHour }),
           ...(decision.sevenDay === undefined ? {} : { sevenDay: decision.sevenDay }),
+          ...(reserveMissing === undefined ? {} : { reserveMissing }),
         },
         updatedAt: this.now().toISOString(),
       });
@@ -1191,7 +1215,7 @@ export class BuildManager {
    * commit, redoes the card once at the integration head; a second time it
    * waits for the user (BRIEF-phase-11 §2, 4 and 9).
    */
-  private async runCard(record: BuildRecord, n: number, card: RunningCard): Promise<void> {
+  private async runCard(record: BuildRecord, n: number, card: RunningCard, provider?: ReserveProvider): Promise<void> {
     const l = this.liveOf(record.id);
     const settings = record.settings;
     const item = record.tasks[n - 1];
@@ -1215,9 +1239,11 @@ export class BuildManager {
         ...(redo === undefined ? {} : { redo }),
       }),
       onDenied: (entry: { tool: string; text: string }) => denied.push(entry),
+      // A card keeps the provider it started on for all its rounds, its fix rounds and its redo (phase 12).
+      ...(provider === undefined ? {} : { provider }),
     });
     for (;;) {
-      const outcome = await this.attempt(record, n, card, round, denied);
+      const outcome = await this.attempt(record, n, card, round, denied, provider?.name);
       if (outcome === 'done') return;
       // The join failed: the one redo, at the integration head, with a fresh task (the first one discarded).
       const previous = card.taskId as string;
@@ -1262,6 +1288,8 @@ export class BuildManager {
     card: RunningCard,
     round: (fix?: { round: number; failures: string }) => UnattendedRound,
     denied: { tool: string; text: string }[],
+    /** The reserve provider of this attempt (phase 12); absent: Claude. */
+    providerName?: string,
   ): Promise<'done' | JoinFailure> {
     const l = this.liveOf(record.id);
     const settings = record.settings as NonNullable<BuildRecord['settings']>;
@@ -1269,7 +1297,12 @@ export class BuildManager {
     let task: TaskView;
     try {
       const head = await this.integrationHeadOf(record);
-      await this.updateTask(record.id, n, { state: 'running' });
+      // The card shows the provider of its current attempt; one started again on Claude loses an earlier one.
+      await this.edit(l, record.id, (fresh) => {
+        const next = this.withTask(fresh, n, { state: 'running', ...(providerName === undefined ? {} : { provider: providerName }) });
+        if (providerName === undefined) delete next.tasks[n - 1]?.provider;
+        return next;
+      });
       // A cancel that came meanwhile starts no session (review of M4, B1).
       if (l.cancelling) {
         await this.updateTask(record.id, n, { state: 'cancelled' });

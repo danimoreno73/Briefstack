@@ -27,6 +27,8 @@ const startBody = z.strictObject({
   noChecks: z.literal(true).optional(),
   /** How many cards run at once (phase 11); one when absent. */
   slots: z.number().optional(),
+  /** At the usage threshold, a reserve provider's name (phase 12); absent: pause. */
+  reserve: z.string().max(40).optional(),
 });
 
 /** The page's confirmation of an action that stays (discard, cancel, revert). */
@@ -74,7 +76,7 @@ export function buildRoutes(manager: BuildManager | undefined, options: BuildRou
       'POST /api/builds/:id/start',
       async (req, res, params) => {
         const body = await readJsonBody(req, startBody);
-        sendJson(res, 200, await need().start(id(params), { tasks: body.tasks as never, limit: body.limit, commands: body.commands, checks: body.checks, fixRounds: body.fixRounds, thresholds: body.thresholds, ...(body.noChecks === true ? { noChecks: true } : {}), ...(body.slots === undefined ? {} : { slots: body.slots }) }));
+        sendJson(res, 200, await need().start(id(params), { tasks: body.tasks as never, limit: body.limit, commands: body.commands, checks: body.checks, fixRounds: body.fixRounds, thresholds: body.thresholds, ...(body.noChecks === true ? { noChecks: true } : {}), ...(body.slots === undefined ? {} : { slots: body.slots }), ...(body.reserve === undefined ? {} : { reserve: body.reserve }) }));
       },
     ],
     // Actions the page confirms first say so in the body; without it nothing changes, as for tasks (review of M5, I3).
