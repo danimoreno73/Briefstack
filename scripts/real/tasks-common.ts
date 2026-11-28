@@ -20,7 +20,7 @@ import { query as sdkQuery, type Options, type Query, type SDKMessage } from '@a
 import { execFile } from 'node:child_process';
 import { randomInt } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { request } from 'node:http';
+import { Agent, request } from 'node:http';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { main, type CliIO } from '../../src/cli.js';
@@ -318,8 +318,12 @@ export function processesVerdict(left: { pid: number; command: string }[] | unde
  * A temp library with the saver profile, then the real `briefstack web` in
  * this process on a free port, with the real task runner tapped. The
  * server, and any process left in the work folder, end with the check.
+ * `query`: the task runner's `query()`, when the check reads more than the
+ * tap does (phase 12); `tappedQuery(tap)` by default. Its calls to the
+ * server go straight to 127.0.0.1, never through HTTP(S)_PROXY (an agent of
+ * their own; phase 12, for a container whose way out is a proxy).
  */
-export async function startWeb(check: Check, box: Sandbox, tap: Tap, builds: Pick<CliIO, 'buildPlanner' | 'buildUsage'> = {}): Promise<Web> {
+export async function startWeb(check: Check, box: Sandbox, tap: Tap, builds: Pick<CliIO, 'buildPlanner' | 'buildUsage'> = {}, query?: QueryFn): Promise<Web> {
   await sandboxLibrary(box);
   // `sandbox()` set BRIEFSTACK_HOME in this process to the temp home: the server and the runner read it from here.
   const pathEnv = systemPathEnv();
@@ -341,7 +345,7 @@ export async function startWeb(check: Check, box: Sandbox, tap: Tap, builds: Pic
     cwd: PACKAGE_ROOT,
     pathEnv,
     untilStopped: () => stopped,
-    taskRunner: new TaskSdkRunner({ pathEnv, lang: 'en', query: tappedQuery(tap) }),
+    taskRunner: new TaskSdkRunner({ pathEnv, lang: 'en', query: query ?? tappedQuery(tap) }),
     // Builds (phase 9): with a task runner given, the server uses no real planner or plan reading unless these are passed.
     ...(builds.buildPlanner === undefined ? {} : { buildPlanner: builds.buildPlanner }),
     ...(builds.buildUsage === undefined ? {} : { buildUsage: builds.buildUsage }),
@@ -366,9 +370,11 @@ export async function startWeb(check: Check, box: Sandbox, tap: Tap, builds: Pic
   const url = new URL(address);
   const token = url.hash.replace('#token=', '');
   const headers = { host: url.host, [TOKEN_HEADER]: token, origin: url.origin, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json' };
+  // Not the global agent, which NODE_USE_ENV_PROXY points at the proxy: the server is on this machine.
+  const direct = new Agent();
   const call = (method: string, route: string, body?: unknown) =>
     new Promise<ApiAnswer>((resolve, reject) => {
-      const req = request({ host: '127.0.0.1', port: Number(url.port), path: route, method, headers }, (res) => {
+      const req = request({ host: '127.0.0.1', port: Number(url.port), path: route, method, headers, agent: direct }, (res) => {
         let text = '';
         res.setEncoding('utf8');
         res.on('data', (chunk: string) => (text += chunk));
@@ -383,7 +389,7 @@ export async function startWeb(check: Check, box: Sandbox, tap: Tap, builds: Pic
     new Promise<{ status: number; body: string }>((resolve, reject) => {
       let text = '';
       let status = 0;
-      const req = request({ host: '127.0.0.1', port: Number(url.port), path: route, method: 'GET', headers }, (res) => {
+      const req = request({ host: '127.0.0.1', port: Number(url.port), path: route, method: 'GET', headers, agent: direct }, (res) => {
         status = res.statusCode ?? 0;
         res.setEncoding('utf8');
         res.on('data', (chunk: string) => (text += chunk));

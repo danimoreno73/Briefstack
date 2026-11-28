@@ -1126,6 +1126,110 @@ describe('phase 11 real check (check-build-parallel): two cards at once, a deter
   });
 });
 
+describe('phase 12 real check (check-server-access): server mode over HTTP, no model, its own device signed out', { timeout: 60_000 }, () => {
+  const read = () => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-server-access.ts'), 'utf8');
+
+  it('asks for --yes, starts no session and no sandbox, and checks the brief\'s points', async () => {
+    const script = await read();
+    expect(script).toContain('requireConfirmation(');
+    for (const absent of ['query(', 'sandbox(', 'TaskSdkRunner', 'startWeb(', 'writeFile(']) expect(script, absent).not.toContain(absent);
+    // The cookie's flags, the refusals, the devices list, the sign-out of its own device only.
+    for (const text of ["flags.includes('httponly')", "flags.includes('secure')", "flags.includes('samesite=strict')", "flags.includes('path=/')", "startsWith('domain=')", "'web.rejected.session'", "'server.signInFailed'", "reason === 'serverMode'", '/api/server/sign-out']) {
+      expect(script, text).toContain(text);
+    }
+    expect(script).not.toContain('revoke-all');
+    // A stream ended by revoking its own device; every device it signed in signed out at the end (review of M6).
+    for (const text of ["'/api/chat/stream'", '/api/server/devices/${encodeURIComponent(mine.id)}/revoke', 'for (const token of issued)', "json(token).code === 'web.rejected.session'"]) expect(script, text).toContain(text);
+    // Straight to the server, never through the environment's proxy (review of M6, I1).
+    expect(script).toContain('const agent = viaHttps ? new HttpsAgent() : new HttpAgent();');
+    expect(script).toMatch(/path: route, method, headers: \{[^}]+\}, agent,/);
+    // The lockout only on request.
+    expect(script).toContain("if (process.argv.includes('--lockout'))");
+    // Neither the secret nor the token is printed.
+    expect(script).not.toMatch(/console\.log\([^)]*\b(secret|sessionToken)\b/);
+    expect(script).toContain('process.exit(check.exitCode(ok))');
+  });
+
+  it('without --yes it exits with 2 and starts nothing', async () => {
+    const child = spawn(process.execPath, ['--import', 'tsx', path.join('scripts', 'real', 'check-server-access.ts')], { cwd: PACKAGE_ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    let err = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => (err += chunk));
+    const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
+    expect(code).toBe(2);
+    expect(err).toContain('Run it again with --yes');
+    expect(err).toContain('No model');
+    expect(err).not.toContain('starts a real Claude Code session');
+  });
+});
+
+describe('phase 12 real check (check-build-reserve): a build that goes on with a reserve provider, no Claude session', { timeout: 60_000 }, () => {
+  const read = () => readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'check-build-reserve.ts'), 'utf8');
+
+  it('asks for --yes, works in a temp sandbox with a fixed board and a forced reading, and starts with the reserve', async () => {
+    const script = await read();
+    expect(script).toContain('requireConfirmation(');
+    expect(script).toMatch(/await sandbox\('build-reserve'\)/);
+    expect(script).toContain('check.add(() => box.cleanup())');
+    expect(script).not.toContain('bypassPermissions');
+    // No Claude session: a fixed planner and a forced usage reading, never the real ones.
+    expect(script).toContain('buildPlanner: new FakeBuildPlanner(');
+    expect(script).toContain('buildUsage: async () => forced()');
+    expect(script).not.toContain('SdkBuildPlanner');
+    expect(script).not.toContain('buildUsageReader');
+    expect(script).not.toContain('usageGate(');
+    // The provider comes from the user's config.json, read before the sandbox, and goes into the temp home's.
+    expect(script.indexOf('reserveProvidersOf(await readConfig(configFilePath(systemPathEnv())))')).toBeLessThan(script.indexOf("await sandbox('build-reserve')"));
+    expect(script).toContain("reserve: provider.name, confirm: true");
+    // Every wait has a deadline.
+    expect(script.match(/await waitBuild\(web, id, .+?, \d+ \* 60_000/g)?.length).toBe(2);
+    // The key is looked for, never printed.
+    expect(script).not.toMatch(/console\.log\([^)]*\bkey\b[^)]*\)/);
+    expect(script).toContain('5. the key is in no line the server printed');
+    // Its calls to the server, through startWeb, go straight to 127.0.0.1, never through the proxy (review of M6, I1).
+    const common = await readFile(path.join(PACKAGE_ROOT, 'scripts', 'real', 'tasks-common.ts'), 'utf8');
+    expect(common).toContain('const direct = new Agent();');
+    expect(common.match(/request\(\{ host: '127\.0\.0\.1', [^}]*agent: direct \}/g)?.length).toBe(2);
+    expect(script).toContain('process.exit(check.exitCode(ok))');
+  });
+
+  it('its command is a valid item of a build\'s list, and its script writes yes or no, never the value', async () => {
+    const script = await read();
+    const { approvedListProblems } = await import('../../src/builds/commands.js');
+    expect(approvedListProblems(['node scripts/env-check.js'], 'commands')).toEqual([]);
+    const start = script.indexOf('const ENV_CHECK = [');
+    const body = script.slice(start, script.indexOf("].join('\\n');", start));
+    const lines = [...body.matchAll(/^\s+("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'),$/gm)].map((match) => (match[1]?.startsWith('"') ? (JSON.parse(match[1]) as string) : (match[1] ?? '').slice(1, -1).replace(/\\'/g, "'").replace(/\\\\n/g, '\\n')));
+    const { dir, cleanup } = await tempDir('build-reserve-env');
+    try {
+      await mkdir(path.join(dir, 'notes'));
+      await writeFile(path.join(dir, 'env-check.js'), `${lines.join('\n')}\n`, 'utf8');
+      const value = ['secret', 'value', 'v'.repeat(12)].join('-');
+      const run = (env: Record<string, string>) => spawnSync(process.execPath, ['env-check.js'], { cwd: dir, encoding: 'utf8', env: { PATH: process.env.PATH ?? '', ...env } });
+      expect(run({ ANTHROPIC_AUTH_TOKEN: value }).status).toBe(0);
+      const written = await readFile(path.join(dir, 'notes', 'env.txt'), 'utf8');
+      expect(written).toBe('ANTHROPIC_AUTH_TOKEN set: yes\n');
+      expect(written).not.toContain(value);
+      expect(run({}).status).toBe(0);
+      expect(await readFile(path.join(dir, 'notes', 'env.txt'), 'utf8')).toBe('ANTHROPIC_AUTH_TOKEN set: no\n');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('without --yes it exits with 2 and starts nothing', async () => {
+    const child = spawn(process.execPath, ['--import', 'tsx', path.join('scripts', 'real', 'check-build-reserve.ts')], { cwd: PACKAGE_ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    let err = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => (err += chunk));
+    const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
+    expect(code).toBe(2);
+    expect(err).toContain('Run it again with --yes');
+    expect(err).toContain('no Claude session');
+    expect(err).not.toContain('starts a real Claude Code session');
+  });
+});
+
 describe('phase 9 second real check: the check\'s state survives a task\'s rounds and never reaches a commit', { timeout: 60_000 }, () => {
   it('commitRound leaves .check-state/ out of the commit, and restoreToHead keeps it', async () => {
     const { commitRound, restoreToHead } = await import('../../src/tasks/git.js');

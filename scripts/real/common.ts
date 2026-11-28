@@ -32,10 +32,14 @@ import { addNote, initLibrary } from '../../src/library/index.js';
 import { readPlanUsage as readPlanUsageIn, type PlanUsage } from '../../src/creation/planUsage.js';
 import { cleanEnvironment } from '../../src/creation/sdkRunner.js';
 
-/** The scripts do nothing without `--yes`, so a stray run spends no tokens. */
-export function requireConfirmation(description: string): void {
+/**
+ * The scripts do nothing without `--yes`, so a stray run spends no tokens.
+ * `spends`: what this script spends, when it is not a Claude session on the
+ * user's plan (phase 12: one uses no model, one a reserve provider).
+ */
+export function requireConfirmation(description: string, spends = 'This starts a real Claude Code session with your login and uses part of your plan.'): void {
   if (process.argv.includes('--yes')) return;
-  console.error(`${description}\n\nThis starts a real Claude Code session with your login and uses part of your plan.`);
+  console.error(`${description}\n\n${spends}`);
   console.error('Run it again with --yes to go ahead.');
   process.exit(2);
 }
