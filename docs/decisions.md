@@ -8526,7 +8526,9 @@ interactive browser login isn't available", set as
 a subscription. briefstack already passes `CLAUDE_CODE_OAUTH_TOKEN` to its
 sessions (`PASSED_CLAUDE_CODE_ENV`, `src/creation/sdkRunner.ts`). Whether
 the plan-usage reading works with that token is not documented: the real
-check (b) reads it. **Conclusion:** decisions 1 to 3 hold; the guide
+check (b) reads it (corrected in M6: check (b) forces the reading, so no
+real check reads it; the first real build shows it, and a `/login`
+sign-in avoids it). **Conclusion:** decisions 1 to 3 hold; the guide
 lists the table's hosts for briefstack's use, the providers' hosts, npm
 and GitHub.
 
@@ -8818,3 +8820,23 @@ The brief's defaults 4 to 11 are kept, with these readings:
 - **The probe of H0, 4** (`tests/screenshots/narrow.shots.ts`) stays in
   the repo next to the other screenshot specs: not part of the suite, run
   with `npm run screenshots -- narrow.shots.ts`.
+- **M6, the real checks** (prepared, not run). `check-server-access.ts`
+  uses no model; its documented run goes through the tailnet name
+  (`--url https://...`), so `tailscale serve` is on the path; without
+  `--url` it reaches the container's own `127.0.0.1:4870` with a configured
+  name as `Host`. It opens the chat's stream and ends it by revoking its own
+  device (H0, 1: whether serve buffers server-sent events), then signs in
+  again and signs out; every device it signed in is signed out at the end
+  whatever failed; the lockout runs only with `--lockout`.
+  `check-build-reserve.ts` reads the provider from the user's `config.json`
+  and works in a temp home with a fixed board and a forced usage reading:
+  two short sessions on the provider, none on Claude. From the review of M6
+  (fit with reservations): with `NODE_USE_ENV_PROXY=1` Node puts the proxy
+  on its global agents, and loopback is not left out unless `NO_PROXY`
+  lists it ([Node's http docs](https://nodejs.org/api/http.html), "Built-in
+  Proxy Support", 2026-11-28, read through the fetch tool's summary; that a
+  `new Agent()` without `proxyEnv` uses no proxy is implied by the page,
+  not stated); both scripts' calls to the server now use an agent of their
+  own, and server.md and its compose example set
+  `NO_PROXY=127.0.0.1,localhost`. `requireConfirmation` takes what the
+  script spends, so these two no longer say they start a Claude session.

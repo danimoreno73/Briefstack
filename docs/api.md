@@ -19,6 +19,58 @@ UI uses it; phase 4's global chat and phase 5 can call it too.
   extra fields (else 400 `web.invalidBody`).
 - Unknown route or method: 404 `web.notFound`.
 
+### Server mode (phase 12)
+
+`briefstack web --server` ([server.md](server.md)) changes only these rules:
+
+- It listens on `--listen` (an IP address; `127.0.0.1` by default). The
+  `Host` header may also be one of `--allowed-hosts` (`name:port`, exact),
+  whose `Origin` must be `https://<name:port>`; the loopback names keep
+  `http://`.
+- **No token**: it is never printed and never accepted. Every `/api` call
+  needs a device session, the cookie `__Host-briefstack-session`
+  (`HttpOnly; Secure; SameSite=Strict; Path=/`), else 401
+  `web.rejected.session`. Open without one: `GET /api/health`,
+  `GET /api/server/state` and `POST /api/server/sign-in` (which still needs
+  the `Origin` check).
+- Codex is off: `GET /api/codex` answers `reason: "serverMode"`,
+  `POST /api/codex/check` and `PUT /api/settings` with `codexEnabled: true`
+  answer 409 `codex.serverMode`.
+
+### `GET /api/server/state`
+
+`{ "mode": "local" }` in local mode (where it needs the token like any other
+route), or `{ "mode": "server", "signedIn": true | false }` in server mode,
+with no credential needed. Nothing else.
+
+### `POST /api/server/sign-in` (server mode)
+
+Body `{ "secret" }` (at most 4 KiB; a larger body is a 413). The right access
+secret answers `{ "ok": true, "device": { "id", "label" } }` with the session
+cookie in `Set-Cookie`; the token is never in the body. A wrong one is a 401
+`server.signInFailed`. After 5 failures within 15 minutes every sign-in is
+refused for 15 minutes, the right secret included: 429
+`server.signInLocked` with `params.seconds` left. A malformed body is a 400
+that never repeats what was sent.
+
+### `POST /api/server/sign-out` (server mode)
+
+Signs this device out: `{ "ok": true }` and a cleared cookie. Its open
+streams end.
+
+### `GET /api/server/devices` (server mode)
+
+`{ "devices": [{ "id", "label", "createdAt", "lastSeenAt", "current" }] }`:
+the signed-in devices (`label` from the browser's `User-Agent`, `""` when it
+sent none). Never a token or its digest. A device unused for 400 days is
+forgotten.
+
+### `POST /api/server/devices/:id/revoke` and `POST /api/server/devices/revoke-all` (server mode)
+
+Sign one device out (404 `server.deviceNotFound` when there is none with that
+id), or every device, this one included (the answer clears the cookie). Their
+open streams end at once.
+
 ## Errors
 
 Route errors come back as:
@@ -277,6 +329,14 @@ Body with at least one of:
   `implementMaxToolCalls`: from 20 to 1000 (default 150): the bounds of a
   creation's implement step (phase 10). Both views answer them as
   `implement: { maxMinutes, maxToolCalls }`.
+- `buildsAutoResume`: `true` or `false` (default `false`): builds a restart
+  interrupted resume by themselves at the next start (phase 12).
+- `buildSlotsCap`: a whole number from 1 to 4 (default 4): the most cards a
+  build runs at once on this machine (phase 12). Both views answer them as
+  `builds: { autoResume, slotsCap }`.
+
+Reserve providers are not settings of this route: they are written in
+`config.json` by hand (see "Reserve providers").
 
 Answers the same as `GET /api/settings`.
 
@@ -985,7 +1045,21 @@ discard, changes, checks, answer, reply, finish) answer
 `409 task.heldByBuild`; cancel does not. After a restart, a build left
 `running` or `paused` is `interrupted` (its running cards waiting,
 `interrupted`) and one left `planning` is `planFailed`; nothing resumes by
-itself. Resuming a build with more than one slot starts again, at the
+itself, unless `buildsAutoResume` is on (phase 12): the record then keeps
+what the restart interrupted (`restart: { from: "running" | "paused",
+pause? }`; another restart drops an older mark), and once the server
+listens a build that was running resumes (the usage read first; its
+interrupted cards started again at the integration head whatever its
+slots), one paused for usage is paused again with its timer (or resumes
+when its time passed), and one the user paused, or asked to pause while
+cards were at work, stays `interrupted`. A build that cannot resume stays
+`interrupted` with its `error`. `autoResumes` counts the restarts that cut
+work short in a row, reset when a card is applied or left waiting and by
+the user's resume; at 3 the build stays `interrupted` with
+`autoResumeStopped: true`. A round a server stop cut short is not counted
+in `roundsRun` (phase 12). Each pass also starts
+no more cards than `buildSlotsCap` (Settings), whatever the build's
+`slots`. Resuming a build with more than one slot starts again, at the
 integration head, the cards whose task the stop left interrupted (their
 tasks discarded); with one slot they wait for the user, as in phase 9.
 
@@ -1006,10 +1080,10 @@ running card's round or checks.
 
 ### `GET /api/projects/:slug/builds`
 
-`{ builds, plan, thresholds }`: the project's builds, whether one can be
+`{ builds, plan, thresholds, slotsCap }`: the project's builds, whether one can be
 planned now (`{ ok: true }` or `{ ok: false, code, params, message }`,
-for example `build.noBrief` or `build.projectBusy`), and the default usage
-thresholds from Settings.
+for example `build.noBrief` or `build.projectBusy`), the default usage
+thresholds from Settings, and the machine's cap on slots (phase 12, 1 to 4).
 
 ### `POST /api/projects/:slug/builds`
 
@@ -1029,7 +1103,9 @@ The build, as above (`404 build.notFound`).
 ### `POST /api/builds/:id/start`
 
 Body `{ tasks, limit, commands, checks, fixRounds, thresholds:
-{ fiveHour, week }, confirm: true, noChecks?, slots? }` (the page sends `confirm` after its
+{ fiveHour, week }, confirm: true, noChecks?, slots?, reserve? }` (`reserve`: a
+reserve provider's name, phase 12; it must be in `config.json`, else `400
+build.reserveUnknown`; absent, the build pauses at the threshold; the page sends `confirm` after its
 dialog, which names the commands; without it `400 web.invalidBody`). Only
 a `planned` build (`409 build.wrongState`). Every rule is checked and each
 problem named in `400 build.invalidStart { issues, items }`: 1 to 20 tasks, each
@@ -1123,6 +1199,33 @@ branch and its record stay, and it becomes `discarded`. The integration
 branch otherwise stays after an apply or a revert. Refused, with nothing
 discarded, (`409 build.branchCheckedOut`) when the project folder or
 another worktree has the integration branch checked out.
+
+## Reserve providers (phase 12)
+
+Configured in `config.json`, `reserveProviders` ([server.md](server.md), §7);
+these routes only read them. No answer ever holds a key: briefstack holds
+none, only the path of the file it reads when a round on that provider starts.
+
+At the usage threshold, a build started with `reserve` goes on with that
+provider while the plan is over a threshold (each card keeps the provider it
+started on for all its rounds); otherwise it pauses as before. A provider
+that is gone from `config.json`, or whose key file cannot be read as one
+line, pauses the build with `pause.reserveMissing`. Each card of a build
+carries `provider` (absent: Claude), and each round of its task `provider`;
+the round's `claude` tokens are then that provider's.
+
+### `GET /api/providers`
+
+`{ "providers": [{ "name", "baseUrl", "model", "smallModel"?, "keyFile", "note"?, "check"? }] }`
+(`check`: the last status check while this server runs).
+
+### `POST /api/providers/:name/check`
+
+The status check, which reads no key:
+`{ "name", "keyFile": "present" | "missing" | "empty" | "tooLarge", "endpoint": "reachable" | "unreachable", "status"?, "key": "notChecked", "checkedAt" }`.
+`keyFile` comes from the file's size; `endpoint` from a `GET` to `baseUrl`
+sent with no credential (any HTTP answer is `reachable`; `status` is its
+code). 404 `provider.notFound` for a name `config.json` does not have.
 
 ## CLI: `skills install`
 

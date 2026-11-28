@@ -15,7 +15,7 @@ the user is in decisions.md, "Decisiones sin Dani (fase 12)".
 
 ## 0. Status
 
-Updated 2026-11-27.
+Updated 2026-11-28.
 
 | # | Milestone | State |
 |---|---|---|
@@ -24,8 +24,8 @@ Updated 2026-11-27.
 | M2 | Access secret and device sessions: sign-in, cookie, devices, sign-out, revoke-all, attempt limit; the page in server mode | done (`d1ccb67..1c23060`; review: fit with reservations, fixes in `80b4b23`, `1c23060`) |
 | M3 | The pages on a phone: the progress table, the sign-in and devices pages, e2e at phone width | done (`4051328`, `887c228`; review: fit with reservations, fixes in `887c228`) |
 | M4 | Reserve providers: configuration, status check, a provider's session environment, the build's choice at the threshold, provider and tokens per card | done (`e571810..bfe8789`; review: fit with reservations, fixes in `44e6d13`, `bfe8789`) |
-| M5 | Builds resume by themselves after a restart (setting), and the cap on slots (setting) | in progress |
-| M6 | Docs (`docs/server.md`, README, `docs/api.md`, CHANGELOG) and two real checks prepared, not run | to do |
+| M5 | Builds resume by themselves after a restart (setting), and the cap on slots (setting) | done (`78e1d7c`, `f23a27d`; review: not fit, one blocking finding, fixes in `fc2c563`; a Linux-only intermittent of the scheduler test made to name each card's state in `4e1af0e`) |
+| M6 | Docs (`docs/server.md`, README, `docs/api.md`, CHANGELOG) and two real checks prepared, not run | done (review before the commit: fit with reservations, its fixes in the same commits) |
 | Real | The real checks, run by the user inside the container | to do |
 | Accepted | The user's acceptance | to do |
 

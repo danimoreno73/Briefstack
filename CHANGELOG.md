@@ -1,5 +1,57 @@
 # Changelog
 
+## Unreleased
+
+What phase 12 adds ([brief](docs/BRIEF-phase-12.md),
+[plan](docs/PLAN-phase-12.md); decisions in
+[`docs/decisions.md`](docs/decisions.md), "Phase 12" and "Decisiones sin
+Dani (fase 12)"). Not yet checked for real: the two real checks
+(`scripts/real/check-server-access.ts`, `scripts/real/check-build-reserve.ts`)
+are prepared, to be run by the user inside the container.
+
+- **Server mode.** `briefstack web --server --listen <address>
+  --allowed-hosts <name:port,...> --access-secret-file <path>` runs it on a
+  machine that stays on, inside a container, reached through Tailscale's
+  HTTPS. Local mode is unchanged without `--server` (its three options are
+  then a usage error). Server mode prints no token and no secret, accepts
+  only the loopback names and the configured ones (with an `https://`
+  origin), and turns Codex off. Guide, compose example and outbound hosts:
+  [docs/server.md](docs/server.md).
+- **Device sessions.** Each device signs in once with the access secret (at
+  least 32 characters, read from a file at start, kept as a digest, never
+  logged) and gets the cookie `__Host-briefstack-session` (`HttpOnly`,
+  `Secure`, `SameSite=Strict`, 400 days). Five wrong secrets in 15 minutes
+  lock sign-in for 15 minutes. Settings lists the signed-in devices; signing
+  one out, or all, ends their open pages at once. Sessions survive a
+  restart (digests only, in `<home>/server/sessions.json`, owner-only).
+- **The pages on a phone.** The build's progress table becomes one card per
+  task under 720 px; e2e at 390×844 for the board, the build page, the
+  sign-in and the devices.
+- **Reserve providers.** `reserveProviders` in `config.json` (written by
+  hand: name, `https://` base URL, models, an absolute key file path; never
+  a key). Settings shows them with a status check that sends no key. A
+  build's start page chooses, at the usage threshold, to pause (as before)
+  or go on with a provider: the cards that start while the plan is over the
+  threshold run on it, each keeping its provider for all its rounds, its
+  redo included; a missing key file pauses with `pause.reserveMissing`. A
+  provider's round gets the key only in its own environment, with Anthropic
+  credentials taken out and `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, runs in
+  permission mode `default` under the same guard and list of commands, and
+  each card shows its provider next to its tokens.
+- **Builds on a machine that stays on.** `buildsAutoResume` (Settings, off
+  by default): a build a restart interrupted resumes by itself at the next
+  start once the server listens (a pause for usage keeps its timer; a pause
+  you asked, even while cards were still at work, stays; three restarts in
+  a row that cut its cards short, without a card ending, leave it
+  interrupted, saying so). A round a server stop cut short no longer counts
+  against the build's cap of rounds. `buildSlotsCap` (1 to 4,
+  default 4): the most cards a build runs at once on this machine, read at
+  each pass; the start page offers no more.
+- `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` now reaches briefstack's
+  sessions when set. With the app folder read-only, `usage set` and
+  improvements fail with a clear error (`usage.repoReadOnly`,
+  `improve.repoReadOnly`).
+
 ## 1.3.0 — 2026-11-26
 
 What phase 11 adds ([brief](docs/history/BRIEF-phase-11.md),

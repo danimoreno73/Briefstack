@@ -103,6 +103,18 @@ the next interview asks less.
   shows the commits, the commands run and denied, each run of the checks,
   Codex's calls and tokens, and what is left. **This step runs code a
   session wrote before you read it**: see Security and Limitations.
+- **Server mode and reserve providers** (off by default): `briefstack web
+  --server` runs it on a machine of yours that stays on, inside a
+  container, reached from your computer and your phone through Tailscale.
+  It has no per-start token: each device signs in once with an access
+  secret kept in a file and gets a session cookie; Settings lists the
+  devices and signs them out. The pages work on a phone. Builds a restart
+  interrupted can resume by themselves (a setting), and a setting caps the
+  cards a build runs at once on that machine. A build can also go on with
+  an Anthropic-compatible **reserve provider** (DeepSeek, Kimi) when the
+  plan's usage passes its threshold, each card showing the provider it ran
+  on. **A provider is paid per use and sees the code of the cards it
+  runs.** See [docs/server.md](docs/server.md).
 
 ## Requirements
 
@@ -234,6 +246,21 @@ improvements before you move anything.
 - **Local only.** The web server listens on 127.0.0.1. Every API call
   needs the token from the address it printed, and checks the host and the
   origin. A restart issues a new token.
+- **Server mode signs devices in.** With `--server` it may listen on
+  another address, accepts only the names you list (over HTTPS), never
+  prints or accepts a token, and needs a device session (an `HttpOnly`,
+  `Secure`, `SameSite=Strict` cookie) on every API call. The access secret
+  is read from a file, never logged; five wrong secrets lock sign-in for
+  15 minutes. Codex is off. Keep the port off the Internet: publish it on
+  the host's 127.0.0.1 and reach it through your tailnet
+  ([docs/server.md](docs/server.md)).
+- **A reserve provider holds a key, not briefstack.** Its key stays in a
+  file named in `config.json`; briefstack reads it when a round on that
+  provider starts and puts it only in that round's environment, with your
+  Anthropic credentials taken out, and Claude Code told to keep it from
+  the commands it runs. The page and the API never show it. A provider's
+  rounds use the same guard and exact list of commands as any build
+  round.
 - **A guard on every session.** Agents may write only inside the projects
   folder, the creation's session folder and folders you grant for one
   creation. Unexpected requests are asked to you (or denied, in unattended
@@ -397,7 +424,20 @@ See [SECURITY.md](SECURITY.md) to report a vulnerability.
 - The skill review is heuristic: it can miss code that is split, built at
   run time or encoded. Read every script before approving a skill.
 - Public GitHub repositories only, for skills. No automatic updates.
-- The web app is for one person on one machine. The interface is in
+- **Server mode and reserve providers were built and tested over fake
+  runners only** before their real checks (`scripts/real/check-server-access.ts`
+  and `scripts/real/check-build-reserve.ts`, run by you inside the
+  container). A reserve provider's round runs in Claude Code's `default`
+  permission mode (auto mode needs a Claude model); whether a provider
+  handles every tool call of a round well is the provider's, and whether
+  Claude Code keeps the key from approved commands is what the real check
+  shows. The key file is readable by whatever the service user runs: the
+  outbound allowlist and the provider's spending cap are the protection.
+  Reading the plan's usage with a `claude setup-token` token is not
+  documented. With the app folder read-only, the usage profile and
+  improvements cannot change it ([docs/server.md](docs/server.md), §6).
+- The web app is for one person. In local mode it runs on one machine; in
+  server mode several of your devices may sign in. The interface is in
   English and Spanish.
 - `claude-app` projects need a few manual steps in the Claude app; the
   project's `NEXT_STEPS.md` lists them.
