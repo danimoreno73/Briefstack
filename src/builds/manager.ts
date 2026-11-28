@@ -682,6 +682,9 @@ export class BuildManager {
         return this.view(next);
       }
       if (record.state !== 'running' || l.cancelling) throw new BriefstackError('build.wrongState', { id, state: record.state });
+      // On disk at once, as the cancel: a restart before the cards drain leaves it paused by the user, never resumed
+      // by itself (review of M5, B1). Never through `build.json`, which the loop writes meanwhile.
+      if (!l.pausing) await this.options.store.markPause(id, this.now().toISOString()).catch(() => undefined);
       l.pausing = true;
       return this.view(record);
     });
@@ -709,16 +712,20 @@ export class BuildManager {
    * `auto`: the server resumes it by itself after a restart (phase 12):
    * nobody is there to take up a card the restart interrupted, so it starts
    * again at the integration head whatever the slots, and the plan usage is
-   * read before the next cards, as any pass does.
+   * read before the next cards, as any pass does. `'running'`: the restart
+   * cut work short, one more restart in a row; `'paused'`: a usage pause
+   * whose time passed meanwhile, no work cut, the count unchanged (review
+   * of M5, I5).
    */
-  private async resumeLocked(id: string, l: Live, auto = false): Promise<BuildView> {
+  private async resumeLocked(id: string, l: Live, autoFrom?: 'running' | 'paused'): Promise<BuildView> {
+    const auto = autoFrom !== undefined;
     this.refuseWhileStopping();
     const record = await this.load(id);
     if (!['paused', 'interrupted', 'finished'].includes(record.state) || l.loop !== undefined || l.cancelling) throw new BriefstackError('build.wrongState', { id, state: record.state });
-    // A cancel mark left by a failed save is stale once the user resumes (review of step 33, B, M1).
+    // A cancel mark left by a failed save is stale once the user resumes (review of step 33, B, M1); so is a pause mark.
     await this.options.store.clearCancel(id);
+    await this.options.store.clearPause(id);
     const tasks: BuildTask[] = [];
-    let givenBack = 0;
     for (const item of await this.takeInApproved(record.tasks)) {
       // A task that could not start, or met the cap of rounds, has no task of its own to handle: it is queued again
       // (the cap still holds; review of M4, I4).
@@ -750,23 +757,21 @@ export class BuildManager {
           delete queued.taskId;
           // Its last join belonged to the discarded attempt; a redo it already had still counts (review of M3, minor 8).
           delete queued.join;
-          // Resumed by itself (phase 12): the round the restart cut short does not count against the cap of rounds,
-          // or a restart would eat a card's round; restarts in a row are bounded by `MAX_AUTO_RESUMES` instead.
-          if (auto && item.taskId !== undefined) givenBack += 1;
           tasks.push(queued);
           continue;
         }
       }
       tasks.push(item);
     }
-    const next: BuildRecord = { ...record, tasks, state: 'running', roundsRun: Math.max(0, record.roundsRun - givenBack), updatedAt: this.now().toISOString() };
+    const next: BuildRecord = { ...record, tasks, state: 'running', updatedAt: this.now().toISOString() };
     delete next.pause;
     delete next.error;
     delete next.finishedAt;
     delete next.restart;
-    // Resumed by itself: one more in a row (reset when a card ends). Resumed by the user: the count starts again.
-    if (auto) next.autoResumes = (record.autoResumes ?? 0) + 1;
-    else {
+    // Resumed by itself after work was cut: one more in a row (reset when a card ends). Resumed by the user: the count
+    // starts again.
+    if (autoFrom === 'running') next.autoResumes = (record.autoResumes ?? 0) + 1;
+    else if (!auto) {
       delete next.autoResumes;
       delete next.autoResumeStopped;
     }
@@ -1361,10 +1366,14 @@ export class BuildManager {
     for (;;) {
       task = await this.options.tasks.roundSettled(task.id);
       const kept = [...denied];
+      // A round a server stop cut short is not counted against the cap of rounds: an abrupt stop never reaches this
+      // line, so a graceful one now leaves the count as the abrupt one does, and a resume gives nothing back (phase 12,
+      // review of M5, I3). Restarts in a row are bounded by `MAX_AUTO_RESUMES` and the user's clicks.
+      const cut = this.stopping && task.state === 'interrupted';
       await this.edit(l, record.id, (counted) => {
         const before = counted.tasks[n - 1];
         const capped = capDenied(before?.denied ?? [], before?.deniedOmitted ?? 0, kept);
-        return { ...this.withTask(counted, n, { rounds: (before?.rounds ?? 0) + 1, denied: capped.denied, ...(capped.deniedOmitted > 0 ? { deniedOmitted: capped.deniedOmitted } : {}) }), roundsRun: counted.roundsRun + 1 };
+        return { ...this.withTask(counted, n, { rounds: (before?.rounds ?? 0) + 1, denied: capped.denied, ...(capped.deniedOmitted > 0 ? { deniedOmitted: capped.deniedOmitted } : {}) }), roundsRun: counted.roundsRun + (cut ? 0 : 1) };
       });
       if (this.stopping) return 'done';
       if (l.cancelling) {
@@ -1504,12 +1513,20 @@ export class BuildManager {
         count += 1;
       } else if (record.state === 'running' || record.state === 'paused') {
         const tasks = record.tasks.map((task) => (task.state === 'running' ? { ...task, state: 'waiting' as const, reason: 'interrupted' as const } : task));
-        // What the restart interrupted is kept for `autoResume()` (phase 12): running, or paused and why.
-        const restart: NonNullable<BuildRecord['restart']> = record.state === 'running' ? { from: 'running' } : { from: 'paused', ...(record.pause === undefined ? {} : { pause: record.pause }) };
+        // What the restart interrupted is kept for `autoResume()` (phase 12): running, or paused and why. A pause the
+        // user asked while cards were at work counts as the user's pause (review of M5, B1).
+        const asked = record.state === 'running' ? await this.options.store.pauseMarked(record.id) : undefined;
+        const restart: NonNullable<BuildRecord['restart']> =
+          asked !== undefined ? { from: 'paused', pause: { reason: 'user', at: asked === '' ? this.now().toISOString() : asked } } : record.state === 'running' ? { from: 'running' } : { from: 'paused', ...(record.pause === undefined ? {} : { pause: record.pause }) };
         const next: BuildRecord = { ...record, tasks, state: 'interrupted', restart, updatedAt: this.now().toISOString() };
         delete next.pause;
         await this.save(next);
         count += 1;
+      } else if (record.restart !== undefined) {
+        // Only what this restart interrupted resumes by itself: an older restart's mark goes (review of M5, I2).
+        const next: BuildRecord = { ...record, updatedAt: this.now().toISOString() };
+        delete next.restart;
+        await this.save(next);
       }
     }
     return count;
@@ -1539,26 +1556,43 @@ export class BuildManager {
       const l = this.liveOf(listed.id);
       const acted = await this.serial(l, async () => {
         if (this.stopping) return false;
-        const record = await this.load(listed.id);
+        const record = await this.load(listed.id).catch(() => undefined);
+        if (record === undefined) return false;
         const restart = record.restart;
         if (record.state !== 'interrupted' || restart === undefined || l.loop !== undefined) return false;
         if (restart.from === 'paused' && (restart.pause === undefined || restart.pause.reason === 'user')) return false;
-        if ((record.autoResumes ?? 0) >= MAX_AUTO_RESUMES) {
-          if (record.autoResumeStopped !== true) await this.save({ ...record, autoResumeStopped: true, updatedAt: this.now().toISOString() });
-          return false;
-        }
         const until = restart.pause?.until === undefined ? undefined : new Date(restart.pause.until);
         if (restart.from === 'paused' && restart.pause !== undefined && until !== undefined && until.getTime() > this.now().getTime()) {
-          // Paused for usage: back to paused with its timer, as if the server had not stopped. Its cards were not at work.
-          const next: BuildRecord = { ...record, state: 'paused', pause: restart.pause, autoResumes: (record.autoResumes ?? 0) + 1, updatedAt: this.now().toISOString() };
+          // Paused for usage: back to paused with its timer, as if the server had not stopped. Its cards were not at work,
+          // so it is not a restart in a row: a machine restarted daily does not stop it waiting for its reset (review of
+          // M5, I5).
+          const next: BuildRecord = { ...record, state: 'paused', pause: restart.pause, updatedAt: this.now().toISOString() };
           delete next.restart;
           await this.save(next);
           this.wakeAt(record.id, until);
           return true;
         }
-        await this.resumeLocked(record.id, l, true);
-        return true;
-      });
+        // Only a restart that cut work short counts toward the cap; a usage pause whose time passed meanwhile does not.
+        if (restart.from === 'running' && (record.autoResumes ?? 0) >= MAX_AUTO_RESUMES) {
+          if (record.autoResumeStopped !== true) await this.save({ ...record, autoResumeStopped: true, updatedAt: this.now().toISOString() });
+          return false;
+        }
+        try {
+          await this.resumeLocked(record.id, l, restart.from);
+          return true;
+        } catch (error) {
+          // One build that cannot resume does not stop the server's start, nor the other builds (review of M5, I4): it
+          // stays interrupted with why (its page shows the error), its restart mark gone, so no later start tries again.
+          if (this.stopping) return false;
+          const fresh = await this.load(record.id).catch(() => undefined);
+          if (fresh?.state === 'interrupted') {
+            const next: BuildRecord = { ...fresh, error: await this.message(error), updatedAt: this.now().toISOString() };
+            delete next.restart;
+            await this.save(next).catch(() => undefined);
+          }
+          return false;
+        }
+      }).catch(() => false);
       if (acted) done.push(listed.id);
     }
     return done;

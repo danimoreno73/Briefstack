@@ -8786,14 +8786,33 @@ The brief's defaults 4 to 11 are kept, with these readings:
   unread usage) goes back to paused with its timer, or resumes when its
   time passed; a user's pause stays interrupted; a running build resumes
   with the usage read first and its interrupted cards started again at the
-  integration head whatever its slots, **the round the restart cut short
-  given back to the cap of rounds** (else a restart eats a card's round;
-  restarts in a row are bounded by the cap of 3). `autoResumes` counts
+  integration head whatever its slots. `autoResumes` counts
   restarts in a row, reset when a card is applied or left waiting, and by
   the user's Resume; at 3 the build stays interrupted with
   `autoResumeStopped` and a note on its page. The cap on slots is read at
   each pass (a change in Settings counts for builds already running); the
-  start page offers no more than the cap and says so.
+  start page offers no more than the cap and says so. From the review of
+  M5 (not fit: one blocking finding): **a pause the user asks while cards
+  are at work is kept on disk at once** (`pause-asked`, as the cancel's
+  `cancel-asked`), so a restart before the cards drain leaves the build
+  paused by the user and auto-resume leaves it alone; the mark goes with
+  the user's Resume. `recover()` drops an older restart's mark from a build
+  already interrupted (only what this restart interrupted resumes). **A
+  round a server stop cut short is not counted against the cap of rounds**,
+  for any resume: an abrupt stop never counted it, and the graceful stop
+  now leaves the count as the abrupt one does (M5 gave the round back
+  instead, which over-credited after an abrupt stop, when it had not been
+  counted). Putting a usage pause back, or resuming one whose time passed,
+  is not a restart in a row: only a restart that cut work short counts
+  toward the 3 (a machine restarted daily does not stop a build waiting for
+  its weekly reset). Auto-resume runs once the server listens (a port in
+  use stops the start before any round), and a build that cannot resume
+  stays interrupted with the error on its page and its restart mark gone,
+  without stopping the start; an unreadable config counts as the setting
+  off. Known and left as before: two `briefstack web` on the same home
+  recover each other's builds (phase 9's `recover()`); a card whose task an
+  interrupted resume already discarded is not queued again by a later
+  Resume.
 - **10. Codex:** off in server mode by the Codex service itself
   (`codex.serverMode`), whatever `config.json` says.
 - **The probe of H0, 4** (`tests/screenshots/narrow.shots.ts`) stays in

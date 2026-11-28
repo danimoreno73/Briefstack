@@ -32,6 +32,7 @@ const writing = new Map<string, Promise<void>>();
 export const buildsRoot = (home: string): string => path.join(home, 'builds');
 
 const CANCEL_FILE = 'cancel-asked';
+const PAUSE_FILE = 'pause-asked';
 
 export class BuildStore {
   constructor(readonly root: string) {}
@@ -106,6 +107,30 @@ export class BuildStore {
 
   async clearCancel(id: string): Promise<void> {
     await rm(path.join(this.buildDir(id), CANCEL_FILE), { force: true, maxRetries: 5, retryDelay: 50 });
+  }
+
+  /**
+   * The user's pause while cards are at work (phase 12, review of M5), kept
+   * in a file of its own (`pause-asked`) until the build is resumed, as the
+   * cancel is: a restart before the cards drain leaves the build paused by
+   * the user, so auto-resume does not resume it.
+   */
+  async markPause(id: string, at: string): Promise<void> {
+    await mkdir(this.buildDir(id), { recursive: true });
+    await writeFile(path.join(this.buildDir(id), PAUSE_FILE), `${at}\n`, 'utf8');
+  }
+
+  /** When the user asked the pause, or undefined when there is no mark. */
+  async pauseMarked(id: string): Promise<string | undefined> {
+    if (!BUILD_ID_RE.test(id)) return undefined;
+    return readFile(path.join(this.buildDir(id), PAUSE_FILE), 'utf8').then(
+      (text) => text.trim(),
+      () => undefined,
+    );
+  }
+
+  async clearPause(id: string): Promise<void> {
+    await rm(path.join(this.buildDir(id), PAUSE_FILE), { force: true, maxRetries: 5, retryDelay: 50 });
   }
 
   /** Removes the planner's working folder (it never holds anything the build needs). */

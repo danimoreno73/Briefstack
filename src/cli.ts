@@ -740,12 +740,8 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
       usage: io.buildUsage ?? (testRun ? null : undefined),
     });
     // A server that died with a build running left it interrupted. With the setting on (phase 12), what the restart
-    // interrupted resumes by itself, after both recoveries; otherwise nothing does.
+    // interrupted resumes by itself once the server listens (below); otherwise nothing does.
     await builds.recover();
-    if (buildsSettingsOf(await readConfig(configFilePath(io.pathEnv))).autoResume) {
-      const resumed = await builds.autoResume();
-      if (resumed.length > 0) io.err(messages.buildsResumed(resumed.length));
-    }
     chat = await createWebChat({ pathEnv: io.pathEnv, repoDir: io.repoDir, lang, creations, runner: io.chatRunner, improvements: () => improvements, skills, usageCheck, tasks: () => tasks });
     improvements = await createWebImprovements({
       pathEnv: io.pathEnv,
@@ -794,6 +790,12 @@ async function runWeb(args: readonly string[], io: CliIO, lang: Lang): Promise<n
   }
   // Alone on its own line, so it is easy to copy.
   io.out(server.url);
+  // Auto-resume (phase 12), after both recoveries and only once the server listens: a port in use stops the start
+  // before any round runs (review of M5, I4). A config that cannot be read counts as the setting off.
+  if (buildsSettingsOf(await readConfig(configFilePath(io.pathEnv)).catch(() => ({}))).autoResume) {
+    const resumed = await builds.autoResume().catch(() => []);
+    if (resumed.length > 0) io.err(messages.buildsResumed(resumed.length));
+  }
   const lines = claudeLines(await claudeStatus.get(), lang);
   for (const line of lines.info) io.out(line);
   for (const line of lines.warnings) io.err(line);

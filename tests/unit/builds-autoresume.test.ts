@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_BUILD_SLOTS, buildsSettingsOf, parseConfig } from '../../src/config/index.js';
 import { BuildManager, type BuildStartInput } from '../../src/builds/manager.js';
 import { FakeBuildPlanner } from '../../src/builds/planner.js';
@@ -257,6 +257,94 @@ describe('auto-resume after a restart', SLOW, () => {
       const after = await s.builds.get(id);
       expect(after.autoResumeStopped).toBeUndefined();
       expect(after.autoResumes).toBeUndefined();
+    } finally {
+      await s.close();
+    }
+  });
+
+  it('a pause asked while a card is at work, then a restart before the card ended: paused by the user, never resumed by itself (review of M5, B1)', async () => {
+    const s = setup();
+    const build = await s.builds.plan('garden');
+    await s.builds.idle(build.id);
+    await s.builds.start(build.id, startOf());
+    await until(async () => (await s.builds.get(build.id)).tasks[0]?.taskId !== undefined);
+    expect((await s.builds.pause(build.id)).pausing).toBe(true);
+    await s.close();
+    slow = false;
+    const r = await restart();
+    try {
+      expect(await r.builds.get(build.id)).toMatchObject({ state: 'interrupted', restart: { from: 'paused', pause: { reason: 'user' } } });
+      expect(await r.builds.autoResume()).toEqual([]);
+      expect((await r.builds.get(build.id)).state).toBe('interrupted');
+      expect(r.runner.started).toHaveLength(0);
+      // The user's Resume clears the mark.
+      await r.builds.resume(build.id);
+      await r.builds.idle(build.id);
+      expect(await store().pauseMarked(build.id)).toBeUndefined();
+    } finally {
+      await r.close();
+    }
+  });
+
+  it("an older restart's mark goes at the next restart: only what this restart interrupted resumes (review of M5, I2)", async () => {
+    const id = await startAndCrash();
+    // Restart A with the setting off: nobody calls auto-resume, the build stays interrupted.
+    const first = await restart();
+    await first.close();
+    const second = await restart();
+    try {
+      expect((await second.builds.get(id)).restart).toBeUndefined();
+      expect(await second.builds.autoResume()).toEqual([]);
+      expect(second.runner.started).toHaveLength(0);
+    } finally {
+      await second.close();
+    }
+  });
+
+  it('a round a restart cut short is not counted against the cap of rounds, so nothing is given back (review of M5, I3)', async () => {
+    const id = await startAndCrash();
+    expect((await store().load(id))?.roundsRun).toBe(0);
+    slow = false;
+    const s = await restart();
+    try {
+      await s.builds.autoResume();
+      await s.builds.idle(id);
+      const done = await store().load(id);
+      expect(done?.state).toBe('finished');
+      expect(done?.roundsRun).toBe(2);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it('a build that cannot resume stays interrupted with why, its restart mark gone, and the start goes on (review of M5, I4)', async () => {
+    const id = await startAndCrash();
+    slow = false;
+    const s = await restart();
+    const discard = vi.spyOn(s.tasks, 'discard').mockRejectedValue(new Error('The worktree is locked.'));
+    try {
+      expect(await s.builds.autoResume()).toEqual([]);
+      const after = await s.builds.get(id);
+      expect(after.state).toBe('interrupted');
+      expect(after.error).toContain('The worktree is locked.');
+      expect(after.restart).toBeUndefined();
+      expect(s.runner.started).toHaveLength(0);
+    } finally {
+      discard.mockRestore();
+      await s.close();
+    }
+  });
+
+  it(`putting a usage pause back is not a restart in a row, even at ${MAX_AUTO_RESUMES} (review of M5, I5)`, async () => {
+    const id = await startAndCrash();
+    await change(id, (record) => ({ ...record, state: 'paused', autoResumes: MAX_AUTO_RESUMES, tasks: record.tasks.map((task) => ({ ...task, state: 'queued' as const })), pause: { reason: 'usage', at: new Date().toISOString(), until: new Date(Date.now() + 60 * 60_000).toISOString() } }));
+    const s = await restart();
+    try {
+      expect(await s.builds.autoResume()).toEqual([id]);
+      const after = await s.builds.get(id);
+      expect(after.state).toBe('paused');
+      expect(after.autoResumes).toBe(MAX_AUTO_RESUMES);
+      expect(after.autoResumeStopped).toBeUndefined();
     } finally {
       await s.close();
     }

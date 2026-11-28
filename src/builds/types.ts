@@ -277,7 +277,7 @@ const pauseSchema = z.object({
 });
 
 /** A build resumes by itself after a restart at most this many times in a row without a card ending (phase 12). */
-export const MAX_AUTO_RESUMES = 3;
+export { MAX_AUTO_RESUMES } from '../config/limits.js';
 
 export const buildRecordSchema = z.object({
   v: z.literal(1),

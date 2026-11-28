@@ -8,7 +8,10 @@ export const webMessages = defineCatalogue({
     serverWarning: (listen: string, port: number, names: readonly string[]) =>
       `Warning: server mode. briefstack listens on ${listen}:${port} and accepts only these names besides 127.0.0.1 and localhost: ${names.join(', ')}. Publish its port on the host's 127.0.0.1 only and reach it through your own private network.`,
     serverSecretOpen: 'Warning: the access secret file can be read by other users of this system. Make it readable by its owner only (chmod 600).',
-    buildsResumed: (count: number) => (count === 1 ? 'One build the restart interrupted resumes by itself (Settings: builds resume after a restart).' : `${count} builds the restart interrupted resume by themselves (Settings: builds resume after a restart).`),
+    buildsResumed: (count: number) =>
+      count === 1
+        ? 'One build the restart interrupted goes on by itself, resumed or back in its usage pause (Settings: builds resume after a restart).'
+        : `${count} builds the restart interrupted go on by themselves, resumed or back in their usage pause (Settings: builds resume after a restart).`,
     stopped: 'briefstack web stopped.',
     sweptKilled: (pid: number) =>
       `A creation was still running from a briefstack web that did not stop cleanly: its Claude Code process (pid ${pid}) has been ended.`,
@@ -41,7 +44,10 @@ export const webMessages = defineCatalogue({
     serverWarning: (listen: string, port: number, names: readonly string[]) =>
       `Aviso: modo servidor. briefstack escucha en ${listen}:${port} y solo acepta estos nombres además de 127.0.0.1 y localhost: ${names.join(', ')}. Publica su puerto solo en el 127.0.0.1 del anfitrión y llega a él por tu propia red privada.`,
     serverSecretOpen: 'Aviso: otros usuarios de este sistema pueden leer el fichero del secreto de acceso. Haz que solo lo lea su dueño (chmod 600).',
-    buildsResumed: (count: number) => (count === 1 ? 'Un build que el reinicio interrumpió se reanuda solo (Ajustes: los builds se reanudan tras un reinicio).' : `${count} builds que el reinicio interrumpió se reanudan solos (Ajustes: los builds se reanudan tras un reinicio).`),
+    buildsResumed: (count: number) =>
+      count === 1
+        ? 'Un build que el reinicio interrumpió sigue solo, reanudado o de vuelta en su pausa por uso (Ajustes: los builds se reanudan tras un reinicio).'
+        : `${count} builds que el reinicio interrumpió siguen solos, reanudados o de vuelta en su pausa por uso (Ajustes: los builds se reanudan tras un reinicio).`,
     stopped: 'briefstack web se ha parado.',
     sweptKilled: (pid: number) =>
       `Una creación seguía en marcha de un briefstack web que no se paró bien: se ha terminado su proceso de Claude Code (pid ${pid}).`,

@@ -11,7 +11,10 @@ import {
   DEFAULT_USAGE_WARN_WEEK,
   isImplementMinutes,
   isImplementToolCalls,
+  MAX_BUILD_SLOTS,
 } from './limits.js';
+
+export { MAX_BUILD_SLOTS } from './limits.js';
 import { toAbsolute, type PathEnv } from './paths.js';
 import { parseReserveProviders, type ReserveProvider } from '../providers/config.js';
 
@@ -62,8 +65,6 @@ export interface BriefstackConfig {
   buildSlotsCap?: number;
 }
 
-/** The most slots a build may have: its own maximum (BRIEF-phase-11 §2, 5). Kept here so the config does not import builds. */
-export const MAX_BUILD_SLOTS = 4;
 
 export function isSlotsCap(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 && value <= MAX_BUILD_SLOTS;

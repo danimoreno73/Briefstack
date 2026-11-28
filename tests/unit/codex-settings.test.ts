@@ -127,6 +127,10 @@ describe('the service and its routes', { timeout: 60_000 }, () => {
     // Phase 10: the implement step's bounds, saved in range and refused out of it.
     for (const bad of [{ implementMaxMinutes: 4 }, { implementMaxMinutes: 121 }, { implementMaxToolCalls: 19 }, { implementMaxToolCalls: 1001 }]) expect((await send('PUT', '/api/settings', bad)).status, JSON.stringify(bad)).toBe(400);
     expect(((await send('PUT', '/api/settings', { implementMaxMinutes: 60, implementMaxToolCalls: 300 })).json as { implement: unknown }).implement).toEqual({ maxMinutes: 60, maxToolCalls: 300 });
+    // Phase 12: auto-resume and the cap on slots, saved in range and refused out of it (review of M5, minor 6).
+    for (const bad of [{ buildSlotsCap: 0 }, { buildSlotsCap: 5 }, { buildSlotsCap: 1.5 }, { buildsAutoResume: 'yes' }]) expect((await send('PUT', '/api/settings', bad)).status, JSON.stringify(bad)).toBe(400);
+    expect(((await send('PUT', '/api/settings', { buildsAutoResume: true, buildSlotsCap: 2 })).json as { builds: unknown }).builds).toEqual({ autoResume: true, slotsCap: 2 });
+    expect(((await send('GET', '/api/settings')).json as { builds: unknown }).builds).toEqual({ autoResume: true, slotsCap: 2 });
     expect((await send('GET', '/api/codex')).json).toMatchObject({ enabled: true, mode: 'elevated', maxCalls: 3, reason: 'notChecked' });
   });
 

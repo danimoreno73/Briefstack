@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { MANY_CREATIONS_NOTE_ABOVE } from '../config/limits.js';
+import { MANY_CREATIONS_NOTE_ABOVE, MAX_AUTO_RESUMES, MAX_BUILD_SLOTS } from '../config/limits.js';
 import { isLang } from '../i18n/index.js';
 import { api } from './api.js';
 import { ClaudeCard } from './claude.js';
@@ -334,7 +334,7 @@ export function SettingsPage() {
                     {t.settingsBuildsResume}
                   </label>
                   <p class="help" id="builds-resume-hint">
-                    {t.settingsBuildsResumeHelp}
+                    {t.settingsBuildsResumeHelp(MAX_AUTO_RESUMES)}
                   </p>
                   <div class="field">
                     <label class="label" for="builds-slots-cap">
@@ -345,7 +345,7 @@ export function SettingsPage() {
                       class="input input-mono limit-input"
                       type="number"
                       min={1}
-                      max={4}
+                      max={MAX_BUILD_SLOTS}
                       step={1}
                       inputMode="numeric"
                       value={slotsCap}
@@ -355,7 +355,7 @@ export function SettingsPage() {
                     />
                   </div>
                   <p class="help" id="builds-slots-hint">
-                    {t.settingsBuildsSlotsCapHelp}
+                    {t.settingsBuildsSlotsCapHelp(MAX_BUILD_SLOTS)}
                   </p>
                 </section>
               )}

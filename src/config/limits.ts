@@ -20,6 +20,11 @@ export const DEFAULT_IMPLEMENT_TOOL_CALLS = 150;
 export const MIN_IMPLEMENT_TOOL_CALLS = 20;
 export const MAX_IMPLEMENT_TOOL_CALLS = 1000;
 
-const wholeIn = (value: unknown, min: number, max: number): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
+/** The most slots a build may have: its own maximum (BRIEF-phase-11 §2, 5), and the top of the machine's cap (phase 12). */
+export const MAX_BUILD_SLOTS = 4;
+/** A build resumes by itself after a restart at most this many times in a row without a card ending (phase 12). */
+export const MAX_AUTO_RESUMES = 3;
+
+const wholeIn =(value: unknown, min: number, max: number): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
 export const isImplementMinutes = (value: unknown): value is number => wholeIn(value, MIN_IMPLEMENT_MINUTES, MAX_IMPLEMENT_MINUTES);
 export const isImplementToolCalls = (value: unknown): value is number => wholeIn(value, MIN_IMPLEMENT_TOOL_CALLS, MAX_IMPLEMENT_TOOL_CALLS);

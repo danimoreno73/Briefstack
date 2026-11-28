@@ -96,7 +96,8 @@ describe('build routes', () => {
 
   it('say whether a project can be planned, plan it, show it, and start it only with the confirmation and valid rules', async () => {
     await serve();
-    expect((await call('GET', '/api/projects/garden/builds')).json).toMatchObject({ builds: [], plan: { ok: true }, thresholds: { fiveHour: 80, week: 90 } });
+    // `slotsCap`: the machine's cap on slots (phase 12), the build's own maximum without one.
+    expect((await call('GET', '/api/projects/garden/builds')).json).toMatchObject({ builds: [], plan: { ok: true }, thresholds: { fiveHour: 80, week: 90 }, slotsCap: 4 });
     expect((await call('GET', '/api/projects/orchard/builds')).json).toMatchObject({ plan: { ok: false, code: 'build.noBrief' } });
     const planned = await call('POST', '/api/projects/garden/builds', {});
     expect(planned.status).toBe(201);

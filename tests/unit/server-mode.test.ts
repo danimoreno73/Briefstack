@@ -2,7 +2,8 @@ import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { request, type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import { Readable } from 'node:stream';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { BuildManager } from '../../src/builds/manager.js';
 import { main, type CliIO } from '../../src/cli.js';
 import { CodexService } from '../../src/codex/service.js';
 import type { ClaudeCheck } from '../../src/creation/claudeBinary.js';
@@ -244,6 +245,29 @@ describe('briefstack web --server', () => {
       const err: string[] = [];
       expect(await main(['web', '--port', '0', option, 'x'], io([], err))).toBe(1);
       expect(err.join('\n')).toContain(`${option} is a server mode option`);
+    }
+  });
+
+  // Review of M5, minor 6 and I4: local mode's regression guard. With the setting off `briefstack web` never calls
+  // auto-resume; with it on, it calls it once, after the server listens and printed its address.
+  it('calls auto-resume only with the setting on, and only once the address is printed', async () => {
+    const spy = vi.spyOn(BuildManager.prototype, 'autoResume');
+    try {
+      const out: string[] = [];
+      expect(await main(['web', '--port', '0'], io(out, []))).toBe(0);
+      expect(spy).not.toHaveBeenCalled();
+      await writeTree(path.join(dir, 'home'), { 'config.json': JSON.stringify({ buildsAutoResume: true }) });
+      const printed: number[] = [];
+      spy.mockImplementation(async () => {
+        printed.push(out.filter((line) => line.startsWith('http://127.0.0.1:')).length);
+        return [];
+      });
+      out.length = 0;
+      expect(await main(['web', '--port', '0'], io(out, []))).toBe(0);
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(printed).toEqual([1]);
+    } finally {
+      spy.mockRestore();
     }
   });
 

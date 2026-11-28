@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { MAX_AUTO_RESUMES } from '../config/limits.js';
 import { ApiError } from './apiError.js';
 import { areaPaths, canSwap, columnOf, COLUMNS, looksCommaSeparated, type Column } from './board.js';
 import { formatCount } from './codexData.js';
@@ -647,7 +648,7 @@ function StatusNotes({ build }: { build: BuildViewUi }) {
       {build.pausing === true && <Note tone="plain" testId="build-pausing">{t.buildPausing}</Note>}
       {build.state === 'interrupted' && build.autoResumeStopped === true && (
         <Note tone="danger" testId="build-auto-resume-stopped">
-          {t.buildAutoResumeStopped}
+          {t.buildAutoResumeStopped(MAX_AUTO_RESUMES)}
         </Note>
       )}
       {build.cancelling === true && <Note tone="plain" testId="build-cancelling">{t.buildCancelling}</Note>}
