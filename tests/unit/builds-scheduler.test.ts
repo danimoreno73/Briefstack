@@ -265,7 +265,10 @@ describe('cards at once', SLOW, () => {
       await until(async () => (await t.builds.get(id)).waitingSlot === true);
       await t.builds.idle(id);
       expect(t.peak()).toBe(1);
-      expect((await t.builds.get(id)).tasks.every((task) => task.state === 'applied')).toBe(true);
+      // Each card's state, reason and detail, so a failure says which card did not land and why (seen once on Linux CI,
+      // run 46158526397, as a bare false; 20/20 locally).
+      const done = await t.builds.get(id);
+      expect(done.tasks.map((task) => [task.state, task.reason ?? null, task.detail ?? null])).toEqual(done.tasks.map(() => ['applied', null, null]));
     } finally {
       await close(t);
     }
